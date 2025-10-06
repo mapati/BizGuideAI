@@ -8,11 +8,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ProgressBar } from "@/components/ProgressBar";
 import { ExampleCard } from "@/components/ExampleCard";
-import { ArrowRight, ArrowLeft } from "lucide-react";
+import { ArrowRight, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Empresa } from "@shared/schema";
+import { Badge } from "@/components/ui/badge";
 
 export default function Onboarding() {
   const [, setLocation] = useLocation();
@@ -116,13 +117,36 @@ export default function Onboarding() {
     <div className="max-w-3xl mx-auto">
       <PageHeader
         title={empresaExistente ? "Editar Perfil da Empresa" : "Perfil da Empresa"}
-        description="Conte-nos sobre seu negócio em linguagem simples. Não se preocupe com termos técnicos."
+        description={
+          empresaExistente
+            ? "Seu perfil já está completo. Você pode revisar e editar as informações abaixo."
+            : "Conte-nos sobre seu negócio em linguagem simples. Não se preocupe com termos técnicos."
+        }
         tooltip="Estas informações ajudarão a personalizar todas as análises e sugestões ao longo da jornada."
       />
 
-      <div className="mb-8">
-        <ProgressBar current={step} total={totalSteps} label="Etapa do perfil" />
-      </div>
+      {empresaExistente ? (
+        <div className="mb-8">
+          <Card className="p-4 bg-primary/5 border-primary/20">
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="h-5 w-5 text-primary" />
+              <div className="flex-1">
+                <div className="font-semibold text-primary">Perfil Completo</div>
+                <div className="text-sm text-muted-foreground">
+                  Use as setas de navegação para revisar todas as informações
+                </div>
+              </div>
+              <Badge variant="default" className="bg-primary" data-testid="badge-perfil-completo">
+                100%
+              </Badge>
+            </div>
+          </Card>
+        </div>
+      ) : (
+        <div className="mb-8">
+          <ProgressBar current={step} total={totalSteps} label="Etapa do perfil" />
+        </div>
+      )}
 
       <Card className="p-8">
         {step === 1 && (

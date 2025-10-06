@@ -71,10 +71,8 @@ export default function Pestel() {
   const criarFatorMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       if (!empresa?.id) throw new Error("Empresa não encontrada");
-      return await apiRequest("/api/fatores-pestel", {
-        method: "POST",
-        body: JSON.stringify({ ...data, empresaId: empresa.id }),
-      });
+      const res = await apiRequest("POST", "/api/fatores-pestel", { ...data, empresaId: empresa.id });
+      return await res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/fatores-pestel/${empresa?.id}`] });
@@ -96,10 +94,8 @@ export default function Pestel() {
 
   const editarFatorMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<typeof formData> }) => {
-      return await apiRequest(`/api/fatores-pestel/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify(data),
-      });
+      const res = await apiRequest("PATCH", `/api/fatores-pestel/${id}`, data);
+      return await res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/fatores-pestel/${empresa?.id}`] });
@@ -122,9 +118,8 @@ export default function Pestel() {
 
   const deletarFatorMutation = useMutation({
     mutationFn: async (id: string) => {
-      return await apiRequest(`/api/fatores-pestel/${id}`, {
-        method: "DELETE",
-      });
+      const res = await apiRequest("DELETE", `/api/fatores-pestel/${id}`);
+      return await res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/fatores-pestel/${empresa?.id}`] });
@@ -181,24 +176,19 @@ export default function Pestel() {
 
     setIsSuggesting(true);
     try {
-      const response = await apiRequest("/api/ai/sugerir-pestel", {
-        method: "POST",
-        body: JSON.stringify({
-          nomeEmpresa: empresa.nome,
-          setor: empresa.setor,
-          descricao: empresa.descricao,
-        }),
+      const res = await apiRequest("POST", "/api/ai/sugerir-pestel", {
+        nomeEmpresa: empresa.nome,
+        setor: empresa.setor,
+        descricao: empresa.descricao,
       });
+      const response = await res.json();
 
       const sugestoes = response.fatores || [];
       
       for (const sugestao of sugestoes) {
-        await apiRequest("/api/fatores-pestel", {
-          method: "POST",
-          body: JSON.stringify({
-            ...sugestao,
-            empresaId: empresa.id,
-          }),
+        await apiRequest("POST", "/api/fatores-pestel", {
+          ...sugestao,
+          empresaId: empresa.id,
         });
       }
 

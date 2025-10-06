@@ -148,3 +148,71 @@ Currently not implemented - appears to be single-user application design. Future
 - Fixed `apiRequest` function to properly parse JSON responses (added `.json()` call)
 - Consistent with established UI/UX patterns across the application
 - Follows anti-duplication pattern established in Estrategias and Oportunidades features
+
+### OKRs (Objectives and Key Results) - AI-Powered Generation
+**Date:** October 6, 2025  
+**Feature:** Complete OKR management system connecting Apostas to Marcha (execution)
+
+**Implementation:**
+- Database tables: `objetivos` (titulo, descricao, prazo), `resultados_chave` (metrica, valorInicial, valorAlvo, valorAtual, owner, prazo)
+- Full CRUD API endpoints at `/api/objetivos/:empresaId` and `/api/resultados-chave/:objetivoId`
+- AI generation endpoint `/api/ai/gerar-objetivos` that generates 3 unique strategic objectives
+- Frontend page at `/okrs` with visual cards showing objectives
+- Anti-duplication system: AI prompt instructions + programmatic filtering (case-insensitive title comparison)
+- Context-aware generation based on estrategias, oportunidades_crescimento, and iniciativas
+
+**Key Features:**
+- AI generates 3 qualitative, aspirational objectives aligned with strategic bets
+- Manual objective creation with titulo, descricao (optional), and prazo
+- Text-based objectives (no numeric targets at objective level)
+- Integration with Apostas context for relevant strategic alignment
+- Delete functionality for objectives
+- Empty state with prominent AI generation CTA
+
+**AI Context:**
+- Empresa profile (nome, setor, descricao)
+- Estrategias (TOWS matrix strategies)
+- Oportunidades de Crescimento (Ansoff matrix opportunities)
+- Iniciativas Prioritárias (priority initiatives portfolio)
+- Existing objectives (for anti-duplication)
+
+### BSC (Balanced Scorecard) Indicators - AI-Powered Generation
+**Date:** October 6, 2025  
+**Feature:** Complete BSC indicator management across 4 perspectives
+
+**Implementation:**
+- Database table: `indicadores` (perspectiva, nome, meta, atual, status, owner)
+- Full CRUD API endpoints at `/api/indicadores/:empresaId`
+- AI generation endpoint `/api/ai/gerar-indicadores` that generates 8 unique indicators (2 per perspective)
+- Frontend page at `/bsc` with 4 perspective cards (Finanças, Clientes, Processos, Pessoas)
+- Anti-duplication system: AI prompt instructions + programmatic filtering (case-insensitive nome comparison)
+- Context-aware generation based on objetivos, estrategias, oportunidades, and iniciativas
+
+**Key Features:**
+- AI generates 8 indicators distributed across 4 BSC perspectives
+- Manual indicator creation with full form: perspectiva, nome, meta, atual, status, owner
+- Visual organization by perspective with distinct icons (DollarSign, Users, Zap, Target)
+- Status tracking with semaphore badges (verde, amarelo, vermelho)
+- Text-based meta/atual values (no strict numeric enforcement)
+- Delete functionality for indicators
+- Empty state per perspective when no indicators exist
+
+**BSC Perspectives:**
+1. **Finanças** - Financial metrics (e.g., Margem Bruta, Lucro Operacional)
+2. **Clientes** - Customer satisfaction metrics (e.g., Entregas no Prazo, Satisfação)
+3. **Processos** - Internal process efficiency (e.g., Eficiência dos Equipamentos, Perda de Material)
+4. **Pessoas** - Human capital development (e.g., Horas de Treinamento, Rotatividade)
+
+**AI Context:**
+- Empresa profile
+- Objetivos estratégicos (OKRs)
+- Estrategias (TOWS)
+- Oportunidades de Crescimento (Ansoff)
+- Iniciativas Prioritárias
+- Existing indicadores (for anti-duplication)
+
+**Technical Notes:**
+- All AI endpoints use temperature 0.8 for creative yet consistent outputs
+- Anti-duplication pattern: prompt-based warnings + programmatic Set-based filtering
+- Frontend auto-creates items after AI generation (loops through returned array)
+- Toast notifications for user feedback on generation success/failure

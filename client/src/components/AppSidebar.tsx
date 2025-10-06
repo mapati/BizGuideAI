@@ -1,0 +1,149 @@
+import { Home, Map, Target, TrendingUp, CheckCircle, FileText, Compass, Layers, Grid3x3, ListChecks } from "lucide-react";
+import { Link, useLocation } from "wouter";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarHeader,
+} from "@/components/ui/sidebar";
+
+const mapItems = [
+  { title: "PESTEL", url: "/pestel", icon: Compass },
+  { title: "5 Forças", url: "/cinco-forcas", icon: Layers },
+  { title: "BMC", url: "/bmc", icon: Grid3x3 },
+  { title: "SWOT", url: "/swot", icon: Target },
+];
+
+const apostasItems = [
+  { title: "TOWS", url: "/tows", icon: TrendingUp },
+  { title: "Ansoff", url: "/ansoff", icon: Map },
+  { title: "Portfólio", url: "/portfolio", icon: Layers },
+];
+
+const marchaItems = [
+  { title: "OKRs", url: "/okrs", icon: Target },
+  { title: "BSC", url: "/bsc", icon: ListChecks },
+  { title: "Ritos", url: "/ritos", icon: CheckCircle },
+];
+
+export function AppSidebar() {
+  const [location] = useLocation();
+
+  return (
+    <Sidebar>
+      <SidebarHeader className="border-b p-6">
+        <Link href="/" data-testid="link-home">
+          <div className="flex items-center gap-2 cursor-pointer">
+            <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center">
+              <Target className="h-5 w-5 text-primary-foreground" />
+            </div>
+            <span className="text-lg font-semibold">Estratégia Simples</span>
+          </div>
+        </Link>
+      </SidebarHeader>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={location === "/"}
+                  data-testid="link-home-sidebar"
+                >
+                  <Link href="/">
+                    <Home />
+                    <span>Início</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={location === "/onboarding"}
+                  data-testid="link-onboarding"
+                >
+                  <Link href="/onboarding">
+                    <FileText />
+                    <span>Perfil da Empresa</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Mapa</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {mapItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location === item.url}
+                    data-testid={`link-${item.url.slice(1)}`}
+                  >
+                    <Link href={item.url}>
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Apostas</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {apostasItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location === item.url}
+                    data-testid={`link-${item.url.slice(1)}`}
+                  >
+                    <Link href={item.url}>
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Marcha</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {marchaItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location === item.url}
+                    data-testid={`link-${item.url.slice(1)}`}
+                  >
+                    <Link href={item.url}>
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+      </SidebarContent>
+    </Sidebar>
+  );
+}

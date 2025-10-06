@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Sparkles, Save } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Sparkles, Save, Edit } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -84,8 +84,10 @@ const blocosPadrao = [
 export default function ModeloNegocio() {
   const { toast } = useToast();
   const [isSuggesting, setIsSuggesting] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [formValues, setFormValues] = useState<Record<string, string>>({});
+  const [editingBloco, setEditingBloco] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [isSavingBlock, setIsSavingBlock] = useState(false);
 
   const { data: empresa } = useQuery<Empresa>({
     queryKey: ["/api/empresa"],
@@ -134,9 +136,27 @@ export default function ModeloNegocio() {
 
       setFormValues(novosValores);
       
+      for (const sugestao of sugestoes) {
+        const blocoExistente = blocosData.find(b => b.bloco === sugestao.bloco);
+        
+        if (blocoExistente) {
+          await apiRequest("PATCH", `/api/modelo-negocio/${blocoExistente.id}`, {
+            descricao: sugestao.descricao,
+          });
+        } else {
+          await apiRequest("POST", "/api/modelo-negocio", {
+            empresaId: empresa.id,
+            bloco: sugestao.bloco,
+            descricao: sugestao.descricao,
+          });
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: [`/api/modelo-negocio/${empresa.id}`] });
+      
       toast({
         title: "Modelo gerado!",
-        description: "A IA preencheu os blocos. Revise e salve as alterações.",
+        description: "A IA preencheu os blocos com sucesso.",
       });
     } catch (error: any) {
       toast({
@@ -149,53 +169,48 @@ export default function ModeloNegocio() {
     }
   };
 
-  const handleSave = async () => {
-    if (!empresa?.id) {
-      toast({
-        title: "Erro",
-        description: "Empresa não encontrada.",
-        variant: "destructive",
-      });
-      return;
-    }
+  const handleOpenEdit = (blocoValue: string) => {
+    setEditingBloco(blocoValue);
+    setEditValue(formValues[blocoValue] || "");
+  };
 
-    const blocosVazios = blocosPadrao.filter(
-      bloco => !formValues[bloco.value] || formValues[bloco.value].trim() === ""
-    );
+  const handleCloseEdit = () => {
+    setEditingBloco(null);
+    setEditValue("");
+  };
 
-    if (blocosVazios.length > 0) {
-      toast({
-        title: "Campos obrigatórios",
-        description: `Por favor, preencha todos os 9 blocos do Canvas. Faltam: ${blocosVazios.map(b => b.label).join(", ")}`,
-        variant: "destructive",
-      });
-      return;
-    }
+  const handleSaveBlock = async () => {
+    if (!empresa?.id || !editingBloco) return;
 
-    setIsSaving(true);
+    setIsSavingBlock(true);
     try {
-      for (const bloco of blocosPadrao) {
-        const blocoExistente = blocosData.find(b => b.bloco === bloco.value);
-        
-        if (blocoExistente) {
-          await apiRequest("PATCH", `/api/modelo-negocio/${blocoExistente.id}`, {
-            descricao: formValues[bloco.value],
-          });
-        } else {
-          await apiRequest("POST", "/api/modelo-negocio", {
-            empresaId: empresa.id,
-            bloco: bloco.value,
-            descricao: formValues[bloco.value],
-          });
-        }
+      const blocoExistente = blocosData.find(b => b.bloco === editingBloco);
+      
+      if (blocoExistente) {
+        await apiRequest("PATCH", `/api/modelo-negocio/${blocoExistente.id}`, {
+          descricao: editValue,
+        });
+      } else {
+        await apiRequest("POST", "/api/modelo-negocio", {
+          empresaId: empresa.id,
+          bloco: editingBloco,
+          descricao: editValue,
+        });
       }
+
+      setFormValues(prev => ({
+        ...prev,
+        [editingBloco]: editValue,
+      }));
 
       queryClient.invalidateQueries({ queryKey: [`/api/modelo-negocio/${empresa.id}`] });
       
       toast({
-        title: "Modelo salvo!",
-        description: "Todos os blocos do seu modelo de negócio foram salvos com sucesso.",
+        title: "Bloco salvo!",
+        description: "As alterações foram salvas com sucesso.",
       });
+
+      handleCloseEdit();
     } catch (error: any) {
       toast({
         title: "Erro ao salvar",
@@ -203,36 +218,40 @@ export default function ModeloNegocio() {
         variant: "destructive",
       });
     } finally {
-      setIsSaving(false);
+      setIsSavingBlock(false);
     }
-  };
-
-  const handleChange = (blocoValue: string, valor: string) => {
-    setFormValues(prev => ({
-      ...prev,
-      [blocoValue]: valor,
-    }));
   };
 
   const renderBlocoCard = (blocoValue: string, className?: string) => {
     const bloco = blocosPadrao.find(b => b.value === blocoValue);
     if (!bloco) return null;
 
+    const conteudo = formValues[bloco.value];
+    const isEmpty = !conteudo || conteudo.trim() === "";
+
     return (
-      <Card className={className} data-testid={`card-bloco-${bloco.value}`}>
+      <Card 
+        className={`cursor-pointer transition-all hover-elevate active-elevate-2 ${className}`}
+        onClick={() => handleOpenEdit(bloco.value)}
+        data-testid={`card-bloco-${bloco.value}`}
+      >
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold">{bloco.label}</CardTitle>
-          <CardDescription className="text-xs">{bloco.hint}</CardDescription>
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1">
+              <CardTitle className="text-sm font-semibold">{bloco.label}</CardTitle>
+              <CardDescription className="text-xs mt-1">{bloco.hint}</CardDescription>
+            </div>
+            <Edit className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          </div>
         </CardHeader>
         <CardContent>
-          <Textarea
-            id={bloco.value}
-            placeholder={`${bloco.description}...`}
-            value={formValues[bloco.value] || ""}
-            onChange={(e) => handleChange(bloco.value, e.target.value)}
-            className="min-h-[100px] text-sm resize-none"
-            data-testid={`textarea-${bloco.value}`}
-          />
+          {isEmpty ? (
+            <p className="text-sm text-muted-foreground italic">
+              Clique para adicionar conteúdo...
+            </p>
+          ) : (
+            <p className="text-sm whitespace-pre-wrap">{conteudo}</p>
+          )}
         </CardContent>
       </Card>
     );
@@ -266,32 +285,24 @@ export default function ModeloNegocio() {
     bloco => formValues[bloco.value] && formValues[bloco.value].trim() !== ""
   ).length;
 
+  const editingBlocoInfo = blocosPadrao.find(b => b.value === editingBloco);
+
   return (
     <div>
       <PageHeader
         title="Modelo de Negócio (Canvas)"
-        description="Preencha os 9 blocos do Business Model Canvas para estruturar como sua empresa cria, entrega e captura valor."
-        tooltip="O Business Model Canvas é uma ferramenta visual para descrever, analisar e desenvolver modelos de negócio. Todos os 9 blocos devem ser preenchidos."
+        description="Visualize e edite os 9 blocos do Business Model Canvas. Clique em qualquer bloco para editar."
+        tooltip="O Business Model Canvas é uma ferramenta visual para descrever, analisar e desenvolver modelos de negócio. Clique em cada bloco para adicionar ou editar o conteúdo."
         action={
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={handleSuggest}
-              disabled={isSuggesting || isSaving}
-              data-testid="button-suggest-blocos"
-            >
-              <Sparkles className="h-4 w-4 mr-2" />
-              {isSuggesting ? "Gerando..." : "Gerar com IA"}
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={isSaving || isSuggesting}
-              data-testid="button-save-modelo"
-            >
-              <Save className="h-4 w-4 mr-2" />
-              {isSaving ? "Salvando..." : "Salvar Modelo"}
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            onClick={handleSuggest}
+            disabled={isSuggesting}
+            data-testid="button-suggest-blocos"
+          >
+            <Sparkles className="h-4 w-4 mr-2" />
+            {isSuggesting ? "Gerando..." : "Gerar com IA"}
+          </Button>
         }
       />
 
@@ -304,8 +315,8 @@ export default function ModeloNegocio() {
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 {blocosPreenchidos === 9 
-                  ? "✓ Todos os blocos preenchidos! Clique em Salvar para confirmar."
-                  : "Preencha todos os 9 blocos para ter um modelo completo."}
+                  ? "✓ Todos os blocos preenchidos!"
+                  : "Clique nos blocos para adicionar conteúdo."}
               </p>
             </div>
             <div className="h-2 w-48 bg-muted rounded-full overflow-hidden">
@@ -371,17 +382,46 @@ export default function ModeloNegocio() {
         </div>
       </div>
 
-      <div className="flex justify-center">
-        <Button
-          size="lg"
-          onClick={handleSave}
-          disabled={isSaving || isSuggesting || blocosPreenchidos < 9}
-          data-testid="button-save-modelo-bottom"
-        >
-          <Save className="h-4 w-4 mr-2" />
-          {isSaving ? "Salvando..." : "Salvar Modelo Completo"}
-        </Button>
-      </div>
+      {/* Modal de edição */}
+      <Dialog open={!!editingBloco} onOpenChange={(open) => !open && handleCloseEdit()}>
+        <DialogContent className="max-w-2xl" data-testid="dialog-edit-bloco">
+          <DialogHeader>
+            <DialogTitle>{editingBlocoInfo?.label}</DialogTitle>
+            <DialogDescription>
+              {editingBlocoInfo?.hint} - {editingBlocoInfo?.description}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <Textarea
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              placeholder={`${editingBlocoInfo?.description}...`}
+              className="min-h-[200px] resize-none"
+              data-testid="textarea-edit-bloco"
+            />
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={handleCloseEdit}
+              disabled={isSavingBlock}
+              data-testid="button-cancel-edit"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSaveBlock}
+              disabled={isSavingBlock}
+              data-testid="button-save-bloco"
+            >
+              <Save className="h-4 w-4 mr-2" />
+              {isSavingBlock ? "Salvando..." : "Salvar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

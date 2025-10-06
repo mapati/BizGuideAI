@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/EmptyState";
 import { ExampleCard } from "@/components/ExampleCard";
-import { Compass, Plus, Sparkles, Trash2 } from "lucide-react";
+import { Compass, Plus, Sparkles, Trash2, Pencil } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -41,8 +41,9 @@ const ImpactBadge = ({ impact }: { impact: "alto" | "médio" | "baixo" }) => {
 export default function Pestel() {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editandoId, setEditandoId] = useState<string | null>(null);
   const [isSuggesting, setIsSuggesting] = useState(false);
-  const [novoFator, setNovoFator] = useState({
+  const [formData, setFormData] = useState({
     tipo: "",
     descricao: "",
     impacto: "médio" as const,
@@ -68,7 +69,7 @@ export default function Pestel() {
   });
 
   const criarFatorMutation = useMutation({
-    mutationFn: async (data: typeof novoFator) => {
+    mutationFn: async (data: typeof formData) => {
       if (!empresa?.id) throw new Error("Empresa não encontrada");
       return await apiRequest("/api/fatores-pestel", {
         method: "POST",
@@ -81,12 +82,38 @@ export default function Pestel() {
         title: "Fator adicionado!",
         description: "O fator externo foi salvo com sucesso.",
       });
-      setNovoFator({ tipo: "", descricao: "", impacto: "médio", evidencia: "" });
+      setFormData({ tipo: "", descricao: "", impacto: "médio", evidencia: "" });
       setIsDialogOpen(false);
     },
     onError: (error: any) => {
       toast({
         title: "Erro ao adicionar fator",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const editarFatorMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<typeof formData> }) => {
+      return await apiRequest(`/api/fatores-pestel/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/fatores-pestel/${empresa?.id}`] });
+      toast({
+        title: "Fator atualizado!",
+        description: "O fator externo foi atualizado com sucesso.",
+      });
+      setFormData({ tipo: "", descricao: "", impacto: "médio", evidencia: "" });
+      setEditandoId(null);
+      setIsDialogOpen(false);
+    },
+    onError: (error: any) {
+      toast({
+        title: "Erro ao atualizar fator",
         description: error.message,
         variant: "destructive",
       });
@@ -108,8 +135,8 @@ export default function Pestel() {
     },
   });
 
-  const handleAddFator = () => {
-    if (!novoFator.tipo || !novoFator.descricao || !novoFator.evidencia) {
+  const handleSaveFator = () => {
+    if (!formData.tipo || !formData.descricao || !formData.evidencia) {
       toast({
         title: "Campos obrigatórios",
         description: "Por favor, preencha todos os campos.",
@@ -117,7 +144,29 @@ export default function Pestel() {
       });
       return;
     }
-    criarFatorMutation.mutate(novoFator);
+    
+    if (editandoId) {
+      editarFatorMutation.mutate({ id: editandoId, data: formData });
+    } else {
+      criarFatorMutation.mutate(formData);
+    }
+  };
+
+  const handleEditFator = (fator: FatorPESTEL) => {
+    setEditandoId(fator.id);
+    setFormData({
+      tipo: fator.tipo,
+      descricao: fator.descricao,
+      impacto: fator.impacto,
+      evidencia: fator.evidencia,
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleCloseDialog = () => {
+    setIsDialogOpen(false);
+    setEditandoId(null);
+    setFormData({ tipo: "", descricao: "", impacto: "médio", evidencia: "" });
   };
 
   const handleSuggest = async () => {
@@ -202,7 +251,7 @@ export default function Pestel() {
               <Sparkles className="h-4 w-4 mr-2" />
               {isSuggesting ? "Gerando..." : "Sugerir Fatores"}
             </Button>
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <Dialog open={isDialogOpen} onOpenChange={handleCloseDialog}>
               <DialogTrigger asChild>
                 <Button data-testid="button-add-fator">
                   <Plus className="h-4 w-4 mr-2" />
@@ -211,12 +260,12 @@ export default function Pestel() {
               </DialogTrigger>
               <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                  <DialogTitle>Novo Fator Externo</DialogTitle>
+                  <DialogTitle>{editandoId ? "Editar Fator Externo" : "Novo Fator Externo"}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div>
                     <Label htmlFor="tipo">Tipo de Fator</Label>
-                    <Select value={novoFator.tipo} onValueChange={(value) => setNovoFator({ ...novoFator, tipo: value })}>
+                    <Select value={formData.tipo} onValueChange={(value) => setFormData({ ...formData, tipo: value })}>
                       <SelectTrigger data-testid="select-tipo-fator">
                         <SelectValue placeholder="Selecione o tipo" />
                       </SelectTrigger>
@@ -235,15 +284,15 @@ export default function Pestel() {
                     <Textarea
                       id="descricao"
                       placeholder="Ex: Novas leis ambientais vão exigir redução de emissões"
-                      value={novoFator.descricao}
-                      onChange={(e) => setNovoFator({ ...novoFator, descricao: e.target.value })}
+                      value={formData.descricao}
+                      onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
                       data-testid="textarea-descricao-fator"
                     />
                   </div>
 
                   <div>
                     <Label htmlFor="impacto">Qual o impacto no seu negócio?</Label>
-                    <Select value={novoFator.impacto} onValueChange={(value: any) => setNovoFator({ ...novoFator, impacto: value })}>
+                    <Select value={formData.impacto} onValueChange={(value: any) => setFormData({ ...formData, impacto: value })}>
                       <SelectTrigger data-testid="select-impacto">
                         <SelectValue />
                       </SelectTrigger>
@@ -260,22 +309,22 @@ export default function Pestel() {
                     <Textarea
                       id="evidencia"
                       placeholder="Explique o que justifica este fator e por que ele merece atenção"
-                      value={novoFator.evidencia}
-                      onChange={(e) => setNovoFator({ ...novoFator, evidencia: e.target.value })}
+                      value={formData.evidencia}
+                      onChange={(e) => setFormData({ ...formData, evidencia: e.target.value })}
                       data-testid="textarea-evidencia"
                     />
                   </div>
                 </div>
                 <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                  <Button variant="outline" onClick={handleCloseDialog}>
                     Cancelar
                   </Button>
                   <Button
-                    onClick={handleAddFator}
-                    disabled={criarFatorMutation.isPending}
+                    onClick={handleSaveFator}
+                    disabled={criarFatorMutation.isPending || editarFatorMutation.isPending}
                     data-testid="button-salvar-fator"
                   >
-                    Adicionar
+                    {editandoId ? "Salvar" : "Adicionar"}
                   </Button>
                 </div>
               </DialogContent>
@@ -312,6 +361,14 @@ export default function Pestel() {
                 </div>
                 <div className="flex items-center gap-2">
                   <ImpactBadge impact={fator.impacto} />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleEditFator(fator)}
+                    data-testid={`button-edit-fator-${fator.id}`}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"

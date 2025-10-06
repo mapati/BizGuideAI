@@ -28,10 +28,12 @@ export interface IStorage {
   
   getFatoresPestel(empresaId: string): Promise<FatorPestel[]>;
   createFatorPestel(fator: InsertFatorPestel): Promise<FatorPestel>;
+  updateFatorPestel(id: string, fator: Partial<InsertFatorPestel>): Promise<FatorPestel>;
   deleteFatorPestel(id: string): Promise<void>;
   
   getAnaliseSwot(empresaId: string): Promise<AnaliseSwot[]>;
   createAnaliseSwot(analise: InsertAnaliseSwot): Promise<AnaliseSwot>;
+  updateAnaliseSwot(id: string, analise: Partial<InsertAnaliseSwot>): Promise<AnaliseSwot>;
   deleteAnaliseSwot(id: string): Promise<void>;
   
   getObjetivos(empresaId: string): Promise<Objetivo[]>;
@@ -74,6 +76,11 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
+  async updateFatorPestel(id: string, fator: Partial<InsertFatorPestel>): Promise<FatorPestel> {
+    const result = await db.update(fatoresPestel).set(fator).where(eq(fatoresPestel.id, id)).returning();
+    return result[0];
+  }
+
   async deleteFatorPestel(id: string): Promise<void> {
     await db.delete(fatoresPestel).where(eq(fatoresPestel.id, id));
   }
@@ -84,6 +91,11 @@ export class DbStorage implements IStorage {
 
   async createAnaliseSwot(analise: InsertAnaliseSwot): Promise<AnaliseSwot> {
     const result = await db.insert(analiseSwot).values(analise).returning();
+    return result[0];
+  }
+
+  async updateAnaliseSwot(id: string, analise: Partial<InsertAnaliseSwot>): Promise<AnaliseSwot> {
+    const result = await db.update(analiseSwot).set(analise).where(eq(analiseSwot.id, id)).returning();
     return result[0];
   }
 

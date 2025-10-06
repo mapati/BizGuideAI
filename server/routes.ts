@@ -66,6 +66,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/fatores-pestel/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const data = insertFatorPestelSchema.partial().parse(req.body);
+      const fator = await storage.updateFatorPestel(id, data);
+      res.json(fator);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   app.delete("/api/fatores-pestel/:id", async (req, res) => {
     try {
       const { id } = req.params;
@@ -90,6 +101,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const data = insertAnaliseSwotSchema.parse(req.body);
       const analise = await storage.createAnaliseSwot(data);
+      res.json(analise);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/analise-swot/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const data = insertAnaliseSwotSchema.partial().parse(req.body);
+      const analise = await storage.updateAnaliseSwot(id, data);
       res.json(analise);
     } catch (error: any) {
       res.status(400).json({ error: error.message });

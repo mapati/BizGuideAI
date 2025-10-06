@@ -380,6 +380,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/ai/sugerir-swot-completo", async (req, res) => {
+    try {
+      const { empresaId } = req.body;
+      
+      if (!empresaId) {
+        return res.status(400).json({ error: "empresaId é obrigatório" });
+      }
+
+      const empresa = await storage.getEmpresa();
+      if (!empresa || empresa.id !== empresaId) {
+        return res.status(404).json({ error: "Empresa não encontrada" });
+      }
+
+      const fatoresPestel = await storage.getFatoresPestel(empresaId);
+      const cincoForcas = await storage.getCincoForcas(empresaId);
+      const modeloNegocio = await storage.getModeloNegocio(empresaId);
+      const swotExistente = await storage.getAnaliseSwot(empresaId);
+
+      const fatoresPestelResumo = fatoresPestel.map(f => `${f.tipo}: ${f.descricao}`).join("\n");
+      const cincoForcasResumo = cincoForcas.map(f => `${f.forca}: ${f.descricao} (intensidade ${f.intensidade})`).join("\n");
+      const modeloNegocioResumo = modeloNegocio.map(m => `${m.bloco}: ${m.descricao}`).join("\n");
+      
+      const swotExistenteResumo = {
+        forcas: swotExistente.filter(s => s.tipo === "forca").map(s => s.descricao),
+        fraquezas: swotExistente.filter(s => s.tipo === "fraqueza").map(s => s.descricao),
+        oportunidades: swotExistente.filter(s => s.tipo === "oportunidade").map(s => s.descricao),
+        ameacas: swotExistente.filter(s => s.tipo === "ameaca").map(s => s.descricao),
+      };
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `Você é um consultor estratégico sênior especializado em análise SWOT. Sua missão é identificar com precisão forças, fraquezas, oportunidades e ameaças relevantes. Use sempre linguagem simples e direta, sem jargões técnicos. IMPORTANTE: Nunca repita itens que já foram identificados anteriormente.`
+          },
+          {
+            role: "user",
+            content: `Empresa: ${empresa.nome}
+Setor: ${empresa.setor}
+Descrição: ${empresa.descricao || "Não informado"}
+
+## CONTEXTO COMPLETO DA EMPRESA:
+
+### Modelo de Negócio (Business Model Canvas):
+${modeloNegocioResumo || "Ainda não definido"}
+
+### Cenário Externo (Análise PESTEL):
+${fatoresPestelResumo || "Ainda não definido"}
+
+### Mercado e Concorrência (Cinco Forças):
+${cincoForcasResumo || "Ainda não definido"}
+
+## ANÁLISE SWOT JÁ EXISTENTE (EVITE REPETIR ESTES ITENS):
+Forças existentes:
+${swotExistenteResumo.forcas.length > 0 ? swotExistenteResumo.forcas.map((f, i) => `${i + 1}. ${f}`).join("\n") : "Nenhuma força identificada ainda"}
+
+Fraquezas existentes:
+${swotExistenteResumo.fraquezas.length > 0 ? swotExistenteResumo.fraquezas.map((f, i) => `${i + 1}. ${f}`).join("\n") : "Nenhuma fraqueza identificada ainda"}
+
+Oportunidades existentes:
+${swotExistenteResumo.oportunidades.length > 0 ? swotExistenteResumo.oportunidades.map((o, i) => `${i + 1}. ${o}`).join("\n") : "Nenhuma oportunidade identificada ainda"}
+
+Ameaças existentes:
+${swotExistenteResumo.ameacas.length > 0 ? swotExistenteResumo.ameacas.map((a, i) => `${i + 1}. ${a}`).join("\n") : "Nenhuma ameaça identificada ainda"}
+
+## TAREFA:
+Com base em TODO o contexto acima, gere EXATAMENTE 4 novos itens para a análise SWOT (um de cada tipo):
+
+1. **UMA FORÇA** (tipo: "forca"): Com base no MODELO DE NEGÓCIO, identifique uma força interna da empresa que NÃO esteja na lista de forças existentes.
+
+2. **UMA FRAQUEZA** (tipo: "fraqueza"): Com base no MODELO DE NEGÓCIO, identifique uma fraqueza interna da empresa que NÃO esteja na lista de fraquezas existentes.
+
+3. **UMA OPORTUNIDADE** (tipo: "oportunidade"): Com base no CENÁRIO EXTERNO (PESTEL) e MERCADO E CONCORRÊNCIA, identifique uma oportunidade externa que NÃO esteja na lista de oportunidades existentes.
+
+4. **UMA AMEAÇA** (tipo: "ameaca"): Com base no CENÁRIO EXTERNO (PESTEL) e MERCADO E CONCORRÊNCIA, identifique uma ameaça externa que NÃO esteja na lista de ameaças existentes.
+
+Para cada item, forneça:
+- tipo: exatamente "forca", "fraqueza", "oportunidade" ou "ameaca"
+- descricao: uma descrição clara, objetiva e específica (diferente dos itens existentes)
+- impacto: "alto", "médio" ou "baixo"
+
+Responda OBRIGATORIAMENTE em JSON com este formato exato:
+{
+  "itens": [
+    {"tipo": "forca", "descricao": "...", "impacto": "alto"},
+    {"tipo": "fraqueza", "descricao": "...", "impacto": "médio"},
+    {"tipo": "oportunidade", "descricao": "...", "impacto": "alto"},
+    {"tipo": "ameaca", "descricao": "...", "impacto": "médio"}
+  ]
+}`
+          }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.8,
+      });
+
+      const sugestoes = JSON.parse(completion.choices[0].message.content || "{}");
+      res.json(sugestoes);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/ai/sugerir-cinco-forcas", async (req, res) => {
     try {
       const { nomeEmpresa, setor, descricao } = req.body;

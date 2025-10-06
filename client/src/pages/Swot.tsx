@@ -51,6 +51,7 @@ export default function Swot() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [isSuggesting, setIsSuggesting] = useState(false);
+  const [isSuggestingComplete, setIsSuggestingComplete] = useState(false);
   const [tipoSugestao, setTipoSugestao] = useState<"forca" | "fraqueza" | "oportunidade" | "ameaca" | null>(null);
   const [formData, setFormData] = useState({
     tipo: "",
@@ -217,6 +218,89 @@ export default function Swot() {
     }
   };
 
+  const handleSuggestComplete = async () => {
+    if (!empresa) {
+      toast({
+        title: "Perfil não encontrado",
+        description: "Complete o perfil da empresa primeiro.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSuggestingComplete(true);
+    try {
+      const res = await apiRequest("POST", "/api/ai/sugerir-swot-completo", {
+        empresaId: empresa.id,
+      });
+      const response = await res.json();
+
+      const itens = response.itens || [];
+      
+      if (itens.length !== 4) {
+        throw new Error("A IA deve gerar exatamente 4 itens (1 de cada tipo)");
+      }
+
+      const tiposEsperados = ["forca", "fraqueza", "oportunidade", "ameaca"];
+      const tiposRecebidos = itens.map((i: any) => i.tipo);
+      const tiposValidos = tiposEsperados.every(tipo => tiposRecebidos.includes(tipo));
+      
+      if (!tiposValidos) {
+        throw new Error("A IA deve gerar 1 item de cada tipo (força, fraqueza, oportunidade, ameaça)");
+      }
+
+      const analiseExistente = analises.map(a => a.descricao.toLowerCase().trim());
+      const itensNaoduplicados = itens.filter((item: any) => 
+        !analiseExistente.includes(item.descricao.toLowerCase().trim())
+      );
+
+      if (itensNaoduplicados.length === 0) {
+        toast({
+          title: "Nenhum item novo",
+          description: "Todos os itens sugeridos pela IA já existem na análise.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      let adicionados = 0;
+      for (const item of itensNaoduplicados) {
+        try {
+          await apiRequest("POST", "/api/analise-swot", {
+            ...item,
+            empresaId: empresa.id,
+          });
+          adicionados++;
+        } catch (err: any) {
+          console.error(`Erro ao salvar item ${item.tipo}:`, err);
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: [`/api/analise-swot/${empresa.id}`] });
+      
+      if (adicionados > 0) {
+        toast({
+          title: "Análise gerada com sucesso!",
+          description: `${adicionados} ${adicionados === 1 ? 'novo item foi adicionado' : 'novos itens foram adicionados'}.`,
+        });
+      } else {
+        toast({
+          title: "Erro ao salvar",
+          description: "Não foi possível salvar os itens sugeridos.",
+          variant: "destructive",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Erro ao gerar análise",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSuggestingComplete(false);
+    }
+  };
+
   const agruparPorTipo = () => {
     return {
       forca: analises.filter((a) => a.tipo === "forca"),
@@ -251,13 +335,23 @@ export default function Swot() {
         description="Identifique o que sua empresa faz bem (forças), o que precisa melhorar (fraquezas), oportunidades externas e ameaças que você enfrenta."
         tooltip="Esta análise ajuda a entender seus pontos fortes internos e fracos, além das oportunidades e riscos do mercado."
         action={
-          <Dialog open={isDialogOpen} onOpenChange={handleCloseDialog}>
-            <DialogTrigger asChild>
-              <Button data-testid="button-add-analise">
-                <Plus className="h-4 w-4 mr-2" />
-                Adicionar Item
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handleSuggestComplete}
+              disabled={isSuggestingComplete || isSuggesting}
+              data-testid="button-suggest-complete"
+            >
+              <Sparkles className="h-4 w-4 mr-2" />
+              {isSuggestingComplete ? "Gerando..." : "Gerar com IA"}
+            </Button>
+            <Dialog open={isDialogOpen} onOpenChange={handleCloseDialog}>
+              <DialogTrigger asChild>
+                <Button data-testid="button-add-analise">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Adicionar Item
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
                 <DialogTitle>{editandoId ? "Editar Análise" : "Nova Análise"}</DialogTitle>
@@ -319,6 +413,7 @@ export default function Swot() {
               </div>
             </DialogContent>
           </Dialog>
+          </div>
         }
       />
 

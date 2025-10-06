@@ -105,3 +105,20 @@ export const insertIndicadorSchema = createInsertSchema(indicadores).omit({
 });
 export type InsertIndicador = z.infer<typeof insertIndicadorSchema>;
 export type Indicador = typeof indicadores.$inferSelect;
+
+export const cincoForcas = pgTable("cinco_forcas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  empresaId: varchar("empresa_id").notNull().references(() => empresas.id, { onDelete: "cascade" }),
+  forca: text("forca").notNull(),
+  descricao: text("descricao").notNull(),
+  intensidade: text("intensidade").notNull(),
+  impacto: text("impacto").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertCincoForcasSchema = createInsertSchema(cincoForcas).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertCincoForcas = z.infer<typeof insertCincoForcasSchema>;
+export type CincoForcas = typeof cincoForcas.$inferSelect;

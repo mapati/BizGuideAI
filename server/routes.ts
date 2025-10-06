@@ -7,7 +7,8 @@ import {
   insertAnaliseSwotSchema,
   insertObjetivoSchema,
   insertResultadoChaveSchema,
-  insertIndicadorSchema 
+  insertIndicadorSchema,
+  insertCincoForcasSchema 
 } from "@shared/schema";
 import OpenAI from "openai";
 
@@ -234,6 +235,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       await storage.deleteIndicador(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/cinco-forcas/:empresaId", async (req, res) => {
+    try {
+      const { empresaId } = req.params;
+      const forcas = await storage.getCincoForcas(empresaId);
+      res.json(forcas);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/cinco-forcas", async (req, res) => {
+    try {
+      const data = insertCincoForcasSchema.parse(req.body);
+      const forca = await storage.createCincoForcas(data);
+      res.json(forca);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/cinco-forcas/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const data = insertCincoForcasSchema.partial().parse(req.body);
+      const forca = await storage.updateCincoForcas(id, data);
+      res.json(forca);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/cinco-forcas/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteCincoForcas(id);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });

@@ -6,6 +6,7 @@ import {
   objetivos, 
   resultadosChave, 
   indicadores,
+  cincoForcas,
   type Empresa,
   type InsertEmpresa,
   type FatorPestel,
@@ -18,6 +19,8 @@ import {
   type InsertResultadoChave,
   type Indicador,
   type InsertIndicador,
+  type CincoForcas,
+  type InsertCincoForcas,
 } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
@@ -49,6 +52,11 @@ export interface IStorage {
   createIndicador(indicador: InsertIndicador): Promise<Indicador>;
   updateIndicador(id: string, indicador: Partial<InsertIndicador>): Promise<Indicador>;
   deleteIndicador(id: string): Promise<void>;
+  
+  getCincoForcas(empresaId: string): Promise<CincoForcas[]>;
+  createCincoForcas(forca: InsertCincoForcas): Promise<CincoForcas>;
+  updateCincoForcas(id: string, forca: Partial<InsertCincoForcas>): Promise<CincoForcas>;
+  deleteCincoForcas(id: string): Promise<void>;
 }
 
 export class DbStorage implements IStorage {
@@ -150,6 +158,24 @@ export class DbStorage implements IStorage {
 
   async deleteIndicador(id: string): Promise<void> {
     await db.delete(indicadores).where(eq(indicadores.id, id));
+  }
+
+  async getCincoForcas(empresaId: string): Promise<CincoForcas[]> {
+    return db.select().from(cincoForcas).where(eq(cincoForcas.empresaId, empresaId));
+  }
+
+  async createCincoForcas(forca: InsertCincoForcas): Promise<CincoForcas> {
+    const result = await db.insert(cincoForcas).values(forca).returning();
+    return result[0];
+  }
+
+  async updateCincoForcas(id: string, forca: Partial<InsertCincoForcas>): Promise<CincoForcas> {
+    const result = await db.update(cincoForcas).set(forca).where(eq(cincoForcas.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteCincoForcas(id: string): Promise<void> {
+    await db.delete(cincoForcas).where(eq(cincoForcas.id, id));
   }
 }
 

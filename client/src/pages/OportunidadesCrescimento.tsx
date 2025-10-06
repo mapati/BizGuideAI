@@ -422,7 +422,7 @@ export default function OportunidadesCrescimento() {
       {oportunidades.length === 0 ? (
         <div className="mt-8">
           <EmptyState
-            icon={TrendingUp}
+            icon={<TrendingUp className="h-16 w-16" />}
             title="Nenhuma oportunidade identificada ainda"
             description="Comece gerando oportunidades com IA ou adicione manualmente."
           />

@@ -122,3 +122,18 @@ export const insertCincoForcasSchema = createInsertSchema(cincoForcas).omit({
 });
 export type InsertCincoForcas = z.infer<typeof insertCincoForcasSchema>;
 export type CincoForcas = typeof cincoForcas.$inferSelect;
+
+export const modeloNegocio = pgTable("modelo_negocio", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  empresaId: varchar("empresa_id").notNull().references(() => empresas.id, { onDelete: "cascade" }),
+  bloco: text("bloco").notNull(),
+  descricao: text("descricao").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertModeloNegocioSchema = createInsertSchema(modeloNegocio).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertModeloNegocio = z.infer<typeof insertModeloNegocioSchema>;
+export type ModeloNegocio = typeof modeloNegocio.$inferSelect;

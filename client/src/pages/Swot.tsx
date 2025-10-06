@@ -165,10 +165,12 @@ export default function Swot() {
     setIsDialogOpen(true);
   };
 
-  const handleCloseDialog = () => {
-    setIsDialogOpen(false);
-    setEditandoId(null);
-    setFormData({ tipo: "", descricao: "", impacto: "médio" });
+  const handleCloseDialog = (open: boolean) => {
+    setIsDialogOpen(open);
+    if (!open) {
+      setEditandoId(null);
+      setFormData({ tipo: "", descricao: "", impacto: "médio" });
+    }
   };
 
   const handleSuggest = async (tipo: "forca" | "fraqueza" | "oportunidade" | "ameaca") => {
@@ -464,7 +466,7 @@ export default function Swot() {
                 </div>
               </div>
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={handleCloseDialog}>
+                <Button variant="outline" onClick={() => handleCloseDialog(false)}>
                   Cancelar
                 </Button>
                 <Button

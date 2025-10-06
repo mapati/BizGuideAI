@@ -154,3 +154,21 @@ export const insertEstrategiaSchema = createInsertSchema(estrategias).omit({
 });
 export type InsertEstrategia = z.infer<typeof insertEstrategiaSchema>;
 export type Estrategia = typeof estrategias.$inferSelect;
+
+export const oportunidadesCrescimento = pgTable("oportunidades_crescimento", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  empresaId: varchar("empresa_id").notNull().references(() => empresas.id, { onDelete: "cascade" }),
+  tipo: text("tipo").notNull(),
+  titulo: text("titulo").notNull(),
+  descricao: text("descricao").notNull(),
+  potencial: text("potencial").notNull(),
+  risco: text("risco").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertOportunidadeCrescimentoSchema = createInsertSchema(oportunidadesCrescimento).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertOportunidadeCrescimento = z.infer<typeof insertOportunidadeCrescimentoSchema>;
+export type OportunidadeCrescimento = typeof oportunidadesCrescimento.$inferSelect;

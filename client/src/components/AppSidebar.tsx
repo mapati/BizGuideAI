@@ -13,22 +13,22 @@ import {
 } from "@/components/ui/sidebar";
 
 const mapItems = [
-  { title: "PESTEL", url: "/pestel", icon: Compass },
-  { title: "5 Forças", url: "/cinco-forcas", icon: Layers },
-  { title: "BMC", url: "/bmc", icon: Grid3x3 },
-  { title: "SWOT", url: "/swot", icon: Target },
+  { title: "Cenário Externo", url: "/pestel", icon: Compass },
+  { title: "Mercado e Concorrência", url: "/cinco-forcas", icon: Layers },
+  { title: "Modelo de Negócio", url: "/bmc", icon: Grid3x3 },
+  { title: "Forças e Fraquezas", url: "/swot", icon: Target },
 ];
 
 const apostasItems = [
-  { title: "TOWS", url: "/tows", icon: TrendingUp },
-  { title: "Ansoff", url: "/ansoff", icon: Map },
-  { title: "Portfólio", url: "/portfolio", icon: Layers },
+  { title: "Estratégias", url: "/tows", icon: TrendingUp },
+  { title: "Oportunidades de Crescimento", url: "/ansoff", icon: Map },
+  { title: "Iniciativas Prioritárias", url: "/portfolio", icon: Layers },
 ];
 
 const marchaItems = [
-  { title: "OKRs", url: "/okrs", icon: Target },
-  { title: "BSC", url: "/bsc", icon: ListChecks },
-  { title: "Ritos", url: "/ritos", icon: CheckCircle },
+  { title: "Objetivos e Resultados", url: "/okrs", icon: Target },
+  { title: "Indicadores de Desempenho", url: "/bsc", icon: ListChecks },
+  { title: "Acompanhamento", url: "/ritos", icon: CheckCircle },
 ];
 
 export function AppSidebar() {

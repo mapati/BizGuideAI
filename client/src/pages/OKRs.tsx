@@ -40,7 +40,7 @@ export default function OKRs() {
       keyResults: [
         {
           id: "1-1",
-          metrica: "OEE",
+          metrica: "Eficiência dos equipamentos",
           valorInicial: 68,
           valorAlvo: 74,
           valorAtual: 72,
@@ -49,7 +49,7 @@ export default function OKRs() {
         },
         {
           id: "1-2",
-          metrica: "Tempo de Setup (min)",
+          metrica: "Tempo de troca de ferramentas (min)",
           valorInicial: 45,
           valorAlvo: 31,
           valorAtual: 38,
@@ -58,7 +58,7 @@ export default function OKRs() {
         },
         {
           id: "1-3",
-          metrica: "Scrap (%)",
+          metrica: "Perda de material (%)",
           valorInicial: 3.2,
           valorAlvo: 2.0,
           valorAtual: 2.4,
@@ -85,44 +85,44 @@ export default function OKRs() {
   };
 
   const handleSuggestKRs = () => {
-    console.log("Sugerindo KRs com IA para:", novoObjetivo);
+    console.log("Sugerindo resultados-chave com IA para:", novoObjetivo);
   };
 
   return (
     <div>
       <PageHeader
-        title="OKR Studio"
-        description="Defina objetivos claros e resultados-chave mensuráveis. A IA ajuda a traduzir seus objetivos em métricas específicas."
-        tooltip="OKR significa Objectives and Key Results. É uma metodologia que conecta objetivos ambiciosos a resultados concretos e mensuráveis."
+        title="Objetivos e Resultados-Chave"
+        description="Defina objetivos claros e os resultados concretos que você quer atingir. A IA ajuda a transformar seus objetivos em metas mensuráveis."
+        tooltip="Esta ferramenta conecta seus objetivos ambiciosos (onde você quer chegar) com resultados concretos e mensuráveis (como você vai saber que chegou lá)."
         action={
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button data-testid="button-add-okr">
                 <Plus className="h-4 w-4 mr-2" />
-                Novo OKR
+                Novo Objetivo
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Criar Novo OKR</DialogTitle>
+                <DialogTitle>Criar Novo Objetivo</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div>
-                  <Label htmlFor="objetivo">Objetivo (O)</Label>
+                  <Label htmlFor="objetivo">O que você quer alcançar?</Label>
                   <Input
                     id="objetivo"
-                    placeholder="Ex: Aumentar rentabilidade do negócio"
+                    placeholder="Ex: Aumentar a rentabilidade do negócio"
                     value={novoObjetivo}
                     onChange={(e) => setNovoObjetivo(e.target.value)}
                     data-testid="input-objetivo"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Escreva em linguagem natural. A IA sugerirá Key Results.
+                    Escreva de forma simples. A IA vai sugerir resultados mensuráveis.
                   </p>
                 </div>
                 <Button onClick={handleSuggestKRs} variant="outline" className="w-full" data-testid="button-suggest-krs">
                   <Sparkles className="h-4 w-4 mr-2" />
-                  Sugerir Key Results
+                  Sugerir Resultados Mensuráveis
                 </Button>
               </div>
             </DialogContent>
@@ -131,8 +131,8 @@ export default function OKRs() {
       />
 
       <ExampleCard>
-        <strong>O:</strong> Elevar rentabilidade do negócio<br />
-        <strong>KRs:</strong> (1) Margem bruta 38%→42%; (2) Scrap 3,2%→2,0%; (3) % contratos indexados 45%→70%
+        <strong>Objetivo:</strong> Aumentar a rentabilidade do negócio<br />
+        <strong>Resultados esperados:</strong> (1) Margem bruta sair de 38% para 42%; (2) Perda de material cair de 3,2% para 2,0%; (3) Contratos com reajuste automático subir de 45% para 70%
       </ExampleCard>
 
       <div className="space-y-6 mt-6">
@@ -145,7 +145,7 @@ export default function OKRs() {
               <div className="flex-1">
                 <h3 className="text-xl font-semibold mb-1" data-testid={`text-objetivo-${okr.id}`}>{okr.objetivo}</h3>
                 <p className="text-sm text-muted-foreground">
-                  {okr.keyResults.length} Key Results · Q1 2025
+                  {okr.keyResults.length} Resultados esperados · 1º Trimestre 2025
                 </p>
               </div>
             </div>

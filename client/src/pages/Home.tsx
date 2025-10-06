@@ -20,7 +20,7 @@ export default function Home() {
         <Link href="/exportar">
           <Button data-testid="button-export">
             <FileText className="h-4 w-4 mr-2" />
-            Exportar One-Page
+            Exportar Estratégia
           </Button>
         </Link>
       </div>
@@ -51,21 +51,21 @@ export default function Home() {
             value="74%"
             trend={5}
             icon={<DollarSign className="h-5 w-5" />}
-            description="OEE Atual"
+            description="Eficiência Atual"
           />
           <MetricCard
             title="Clientes"
             value="92%"
             trend={3}
             icon={<Users className="h-5 w-5" />}
-            description="OTIF"
+            description="Entregas no Prazo"
           />
           <MetricCard
             title="Processos"
             value="2,1%"
             trend={-12}
             icon={<Zap className="h-5 w-5" />}
-            description="Scrap"
+            description="Perda de Material"
           />
           <MetricCard
             title="Pessoas"
@@ -88,27 +88,27 @@ export default function Home() {
           <div className="flex gap-3">
             <div className="h-2 w-2 rounded-full bg-green-600 mt-2 flex-shrink-0" />
             <div>
-              <span className="font-medium">OEE atingiu 74%:</span>{" "}
+              <span className="font-medium">Eficiência atingiu 74%:</span>{" "}
               <span className="text-muted-foreground">
-                Superou a meta de 73% pela primeira vez no trimestre. Principal contribuição veio da redução de setup em 28% nos moldes A, B e C.
+                Superou a meta de 73% pela primeira vez no trimestre. Principal contribuição veio da redução do tempo de troca de ferramentas em 28% nas máquinas A, B e C.
               </span>
             </div>
           </div>
           <div className="flex gap-3">
             <div className="h-2 w-2 rounded-full bg-yellow-600 mt-2 flex-shrink-0" />
             <div>
-              <span className="font-medium">Scrap ainda acima da meta:</span>{" "}
+              <span className="font-medium">Perda de material ainda acima da meta:</span>{" "}
               <span className="text-muted-foreground">
-                Apesar da melhoria de 12%, continua em 2,1% (meta: 2,0%). Recomenda-se revisar o plano de ação na próxima reunião BSC.
+                Apesar da melhoria de 12%, continua em 2,1% (meta: 2,0%). Recomenda-se revisar o plano de ação na próxima reunião mensal.
               </span>
             </div>
           </div>
           <div className="flex gap-3">
             <div className="h-2 w-2 rounded-full bg-green-600 mt-2 flex-shrink-0" />
             <div>
-              <span className="font-medium">OTIF mantém tendência positiva:</span>{" "}
+              <span className="font-medium">Entregas no prazo mantêm tendência positiva:</span>{" "}
               <span className="text-muted-foreground">
-                92% de entregas no prazo, +3% vs. semana anterior. Cliente Alfa destacou a melhoria nas reuniões de QBR.
+                92% de entregas no prazo, +3% vs. semana anterior. Cliente Alfa destacou a melhoria em suas últimas reuniões.
               </span>
             </div>
           </div>
@@ -132,14 +132,14 @@ export default function Home() {
                 <div className="text-sm font-semibold text-accent uppercase tracking-wide mb-1">
                   Amanhã · 9h00
                 </div>
-                <h3 className="text-lg font-semibold">Check-in Semanal de OKRs</h3>
+                <h3 className="text-lg font-semibold">Revisão Semanal de Objetivos</h3>
               </div>
               <div className="h-10 w-10 rounded-full bg-accent/10 flex items-center justify-center">
                 <Target className="h-5 w-5 text-accent" />
               </div>
             </div>
             <p className="text-sm text-muted-foreground">
-              Atualizar o progresso dos Key Results e identificar bloqueios.
+              Atualizar o progresso dos resultados esperados e identificar obstáculos.
             </p>
           </Card>
 
@@ -149,14 +149,14 @@ export default function Home() {
                 <div className="text-sm font-semibold text-primary uppercase tracking-wide mb-1">
                   15 Jan · 14h00
                 </div>
-                <h3 className="text-lg font-semibold">Reunião Mensal BSC</h3>
+                <h3 className="text-lg font-semibold">Reunião Mensal de Indicadores</h3>
               </div>
               <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
                 <TrendingUp className="h-5 w-5 text-primary" />
               </div>
             </div>
             <p className="text-sm text-muted-foreground">
-              Revisar todos os KPIs, analisar desvios e definir plano de correção.
+              Revisar todos os indicadores, analisar desvios e definir plano de correção.
             </p>
           </Card>
         </div>

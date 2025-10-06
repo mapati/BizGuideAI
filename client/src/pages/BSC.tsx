@@ -26,34 +26,34 @@ export default function BSC() {
       nome: "Finanças",
       icon: DollarSign,
       kpis: [
-        { id: "f1", nome: "Margem Bruta", meta: "42%", atual: "41,5%", status: "amarelo", owner: "CFO" },
-        { id: "f2", nome: "EBITDA", meta: "18%", atual: "19,2%", status: "verde", owner: "CFO" },
+        { id: "f1", nome: "Margem Bruta", meta: "42%", atual: "41,5%", status: "amarelo", owner: "Diretoria" },
+        { id: "f2", nome: "Lucro Operacional", meta: "18%", atual: "19,2%", status: "verde", owner: "Diretoria" },
       ],
     },
     {
       nome: "Clientes",
       icon: Users,
       kpis: [
-        { id: "c1", nome: "OTIF", meta: "95%", atual: "92%", status: "amarelo", owner: "Comercial" },
-        { id: "c2", nome: "NPS", meta: "70", atual: "68", status: "amarelo", owner: "Comercial" },
-        { id: "c3", nome: "PPM", meta: "<50", atual: "42", status: "verde", owner: "Qualidade" },
+        { id: "c1", nome: "Entregas no Prazo", meta: "95%", atual: "92%", status: "amarelo", owner: "Comercial" },
+        { id: "c2", nome: "Satisfação do Cliente", meta: "70", atual: "68", status: "amarelo", owner: "Comercial" },
+        { id: "c3", nome: "Defeitos por Milhão", meta: "<50", atual: "42", status: "verde", owner: "Qualidade" },
       ],
     },
     {
       nome: "Processos",
       icon: Zap,
       kpis: [
-        { id: "p1", nome: "OEE", meta: "75%", atual: "74%", status: "amarelo", owner: "Produção" },
-        { id: "p2", nome: "Scrap", meta: "2,0%", atual: "2,4%", status: "vermelho", owner: "Produção" },
-        { id: "p3", nome: "Lead Time", meta: "12 dias", atual: "11 dias", status: "verde", owner: "PCP" },
+        { id: "p1", nome: "Eficiência dos Equipamentos", meta: "75%", atual: "74%", status: "amarelo", owner: "Produção" },
+        { id: "p2", nome: "Perda de Material", meta: "2,0%", atual: "2,4%", status: "vermelho", owner: "Produção" },
+        { id: "p3", nome: "Tempo de Produção", meta: "12 dias", atual: "11 dias", status: "verde", owner: "Planejamento" },
       ],
     },
     {
       nome: "Pessoas",
       icon: Target,
       kpis: [
-        { id: "pe1", nome: "Treinamentos", meta: "40h/ano", atual: "34h", status: "amarelo", owner: "RH" },
-        { id: "pe2", nome: "Turnover", meta: "<8%", atual: "6,5%", status: "verde", owner: "RH" },
+        { id: "pe1", nome: "Horas de Treinamento", meta: "40h/ano", atual: "34h", status: "amarelo", owner: "RH" },
+        { id: "pe2", nome: "Rotatividade de Pessoal", meta: "<8%", atual: "6,5%", status: "verde", owner: "RH" },
       ],
     },
   ];
@@ -61,19 +61,19 @@ export default function BSC() {
   return (
     <div>
       <PageHeader
-        title="BSC Studio"
-        description="Balanced Scorecard com 4 perspectivas: Finanças, Clientes, Processos e Pessoas. Monitore KPIs estratégicos e identifique desvios."
-        tooltip="O BSC equilibra indicadores financeiros e não-financeiros para uma visão completa da saúde do negócio."
+        title="Indicadores de Desempenho"
+        description="Acompanhe os principais indicadores do seu negócio organizados em 4 áreas: Finanças, Clientes, Processos e Pessoas."
+        tooltip="Esta visão equilibrada ajuda você a monitorar não apenas os resultados financeiros, mas também o que está levando a esses resultados: satisfação dos clientes, eficiência dos processos e desenvolvimento da equipe."
         action={
           <Button data-testid="button-add-kpi">
             <Plus className="h-4 w-4 mr-2" />
-            Novo KPI
+            Novo Indicador
           </Button>
         }
       />
 
       <ExampleCard>
-        <strong>Finanças:</strong> Margem Bruta 42% (meta) | <strong>Clientes:</strong> OTIF 95% | <strong>Processos:</strong> OEE 75% | <strong>Pessoas:</strong> 40h treinamento/ano
+        <strong>Finanças:</strong> Margem Bruta 42% (meta) | <strong>Clientes:</strong> Entregas no prazo 95% | <strong>Processos:</strong> Eficiência 75% | <strong>Pessoas:</strong> 40h treinamento/ano
       </ExampleCard>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">

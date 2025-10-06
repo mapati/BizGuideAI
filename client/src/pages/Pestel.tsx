@@ -37,12 +37,12 @@ export default function Pestel() {
   });
 
   const tipos = [
-    { value: "politico", label: "Político" },
-    { value: "economico", label: "Econômico" },
-    { value: "social", label: "Social" },
-    { value: "tecnologico", label: "Tecnológico" },
-    { value: "ambiental", label: "Ambiental" },
-    { value: "legal", label: "Legal" },
+    { value: "politico", label: "Político (leis, regulamentos)" },
+    { value: "economico", label: "Econômico (custos, câmbio)" },
+    { value: "social", label: "Social (comportamentos, valores)" },
+    { value: "tecnologico", label: "Tecnológico (inovações)" },
+    { value: "ambiental", label: "Ambiental (sustentabilidade)" },
+    { value: "legal", label: "Legal (normas, certificações)" },
   ];
 
   const handleAddFator = () => {
@@ -56,15 +56,15 @@ export default function Pestel() {
   };
 
   const handleSuggest = () => {
-    console.log("Gerando sugestões PESTEL com IA...");
+    console.log("Gerando sugestões de cenário externo com IA...");
   };
 
   return (
     <div>
       <PageHeader
-        title="Análise PESTEL"
-        description="Identifique os principais fatores externos que impactam seu negócio: Políticos, Econômicos, Sociais, Tecnológicos, Ambientais e Legais."
-        tooltip="PESTEL é uma ferramenta que ajuda você a mapear o ambiente externo da sua empresa e antecipar mudanças importantes."
+        title="Cenário Externo"
+        description="Identifique os principais fatores externos que impactam seu negócio: mudanças políticas, econômicas, sociais, tecnológicas, ambientais e legais."
+        tooltip="Esta análise ajuda você a entender o ambiente ao redor da sua empresa e se preparar para mudanças importantes que podem afetar seus resultados."
         action={
           <div className="flex gap-2">
             <Button variant="outline" onClick={handleSuggest} data-testid="button-suggest-pestel">
@@ -80,7 +80,7 @@ export default function Pestel() {
               </DialogTrigger>
               <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                  <DialogTitle>Novo Fator PESTEL</DialogTitle>
+                  <DialogTitle>Novo Fator Externo</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div>
@@ -100,10 +100,10 @@ export default function Pestel() {
                   </div>
 
                   <div>
-                    <Label htmlFor="descricao">Descrição do Fator</Label>
+                    <Label htmlFor="descricao">Descreva o fator</Label>
                     <Textarea
                       id="descricao"
-                      placeholder="Ex: Novas regulamentações ambientais para emissões"
+                      placeholder="Ex: Novas leis ambientais vão exigir redução de emissões"
                       value={novoFator.descricao}
                       onChange={(e) => setNovoFator({ ...novoFator, descricao: e.target.value })}
                       data-testid="textarea-descricao-fator"
@@ -111,7 +111,7 @@ export default function Pestel() {
                   </div>
 
                   <div>
-                    <Label htmlFor="impacto">Impacto no Negócio</Label>
+                    <Label htmlFor="impacto">Qual o impacto no seu negócio?</Label>
                     <Select value={novoFator.impacto} onValueChange={(value: any) => setNovoFator({ ...novoFator, impacto: value })}>
                       <SelectTrigger data-testid="select-impacto">
                         <SelectValue />
@@ -125,10 +125,10 @@ export default function Pestel() {
                   </div>
 
                   <div>
-                    <Label htmlFor="evidencia">Evidência/Justificativa</Label>
+                    <Label htmlFor="evidencia">Por que isso é importante?</Label>
                     <Textarea
                       id="evidencia"
-                      placeholder="Por que este fator é importante? Que dados ou fatos suportam?"
+                      placeholder="Explique o que justifica este fator e por que ele merece atenção"
                       value={novoFator.evidencia}
                       onChange={(e) => setNovoFator({ ...novoFator, evidencia: e.target.value })}
                       data-testid="textarea-evidencia"
@@ -150,15 +150,15 @@ export default function Pestel() {
       />
 
       <ExampleCard>
-        <strong>Econômico:</strong> Alta do dólar pressiona custos de matéria-prima importada. Nossa margem pode cair 3-5% se não repassarmos aos clientes. <strong>Impacto: Alto</strong>
+        <strong>Econômico:</strong> O dólar subiu muito e isso está aumentando nosso custo de matéria-prima importada. Se não conseguirmos repassar esse aumento, nossa margem pode cair 3-5%. <strong>Impacto: Alto</strong>
       </ExampleCard>
 
       {fatores.length === 0 ? (
         <Card className="mt-6">
           <EmptyState
             icon={<Compass className="h-16 w-16" />}
-            title="Nenhum fator identificado ainda"
-            description="Adicione fatores externos que impactam seu negócio ou use a IA para gerar sugestões baseadas no perfil da sua empresa."
+            title="Nenhum fator externo identificado ainda"
+            description="Adicione fatores externos que podem afetar seu negócio ou peça sugestões para a IA baseadas no perfil da sua empresa."
             actionLabel="Adicionar Primeiro Fator"
             onAction={() => setIsDialogOpen(true)}
           />
@@ -175,7 +175,7 @@ export default function Pestel() {
               </div>
               <p className="text-sm mb-3">{fator.descricao}</p>
               <div className="text-xs text-muted-foreground bg-muted/30 p-3 rounded-md">
-                <strong>Evidência:</strong> {fator.evidencia}
+                <strong>Por que é importante:</strong> {fator.evidencia}
               </div>
             </Card>
           ))}

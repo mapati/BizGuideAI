@@ -14,6 +14,7 @@ import Onboarding from "@/pages/Onboarding";
 import Pestel from "@/pages/Pestel";
 import CincoForcas from "@/pages/CincoForcas";
 import Swot from "@/pages/Swot";
+import ModeloNegocio from "@/pages/ModeloNegocio";
 import OKRs from "@/pages/OKRs";
 import BSC from "@/pages/BSC";
 import NotFound from "@/pages/not-found";
@@ -26,6 +27,7 @@ function Router() {
       <Route path="/pestel" component={Pestel} />
       <Route path="/cinco-forcas" component={CincoForcas} />
       <Route path="/swot" component={Swot} />
+      <Route path="/modelo-negocio" component={ModeloNegocio} />
       <Route path="/okrs" component={OKRs} />
       <Route path="/bsc" component={BSC} />
       <Route component={NotFound} />

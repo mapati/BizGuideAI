@@ -8,6 +8,7 @@ import {
   indicadores,
   cincoForcas,
   modeloNegocio,
+  estrategias,
   type Empresa,
   type InsertEmpresa,
   type FatorPestel,
@@ -24,6 +25,8 @@ import {
   type InsertCincoForcas,
   type ModeloNegocio,
   type InsertModeloNegocio,
+  type Estrategia,
+  type InsertEstrategia,
 } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
@@ -65,6 +68,11 @@ export interface IStorage {
   createModeloNegocio(bloco: InsertModeloNegocio): Promise<ModeloNegocio>;
   updateModeloNegocio(id: string, bloco: Partial<InsertModeloNegocio>): Promise<ModeloNegocio>;
   deleteModeloNegocio(id: string): Promise<void>;
+  
+  getEstrategias(empresaId: string): Promise<Estrategia[]>;
+  createEstrategia(estrategia: InsertEstrategia): Promise<Estrategia>;
+  updateEstrategia(id: string, estrategia: Partial<InsertEstrategia>): Promise<Estrategia>;
+  deleteEstrategia(id: string): Promise<void>;
 }
 
 export class DbStorage implements IStorage {
@@ -202,6 +210,24 @@ export class DbStorage implements IStorage {
 
   async deleteModeloNegocio(id: string): Promise<void> {
     await db.delete(modeloNegocio).where(eq(modeloNegocio.id, id));
+  }
+
+  async getEstrategias(empresaId: string): Promise<Estrategia[]> {
+    return db.select().from(estrategias).where(eq(estrategias.empresaId, empresaId));
+  }
+
+  async createEstrategia(estrategia: InsertEstrategia): Promise<Estrategia> {
+    const result = await db.insert(estrategias).values(estrategia).returning();
+    return result[0];
+  }
+
+  async updateEstrategia(id: string, estrategia: Partial<InsertEstrategia>): Promise<Estrategia> {
+    const result = await db.update(estrategias).set(estrategia).where(eq(estrategias.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteEstrategia(id: string): Promise<void> {
+    await db.delete(estrategias).where(eq(estrategias.id, id));
   }
 }
 

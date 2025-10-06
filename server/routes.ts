@@ -9,7 +9,8 @@ import {
   insertResultadoChaveSchema,
   insertIndicadorSchema,
   insertCincoForcasSchema,
-  insertModeloNegocioSchema 
+  insertModeloNegocioSchema,
+  insertEstrategiaSchema
 } from "@shared/schema";
 import OpenAI from "openai";
 
@@ -665,6 +666,135 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
 
       const explicacao = completion.choices[0].message.content;
       res.json({ explicacao });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/estrategias/:empresaId", async (req, res) => {
+    try {
+      const { empresaId } = req.params;
+      const estrategias = await storage.getEstrategias(empresaId);
+      res.json(estrategias);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/estrategias", async (req, res) => {
+    try {
+      const data = insertEstrategiaSchema.parse(req.body);
+      const estrategia = await storage.createEstrategia(data);
+      res.json(estrategia);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/estrategias/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const data = insertEstrategiaSchema.partial().parse(req.body);
+      const estrategia = await storage.updateEstrategia(id, data);
+      res.json(estrategia);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/estrategias/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteEstrategia(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/ai/gerar-estrategias", async (req, res) => {
+    try {
+      const { empresaId } = req.body;
+      
+      if (!empresaId) {
+        return res.status(400).json({ error: "empresaId é obrigatório" });
+      }
+
+      const empresa = await storage.getEmpresa();
+      if (!empresa || empresa.id !== empresaId) {
+        return res.status(404).json({ error: "Empresa não encontrada" });
+      }
+
+      const swotExistente = await storage.getAnaliseSwot(empresaId);
+      const estrategiasExistentes = await storage.getEstrategias(empresaId);
+
+      const forcas = swotExistente.filter(s => s.tipo === "forca").map(s => s.descricao);
+      const fraquezas = swotExistente.filter(s => s.tipo === "fraqueza").map(s => s.descricao);
+      const oportunidades = swotExistente.filter(s => s.tipo === "oportunidade").map(s => s.descricao);
+      const ameacas = swotExistente.filter(s => s.tipo === "ameaca").map(s => s.descricao);
+
+      const estrategiasResume = estrategiasExistentes.map(e => `${e.tipo}: ${e.titulo}`).join("\n");
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `Você é um consultor estratégico sênior especializado em matriz TOWS (SWOT Cruzada). Sua missão é criar estratégias práticas e acionáveis combinando elementos internos e externos. Use sempre linguagem simples e direta, sem jargões técnicos. IMPORTANTE: Nunca repita estratégias que já foram criadas anteriormente.`
+          },
+          {
+            role: "user",
+            content: `Empresa: ${empresa.nome}
+Setor: ${empresa.setor}
+
+## ANÁLISE SWOT EXISTENTE:
+
+### FORÇAS (Internas - Positivo):
+${forcas.length > 0 ? forcas.map((f, i) => `${i + 1}. ${f}`).join("\n") : "Nenhuma força identificada"}
+
+### FRAQUEZAS (Internas - Negativo):
+${fraquezas.length > 0 ? fraquezas.map((f, i) => `${i + 1}. ${f}`).join("\n") : "Nenhuma fraqueza identificada"}
+
+### OPORTUNIDADES (Externas - Positivo):
+${oportunidades.length > 0 ? oportunidades.map((o, i) => `${i + 1}. ${o}`).join("\n") : "Nenhuma oportunidade identificada"}
+
+### AMEAÇAS (Externas - Negativo):
+${ameacas.length > 0 ? ameacas.map((a, i) => `${i + 1}. ${a}`).join("\n") : "Nenhuma ameaça identificada"}
+
+## ESTRATÉGIAS JÁ EXISTENTES (EVITE REPETIR):
+${estrategiasResume || "Nenhuma estratégia criada ainda"}
+
+## TAREFA:
+Com base na matriz TOWS, crie EXATAMENTE 4 novas estratégias, uma de cada tipo:
+
+1. **FO (Ofensiva/Maxi-Maxi)**: Combine uma FORÇA com uma OPORTUNIDADE
+2. **FA (Confronto/Maxi-Mini)**: Combine uma FORÇA para neutralizar uma AMEAÇA
+3. **DO (Reorientação/Mini-Maxi)**: Supere uma FRAQUEZA aproveitando uma OPORTUNIDADE
+4. **DA (Defensiva/Mini-Mini)**: Minimize uma FRAQUEZA e evite uma AMEAÇA
+
+Para cada estratégia, forneça:
+- tipo: "FO", "FA", "DO" ou "DA"
+- titulo: Um título objetivo (máx 80 caracteres)
+- descricao: Descrição detalhada da estratégia (2-3 frases)
+- prioridade: "alta", "média" ou "baixa"
+
+Responda OBRIGATORIAMENTE em JSON com este formato exato:
+{
+  "estrategias": [
+    {"tipo": "FO", "titulo": "...", "descricao": "...", "prioridade": "alta"},
+    {"tipo": "FA", "titulo": "...", "descricao": "...", "prioridade": "alta"},
+    {"tipo": "DO", "titulo": "...", "descricao": "...", "prioridade": "média"},
+    {"tipo": "DA", "titulo": "...", "descricao": "...", "prioridade": "baixa"}
+  ]
+}`
+          }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.8,
+      });
+
+      const sugestoes = JSON.parse(completion.choices[0].message.content || "{}");
+      res.json(sugestoes);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

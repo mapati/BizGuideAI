@@ -1103,6 +1103,241 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
     }
   });
 
+  app.post("/api/ai/gerar-objetivos", async (req, res) => {
+    try {
+      const { empresaId } = req.body;
+      
+      if (!empresaId) {
+        return res.status(400).json({ error: "empresaId é obrigatório" });
+      }
+
+      const empresa = await storage.getEmpresa();
+      if (!empresa || empresa.id !== empresaId) {
+        return res.status(404).json({ error: "Empresa não encontrada" });
+      }
+
+      const objetivosExistentes = await storage.getObjetivos(empresaId);
+      const estrategias = await storage.getEstrategias(empresaId);
+      const oportunidades = await storage.getOportunidadesCrescimento(empresaId);
+      const iniciativas = await storage.getIniciativas(empresaId);
+
+      const objetivosResume = objetivosExistentes.map(o => 
+        `- ${o.titulo}\n  Descrição: ${o.descricao || 'Sem descrição'}\n  Prazo: ${o.prazo}`
+      ).join("\n\n");
+
+      const estrategiasResume = estrategias.map(e => `${e.tipo}: ${e.titulo} - ${e.descricao}`).join("\n");
+      const oportunidadesResume = oportunidades.map(o => `${o.tipo}: ${o.titulo} - ${o.descricao}`).join("\n");
+      const iniciativasResume = iniciativas.map(i => `${i.titulo} (Prioridade: ${i.prioridade})`).join("\n");
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `Você é um consultor estratégico especializado em OKRs (Objectives and Key Results). Sua missão é criar objetivos estratégicos claros, inspiradores e mensuráveis que traduzam as apostas estratégicas da empresa em direções concretas. Use linguagem simples, sem jargões.
+
+REGRA CRÍTICA DE DUPLICAÇÃO:
+- Analise TODOS os objetivos já existentes listados
+- NUNCA crie objetivos semelhantes ou que abordem os mesmos temas
+- Cada objetivo DEVE ser único e trazer uma perspectiva diferente
+- Se você sugerir algo muito parecido com o que já existe, está VIOLANDO esta regra`
+          },
+          {
+            role: "user",
+            content: `Empresa: ${empresa.nome}
+Setor: ${empresa.setor}
+Descrição: ${empresa.descricao || 'Não informada'}
+
+## CONTEXTO DAS APOSTAS ESTRATÉGICAS:
+
+### ESTRATÉGIAS (TOWS):
+${estrategias.length > 0 ? estrategiasResume : "Nenhuma estratégia definida"}
+
+### OPORTUNIDADES DE CRESCIMENTO (Ansoff):
+${oportunidades.length > 0 ? oportunidadesResume : "Nenhuma oportunidade identificada"}
+
+### INICIATIVAS PRIORITÁRIAS:
+${iniciativas.length > 0 ? iniciativasResume : "Nenhuma iniciativa definida"}
+
+## OBJETIVOS JÁ EXISTENTES (NÃO REPITA):
+${objetivosExistentes.length > 0 ? objetivosResume : "Nenhum objetivo criado ainda"}
+
+${objetivosExistentes.length > 0 ? `
+⚠️ ATENÇÃO: Já existem ${objetivosExistentes.length} objetivo(s). 
+Suas sugestões DEVEM ser diferentes e complementares aos existentes.
+` : ''}
+
+## TAREFA:
+Crie EXATAMENTE 3 objetivos estratégicos ÚNICOS baseados nas apostas acima.
+
+Cada objetivo deve:
+- titulo: Objetivo claro e inspirador (máx 80 caracteres) - ex: "Aumentar participação no mercado premium"
+- descricao: Contexto e justificativa estratégica (2-3 frases) explicando POR QUE este objetivo é importante
+- prazo: Horizonte temporal - "Q4 2025", "Anual 2025", etc
+
+Os objetivos devem ser:
+✓ Qualitativos e aspiracionais (não números)
+✓ Alinhados com as estratégias e oportunidades
+✓ Mensuráveis através de resultados-chave (que serão criados depois)
+✓ Diferentes entre si
+
+Responda em JSON:
+{
+  "objetivos": [
+    {"titulo": "...", "descricao": "...", "prazo": "Q4 2025"},
+    {"titulo": "...", "descricao": "...", "prazo": "Anual 2025"},
+    {"titulo": "...", "descricao": "...", "prazo": "Q2 2026"}
+  ]
+}`
+          }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.8,
+      });
+
+      const sugestoes = JSON.parse(completion.choices[0].message.content || "{}");
+      
+      if (sugestoes.objetivos && Array.isArray(sugestoes.objetivos)) {
+        const seenTitles = new Set(
+          objetivosExistentes.map(o => o.titulo.toLowerCase().trim())
+        );
+        
+        sugestoes.objetivos = sugestoes.objetivos.filter((objetivo: any) => {
+          const titulo = objetivo.titulo?.toLowerCase().trim();
+          if (!titulo || seenTitles.has(titulo)) {
+            return false;
+          }
+          seenTitles.add(titulo);
+          return true;
+        });
+      }
+      
+      res.json(sugestoes);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/ai/gerar-indicadores", async (req, res) => {
+    try {
+      const { empresaId } = req.body;
+      
+      if (!empresaId) {
+        return res.status(400).json({ error: "empresaId é obrigatório" });
+      }
+
+      const empresa = await storage.getEmpresa();
+      if (!empresa || empresa.id !== empresaId) {
+        return res.status(404).json({ error: "Empresa não encontrada" });
+      }
+
+      const indicadoresExistentes = await storage.getIndicadores(empresaId);
+      const estrategias = await storage.getEstrategias(empresaId);
+      const oportunidades = await storage.getOportunidadesCrescimento(empresaId);
+      const iniciativas = await storage.getIniciativas(empresaId);
+      const objetivos = await storage.getObjetivos(empresaId);
+
+      const indicadoresResume = indicadoresExistentes.map(i => 
+        `[${i.perspectiva}] ${i.nome} - Owner: ${i.owner}`
+      ).join("\n");
+
+      const estrategiasResume = estrategias.map(e => `${e.tipo}: ${e.titulo}`).join("\n");
+      const oportunidadesResume = oportunidades.map(o => `${o.tipo}: ${o.titulo}`).join("\n");
+      const iniciativasResume = iniciativas.map(i => i.titulo).join("\n");
+      const objetivosResume = objetivos.map(o => o.titulo).join("\n");
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `Você é um consultor especializado em Balanced Scorecard (BSC) e KPIs. Sua missão é criar indicadores de desempenho equilibrados nas 4 perspectivas do BSC que ajudem a monitorar a execução da estratégia. Use linguagem simples.
+
+REGRA CRÍTICA:
+- Analise TODOS os indicadores existentes
+- NUNCA crie indicadores duplicados ou muito similares
+- Cada indicador DEVE ser único
+- Distribua entre as 4 perspectivas: Finanças, Clientes, Processos, Pessoas`
+          },
+          {
+            role: "user",
+            content: `Empresa: ${empresa.nome}
+Setor: ${empresa.setor}
+
+## CONTEXTO ESTRATÉGICO:
+
+### OBJETIVOS ESTRATÉGICOS:
+${objetivos.length > 0 ? objetivosResume : "Nenhum objetivo definido"}
+
+### ESTRATÉGIAS:
+${estrategias.length > 0 ? estrategiasResume : "Nenhuma estratégia"}
+
+### OPORTUNIDADES:
+${oportunidades.length > 0 ? oportunidadesResume : "Nenhuma oportunidade"}
+
+### INICIATIVAS:
+${iniciativas.length > 0 ? iniciativasResume : "Nenhuma iniciativa"}
+
+## INDICADORES JÁ EXISTENTES (NÃO REPITA):
+${indicadoresExistentes.length > 0 ? indicadoresResume : "Nenhum indicador criado"}
+
+${indicadoresExistentes.length > 0 ? `
+⚠️ ${indicadoresExistentes.length} indicador(es) já existe(m). Crie indicadores DIFERENTES.
+` : ''}
+
+## TAREFA:
+Crie EXATAMENTE 8 indicadores BSC ÚNICOS (2 por perspectiva).
+
+Para cada indicador:
+- perspectiva: "Finanças", "Clientes", "Processos" ou "Pessoas"
+- nome: Nome claro do indicador (ex: "Margem de Lucro Líquido", "Taxa de Retenção de Clientes")
+- meta: Meta em formato texto (ex: "R$ 500 mil", "85%", "< 15 dias") - SEM valores numéricos hardcoded, use placeholders realistas
+- atual: Valor atual (mesmo formato da meta, pode ser "A definir" se não souber)
+- status: "verde", "amarelo" ou "vermelho" (distribua de forma realista)
+- owner: Cargo/área responsável (ex: "CFO", "Gerente Comercial", "RH")
+
+Responda em JSON:
+{
+  "indicadores": [
+    {"perspectiva": "Finanças", "nome": "...", "meta": "...", "atual": "...", "status": "verde", "owner": "..."},
+    {"perspectiva": "Finanças", "nome": "...", "meta": "...", "atual": "...", "status": "amarelo", "owner": "..."},
+    {"perspectiva": "Clientes", "nome": "...", "meta": "...", "atual": "...", "status": "verde", "owner": "..."},
+    {"perspectiva": "Clientes", "nome": "...", "meta": "...", "atual": "...", "status": "amarelo", "owner": "..."},
+    {"perspectiva": "Processos", "nome": "...", "meta": "...", "atual": "...", "status": "amarelo", "owner": "..."},
+    {"perspectiva": "Processos", "nome": "...", "meta": "...", "atual": "...", "status": "vermelho", "owner": "..."},
+    {"perspectiva": "Pessoas", "nome": "...", "meta": "...", "atual": "...", "status": "verde", "owner": "..."},
+    {"perspectiva": "Pessoas", "nome": "...", "meta": "...", "atual": "...", "status": "amarelo", "owner": "..."}
+  ]
+}`
+          }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.8,
+      });
+
+      const sugestoes = JSON.parse(completion.choices[0].message.content || "{}");
+      
+      if (sugestoes.indicadores && Array.isArray(sugestoes.indicadores)) {
+        const seenNomes = new Set(
+          indicadoresExistentes.map(i => i.nome.toLowerCase().trim())
+        );
+        
+        sugestoes.indicadores = sugestoes.indicadores.filter((indicador: any) => {
+          const nome = indicador.nome?.toLowerCase().trim();
+          if (!nome || seenNomes.has(nome)) {
+            return false;
+          }
+          seenNomes.add(nome);
+          return true;
+        });
+      }
+      
+      res.json(sugestoes);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

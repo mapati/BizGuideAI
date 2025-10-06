@@ -1,4 +1,4 @@
-import { Home, Map, Target, TrendingUp, CheckCircle, FileText, Compass, Layers, Grid3x3, ListChecks } from "lucide-react";
+import { Home, Map, Target, TrendingUp, CheckCircle, FileText, Compass, Layers, Grid3x3, ListChecks, Briefcase } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -22,7 +22,7 @@ const mapItems = [
 const apostasItems = [
   { title: "Estratégias", url: "/estrategias", icon: TrendingUp },
   { title: "Oportunidades de Crescimento", url: "/oportunidades-crescimento", icon: Map },
-  { title: "Iniciativas Prioritárias", url: "/portfolio", icon: Layers },
+  { title: "Iniciativas Prioritárias", url: "/iniciativas", icon: Briefcase },
 ];
 
 const marchaItems = [

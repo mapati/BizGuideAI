@@ -10,7 +10,8 @@ import {
   insertIndicadorSchema,
   insertCincoForcasSchema,
   insertModeloNegocioSchema,
-  insertEstrategiaSchema
+  insertEstrategiaSchema,
+  insertOportunidadeCrescimentoSchema
 } from "@shared/schema";
 import OpenAI from "openai";
 
@@ -799,6 +800,142 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
     {"tipo": "FA", "titulo": "...", "descricao": "...", "prioridade": "alta"},
     {"tipo": "DO", "titulo": "...", "descricao": "...", "prioridade": "média"},
     {"tipo": "DA", "titulo": "...", "descricao": "...", "prioridade": "baixa"}
+  ]
+}`
+          }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.8,
+      });
+
+      const sugestoes = JSON.parse(completion.choices[0].message.content || "{}");
+      res.json(sugestoes);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/oportunidades-crescimento/:empresaId", async (req, res) => {
+    try {
+      const { empresaId } = req.params;
+      const oportunidades = await storage.getOportunidadesCrescimento(empresaId);
+      res.json(oportunidades);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/oportunidades-crescimento", async (req, res) => {
+    try {
+      const data = insertOportunidadeCrescimentoSchema.parse(req.body);
+      const oportunidade = await storage.createOportunidadeCrescimento(data);
+      res.json(oportunidade);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/oportunidades-crescimento/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const data = insertOportunidadeCrescimentoSchema.partial().parse(req.body);
+      const oportunidade = await storage.updateOportunidadeCrescimento(id, data);
+      res.json(oportunidade);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/oportunidades-crescimento/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteOportunidadeCrescimento(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/ai/gerar-oportunidades-crescimento", async (req, res) => {
+    try {
+      const { empresaId } = req.body;
+      
+      if (!empresaId) {
+        return res.status(400).json({ error: "empresaId é obrigatório" });
+      }
+
+      const empresa = await storage.getEmpresa();
+      if (!empresa || empresa.id !== empresaId) {
+        return res.status(404).json({ error: "Empresa não encontrada" });
+      }
+
+      const oportunidadesExistentes = await storage.getOportunidadesCrescimento(empresaId);
+      const swotExistente = await storage.getAnaliseSwot(empresaId);
+
+      const forcas = swotExistente.filter(s => s.tipo === "forca").map(s => s.descricao);
+      const oportunidades = swotExistente.filter(s => s.tipo === "oportunidade").map(s => s.descricao);
+
+      const oportunidadesResume = oportunidadesExistentes.map(o => 
+        `- ${o.tipo}: ${o.titulo}\n  Descrição: ${o.descricao}`
+      ).join("\n\n");
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `Você é um consultor estratégico sênior especializado em Matriz de Ansoff. Sua missão é identificar oportunidades de crescimento práticas e acionáveis. Use sempre linguagem simples e direta, sem jargões técnicos.
+
+REGRA CRÍTICA DE DUPLICAÇÃO:
+- Você DEVE analisar cuidadosamente todas as oportunidades já existentes listadas na seção "OPORTUNIDADES JÁ EXISTENTES"
+- NUNCA crie oportunidades que sejam semelhantes, parecidas ou que abordem os mesmos temas das oportunidades existentes
+- Cada nova oportunidade PRECISA ser única, inovadora e diferente de todas as anteriores
+- Se você sugerir algo muito parecido com o que já existe, está violando esta regra crítica`
+          },
+          {
+            role: "user",
+            content: `Empresa: ${empresa.nome}
+Setor: ${empresa.setor}
+
+## CONTEXTO ESTRATÉGICO (SWOT):
+
+### FORÇAS:
+${forcas.length > 0 ? forcas.map((f, i) => `${i + 1}. ${f}`).join("\n") : "Nenhuma força identificada"}
+
+### OPORTUNIDADES DE MERCADO:
+${oportunidades.length > 0 ? oportunidades.map((o, i) => `${i + 1}. ${o}`).join("\n") : "Nenhuma oportunidade identificada"}
+
+## OPORTUNIDADES JÁ EXISTENTES (NÃO REPITA NENHUMA DELAS):
+${oportunidadesExistentes.length > 0 ? oportunidadesResume : "Nenhuma oportunidade criada ainda - esta é a primeira geração"}
+
+${oportunidadesExistentes.length > 0 ? `
+⚠️ ATENÇÃO: Já existem ${oportunidadesExistentes.length} oportunidade(s) cadastrada(s) acima.
+Suas novas sugestões DEVEM ser completamente diferentes e abordar aspectos não cobertos pelas oportunidades existentes.
+Analise cada oportunidade existente antes de sugerir algo novo.
+` : ''}
+
+## TAREFA:
+Com base na Matriz de Ansoff, crie EXATAMENTE 4 novas oportunidades de crescimento ÚNICAS e DIFERENTES, uma de cada tipo:
+
+1. **penetracao_mercado**: Aumentar participação no mercado atual com produtos/serviços atuais (menor risco)
+2. **desenvolvimento_mercado**: Levar produtos/serviços atuais para novos mercados ou segmentos
+3. **desenvolvimento_produto**: Criar novos produtos/serviços para os mercados atuais
+4. **diversificacao**: Novos produtos/serviços para novos mercados (maior risco)
+
+Para cada oportunidade, forneça:
+- tipo: "penetracao_mercado", "desenvolvimento_mercado", "desenvolvimento_produto" ou "diversificacao"
+- titulo: Um título objetivo (máx 80 caracteres)
+- descricao: Descrição detalhada da oportunidade (2-3 frases)
+- potencial: Potencial de crescimento - "alto", "médio" ou "baixo"
+- risco: Nível de risco associado - "alto", "médio" ou "baixo"
+
+Responda OBRIGATORIAMENTE em JSON com este formato exato:
+{
+  "oportunidades": [
+    {"tipo": "penetracao_mercado", "titulo": "...", "descricao": "...", "potencial": "alto", "risco": "baixo"},
+    {"tipo": "desenvolvimento_mercado", "titulo": "...", "descricao": "...", "potencial": "alto", "risco": "médio"},
+    {"tipo": "desenvolvimento_produto", "titulo": "...", "descricao": "...", "potencial": "médio", "risco": "médio"},
+    {"tipo": "diversificacao", "titulo": "...", "descricao": "...", "potencial": "alto", "risco": "alto"}
   ]
 }`
           }

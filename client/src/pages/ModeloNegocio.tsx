@@ -1,15 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { EmptyState } from "@/components/EmptyState";
-import { ExampleCard } from "@/components/ExampleCard";
-import { LayoutGrid, Plus, Sparkles, Trash2, Pencil } from "lucide-react";
+import { Sparkles, Save } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -28,27 +24,68 @@ interface ModeloNegocio {
   descricao: string;
 }
 
+const blocosPadrao = [
+  { 
+    value: "parcerias_principais", 
+    label: "Parcerias Principais", 
+    hint: "Quem te ajuda?",
+    description: "Liste seus principais parceiros e fornecedores estratégicos"
+  },
+  { 
+    value: "atividades_principais", 
+    label: "Atividades Principais", 
+    hint: "O que você precisa fazer?",
+    description: "Descreva as atividades mais importantes para operar"
+  },
+  { 
+    value: "recursos_principais", 
+    label: "Recursos Principais", 
+    hint: "O que você precisa ter?",
+    description: "Liste os recursos essenciais (físicos, financeiros, humanos)"
+  },
+  { 
+    value: "proposta_valor", 
+    label: "Proposta de Valor", 
+    hint: "O que você oferece?",
+    description: "Descreva o valor único que você entrega aos clientes"
+  },
+  { 
+    value: "relacionamento_clientes", 
+    label: "Relacionamento com Clientes", 
+    hint: "Como se relaciona?",
+    description: "Explique como você mantém relacionamento com clientes"
+  },
+  { 
+    value: "canais", 
+    label: "Canais", 
+    hint: "Como entrega valor?",
+    description: "Liste os canais de comunicação, venda e distribuição"
+  },
+  { 
+    value: "segmentos_clientes", 
+    label: "Segmentos de Clientes", 
+    hint: "Quem são seus clientes?",
+    description: "Identifique os diferentes grupos de clientes que você atende"
+  },
+  { 
+    value: "estrutura_custos", 
+    label: "Estrutura de Custos", 
+    hint: "Quais são os custos?",
+    description: "Liste os principais custos para operar o negócio"
+  },
+  { 
+    value: "fontes_receita", 
+    label: "Fontes de Receita", 
+    hint: "Como ganha dinheiro?",
+    description: "Descreva como você gera receita com cada segmento"
+  },
+];
+
 export default function ModeloNegocio() {
   const { toast } = useToast();
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editandoId, setEditandoId] = useState<string | null>(null);
   const [isSuggesting, setIsSuggesting] = useState(false);
-  const [formData, setFormData] = useState({
-    bloco: "",
-    descricao: "",
-  });
-
-  const blocos = [
-    { value: "segmentos_clientes", label: "Segmentos de Clientes", description: "Quem são seus clientes?" },
-    { value: "proposta_valor", label: "Proposta de Valor", description: "O que você oferece?" },
-    { value: "canais", label: "Canais", description: "Como entrega valor?" },
-    { value: "relacionamento_clientes", label: "Relacionamento com Clientes", description: "Como se relaciona?" },
-    { value: "fontes_receita", label: "Fontes de Receita", description: "Como ganha dinheiro?" },
-    { value: "recursos_principais", label: "Recursos Principais", description: "O que você precisa ter?" },
-    { value: "atividades_principais", label: "Atividades Principais", description: "O que você precisa fazer?" },
-    { value: "parcerias_principais", label: "Parcerias Principais", description: "Quem te ajuda?" },
-    { value: "estrutura_custos", label: "Estrutura de Custos", description: "Quais são os custos?" },
-  ];
+  const [isSaving, setIsSaving] = useState(false);
+  const [formValues, setFormValues] = useState<Record<string, string>>({});
 
   const { data: empresa } = useQuery<Empresa>({
     queryKey: ["/api/empresa"],
@@ -59,99 +96,15 @@ export default function ModeloNegocio() {
     enabled: !!empresa?.id,
   });
 
-  const criarBlocoMutation = useMutation({
-    mutationFn: async (data: typeof formData) => {
-      if (!empresa?.id) throw new Error("Empresa não encontrada");
-      const res = await apiRequest("POST", "/api/modelo-negocio", { ...data, empresaId: empresa.id });
-      return await res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/modelo-negocio/${empresa?.id}`] });
-      toast({
-        title: "Bloco adicionado!",
-        description: "O bloco do modelo de negócio foi salvo com sucesso.",
+  useEffect(() => {
+    if (blocosData.length > 0) {
+      const valores: Record<string, string> = {};
+      blocosData.forEach((bloco) => {
+        valores[bloco.bloco] = bloco.descricao;
       });
-      setFormData({ bloco: "", descricao: "" });
-      setIsDialogOpen(false);
-    },
-    onError: (error) => {
-      toast({
-        title: "Erro ao adicionar bloco",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const editarBlocoMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<typeof formData> }) => {
-      const res = await apiRequest("PATCH", `/api/modelo-negocio/${id}`, data);
-      return await res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/modelo-negocio/${empresa?.id}`] });
-      toast({
-        title: "Bloco atualizado!",
-        description: "O bloco foi atualizado com sucesso.",
-      });
-      setFormData({ bloco: "", descricao: "" });
-      setEditandoId(null);
-      setIsDialogOpen(false);
-    },
-    onError: (error) => {
-      toast({
-        title: "Erro ao atualizar bloco",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const deletarBlocoMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await apiRequest("DELETE", `/api/modelo-negocio/${id}`);
-      return await res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/modelo-negocio/${empresa?.id}`] });
-      toast({
-        title: "Bloco removido",
-        description: "O bloco foi excluído.",
-      });
-    },
-  });
-
-  const handleSaveBloco = () => {
-    if (!formData.bloco || !formData.descricao) {
-      toast({
-        title: "Campos obrigatórios",
-        description: "Por favor, preencha todos os campos.",
-        variant: "destructive",
-      });
-      return;
+      setFormValues(valores);
     }
-    
-    if (editandoId) {
-      editarBlocoMutation.mutate({ id: editandoId, data: formData });
-    } else {
-      criarBlocoMutation.mutate(formData);
-    }
-  };
-
-  const handleEditBloco = (bloco: ModeloNegocio) => {
-    setEditandoId(bloco.id);
-    setFormData({
-      bloco: bloco.bloco,
-      descricao: bloco.descricao,
-    });
-    setIsDialogOpen(true);
-  };
-
-  const handleCloseDialog = () => {
-    setIsDialogOpen(false);
-    setEditandoId(null);
-    setFormData({ bloco: "", descricao: "" });
-  };
+  }, [blocosData]);
 
   const handleSuggest = async () => {
     if (!empresa) {
@@ -173,18 +126,17 @@ export default function ModeloNegocio() {
       const response = await res.json();
 
       const sugestoes = response.blocos || [];
+      const novosValores: Record<string, string> = { ...formValues };
       
-      for (const sugestao of sugestoes) {
-        await apiRequest("POST", "/api/modelo-negocio", {
-          ...sugestao,
-          empresaId: empresa.id,
-        });
-      }
+      sugestoes.forEach((sugestao: { bloco: string; descricao: string }) => {
+        novosValores[sugestao.bloco] = sugestao.descricao;
+      });
 
-      queryClient.invalidateQueries({ queryKey: [`/api/modelo-negocio/${empresa.id}`] });
+      setFormValues(novosValores);
+      
       toast({
-        title: "Modelo criado!",
-        description: `${sugestoes.length} blocos foram criados pela IA.`,
+        title: "Modelo gerado!",
+        description: "A IA preencheu os blocos. Revise e salve as alterações.",
       });
     } catch (error: any) {
       toast({
@@ -195,6 +147,71 @@ export default function ModeloNegocio() {
     } finally {
       setIsSuggesting(false);
     }
+  };
+
+  const handleSave = async () => {
+    if (!empresa?.id) {
+      toast({
+        title: "Erro",
+        description: "Empresa não encontrada.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const blocosVazios = blocosPadrao.filter(
+      bloco => !formValues[bloco.value] || formValues[bloco.value].trim() === ""
+    );
+
+    if (blocosVazios.length > 0) {
+      toast({
+        title: "Campos obrigatórios",
+        description: `Por favor, preencha todos os 9 blocos do Canvas. Faltam: ${blocosVazios.map(b => b.label).join(", ")}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      for (const bloco of blocosPadrao) {
+        const blocoExistente = blocosData.find(b => b.bloco === bloco.value);
+        
+        if (blocoExistente) {
+          await apiRequest("PATCH", `/api/modelo-negocio/${blocoExistente.id}`, {
+            descricao: formValues[bloco.value],
+          });
+        } else {
+          await apiRequest("POST", "/api/modelo-negocio", {
+            empresaId: empresa.id,
+            bloco: bloco.value,
+            descricao: formValues[bloco.value],
+          });
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: [`/api/modelo-negocio/${empresa.id}`] });
+      
+      toast({
+        title: "Modelo salvo!",
+        description: "Todos os blocos do seu modelo de negócio foram salvos com sucesso.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao salvar",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleChange = (blocoValue: string, valor: string) => {
+    setFormValues(prev => ({
+      ...prev,
+      [blocoValue]: valor,
+    }));
   };
 
   if (!empresa) {
@@ -213,139 +230,155 @@ export default function ModeloNegocio() {
     );
   }
 
-  const getBlocoLabel = (blocoValue: string) => {
-    const bloco = blocos.find(b => b.value === blocoValue);
-    return bloco?.label || blocoValue;
-  };
+  if (isLoading) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">Carregando modelo...</p>
+      </div>
+    );
+  }
+
+  const blocosPreenchidos = blocosPadrao.filter(
+    bloco => formValues[bloco.value] && formValues[bloco.value].trim() !== ""
+  ).length;
 
   return (
     <div>
       <PageHeader
-        title="Modelo de Negócio"
-        description="Estruture como sua empresa cria, entrega e captura valor usando o Business Model Canvas com 9 blocos essenciais."
-        tooltip="O Modelo de Negócio descreve a lógica de como sua empresa funciona: quem são seus clientes, o que você oferece, como ganha dinheiro e quais recursos precisa."
+        title="Modelo de Negócio (Canvas)"
+        description="Preencha os 9 blocos do Business Model Canvas para estruturar como sua empresa cria, entrega e captura valor."
+        tooltip="O Business Model Canvas é uma ferramenta visual para descrever, analisar e desenvolver modelos de negócio. Todos os 9 blocos devem ser preenchidos."
         action={
           <div className="flex gap-2">
             <Button
               variant="outline"
               onClick={handleSuggest}
-              disabled={isSuggesting}
+              disabled={isSuggesting || isSaving}
               data-testid="button-suggest-blocos"
             >
               <Sparkles className="h-4 w-4 mr-2" />
               {isSuggesting ? "Gerando..." : "Gerar com IA"}
             </Button>
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={() => handleCloseDialog()} data-testid="button-add-bloco">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Novo Bloco
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle>{editandoId ? "Editar Bloco" : "Novo Bloco do Modelo de Negócio"}</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div>
-                    <Label htmlFor="bloco">Bloco do Canvas</Label>
-                    <Select
-                      value={formData.bloco}
-                      onValueChange={(value) => setFormData({ ...formData, bloco: value })}
-                    >
-                      <SelectTrigger data-testid="select-bloco">
-                        <SelectValue placeholder="Selecione o bloco" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {blocos.map((bloco) => (
-                          <SelectItem key={bloco.value} value={bloco.value} data-testid={`select-item-${bloco.value}`}>
-                            <div>
-                              <div className="font-medium">{bloco.label}</div>
-                              <div className="text-xs text-muted-foreground">{bloco.description}</div>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="descricao">Descrição</Label>
-                    <Textarea
-                      id="descricao"
-                      placeholder="Descreva este bloco do seu modelo de negócio..."
-                      value={formData.descricao}
-                      onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                      className="min-h-[150px]"
-                      data-testid="textarea-descricao"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={handleCloseDialog} data-testid="button-cancel">
-                    Cancelar
-                  </Button>
-                  <Button onClick={handleSaveBloco} data-testid="button-save">
-                    {editandoId ? "Atualizar" : "Adicionar"}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <Button
+              onClick={handleSave}
+              disabled={isSaving || isSuggesting}
+              data-testid="button-save-modelo"
+            >
+              <Save className="h-4 w-4 mr-2" />
+              {isSaving ? "Salvando..." : "Salvar Modelo"}
+            </Button>
           </div>
         }
       />
 
-      <ExampleCard>
-        <strong>Clientes:</strong> PMEs brasileiras | <strong>Valor:</strong> Planejamento estratégico simples | <strong>Canais:</strong> Web | <strong>Receita:</strong> Assinatura mensal
-      </ExampleCard>
+      <Card className="mb-6">
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">
+                Progresso: {blocosPreenchidos} de 9 blocos preenchidos
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {blocosPreenchidos === 9 
+                  ? "✓ Todos os blocos preenchidos! Clique em Salvar para confirmar."
+                  : "Preencha todos os 9 blocos para ter um modelo completo."}
+              </p>
+            </div>
+            <div className="h-2 w-48 bg-muted rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-primary transition-all duration-300"
+                style={{ width: `${(blocosPreenchidos / 9) * 100}%` }}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      {isLoading ? (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">Carregando modelo...</p>
-        </div>
-      ) : blocosData.length === 0 ? (
-        <EmptyState
-          icon={<LayoutGrid className="h-16 w-16" />}
-          title="Nenhum bloco ainda"
-          description="Comece construindo seu modelo de negócio adicionando os 9 blocos do Business Model Canvas. A IA pode criar um modelo completo automaticamente."
-        />
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
-          {blocosData.map((bloco) => (
-            <Card key={bloco.id} className="p-6" data-testid={`card-bloco-${bloco.id}`}>
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold mb-2" data-testid={`text-bloco-titulo-${bloco.id}`}>
-                    {getBlocoLabel(bloco.bloco)}
-                  </h3>
-                  <p className="text-muted-foreground text-sm" data-testid={`text-bloco-descricao-${bloco.id}`}>
-                    {bloco.descricao}
-                  </p>
-                </div>
-                <div className="flex gap-2 ml-4">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleEditBloco(bloco)}
-                    data-testid={`button-edit-${bloco.id}`}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => deletarBlocoMutation.mutate(bloco.id)}
-                    data-testid={`button-delete-${bloco.id}`}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-1 space-y-6">
+          {blocosPadrao.slice(0, 3).map((bloco) => (
+            <Card key={bloco.value} data-testid={`card-bloco-${bloco.value}`}>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">{bloco.label}</CardTitle>
+                <CardDescription className="text-xs">{bloco.hint}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Label htmlFor={bloco.value} className="text-xs text-muted-foreground">
+                  {bloco.description}
+                </Label>
+                <Textarea
+                  id={bloco.value}
+                  placeholder={`Descreva ${bloco.label.toLowerCase()}...`}
+                  value={formValues[bloco.value] || ""}
+                  onChange={(e) => handleChange(bloco.value, e.target.value)}
+                  className="min-h-[120px] mt-2"
+                  data-testid={`textarea-${bloco.value}`}
+                />
+              </CardContent>
             </Card>
           ))}
         </div>
-      )}
+
+        <div className="lg:col-span-1 space-y-6">
+          {blocosPadrao.slice(3, 7).map((bloco) => (
+            <Card key={bloco.value} data-testid={`card-bloco-${bloco.value}`}>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">{bloco.label}</CardTitle>
+                <CardDescription className="text-xs">{bloco.hint}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Label htmlFor={bloco.value} className="text-xs text-muted-foreground">
+                  {bloco.description}
+                </Label>
+                <Textarea
+                  id={bloco.value}
+                  placeholder={`Descreva ${bloco.label.toLowerCase()}...`}
+                  value={formValues[bloco.value] || ""}
+                  onChange={(e) => handleChange(bloco.value, e.target.value)}
+                  className="min-h-[120px] mt-2"
+                  data-testid={`textarea-${bloco.value}`}
+                />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <div className="lg:col-span-1 space-y-6">
+          {blocosPadrao.slice(7, 9).map((bloco) => (
+            <Card key={bloco.value} data-testid={`card-bloco-${bloco.value}`}>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">{bloco.label}</CardTitle>
+                <CardDescription className="text-xs">{bloco.hint}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Label htmlFor={bloco.value} className="text-xs text-muted-foreground">
+                  {bloco.description}
+                </Label>
+                <Textarea
+                  id={bloco.value}
+                  placeholder={`Descreva ${bloco.label.toLowerCase()}...`}
+                  value={formValues[bloco.value] || ""}
+                  onChange={(e) => handleChange(bloco.value, e.target.value)}
+                  className="min-h-[120px] mt-2"
+                  data-testid={`textarea-${bloco.value}`}
+                />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-6 flex justify-center">
+        <Button
+          size="lg"
+          onClick={handleSave}
+          disabled={isSaving || isSuggesting || blocosPreenchidos < 9}
+          data-testid="button-save-modelo-bottom"
+        >
+          <Save className="h-4 w-4 mr-2" />
+          {isSaving ? "Salvando..." : "Salvar Modelo Completo"}
+        </Button>
+      </div>
     </div>
   );
 }

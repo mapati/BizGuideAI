@@ -16,6 +16,7 @@ import CincoForcas from "@/pages/CincoForcas";
 import Swot from "@/pages/Swot";
 import ModeloNegocio from "@/pages/ModeloNegocio";
 import Estrategias from "@/pages/Estrategias";
+import OportunidadesCrescimento from "@/pages/OportunidadesCrescimento";
 import OKRs from "@/pages/OKRs";
 import BSC from "@/pages/BSC";
 import NotFound from "@/pages/not-found";
@@ -30,6 +31,7 @@ function Router() {
       <Route path="/swot" component={Swot} />
       <Route path="/bmc" component={ModeloNegocio} />
       <Route path="/estrategias" component={Estrategias} />
+      <Route path="/oportunidades-crescimento" component={OportunidadesCrescimento} />
       <Route path="/okrs" component={OKRs} />
       <Route path="/bsc" component={BSC} />
       <Route component={NotFound} />

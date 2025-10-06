@@ -21,7 +21,7 @@ const mapItems = [
 
 const apostasItems = [
   { title: "Estratégias", url: "/estrategias", icon: TrendingUp },
-  { title: "Oportunidades de Crescimento", url: "/ansoff", icon: Map },
+  { title: "Oportunidades de Crescimento", url: "/oportunidades-crescimento", icon: Map },
   { title: "Iniciativas Prioritárias", url: "/portfolio", icon: Layers },
 ];
 

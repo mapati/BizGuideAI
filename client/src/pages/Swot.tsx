@@ -91,7 +91,7 @@ export default function Swot() {
       setFormData({ tipo: "", descricao: "", impacto: "médio" });
       setIsDialogOpen(false);
     },
-    onError: (error: any) => {
+    onError: (error) => {
       toast({
         title: "Erro ao adicionar item",
         description: error.message,
@@ -117,7 +117,7 @@ export default function Swot() {
       setEditandoId(null);
       setIsDialogOpen(false);
     },
-    onError: (error: any) => {
+    onError: (error) => {
       toast({
         title: "Erro ao atualizar item",
         description: error.message,

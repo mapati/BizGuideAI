@@ -85,7 +85,7 @@ export default function Pestel() {
       setFormData({ tipo: "", descricao: "", impacto: "médio", evidencia: "" });
       setIsDialogOpen(false);
     },
-    onError: (error: any) => {
+    onError: (error) => {
       toast({
         title: "Erro ao adicionar fator",
         description: error.message,
@@ -111,7 +111,7 @@ export default function Pestel() {
       setEditandoId(null);
       setIsDialogOpen(false);
     },
-    onError: (error: any) {
+    onError: (error) => {
       toast({
         title: "Erro ao atualizar fator",
         description: error.message,

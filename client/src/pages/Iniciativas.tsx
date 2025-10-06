@@ -92,7 +92,7 @@ export default function Iniciativas() {
 
   const createMutation = useMutation({
     mutationFn: async (data: InsertIniciativa) => {
-      return apiRequest("/api/iniciativas", "POST", data);
+      return apiRequest("POST", "/api/iniciativas", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/iniciativas", empresa?.id] });
@@ -114,7 +114,7 @@ export default function Iniciativas() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<InsertIniciativa> }) => {
-      return apiRequest(`/api/iniciativas/${id}`, "PATCH", data);
+      return apiRequest("PATCH", `/api/iniciativas/${id}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/iniciativas", empresa?.id] });
@@ -137,7 +137,7 @@ export default function Iniciativas() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      return apiRequest(`/api/iniciativas/${id}`, "DELETE");
+      return apiRequest("DELETE", `/api/iniciativas/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/iniciativas", empresa?.id] });
@@ -157,16 +157,15 @@ export default function Iniciativas() {
 
   const generateMutation = useMutation<{ iniciativas: InsertIniciativa[] }, Error, void>({
     mutationFn: async () => {
-      const response = await apiRequest("/api/ai/gerar-iniciativas", "POST", {
+      return await apiRequest("POST", "/api/ai/gerar-iniciativas", {
         empresaId: empresa?.id,
       });
-      return response as unknown as { iniciativas: InsertIniciativa[] };
     },
     onSuccess: (data: { iniciativas: InsertIniciativa[] }) => {
       if (data.iniciativas && data.iniciativas.length > 0) {
         Promise.all(
           data.iniciativas.map((iniciativa) =>
-            apiRequest("/api/iniciativas", "POST", {
+            apiRequest("POST", "/api/iniciativas", {
               ...iniciativa,
               empresaId: empresa?.id,
             })

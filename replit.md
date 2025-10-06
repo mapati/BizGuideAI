@@ -48,7 +48,12 @@ Preferred communication style: Simple, everyday language.
 **Route Structure:**
 - Company/organization profile management (`/api/empresa`)
 - PESTEL factor analysis (`/api/fatores-pestel/:empresaId`)
+- Five Forces analysis (`/api/cinco-forcas/:empresaId`)
 - SWOT analysis (`/api/analise-swot/:empresaId`)
+- Business Model Canvas (`/api/modelo-negocio/:empresaId`)
+- Strategic planning (`/api/estrategias/:empresaId`)
+- Growth opportunities - Ansoff Matrix (`/api/oportunidades-crescimento/:empresaId`)
+- Priority initiatives (`/api/iniciativas/:empresaId`)
 - OKR management (`/api/objetivos`, `/api/resultados-chave`)
 - BSC indicators (`/api/indicadores/:empresaId`)
 
@@ -63,7 +68,12 @@ Preferred communication style: Simple, everyday language.
 **Database Schema:**
 - `empresas` - Company/organization profiles
 - `fatores_pestel` - External factors analysis (Political, Economic, Social, Technological, Environmental, Legal)
+- `cinco_forcas` - Porter's Five Forces competitive analysis
 - `analise_swot` - Strengths, Weaknesses, Opportunities, Threats analysis
+- `modelo_negocio` - Business Model Canvas blocks
+- `estrategias` - TOWS strategic matrix (FO, FA, DO, DA strategies)
+- `oportunidades_crescimento` - Ansoff Matrix growth opportunities (penetração_mercado, desenvolvimento_mercado, desenvolvimento_produto, diversificação)
+- `iniciativas` - Priority initiatives portfolio (status, prioridade, prazo, responsavel, impacto)
 - `objetivos` - Strategic objectives (for OKRs)
 - `resultados_chave` - Key results linked to objectives
 - `indicadores` - BSC performance indicators across four perspectives
@@ -83,9 +93,11 @@ Currently not implemented - appears to be single-user application design. Future
 ### External Dependencies
 
 **AI Integration:**
-- OpenAI API for generating strategic insights and suggestions
+- OpenAI API (GPT-4o-mini) for generating strategic insights and suggestions
 - Used for explaining frameworks, generating examples, and providing contextual assistance
+- AI endpoints with anti-duplication safeguards (both prompt-based and programmatic filtering)
 - API key configured via `OPENAI_API_KEY` environment variable
+- All AI generation uses temperature 0.8 for creative yet consistent outputs
 
 **Database Service:**
 - Neon serverless PostgreSQL
@@ -108,3 +120,31 @@ Currently not implemented - appears to be single-user application design. Future
 **Design Resources:**
 - Google Fonts (Inter, JetBrains Mono)
 - Custom Tailwind configuration with extended color palette and design tokens
+
+## Recent Changes (October 2025)
+
+### Iniciativas Prioritárias (Priority Initiatives Portfolio)
+**Date:** October 6, 2025  
+**Feature:** Complete priority initiatives management system for strategy execution
+
+**Implementation:**
+- Database table `iniciativas` with fields: titulo, descricao, status, prioridade, prazo, responsavel, impacto
+- Full CRUD API endpoints at `/api/iniciativas/:empresaId`
+- AI generation endpoint `/api/ai/gerar-iniciativas` that generates 5 unique initiatives
+- Frontend page at `/iniciativas` with grouping by priority level (alta, média, baixa)
+- Anti-duplication system: AI prompt instructions + programmatic filtering (case-insensitive title comparison)
+- Integration with existing estrategias and oportunidades_crescimento for context-aware AI generation
+
+**Key Features:**
+- AI generates 5 initiatives based on company profile, strategies, and growth opportunities
+- Manual CRUD operations with full form validation
+- Visual organization by priority with distinct sections
+- Status tracking: planejada, em_andamento, concluida, pausada
+- Impact assessment: alto, médio, baixo
+- Responsible party and deadline tracking
+- Seamless integration with sidebar navigation
+
+**Technical Notes:**
+- Fixed `apiRequest` function to properly parse JSON responses (added `.json()` call)
+- Consistent with established UI/UX patterns across the application
+- Follows anti-duplication pattern established in Estrategias and Oportunidades features

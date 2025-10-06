@@ -343,7 +343,7 @@ export default function CincoForcas() {
         </div>
       ) : forcasData.length === 0 ? (
         <EmptyState
-          icon={Layers}
+          icon={<Layers className="h-16 w-16" />}
           title="Nenhuma análise ainda"
           description="Comece analisando as forças competitivas do seu mercado. A IA pode sugerir análises baseadas no perfil da sua empresa."
         />

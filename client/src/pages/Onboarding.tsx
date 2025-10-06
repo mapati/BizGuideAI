@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import { ArrowRight, ArrowLeft } from "lucide-react";
 import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import type { Empresa } from "@shared/schema";
 
 export default function Onboarding() {
   const [, setLocation] = useLocation();
@@ -26,9 +27,20 @@ export default function Onboarding() {
     descricao: "",
   });
 
-  const { data: empresaExistente } = useQuery({
+  const { data: empresaExistente } = useQuery<Empresa | null>({
     queryKey: ["/api/empresa"],
   });
+
+  useEffect(() => {
+    if (empresaExistente) {
+      setFormData({
+        nome: empresaExistente.nome || "",
+        setor: empresaExistente.setor || "",
+        tamanho: empresaExistente.tamanho || "",
+        descricao: empresaExistente.descricao || "",
+      });
+    }
+  }, [empresaExistente]);
 
   const criarEmpresaMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
@@ -52,6 +64,27 @@ export default function Onboarding() {
     },
   });
 
+  const atualizarEmpresaMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      const res = await apiRequest("PATCH", `/api/empresa/${empresaExistente?.id}`, data);
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/empresa"] });
+      toast({
+        title: "Perfil atualizado com sucesso!",
+        description: "As informações da sua empresa foram atualizadas.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao atualizar perfil",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleNext = () => {
     if (step < totalSteps) {
       setStep(step + 1);
@@ -64,7 +97,11 @@ export default function Onboarding() {
         });
         return;
       }
-      criarEmpresaMutation.mutate(formData);
+      if (empresaExistente) {
+        atualizarEmpresaMutation.mutate(formData);
+      } else {
+        criarEmpresaMutation.mutate(formData);
+      }
     }
   };
 
@@ -74,26 +111,11 @@ export default function Onboarding() {
     }
   };
 
-  if (empresaExistente) {
-    return (
-      <div className="max-w-3xl mx-auto">
-        <Card className="p-8">
-          <h2 className="text-2xl font-semibold mb-4">Perfil já configurado</h2>
-          <p className="text-muted-foreground mb-6">
-            Você já tem um perfil de empresa cadastrado. Use o menu lateral para acessar as ferramentas de análise estratégica.
-          </p>
-          <Button onClick={() => setLocation("/")} data-testid="button-ir-dashboard">
-            Ir para Dashboard
-          </Button>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-3xl mx-auto">
       <PageHeader
-        title="Perfil da Empresa"
+        title={empresaExistente ? "Editar Perfil da Empresa" : "Perfil da Empresa"}
         description="Conte-nos sobre seu negócio em linguagem simples. Não se preocupe com termos técnicos."
         tooltip="Estas informações ajudarão a personalizar todas as análises e sugestões ao longo da jornada."
       />
@@ -232,10 +254,10 @@ export default function Onboarding() {
           </Button>
           <Button
             onClick={handleNext}
-            disabled={criarEmpresaMutation.isPending}
+            disabled={criarEmpresaMutation.isPending || atualizarEmpresaMutation.isPending}
             data-testid="button-proximo"
           >
-            {step === totalSteps ? "Finalizar" : "Próximo"}
+            {step === totalSteps ? (empresaExistente ? "Atualizar Perfil" : "Finalizar") : "Próximo"}
             <ArrowRight className="h-4 w-4 ml-2" />
           </Button>
         </div>

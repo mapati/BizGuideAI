@@ -13,6 +13,14 @@ import { LayoutGrid, Plus, Sparkles, Trash2, Pencil } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
+interface Empresa {
+  id: string;
+  nome: string;
+  setor: string;
+  tamanho: string;
+  descricao?: string;
+}
+
 interface ModeloNegocio {
   id: string;
   empresaId: string;
@@ -42,7 +50,7 @@ export default function ModeloNegocio() {
     { value: "estrutura_custos", label: "Estrutura de Custos", description: "Quais são os custos?" },
   ];
 
-  const { data: empresa } = useQuery({
+  const { data: empresa } = useQuery<Empresa>({
     queryKey: ["/api/empresa"],
   });
 

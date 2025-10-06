@@ -733,14 +733,22 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
       const oportunidades = swotExistente.filter(s => s.tipo === "oportunidade").map(s => s.descricao);
       const ameacas = swotExistente.filter(s => s.tipo === "ameaca").map(s => s.descricao);
 
-      const estrategiasResume = estrategiasExistentes.map(e => `${e.tipo}: ${e.titulo}`).join("\n");
+      const estrategiasResume = estrategiasExistentes.map(e => 
+        `- ${e.tipo}: ${e.titulo}\n  Descrição: ${e.descricao}`
+      ).join("\n\n");
 
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
-            content: `Você é um consultor estratégico sênior especializado em matriz TOWS (SWOT Cruzada). Sua missão é criar estratégias práticas e acionáveis combinando elementos internos e externos. Use sempre linguagem simples e direta, sem jargões técnicos. IMPORTANTE: Nunca repita estratégias que já foram criadas anteriormente.`
+            content: `Você é um consultor estratégico sênior especializado em matriz TOWS (SWOT Cruzada). Sua missão é criar estratégias práticas e acionáveis combinando elementos internos e externos. Use sempre linguagem simples e direta, sem jargões técnicos.
+
+REGRA CRÍTICA DE DUPLICAÇÃO:
+- Você DEVE analisar cuidadosamente todas as estratégias já existentes listadas na seção "ESTRATÉGIAS JÁ EXISTENTES"
+- NUNCA crie estratégias que sejam semelhantes, parecidas ou que abordem os mesmos temas das estratégias existentes
+- Cada nova estratégia PRECISA ser única, inovadora e diferente de todas as anteriores
+- Se você sugerir algo muito parecido com o que já existe, está violando esta regra crítica`
           },
           {
             role: "user",
@@ -761,11 +769,17 @@ ${oportunidades.length > 0 ? oportunidades.map((o, i) => `${i + 1}. ${o}`).join(
 ### AMEAÇAS (Externas - Negativo):
 ${ameacas.length > 0 ? ameacas.map((a, i) => `${i + 1}. ${a}`).join("\n") : "Nenhuma ameaça identificada"}
 
-## ESTRATÉGIAS JÁ EXISTENTES (EVITE REPETIR):
-${estrategiasResume || "Nenhuma estratégia criada ainda"}
+## ESTRATÉGIAS JÁ EXISTENTES (NÃO REPITA NENHUMA DELAS):
+${estrategiasExistentes.length > 0 ? estrategiasResume : "Nenhuma estratégia criada ainda - esta é a primeira geração"}
+
+${estrategiasExistentes.length > 0 ? `
+⚠️ ATENÇÃO: Já existem ${estrategiasExistentes.length} estratégia(s) cadastrada(s) acima.
+Suas novas sugestões DEVEM ser completamente diferentes e abordar aspectos não cobertos pelas estratégias existentes.
+Analise cada estratégia existente antes de sugerir algo novo.
+` : ''}
 
 ## TAREFA:
-Com base na matriz TOWS, crie EXATAMENTE 4 novas estratégias, uma de cada tipo:
+Com base na matriz TOWS, crie EXATAMENTE 4 novas estratégias ÚNICAS e DIFERENTES, uma de cada tipo:
 
 1. **FO (Ofensiva/Maxi-Maxi)**: Combine uma FORÇA com uma OPORTUNIDADE
 2. **FA (Confronto/Maxi-Mini)**: Combine uma FORÇA para neutralizar uma AMEAÇA

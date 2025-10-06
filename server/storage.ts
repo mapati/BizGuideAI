@@ -9,6 +9,7 @@ import {
   cincoForcas,
   modeloNegocio,
   estrategias,
+  oportunidadesCrescimento,
   type Empresa,
   type InsertEmpresa,
   type FatorPestel,
@@ -27,6 +28,8 @@ import {
   type InsertModeloNegocio,
   type Estrategia,
   type InsertEstrategia,
+  type OportunidadeCrescimento,
+  type InsertOportunidadeCrescimento,
 } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
@@ -73,6 +76,11 @@ export interface IStorage {
   createEstrategia(estrategia: InsertEstrategia): Promise<Estrategia>;
   updateEstrategia(id: string, estrategia: Partial<InsertEstrategia>): Promise<Estrategia>;
   deleteEstrategia(id: string): Promise<void>;
+  
+  getOportunidadesCrescimento(empresaId: string): Promise<OportunidadeCrescimento[]>;
+  createOportunidadeCrescimento(oportunidade: InsertOportunidadeCrescimento): Promise<OportunidadeCrescimento>;
+  updateOportunidadeCrescimento(id: string, oportunidade: Partial<InsertOportunidadeCrescimento>): Promise<OportunidadeCrescimento>;
+  deleteOportunidadeCrescimento(id: string): Promise<void>;
 }
 
 export class DbStorage implements IStorage {
@@ -228,6 +236,24 @@ export class DbStorage implements IStorage {
 
   async deleteEstrategia(id: string): Promise<void> {
     await db.delete(estrategias).where(eq(estrategias.id, id));
+  }
+
+  async getOportunidadesCrescimento(empresaId: string): Promise<OportunidadeCrescimento[]> {
+    return db.select().from(oportunidadesCrescimento).where(eq(oportunidadesCrescimento.empresaId, empresaId));
+  }
+
+  async createOportunidadeCrescimento(oportunidade: InsertOportunidadeCrescimento): Promise<OportunidadeCrescimento> {
+    const result = await db.insert(oportunidadesCrescimento).values(oportunidade).returning();
+    return result[0];
+  }
+
+  async updateOportunidadeCrescimento(id: string, oportunidade: Partial<InsertOportunidadeCrescimento>): Promise<OportunidadeCrescimento> {
+    const result = await db.update(oportunidadesCrescimento).set(oportunidade).where(eq(oportunidadesCrescimento.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteOportunidadeCrescimento(id: string): Promise<void> {
+    await db.delete(oportunidadesCrescimento).where(eq(oportunidadesCrescimento.id, id));
   }
 }
 

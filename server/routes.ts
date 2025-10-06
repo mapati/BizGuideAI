@@ -1081,6 +1081,22 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
       });
 
       const sugestoes = JSON.parse(completion.choices[0].message.content || "{}");
+      
+      if (sugestoes.iniciativas && Array.isArray(sugestoes.iniciativas)) {
+        const seenTitles = new Set(
+          iniciativasExistentes.map(i => i.titulo.toLowerCase().trim())
+        );
+        
+        sugestoes.iniciativas = sugestoes.iniciativas.filter((iniciativa: any) => {
+          const titulo = iniciativa.titulo?.toLowerCase().trim();
+          if (!titulo || seenTitles.has(titulo)) {
+            return false;
+          }
+          seenTitles.add(titulo);
+          return true;
+        });
+      }
+      
       res.json(sugestoes);
     } catch (error: any) {
       res.status(500).json({ error: error.message });

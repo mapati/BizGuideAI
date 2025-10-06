@@ -155,12 +155,12 @@ export default function Iniciativas() {
     },
   });
 
-  const generateMutation = useMutation({
+  const generateMutation = useMutation<{ iniciativas: InsertIniciativa[] }, Error, void>({
     mutationFn: async () => {
       const response = await apiRequest("/api/ai/gerar-iniciativas", "POST", {
         empresaId: empresa?.id,
       });
-      return response;
+      return response as unknown as { iniciativas: InsertIniciativa[] };
     },
     onSuccess: (data: { iniciativas: InsertIniciativa[] }) => {
       if (data.iniciativas && data.iniciativas.length > 0) {
@@ -178,6 +178,20 @@ export default function Iniciativas() {
             title: "Sucesso!",
             description: `${data.iniciativas.length} iniciativas geradas com sucesso.`,
           });
+        }).catch(() => {
+          setIsGenerating(false);
+          toast({
+            title: "Erro",
+            description: "Não foi possível salvar as iniciativas geradas.",
+            variant: "destructive",
+          });
+        });
+      } else {
+        setIsGenerating(false);
+        toast({
+          title: "Nenhuma iniciativa gerada",
+          description: "A IA não conseguiu gerar novas iniciativas. Tente novamente.",
+          variant: "destructive",
         });
       }
     },
@@ -499,24 +513,12 @@ export default function Iniciativas() {
             description="Comece gerando iniciativas com IA ou adicione manualmente."
           />
           <div className="mt-8 grid gap-4 md:grid-cols-2">
-            <ExampleCard
-              title="Programa de Fidelidade Digital"
-              description="Criar um app de fidelidade com pontos, recompensas e ofertas personalizadas para aumentar a retenção de clientes."
-              details={[
-                "Status: Planejada",
-                "Prioridade: Alta",
-                "Prazo: Q2 2025",
-              ]}
-            />
-            <ExampleCard
-              title="Expansão para E-commerce"
-              description="Desenvolver plataforma de vendas online integrada com estoque e logística para ampliar canais de venda."
-              details={[
-                "Status: Em Andamento",
-                "Prioridade: Alta",
-                "Prazo: Q1 2025",
-              ]}
-            />
+            <ExampleCard>
+              <strong>Programa de Fidelidade Digital:</strong> Criar um app de fidelidade com pontos, recompensas e ofertas personalizadas para aumentar a retenção de clientes. <strong>Status:</strong> Planejada | <strong>Prioridade:</strong> Alta | <strong>Prazo:</strong> Q2 2025
+            </ExampleCard>
+            <ExampleCard>
+              <strong>Expansão para E-commerce:</strong> Desenvolver plataforma de vendas online integrada com estoque e logística para ampliar canais de venda. <strong>Status:</strong> Em Andamento | <strong>Prioridade:</strong> Alta | <strong>Prazo:</strong> Q1 2025
+            </ExampleCard>
           </div>
         </div>
       ) : (

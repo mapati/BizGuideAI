@@ -1,34 +1,47 @@
 import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ImpactBadge } from "@/components/ImpactBadge";
-import { ExampleCard } from "@/components/ExampleCard";
+import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/EmptyState";
-import { Plus, Sparkles, Compass } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { ExampleCard } from "@/components/ExampleCard";
+import { Compass, Plus, Sparkles, Trash2 } from "lucide-react";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface FatorPESTEL {
   id: string;
+  empresaId: string;
   tipo: string;
   descricao: string;
   impacto: "alto" | "médio" | "baixo";
   evidencia: string;
 }
 
+const ImpactBadge = ({ impact }: { impact: "alto" | "médio" | "baixo" }) => {
+  const variants = {
+    alto: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+    médio: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+    baixo: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+  };
+
+  return (
+    <Badge className={variants[impact]} data-testid={`badge-impacto-${impact}`}>
+      {impact.charAt(0).toUpperCase() + impact.slice(1)}
+    </Badge>
+  );
+};
+
 export default function Pestel() {
-  const [fatores, setFatores] = useState<FatorPESTEL[]>([]);
+  const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSuggesting, setIsSuggesting] = useState(false);
   const [novoFator, setNovoFator] = useState({
     tipo: "",
     descricao: "",
@@ -45,31 +58,149 @@ export default function Pestel() {
     { value: "legal", label: "Legal (normas, certificações)" },
   ];
 
+  const { data: empresa } = useQuery({
+    queryKey: ["/api/empresa"],
+  });
+
+  const { data: fatores = [], isLoading } = useQuery<FatorPESTEL[]>({
+    queryKey: [`/api/fatores-pestel/${empresa?.id}`],
+    enabled: !!empresa?.id,
+  });
+
+  const criarFatorMutation = useMutation({
+    mutationFn: async (data: typeof novoFator) => {
+      if (!empresa?.id) throw new Error("Empresa não encontrada");
+      return await apiRequest("/api/fatores-pestel", {
+        method: "POST",
+        body: JSON.stringify({ ...data, empresaId: empresa.id }),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/fatores-pestel/${empresa?.id}`] });
+      toast({
+        title: "Fator adicionado!",
+        description: "O fator externo foi salvo com sucesso.",
+      });
+      setNovoFator({ tipo: "", descricao: "", impacto: "médio", evidencia: "" });
+      setIsDialogOpen(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao adicionar fator",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deletarFatorMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest(`/api/fatores-pestel/${id}`, {
+        method: "DELETE",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/fatores-pestel/${empresa?.id}`] });
+      toast({
+        title: "Fator removido",
+        description: "O fator externo foi excluído.",
+      });
+    },
+  });
+
   const handleAddFator = () => {
-    const fator: FatorPESTEL = {
-      id: Date.now().toString(),
-      ...novoFator,
-    };
-    setFatores([...fatores, fator]);
-    setNovoFator({ tipo: "", descricao: "", impacto: "médio", evidencia: "" });
-    setIsDialogOpen(false);
+    if (!novoFator.tipo || !novoFator.descricao || !novoFator.evidencia) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Por favor, preencha todos os campos.",
+        variant: "destructive",
+      });
+      return;
+    }
+    criarFatorMutation.mutate(novoFator);
   };
 
-  const handleSuggest = () => {
-    console.log("Gerando sugestões de cenário externo com IA...");
+  const handleSuggest = async () => {
+    if (!empresa) {
+      toast({
+        title: "Perfil não encontrado",
+        description: "Complete o perfil da empresa primeiro.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSuggesting(true);
+    try {
+      const response = await apiRequest("/api/ai/sugerir-pestel", {
+        method: "POST",
+        body: JSON.stringify({
+          nomeEmpresa: empresa.nome,
+          setor: empresa.setor,
+          descricao: empresa.descricao,
+        }),
+      });
+
+      const sugestoes = response.fatores || [];
+      
+      for (const sugestao of sugestoes) {
+        await apiRequest("/api/fatores-pestel", {
+          method: "POST",
+          body: JSON.stringify({
+            ...sugestao,
+            empresaId: empresa.id,
+          }),
+        });
+      }
+
+      queryClient.invalidateQueries({ queryKey: [`/api/fatores-pestel/${empresa.id}`] });
+      toast({
+        title: "Sugestões adicionadas!",
+        description: `${sugestoes.length} fatores foram sugeridos pela IA.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao gerar sugestões",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSuggesting(false);
+    }
   };
+
+  if (!empresa) {
+    return (
+      <div className="max-w-5xl mx-auto">
+        <Card className="p-8">
+          <h2 className="text-2xl font-semibold mb-4">Complete seu perfil primeiro</h2>
+          <p className="text-muted-foreground mb-6">
+            Para começar a análise do cenário externo, você precisa completar o perfil da sua empresa.
+          </p>
+          <Button onClick={() => window.location.href = "/onboarding"} data-testid="button-ir-onboarding">
+            Ir para Onboarding
+          </Button>
+        </Card>
+      </div>
+    );
+  }
 
   return (
-    <div>
+    <div className="max-w-5xl mx-auto">
       <PageHeader
         title="Cenário Externo"
         description="Identifique os principais fatores externos que impactam seu negócio: mudanças políticas, econômicas, sociais, tecnológicas, ambientais e legais."
         tooltip="Esta análise ajuda você a entender o ambiente ao redor da sua empresa e se preparar para mudanças importantes que podem afetar seus resultados."
         action={
           <div className="flex gap-2">
-            <Button variant="outline" onClick={handleSuggest} data-testid="button-suggest-pestel">
+            <Button
+              variant="outline"
+              onClick={handleSuggest}
+              disabled={isSuggesting || !empresa}
+              data-testid="button-suggest-pestel"
+            >
               <Sparkles className="h-4 w-4 mr-2" />
-              Sugerir Fatores
+              {isSuggesting ? "Gerando..." : "Sugerir Fatores"}
             </Button>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
@@ -139,7 +270,11 @@ export default function Pestel() {
                   <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                     Cancelar
                   </Button>
-                  <Button onClick={handleAddFator} data-testid="button-save-fator">
+                  <Button
+                    onClick={handleAddFator}
+                    disabled={criarFatorMutation.isPending}
+                    data-testid="button-salvar-fator"
+                  >
                     Adicionar
                   </Button>
                 </div>
@@ -153,7 +288,11 @@ export default function Pestel() {
         <strong>Econômico:</strong> O dólar subiu muito e isso está aumentando nosso custo de matéria-prima importada. Se não conseguirmos repassar esse aumento, nossa margem pode cair 3-5%. <strong>Impacto: Alto</strong>
       </ExampleCard>
 
-      {fatores.length === 0 ? (
+      {isLoading ? (
+        <Card className="mt-6 p-8">
+          <div className="text-center text-muted-foreground">Carregando...</div>
+        </Card>
+      ) : fatores.length === 0 ? (
         <Card className="mt-6">
           <EmptyState
             icon={<Compass className="h-16 w-16" />}
@@ -168,10 +307,20 @@ export default function Pestel() {
           {fatores.map((fator) => (
             <Card key={fator.id} className="p-6 hover-elevate" data-testid={`card-fator-${fator.id}`}>
               <div className="flex items-start justify-between mb-3">
-                <div className="text-sm font-semibold text-primary uppercase tracking-wide">
+                <div className="text-xs font-semibold text-primary uppercase tracking-wide">
                   {tipos.find((t) => t.value === fator.tipo)?.label}
                 </div>
-                <ImpactBadge impact={fator.impacto} />
+                <div className="flex items-center gap-2">
+                  <ImpactBadge impact={fator.impacto} />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => deletarFatorMutation.mutate(fator.id)}
+                    data-testid={`button-delete-fator-${fator.id}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
               <p className="text-sm mb-3">{fator.descricao}</p>
               <div className="text-xs text-muted-foreground bg-muted/30 p-3 rounded-md">

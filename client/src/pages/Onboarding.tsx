@@ -32,10 +32,8 @@ export default function Onboarding() {
 
   const criarEmpresaMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      return await apiRequest("/api/empresa", {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
+      const res = await apiRequest("POST", "/api/empresa", data);
+      return await res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/empresa"] });

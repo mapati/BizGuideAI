@@ -1229,6 +1229,143 @@ Responda em JSON:
     }
   });
 
+  app.post("/api/ai/gerar-resultados-chave", async (req, res) => {
+    try {
+      const { objetivoId } = req.body;
+      
+      if (!objetivoId) {
+        return res.status(400).json({ error: "objetivoId é obrigatório" });
+      }
+
+      const empresa = await storage.getEmpresa();
+      if (!empresa) {
+        return res.status(404).json({ error: "Empresa não encontrada" });
+      }
+
+      const objetivos = await storage.getObjetivos(empresa.id);
+      const objetivo = objetivos.find(o => o.id === objetivoId);
+      
+      if (!objetivo) {
+        return res.status(404).json({ error: "Objetivo não encontrado" });
+      }
+
+      const resultadosExistentes = await storage.getResultadosChave(objetivoId);
+      const estrategias = await storage.getEstrategias(empresa.id);
+      const oportunidades = await storage.getOportunidadesCrescimento(empresa.id);
+      const iniciativas = await storage.getIniciativas(empresa.id);
+
+      const resultadosResume = resultadosExistentes.map(r => 
+        `- ${r.metrica}\n  Inicial: ${r.valorInicial}, Alvo: ${r.valorAlvo}, Atual: ${r.valorAtual}\n  Owner: ${r.owner}, Prazo: ${r.prazo}`
+      ).join("\n\n");
+
+      const estrategiasResume = estrategias.map(e => `${e.tipo}: ${e.titulo}`).join("\n");
+      const oportunidadesResume = oportunidades.map(o => `${o.tipo}: ${o.titulo}`).join("\n");
+      const iniciativasResume = iniciativas.map(i => i.titulo).join("\n");
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `Você é um consultor estratégico especializado em OKRs (Objectives and Key Results). Sua missão é criar resultados-chave mensuráveis e específicos que demonstrem o sucesso do objetivo estratégico. Use linguagem simples, sem jargões.
+
+REGRA CRÍTICA DE DUPLICAÇÃO:
+- Analise TODOS os resultados-chave já existentes para este objetivo
+- NUNCA crie resultados similares ou que meçam as mesmas métricas
+- Cada resultado-chave DEVE ser único e medir algo diferente
+- Se você sugerir algo muito parecido com o que já existe, está VIOLANDO esta regra`
+          },
+          {
+            role: "user",
+            content: `Empresa: ${empresa.nome}
+Setor: ${empresa.setor}
+
+## OBJETIVO ESTRATÉGICO:
+"${objetivo.titulo}"
+${objetivo.descricao ? `Descrição: ${objetivo.descricao}` : ''}
+Prazo: ${objetivo.prazo}
+
+## CONTEXTO DAS APOSTAS ESTRATÉGICAS:
+
+### ESTRATÉGIAS (TOWS):
+${estrategias.length > 0 ? estrategiasResume : "Nenhuma estratégia definida"}
+
+### OPORTUNIDADES DE CRESCIMENTO (Ansoff):
+${oportunidades.length > 0 ? oportunidadesResume : "Nenhuma oportunidade identificada"}
+
+### INICIATIVAS PRIORITÁRIAS:
+${iniciativas.length > 0 ? iniciativasResume : "Nenhuma iniciativa definida"}
+
+## RESULTADOS-CHAVE JÁ EXISTENTES (NÃO REPITA):
+${resultadosExistentes.length > 0 ? resultadosResume : "Nenhum resultado-chave criado ainda"}
+
+${resultadosExistentes.length > 0 ? `
+⚠️ ATENÇÃO: Já existem ${resultadosExistentes.length} resultado(s)-chave. 
+Suas sugestões DEVEM medir aspectos DIFERENTES e complementares.
+` : ''}
+
+## TAREFA:
+Crie EXATAMENTE 3 resultados-chave ÚNICOS e mensuráveis para este objetivo.
+
+Cada resultado-chave deve:
+- metrica: Nome claro da métrica (ex: "Margem bruta", "Taxa de retenção de clientes", "Tempo médio de entrega")
+- valorInicial: Valor atual/inicial em número decimal (ex: 38.5 para 38,5%, 12.3 para 12,3 dias)
+- valorAlvo: Meta a atingir em número decimal (ex: 42.0 para 42%, 10.0 para 10 dias)
+- valorAtual: Valor atual (mesmo que valorInicial no início)
+- owner: Cargo/área responsável (ex: "CFO", "Gerente Comercial", "Coordenador de Logística")
+- prazo: Horizonte temporal (ex: "Q4 2025", "Dez 2025", "Jun 2026")
+
+IMPORTANTE sobre valores:
+- Use números decimais simples (38.5, não "38,5%")
+- Valores representam % se a métrica mencionar taxa/margem/percentual
+- Valores representam dias/horas/R$ conforme a métrica indicar
+- Sempre use . (ponto) como separador decimal, nunca vírgula
+- Exemplo correto: valorInicial: 38.5, valorAlvo: 42.0
+- Exemplo errado: valorInicial: "38,5%", valorAlvo: "42%"
+
+Os resultados-chave devem ser:
+✓ Específicos e mensuráveis com números
+✓ Alinhados com o objetivo e as apostas estratégicas
+✓ Diferentes entre si (medem coisas distintas)
+✓ Realistas mas desafiadores
+
+Responda em JSON:
+{
+  "resultados": [
+    {"metrica": "...", "valorInicial": 38.5, "valorAlvo": 42.0, "valorAtual": 38.5, "owner": "...", "prazo": "Q4 2025"},
+    {"metrica": "...", "valorInicial": 3.2, "valorAlvo": 2.0, "valorAtual": 3.2, "owner": "...", "prazo": "Dez 2025"},
+    {"metrica": "...", "valorInicial": 45.0, "valorAlvo": 70.0, "valorAtual": 45.0, "owner": "...", "prazo": "Q2 2026"}
+  ]
+}`
+          }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.8,
+      });
+
+      const sugestoes = JSON.parse(completion.choices[0].message.content || "{}");
+      
+      if (sugestoes.resultados && Array.isArray(sugestoes.resultados)) {
+        const seenMetricas = new Set(
+          resultadosExistentes.map(r => r.metrica.toLowerCase().trim())
+        );
+        
+        sugestoes.resultados = sugestoes.resultados.filter((resultado: any) => {
+          const metrica = resultado.metrica?.toLowerCase().trim();
+          if (!metrica || seenMetricas.has(metrica)) {
+            return false;
+          }
+          seenMetricas.add(metrica);
+          return true;
+        });
+      }
+      
+      res.json(sugestoes);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/ai/gerar-indicadores", async (req, res) => {
     try {
       const { empresaId } = req.body;

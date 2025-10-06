@@ -137,3 +137,20 @@ export const insertModeloNegocioSchema = createInsertSchema(modeloNegocio).omit(
 });
 export type InsertModeloNegocio = z.infer<typeof insertModeloNegocioSchema>;
 export type ModeloNegocio = typeof modeloNegocio.$inferSelect;
+
+export const estrategias = pgTable("estrategias", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  empresaId: varchar("empresa_id").notNull().references(() => empresas.id, { onDelete: "cascade" }),
+  tipo: text("tipo").notNull(),
+  titulo: text("titulo").notNull(),
+  descricao: text("descricao").notNull(),
+  prioridade: text("prioridade").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertEstrategiaSchema = createInsertSchema(estrategias).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertEstrategia = z.infer<typeof insertEstrategiaSchema>;
+export type Estrategia = typeof estrategias.$inferSelect;

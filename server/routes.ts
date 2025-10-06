@@ -380,6 +380,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/ai/sugerir-swot-individual", async (req, res) => {
+    try {
+      const { empresaId, tipo } = req.body;
+      
+      if (!empresaId || !tipo) {
+        return res.status(400).json({ error: "empresaId e tipo são obrigatórios" });
+      }
+
+      const empresa = await storage.getEmpresa();
+      if (!empresa || empresa.id !== empresaId) {
+        return res.status(404).json({ error: "Empresa não encontrada" });
+      }
+
+      const fatoresPestel = await storage.getFatoresPestel(empresaId);
+      const cincoForcas = await storage.getCincoForcas(empresaId);
+      const modeloNegocio = await storage.getModeloNegocio(empresaId);
+      const swotExistente = await storage.getAnaliseSwot(empresaId);
+
+      const fatoresPestelResumo = fatoresPestel.map(f => `${f.tipo}: ${f.descricao}`).join("\n");
+      const cincoForcasResumo = cincoForcas.map(f => `${f.forca}: ${f.descricao} (intensidade ${f.intensidade})`).join("\n");
+      const modeloNegocioResumo = modeloNegocio.map(m => `${m.bloco}: ${m.descricao}`).join("\n");
+      
+      const swotPorTipo = swotExistente.filter(s => s.tipo === tipo).map(s => s.descricao);
+
+      const tipoLabel = tipo === "forca" ? "FORÇA" : tipo === "fraqueza" ? "FRAQUEZA" : tipo === "oportunidade" ? "OPORTUNIDADE" : "AMEAÇA";
+      const contextoBase = tipo === "forca" || tipo === "fraqueza" ? "MODELO DE NEGÓCIO" : "CENÁRIO EXTERNO (PESTEL) e MERCADO E CONCORRÊNCIA";
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `Você é um consultor estratégico sênior especializado em análise SWOT. Sua missão é identificar com precisão forças, fraquezas, oportunidades e ameaças relevantes. Use sempre linguagem simples e direta, sem jargões técnicos. IMPORTANTE: Nunca repita itens que já foram identificados anteriormente.`
+          },
+          {
+            role: "user",
+            content: `Empresa: ${empresa.nome}
+Setor: ${empresa.setor}
+Descrição: ${empresa.descricao || "Não informado"}
+
+## CONTEXTO COMPLETO DA EMPRESA:
+
+### Modelo de Negócio (Business Model Canvas):
+${modeloNegocioResumo || "Ainda não definido"}
+
+### Cenário Externo (Análise PESTEL):
+${fatoresPestelResumo || "Ainda não definido"}
+
+### Mercado e Concorrência (Cinco Forças):
+${cincoForcasResumo || "Ainda não definido"}
+
+## ${tipoLabel}S JÁ EXISTENTES (EVITE REPETIR):
+${swotPorTipo.length > 0 ? swotPorTipo.map((item, i) => `${i + 1}. ${item}`).join("\n") : `Nenhuma ${tipoLabel.toLowerCase()} identificada ainda`}
+
+## TAREFA:
+Com base no ${contextoBase}, gere EXATAMENTE 1 (uma) nova ${tipoLabel} que NÃO esteja na lista acima.
+
+Para o item, forneça:
+- descricao: uma descrição clara, objetiva e específica (diferente dos itens existentes)
+- impacto: "alto", "médio" ou "baixo"
+
+Responda OBRIGATORIAMENTE em JSON com este formato exato:
+{
+  "descricao": "...",
+  "impacto": "alto"
+}`
+          }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.8,
+      });
+
+      const sugestao = JSON.parse(completion.choices[0].message.content || "{}");
+      res.json(sugestao);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/ai/sugerir-swot-completo", async (req, res) => {
     try {
       const { empresaId } = req.body;

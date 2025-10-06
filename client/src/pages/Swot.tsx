@@ -52,6 +52,7 @@ export default function Swot() {
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [isSuggestingComplete, setIsSuggestingComplete] = useState(false);
+  const [isSuggestingModal, setIsSuggestingModal] = useState(false);
   const [tipoSugestao, setTipoSugestao] = useState<"forca" | "fraqueza" | "oportunidade" | "ameaca" | null>(null);
   const [formData, setFormData] = useState({
     tipo: "",
@@ -218,6 +219,56 @@ export default function Swot() {
     }
   };
 
+  const handleSuggestModal = async () => {
+    if (!empresa) {
+      toast({
+        title: "Perfil não encontrado",
+        description: "Complete o perfil da empresa primeiro.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!formData.tipo) {
+      toast({
+        title: "Tipo não selecionado",
+        description: "Selecione o tipo de análise primeiro.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSuggestingModal(true);
+    try {
+      const res = await apiRequest("POST", "/api/ai/sugerir-swot-individual", {
+        empresaId: empresa.id,
+        tipo: formData.tipo,
+      });
+      const response = await res.json();
+
+      if (response.descricao) {
+        setFormData(prev => ({
+          ...prev,
+          descricao: response.descricao,
+          impacto: response.impacto || "médio",
+        }));
+        
+        toast({
+          title: "Sugestão gerada!",
+          description: "Revise o texto e ajuste se necessário antes de salvar.",
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Erro ao gerar sugestão",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSuggestingModal(false);
+    }
+  };
+
   const handleSuggestComplete = async () => {
     if (!empresa) {
       toast({
@@ -371,6 +422,19 @@ export default function Swot() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {formData.tipo && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSuggestModal}
+                      disabled={isSuggestingModal}
+                      className="mt-2 w-full"
+                      data-testid="button-suggest-modal"
+                    >
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      {isSuggestingModal ? "Gerando sugestão..." : "Gerar com IA"}
+                    </Button>
+                  )}
                 </div>
 
                 <div>

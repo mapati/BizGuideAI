@@ -153,6 +153,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/objetivos/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const data = insertObjetivoSchema.partial().parse(req.body);
+      const objetivo = await storage.updateObjetivo(id, data);
+      res.json(objetivo);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   app.delete("/api/objetivos/:id", async (req, res) => {
     try {
       const { id } = req.params;

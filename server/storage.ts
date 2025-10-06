@@ -53,6 +53,7 @@ export interface IStorage {
   
   getObjetivos(empresaId: string): Promise<Objetivo[]>;
   createObjetivo(objetivo: InsertObjetivo): Promise<Objetivo>;
+  updateObjetivo(id: string, objetivo: Partial<InsertObjetivo>): Promise<Objetivo>;
   deleteObjetivo(id: string): Promise<void>;
   
   getResultadosChave(objetivoId: string): Promise<ResultadoChave[]>;
@@ -149,6 +150,11 @@ export class DbStorage implements IStorage {
 
   async createObjetivo(objetivo: InsertObjetivo): Promise<Objetivo> {
     const result = await db.insert(objetivos).values(objetivo).returning();
+    return result[0];
+  }
+
+  async updateObjetivo(id: string, objetivo: Partial<InsertObjetivo>): Promise<Objetivo> {
+    const result = await db.update(objetivos).set(objetivo).where(eq(objetivos.id, id)).returning();
     return result[0];
   }
 

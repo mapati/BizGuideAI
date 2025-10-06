@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,26 +10,63 @@ import { ProgressBar } from "@/components/ProgressBar";
 import { ExampleCard } from "@/components/ExampleCard";
 import { ArrowRight, ArrowLeft } from "lucide-react";
 import { useLocation } from "wouter";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Onboarding() {
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
   const [step, setStep] = useState(1);
   const totalSteps = 3;
 
   const [formData, setFormData] = useState({
-    nomeEmpresa: "",
+    nome: "",
     setor: "",
-    oquevende: "",
-    quemCompra: "",
-    principaisDores: "",
+    tamanho: "",
+    descricao: "",
+  });
+
+  const { data: empresaExistente } = useQuery({
+    queryKey: ["/api/empresa"],
+  });
+
+  const criarEmpresaMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      return await apiRequest("/api/empresa", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/empresa"] });
+      toast({
+        title: "Perfil criado com sucesso!",
+        description: "Agora vamos começar a análise estratégica.",
+      });
+      setLocation("/pestel");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao salvar perfil",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
   const handleNext = () => {
     if (step < totalSteps) {
       setStep(step + 1);
     } else {
-      console.log("Onboarding completo:", formData);
-      setLocation("/pestel");
+      if (!formData.nome || !formData.setor || !formData.tamanho) {
+        toast({
+          title: "Campos obrigatórios",
+          description: "Por favor, preencha todos os campos obrigatórios.",
+          variant: "destructive",
+        });
+        return;
+      }
+      criarEmpresaMutation.mutate(formData);
     }
   };
 
@@ -37,6 +75,22 @@ export default function Onboarding() {
       setStep(step - 1);
     }
   };
+
+  if (empresaExistente) {
+    return (
+      <div className="max-w-3xl mx-auto">
+        <Card className="p-8">
+          <h2 className="text-2xl font-semibold mb-4">Perfil já configurado</h2>
+          <p className="text-muted-foreground mb-6">
+            Você já tem um perfil de empresa cadastrado. Use o menu lateral para acessar as ferramentas de análise estratégica.
+          </p>
+          <Button onClick={() => setLocation("/")} data-testid="button-ir-dashboard">
+            Ir para Dashboard
+          </Button>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -62,18 +116,18 @@ export default function Onboarding() {
 
             <div className="space-y-4">
               <div>
-                <Label htmlFor="nomeEmpresa">Nome da Empresa</Label>
+                <Label htmlFor="nome">Nome da Empresa *</Label>
                 <Input
-                  id="nomeEmpresa"
+                  id="nome"
                   placeholder="Ex: TechParts Indústria"
-                  value={formData.nomeEmpresa}
-                  onChange={(e) => setFormData({ ...formData, nomeEmpresa: e.target.value })}
+                  value={formData.nome}
+                  onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
                   data-testid="input-nome-empresa"
                 />
               </div>
 
               <div>
-                <Label htmlFor="setor">Setor de Atuação</Label>
+                <Label htmlFor="setor">Setor de Atuação *</Label>
                 <Input
                   id="setor"
                   placeholder="Ex: Indústria de autopeças"
@@ -93,40 +147,47 @@ export default function Onboarding() {
         {step === 2 && (
           <div className="space-y-6">
             <div>
-              <h3 className="text-xl font-semibold mb-4">Seu Negócio</h3>
+              <h3 className="text-xl font-semibold mb-4">Tamanho da Empresa</h3>
               <p className="text-sm text-muted-foreground mb-6">
-                Descreva o que você faz de forma simples.
+                Isso nos ajuda a calibrar as análises e sugestões.
               </p>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="oquevende">O que você vende ou produz?</Label>
-                <Textarea
-                  id="oquevende"
-                  placeholder="Ex: Peças metálicas usinadas para montadoras automotivas"
-                  value={formData.oquevende}
-                  onChange={(e) => setFormData({ ...formData, oquevende: e.target.value })}
-                  className="min-h-[100px]"
-                  data-testid="textarea-o-que-vende"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="quemCompra">Quem são seus principais clientes?</Label>
-                <Textarea
-                  id="quemCompra"
-                  placeholder="Ex: Montadoras de veículos leves (Tier 1) no Brasil"
-                  value={formData.quemCompra}
-                  onChange={(e) => setFormData({ ...formData, quemCompra: e.target.value })}
-                  className="min-h-[100px]"
-                  data-testid="textarea-quem-compra"
-                />
-              </div>
+            <div className="space-y-3">
+              {[
+                { value: "micro", label: "Microempresa (até 19 funcionários)" },
+                { value: "pequena", label: "Pequena empresa (20-99 funcionários)" },
+                { value: "media", label: "Média empresa (100-499 funcionários)" },
+                { value: "grande", label: "Grande empresa (500+ funcionários)" },
+              ].map((opcao) => (
+                <Card
+                  key={opcao.value}
+                  className={`p-4 cursor-pointer hover-elevate ${
+                    formData.tamanho === opcao.value ? "border-primary bg-primary/5" : ""
+                  }`}
+                  onClick={() => setFormData({ ...formData, tamanho: opcao.value })}
+                  data-testid={`card-tamanho-${opcao.value}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${
+                        formData.tamanho === opcao.value
+                          ? "border-primary bg-primary"
+                          : "border-muted-foreground"
+                      }`}
+                    >
+                      {formData.tamanho === opcao.value && (
+                        <div className="h-2 w-2 rounded-full bg-white" />
+                      )}
+                    </div>
+                    <span className="font-medium">{opcao.label}</span>
+                  </div>
+                </Card>
+              ))}
             </div>
 
             <ExampleCard>
-              Produzimos componentes de suspensão e frenagem para montadoras. Nossos principais clientes são Fiat, GM e Volkswagen.
+              Exemplo: Uma fábrica com 180 funcionários seria classificada como <strong>Média empresa</strong>
             </ExampleCard>
           </div>
         )}
@@ -134,44 +195,49 @@ export default function Onboarding() {
         {step === 3 && (
           <div className="space-y-6">
             <div>
-              <h3 className="text-xl font-semibold mb-4">Desafios Atuais</h3>
+              <h3 className="text-xl font-semibold mb-4">Sobre o Negócio</h3>
               <p className="text-sm text-muted-foreground mb-6">
-                Quais são suas principais dores ou preocupações hoje?
+                Descreva brevemente o que sua empresa faz.
               </p>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="principaisDores">Principais Desafios</Label>
-                <Textarea
-                  id="principaisDores"
-                  placeholder="Ex: Margem apertada devido ao custo do aço, dificuldade em manter prazos de entrega"
-                  value={formData.principaisDores}
-                  onChange={(e) => setFormData({ ...formData, principaisDores: e.target.value })}
-                  className="min-h-[150px]"
-                  data-testid="textarea-principais-dores"
-                />
-              </div>
+            <div>
+              <Label htmlFor="descricao">Descrição do Negócio</Label>
+              <Textarea
+                id="descricao"
+                placeholder="Ex: Fabricamos peças metálicas usinadas de alta precisão para montadoras automotivas. Nossos principais produtos são componentes de motor e transmissão."
+                value={formData.descricao}
+                onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
+                className="min-h-[150px]"
+                data-testid="textarea-descricao"
+              />
+              <p className="text-xs text-muted-foreground mt-2">
+                Dica: Descreva o que você faz, para quem vende e quais são seus principais produtos ou serviços.
+              </p>
             </div>
 
             <ExampleCard>
-              Nossa margem está sendo pressionada pelo aumento do custo de matéria-prima. Além disso, temos problemas recorrentes de setup que impactam nossa capacidade de entrega.
+              <strong>Exemplo:</strong> Somos uma indústria de embalagens plásticas para o setor alimentício. Produzimos desde potes pequenos até tambores industriais. Atendemos desde pequenas empresas locais até grandes redes de supermercados.
             </ExampleCard>
           </div>
         )}
 
-        <div className="flex items-center justify-between mt-8 pt-6 border-t">
+        <div className="flex justify-between mt-8">
           <Button
             variant="outline"
             onClick={handleBack}
             disabled={step === 1}
-            data-testid="button-back"
+            data-testid="button-voltar"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Voltar
           </Button>
-          <Button onClick={handleNext} data-testid="button-next">
-            {step === totalSteps ? "Concluir e Continuar" : "Próximo"}
+          <Button
+            onClick={handleNext}
+            disabled={criarEmpresaMutation.isPending}
+            data-testid="button-proximo"
+          >
+            {step === totalSteps ? "Finalizar" : "Próximo"}
             <ArrowRight className="h-4 w-4 ml-2" />
           </Button>
         </div>

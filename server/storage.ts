@@ -1,38 +1,144 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
+import { db } from "./db";
+import { 
+  empresas, 
+  fatoresPestel, 
+  analiseSwot, 
+  objetivos, 
+  resultadosChave, 
+  indicadores,
+  type Empresa,
+  type InsertEmpresa,
+  type FatorPestel,
+  type InsertFatorPestel,
+  type AnaliseSwot,
+  type InsertAnaliseSwot,
+  type Objetivo,
+  type InsertObjetivo,
+  type ResultadoChave,
+  type InsertResultadoChave,
+  type Indicador,
+  type InsertIndicador,
+} from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  getEmpresa(): Promise<Empresa | undefined>;
+  createEmpresa(empresa: InsertEmpresa): Promise<Empresa>;
+  updateEmpresa(id: string, empresa: Partial<InsertEmpresa>): Promise<Empresa>;
+  
+  getFatoresPestel(empresaId: string): Promise<FatorPestel[]>;
+  createFatorPestel(fator: InsertFatorPestel): Promise<FatorPestel>;
+  deleteFatorPestel(id: string): Promise<void>;
+  
+  getAnaliseSwot(empresaId: string): Promise<AnaliseSwot[]>;
+  createAnaliseSwot(analise: InsertAnaliseSwot): Promise<AnaliseSwot>;
+  deleteAnaliseSwot(id: string): Promise<void>;
+  
+  getObjetivos(empresaId: string): Promise<Objetivo[]>;
+  createObjetivo(objetivo: InsertObjetivo): Promise<Objetivo>;
+  deleteObjetivo(id: string): Promise<void>;
+  
+  getResultadosChave(objetivoId: string): Promise<ResultadoChave[]>;
+  createResultadoChave(resultado: InsertResultadoChave): Promise<ResultadoChave>;
+  updateResultadoChave(id: string, resultado: Partial<InsertResultadoChave>): Promise<ResultadoChave>;
+  deleteResultadoChave(id: string): Promise<void>;
+  
+  getIndicadores(empresaId: string): Promise<Indicador[]>;
+  createIndicador(indicador: InsertIndicador): Promise<Indicador>;
+  updateIndicador(id: string, indicador: Partial<InsertIndicador>): Promise<Indicador>;
+  deleteIndicador(id: string): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-
-  constructor() {
-    this.users = new Map();
+export class DbStorage implements IStorage {
+  async getEmpresa(): Promise<Empresa | undefined> {
+    const result = await db.select().from(empresas).limit(1);
+    return result[0];
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async createEmpresa(empresa: InsertEmpresa): Promise<Empresa> {
+    const result = await db.insert(empresas).values(empresa).returning();
+    return result[0];
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+  async updateEmpresa(id: string, empresa: Partial<InsertEmpresa>): Promise<Empresa> {
+    const result = await db.update(empresas).set(empresa).where(eq(empresas.id, id)).returning();
+    return result[0];
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  async getFatoresPestel(empresaId: string): Promise<FatorPestel[]> {
+    return db.select().from(fatoresPestel).where(eq(fatoresPestel.empresaId, empresaId));
+  }
+
+  async createFatorPestel(fator: InsertFatorPestel): Promise<FatorPestel> {
+    const result = await db.insert(fatoresPestel).values(fator).returning();
+    return result[0];
+  }
+
+  async deleteFatorPestel(id: string): Promise<void> {
+    await db.delete(fatoresPestel).where(eq(fatoresPestel.id, id));
+  }
+
+  async getAnaliseSwot(empresaId: string): Promise<AnaliseSwot[]> {
+    return db.select().from(analiseSwot).where(eq(analiseSwot.empresaId, empresaId));
+  }
+
+  async createAnaliseSwot(analise: InsertAnaliseSwot): Promise<AnaliseSwot> {
+    const result = await db.insert(analiseSwot).values(analise).returning();
+    return result[0];
+  }
+
+  async deleteAnaliseSwot(id: string): Promise<void> {
+    await db.delete(analiseSwot).where(eq(analiseSwot.id, id));
+  }
+
+  async getObjetivos(empresaId: string): Promise<Objetivo[]> {
+    return db.select().from(objetivos).where(eq(objetivos.empresaId, empresaId));
+  }
+
+  async createObjetivo(objetivo: InsertObjetivo): Promise<Objetivo> {
+    const result = await db.insert(objetivos).values(objetivo).returning();
+    return result[0];
+  }
+
+  async deleteObjetivo(id: string): Promise<void> {
+    await db.delete(objetivos).where(eq(objetivos.id, id));
+  }
+
+  async getResultadosChave(objetivoId: string): Promise<ResultadoChave[]> {
+    return db.select().from(resultadosChave).where(eq(resultadosChave.objetivoId, objetivoId));
+  }
+
+  async createResultadoChave(resultado: InsertResultadoChave): Promise<ResultadoChave> {
+    const result = await db.insert(resultadosChave).values(resultado).returning();
+    return result[0];
+  }
+
+  async updateResultadoChave(id: string, resultado: Partial<InsertResultadoChave>): Promise<ResultadoChave> {
+    const result = await db.update(resultadosChave).set(resultado).where(eq(resultadosChave.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteResultadoChave(id: string): Promise<void> {
+    await db.delete(resultadosChave).where(eq(resultadosChave.id, id));
+  }
+
+  async getIndicadores(empresaId: string): Promise<Indicador[]> {
+    return db.select().from(indicadores).where(eq(indicadores.empresaId, empresaId));
+  }
+
+  async createIndicador(indicador: InsertIndicador): Promise<Indicador> {
+    const result = await db.insert(indicadores).values(indicador).returning();
+    return result[0];
+  }
+
+  async updateIndicador(id: string, indicador: Partial<InsertIndicador>): Promise<Indicador> {
+    const result = await db.update(indicadores).set(indicador).where(eq(indicadores.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteIndicador(id: string): Promise<void> {
+    await db.delete(indicadores).where(eq(indicadores.id, id));
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DbStorage();

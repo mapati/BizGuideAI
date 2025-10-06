@@ -10,6 +10,7 @@ import {
   modeloNegocio,
   estrategias,
   oportunidadesCrescimento,
+  iniciativas,
   type Empresa,
   type InsertEmpresa,
   type FatorPestel,
@@ -30,6 +31,8 @@ import {
   type InsertEstrategia,
   type OportunidadeCrescimento,
   type InsertOportunidadeCrescimento,
+  type Iniciativa,
+  type InsertIniciativa,
 } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
@@ -81,6 +84,11 @@ export interface IStorage {
   createOportunidadeCrescimento(oportunidade: InsertOportunidadeCrescimento): Promise<OportunidadeCrescimento>;
   updateOportunidadeCrescimento(id: string, oportunidade: Partial<InsertOportunidadeCrescimento>): Promise<OportunidadeCrescimento>;
   deleteOportunidadeCrescimento(id: string): Promise<void>;
+  
+  getIniciativas(empresaId: string): Promise<Iniciativa[]>;
+  createIniciativa(iniciativa: InsertIniciativa): Promise<Iniciativa>;
+  updateIniciativa(id: string, iniciativa: Partial<InsertIniciativa>): Promise<Iniciativa>;
+  deleteIniciativa(id: string): Promise<void>;
 }
 
 export class DbStorage implements IStorage {
@@ -254,6 +262,24 @@ export class DbStorage implements IStorage {
 
   async deleteOportunidadeCrescimento(id: string): Promise<void> {
     await db.delete(oportunidadesCrescimento).where(eq(oportunidadesCrescimento.id, id));
+  }
+
+  async getIniciativas(empresaId: string): Promise<Iniciativa[]> {
+    return db.select().from(iniciativas).where(eq(iniciativas.empresaId, empresaId));
+  }
+
+  async createIniciativa(iniciativa: InsertIniciativa): Promise<Iniciativa> {
+    const result = await db.insert(iniciativas).values(iniciativa).returning();
+    return result[0];
+  }
+
+  async updateIniciativa(id: string, iniciativa: Partial<InsertIniciativa>): Promise<Iniciativa> {
+    const result = await db.update(iniciativas).set(iniciativa).where(eq(iniciativas.id, id)).returning();
+    return result[0];
+  }
+
+  async deleteIniciativa(id: string): Promise<void> {
+    await db.delete(iniciativas).where(eq(iniciativas.id, id));
   }
 }
 

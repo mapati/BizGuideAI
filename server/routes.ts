@@ -11,7 +11,8 @@ import {
   insertCincoForcasSchema,
   insertModeloNegocioSchema,
   insertEstrategiaSchema,
-  insertOportunidadeCrescimentoSchema
+  insertOportunidadeCrescimentoSchema,
+  insertIniciativaSchema
 } from "@shared/schema";
 import OpenAI from "openai";
 
@@ -936,6 +937,141 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
     {"tipo": "desenvolvimento_mercado", "titulo": "...", "descricao": "...", "potencial": "alto", "risco": "médio"},
     {"tipo": "desenvolvimento_produto", "titulo": "...", "descricao": "...", "potencial": "médio", "risco": "médio"},
     {"tipo": "diversificacao", "titulo": "...", "descricao": "...", "potencial": "alto", "risco": "alto"}
+  ]
+}`
+          }
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.8,
+      });
+
+      const sugestoes = JSON.parse(completion.choices[0].message.content || "{}");
+      res.json(sugestoes);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/iniciativas/:empresaId", async (req, res) => {
+    try {
+      const { empresaId } = req.params;
+      const iniciativas = await storage.getIniciativas(empresaId);
+      res.json(iniciativas);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/iniciativas", async (req, res) => {
+    try {
+      const data = insertIniciativaSchema.parse(req.body);
+      const iniciativa = await storage.createIniciativa(data);
+      res.json(iniciativa);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/iniciativas/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const data = insertIniciativaSchema.partial().parse(req.body);
+      const iniciativa = await storage.updateIniciativa(id, data);
+      res.json(iniciativa);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/iniciativas/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteIniciativa(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/ai/gerar-iniciativas", async (req, res) => {
+    try {
+      const { empresaId } = req.body;
+      
+      if (!empresaId) {
+        return res.status(400).json({ error: "empresaId é obrigatório" });
+      }
+
+      const empresa = await storage.getEmpresa();
+      if (!empresa || empresa.id !== empresaId) {
+        return res.status(404).json({ error: "Empresa não encontrada" });
+      }
+
+      const iniciativasExistentes = await storage.getIniciativas(empresaId);
+      const estrategias = await storage.getEstrategias(empresaId);
+      const oportunidades = await storage.getOportunidadesCrescimento(empresaId);
+
+      const iniciativasResume = iniciativasExistentes.map(i => 
+        `- ${i.titulo}\n  Descrição: ${i.descricao}\n  Status: ${i.status} | Prioridade: ${i.prioridade}`
+      ).join("\n\n");
+
+      const estrategiasResume = estrategias.map(e => `${e.tipo}: ${e.titulo}`).join("\n");
+      const oportunidadesResume = oportunidades.map(o => `${o.tipo}: ${o.titulo}`).join("\n");
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `Você é um consultor estratégico sênior especializado em gestão de portfólio de projetos. Sua missão é identificar iniciativas prioritárias práticas e acionáveis para executar a estratégia. Use sempre linguagem simples e direta, sem jargões técnicos.
+
+REGRA CRÍTICA DE DUPLICAÇÃO:
+- Você DEVE analisar cuidadosamente todas as iniciativas já existentes listadas na seção "INICIATIVAS JÁ EXISTENTES"
+- NUNCA crie iniciativas que sejam semelhantes, parecidas ou que abordem os mesmos temas das iniciativas existentes
+- Cada nova iniciativa PRECISA ser única, inovadora e diferente de todas as anteriores
+- Se você sugerir algo muito parecido com o que já existe, está violando esta regra crítica`
+          },
+          {
+            role: "user",
+            content: `Empresa: ${empresa.nome}
+Setor: ${empresa.setor}
+
+## CONTEXTO ESTRATÉGICO:
+
+### ESTRATÉGIAS DEFINIDAS:
+${estrategias.length > 0 ? estrategiasResume : "Nenhuma estratégia definida"}
+
+### OPORTUNIDADES DE CRESCIMENTO:
+${oportunidades.length > 0 ? oportunidadesResume : "Nenhuma oportunidade identificada"}
+
+## INICIATIVAS JÁ EXISTENTES (NÃO REPITA NENHUMA DELAS):
+${iniciativasExistentes.length > 0 ? iniciativasResume : "Nenhuma iniciativa criada ainda - esta é a primeira geração"}
+
+${iniciativasExistentes.length > 0 ? `
+⚠️ ATENÇÃO: Já existem ${iniciativasExistentes.length} iniciativa(s) cadastrada(s) acima.
+Suas novas sugestões DEVEM ser completamente diferentes e abordar aspectos não cobertos pelas iniciativas existentes.
+Analise cada iniciativa existente antes de sugerir algo novo.
+` : ''}
+
+## TAREFA:
+Com base nas estratégias e oportunidades identificadas, crie EXATAMENTE 5 novas iniciativas prioritárias ÚNICAS e DIFERENTES para executar a estratégia.
+
+Para cada iniciativa, forneça:
+- titulo: Um título claro e objetivo (máx 80 caracteres)
+- descricao: Descrição detalhada da iniciativa e seus objetivos (2-3 frases)
+- status: "planejada", "em_andamento", "concluida" ou "pausada" (todas devem começar como "planejada")
+- prioridade: "alta", "média" ou "baixa" (distribua entre as 5)
+- prazo: Prazo em formato "Q1 2025", "Q2 2025", etc
+- responsavel: Área ou cargo responsável (ex: "Gerente Comercial", "Time de Marketing")
+- impacto: Impacto esperado - "alto", "médio" ou "baixo"
+
+Responda OBRIGATORIAMENTE em JSON com este formato exato:
+{
+  "iniciativas": [
+    {"titulo": "...", "descricao": "...", "status": "planejada", "prioridade": "alta", "prazo": "Q1 2025", "responsavel": "...", "impacto": "alto"},
+    {"titulo": "...", "descricao": "...", "status": "planejada", "prioridade": "alta", "prazo": "Q2 2025", "responsavel": "...", "impacto": "alto"},
+    {"titulo": "...", "descricao": "...", "status": "planejada", "prioridade": "média", "prazo": "Q2 2025", "responsavel": "...", "impacto": "médio"},
+    {"titulo": "...", "descricao": "...", "status": "planejada", "prioridade": "média", "prazo": "Q3 2025", "responsavel": "...", "impacto": "médio"},
+    {"titulo": "...", "descricao": "...", "status": "planejada", "prioridade": "baixa", "prazo": "Q4 2025", "responsavel": "...", "impacto": "baixo"}
   ]
 }`
           }

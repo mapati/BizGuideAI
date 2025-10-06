@@ -214,6 +214,30 @@ export default function ModeloNegocio() {
     }));
   };
 
+  const renderBlocoCard = (blocoValue: string, className?: string) => {
+    const bloco = blocosPadrao.find(b => b.value === blocoValue);
+    if (!bloco) return null;
+
+    return (
+      <Card className={className} data-testid={`card-bloco-${bloco.value}`}>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold">{bloco.label}</CardTitle>
+          <CardDescription className="text-xs">{bloco.hint}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Textarea
+            id={bloco.value}
+            placeholder={`${bloco.description}...`}
+            value={formValues[bloco.value] || ""}
+            onChange={(e) => handleChange(bloco.value, e.target.value)}
+            className="min-h-[100px] text-sm resize-none"
+            data-testid={`textarea-${bloco.value}`}
+          />
+        </CardContent>
+      </Card>
+    );
+  };
+
   if (!empresa) {
     return (
       <div className="max-w-5xl mx-auto">
@@ -294,81 +318,60 @@ export default function ModeloNegocio() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1 space-y-6">
-          {blocosPadrao.slice(0, 3).map((bloco) => (
-            <Card key={bloco.value} data-testid={`card-bloco-${bloco.value}`}>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">{bloco.label}</CardTitle>
-                <CardDescription className="text-xs">{bloco.hint}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Label htmlFor={bloco.value} className="text-xs text-muted-foreground">
-                  {bloco.description}
-                </Label>
-                <Textarea
-                  id={bloco.value}
-                  placeholder={`Descreva ${bloco.label.toLowerCase()}...`}
-                  value={formValues[bloco.value] || ""}
-                  onChange={(e) => handleChange(bloco.value, e.target.value)}
-                  className="min-h-[120px] mt-2"
-                  data-testid={`textarea-${bloco.value}`}
-                />
-              </CardContent>
-            </Card>
-          ))}
+      {/* Layout responsivo: vertical em mobile/tablet, grid clássico do Canvas em desktop */}
+      <div className="space-y-4 lg:hidden mb-6">
+        {blocosPadrao.map((bloco) => (
+          <div key={bloco.value}>
+            {renderBlocoCard(bloco.value)}
+          </div>
+        ))}
+      </div>
+
+      <div 
+        className="hidden lg:grid gap-4 mb-6"
+        style={{
+          gridTemplateColumns: "repeat(5, 1fr)",
+          gridTemplateRows: "auto auto auto",
+        }}
+      >
+        <div style={{ gridColumn: "1", gridRow: "1 / 3" }}>
+          {renderBlocoCard("parcerias_principais", "h-full")}
         </div>
 
-        <div className="lg:col-span-1 space-y-6">
-          {blocosPadrao.slice(3, 7).map((bloco) => (
-            <Card key={bloco.value} data-testid={`card-bloco-${bloco.value}`}>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">{bloco.label}</CardTitle>
-                <CardDescription className="text-xs">{bloco.hint}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Label htmlFor={bloco.value} className="text-xs text-muted-foreground">
-                  {bloco.description}
-                </Label>
-                <Textarea
-                  id={bloco.value}
-                  placeholder={`Descreva ${bloco.label.toLowerCase()}...`}
-                  value={formValues[bloco.value] || ""}
-                  onChange={(e) => handleChange(bloco.value, e.target.value)}
-                  className="min-h-[120px] mt-2"
-                  data-testid={`textarea-${bloco.value}`}
-                />
-              </CardContent>
-            </Card>
-          ))}
+        <div style={{ gridColumn: "2", gridRow: "1" }}>
+          {renderBlocoCard("atividades_principais")}
         </div>
 
-        <div className="lg:col-span-1 space-y-6">
-          {blocosPadrao.slice(7, 9).map((bloco) => (
-            <Card key={bloco.value} data-testid={`card-bloco-${bloco.value}`}>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">{bloco.label}</CardTitle>
-                <CardDescription className="text-xs">{bloco.hint}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Label htmlFor={bloco.value} className="text-xs text-muted-foreground">
-                  {bloco.description}
-                </Label>
-                <Textarea
-                  id={bloco.value}
-                  placeholder={`Descreva ${bloco.label.toLowerCase()}...`}
-                  value={formValues[bloco.value] || ""}
-                  onChange={(e) => handleChange(bloco.value, e.target.value)}
-                  className="min-h-[120px] mt-2"
-                  data-testid={`textarea-${bloco.value}`}
-                />
-              </CardContent>
-            </Card>
-          ))}
+        <div style={{ gridColumn: "3", gridRow: "1 / 3" }}>
+          {renderBlocoCard("proposta_valor", "h-full")}
+        </div>
+
+        <div style={{ gridColumn: "4", gridRow: "1" }}>
+          {renderBlocoCard("relacionamento_clientes")}
+        </div>
+
+        <div style={{ gridColumn: "5", gridRow: "1 / 3" }}>
+          {renderBlocoCard("segmentos_clientes", "h-full")}
+        </div>
+
+        <div style={{ gridColumn: "2", gridRow: "2" }}>
+          {renderBlocoCard("recursos_principais")}
+        </div>
+
+        <div style={{ gridColumn: "4", gridRow: "2" }}>
+          {renderBlocoCard("canais")}
+        </div>
+
+        <div style={{ gridColumn: "1 / 3", gridRow: "3" }}>
+          {renderBlocoCard("estrutura_custos")}
+        </div>
+
+        <div style={{ gridColumn: "3 / 6", gridRow: "3" }}>
+          {renderBlocoCard("fontes_receita")}
         </div>
       </div>
 
-      <div className="mt-6 flex justify-center">
+      <div className="flex justify-center">
         <Button
           size="lg"
           onClick={handleSave}

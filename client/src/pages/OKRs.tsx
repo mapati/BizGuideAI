@@ -50,6 +50,8 @@ export default function OKRs() {
     prazo: "",
   });
   const [dialogNovoResultadoOpen, setDialogNovoResultadoOpen] = useState(false);
+  const [editandoObjetivo, setEditandoObjetivo] = useState(false);
+  const [objetivoEditado, setObjetivoEditado] = useState({ titulo: "", descricao: "", prazo: "", perspectiva: "Financeira" });
 
   const { data: empresa } = useQuery<any>({
     queryKey: ["/api/empresa"],
@@ -160,6 +162,21 @@ export default function OKRs() {
       toast({
         title: "Objetivo removido",
         description: "O objetivo foi removido com sucesso.",
+      });
+    },
+  });
+
+  const editarObjetivoMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      return await apiRequest("PATCH", `/api/objetivos/${id}`, data);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/objetivos", empresaId] });
+      setObjetivoSelecionado(prev => prev ? { ...prev, ...variables.data } : prev);
+      setEditandoObjetivo(false);
+      toast({
+        title: "Objetivo atualizado",
+        description: "As alterações foram salvas com sucesso.",
       });
     },
   });
@@ -286,6 +303,27 @@ export default function OKRs() {
 
   const objetivosPorPerspectiva = (perspectiva: string) => {
     return objetivos.filter(obj => obj.perspectiva === perspectiva);
+  };
+
+  const iniciarEdicaoObjetivo = () => {
+    if (objetivoSelecionado) {
+      setObjetivoEditado({
+        titulo: objetivoSelecionado.titulo,
+        descricao: objetivoSelecionado.descricao || "",
+        prazo: objetivoSelecionado.prazo,
+        perspectiva: objetivoSelecionado.perspectiva,
+      });
+      setEditandoObjetivo(true);
+    }
+  };
+
+  const salvarEdicaoObjetivo = async () => {
+    if (!objetivoSelecionado) return;
+    
+    await editarObjetivoMutation.mutateAsync({
+      id: objetivoSelecionado.id,
+      data: objetivoEditado,
+    });
   };
 
   if (isLoading) {
@@ -489,16 +527,136 @@ export default function OKRs() {
         </div>
       )}
 
-      <Dialog open={dialogResultadosOpen} onOpenChange={setDialogResultadosOpen}>
+      <Dialog open={dialogResultadosOpen} onOpenChange={(open) => {
+        setDialogResultadosOpen(open);
+        if (!open) {
+          setEditandoObjetivo(false);
+          setObjetivoEditado({ titulo: "", descricao: "", prazo: "", perspectiva: "Financeira" });
+        }
+      }}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{objetivoSelecionado?.titulo}</DialogTitle>
+            <DialogTitle>
+              {editandoObjetivo ? "Editar Objetivo" : objetivoSelecionado?.titulo}
+            </DialogTitle>
           </DialogHeader>
           {objetivoSelecionado && (
-            <div className="space-y-4 py-4">
-              {objetivoSelecionado.descricao && (
-                <p className="text-sm text-muted-foreground">{objetivoSelecionado.descricao}</p>
-              )}
+            <div className="space-y-6 py-4">
+              <div className="border rounded-lg p-4 space-y-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-semibold">Detalhes do Objetivo</h4>
+                  {!editandoObjetivo ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={iniciarEdicaoObjetivo}
+                      data-testid="button-editar-objetivo"
+                    >
+                      <Edit2 className="h-4 w-4 mr-2" />
+                      Editar
+                    </Button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setEditandoObjetivo(false)}
+                        data-testid="button-cancelar-objetivo"
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={salvarEdicaoObjetivo}
+                        disabled={editarObjetivoMutation.isPending}
+                        data-testid="button-salvar-objetivo"
+                      >
+                        {editarObjetivoMutation.isPending ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : null}
+                        Salvar
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                
+                {editandoObjetivo ? (
+                  <div className="space-y-4">
+                    <div>
+                      <Label>Título</Label>
+                      <Input
+                        value={objetivoEditado.titulo}
+                        onChange={(e) => setObjetivoEditado({ ...objetivoEditado, titulo: e.target.value })}
+                        placeholder="Título do objetivo"
+                        data-testid="input-editar-titulo"
+                      />
+                    </div>
+                    <div>
+                      <Label>Descrição</Label>
+                      <Textarea
+                        value={objetivoEditado.descricao}
+                        onChange={(e) => setObjetivoEditado({ ...objetivoEditado, descricao: e.target.value })}
+                        placeholder="Descrição do objetivo (opcional)"
+                        rows={3}
+                        data-testid="input-editar-descricao"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Prazo</Label>
+                        <Input
+                          value={objetivoEditado.prazo}
+                          onChange={(e) => setObjetivoEditado({ ...objetivoEditado, prazo: e.target.value })}
+                          placeholder="Ex: Q4 2025"
+                          data-testid="input-editar-prazo"
+                        />
+                      </div>
+                      <div>
+                        <Label>Perspectiva BSC</Label>
+                        <Select
+                          value={objetivoEditado.perspectiva}
+                          onValueChange={(value) => setObjetivoEditado({ ...objetivoEditado, perspectiva: value })}
+                        >
+                          <SelectTrigger data-testid="select-editar-perspectiva">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {perspectivas.map((p) => (
+                              <SelectItem key={p.valor} value={p.valor}>
+                                {p.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm font-medium">Título:</p>
+                      <p className="text-sm text-muted-foreground">{objetivoSelecionado.titulo}</p>
+                    </div>
+                    {objetivoSelecionado.descricao && (
+                      <div>
+                        <p className="text-sm font-medium">Descrição:</p>
+                        <p className="text-sm text-muted-foreground">{objetivoSelecionado.descricao}</p>
+                      </div>
+                    )}
+                    <div className="flex gap-6">
+                      <div>
+                        <p className="text-sm font-medium">Prazo:</p>
+                        <p className="text-sm text-muted-foreground">{objetivoSelecionado.prazo}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">Perspectiva:</p>
+                        <p className="text-sm text-muted-foreground">{objetivoSelecionado.perspectiva}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="flex items-center justify-between">
                 <h4 className="font-semibold">Resultados-Chave</h4>
                 <div className="flex gap-2">

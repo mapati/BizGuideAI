@@ -56,6 +56,8 @@ Preferred communication style: Simple, everyday language.
 - Priority initiatives (`/api/iniciativas/:empresaId`)
 - OKR management (`/api/objetivos`, `/api/resultados-chave`)
 - BSC indicators (`/api/indicadores/:empresaId`)
+- Management rituals (`/api/rituais/:empresaId`, `/api/rituais/inicializar/:empresaId`)
+- Intelligent alerts (`/api/alertas/:empresaId`)
 
 **Error Handling:** Centralized error middleware with standardized JSON error responses
 
@@ -77,6 +79,7 @@ Preferred communication style: Simple, everyday language.
 - `objetivos` - Strategic objectives (for OKRs)
 - `resultados_chave` - Key results linked to objectives
 - `indicadores` - BSC performance indicators across four perspectives
+- `rituais` - Management rituals (tipo, dataUltimo, dataProximo, notas, decisoes, completado)
 
 **Data Flow Pattern:**
 1. Client makes request via TanStack Query
@@ -216,3 +219,51 @@ Currently not implemented - appears to be single-user application design. Future
 - Anti-duplication pattern: prompt-based warnings + programmatic Set-based filtering
 - Frontend auto-creates items after AI generation (loops through returned array)
 - Toast notifications for user feedback on generation success/failure
+
+### Acompanhamento (Management Rituals & Alerts System)
+**Date:** October 7, 2025  
+**Feature:** Complete strategic execution tracking system with structured rituals and intelligent alerts
+
+**Implementation:**
+- Database table: `rituais` (tipo, dataUltimo, dataProximo, notas, decisoes, completado)
+- Full CRUD API endpoints at `/api/rituais/:empresaId` (GET, POST, PATCH, DELETE)
+- Intelligent alerts endpoint `/api/alertas/:empresaId` that monitors BSC indicators, initiatives, and KRs
+- Initialization endpoint `/api/rituais/inicializar/:empresaId` auto-creates 4 ritual types on first access
+- Frontend page at `/ritos` with expandable ritual cards, checklists, and tracking features
+
+**Key Features:**
+- **Four Ritual Cadences:**
+  - Diário (5 min) - Daily tactical review
+  - Semanal (30 min) - Weekly progress check
+  - Mensal (1h) - Monthly strategic review
+  - Trimestral (2h) - Quarterly OKR and BSC assessment
+- **Each Ritual Includes:**
+  - Pre-defined checklist items (4-6 items per ritual)
+  - Guiding questions (perguntas-guia) for structured reflection
+  - Editable notes section (notas & observações)
+  - Decision logging (decisões tomadas)
+  - Completion tracking with automatic timestamp
+- **Intelligent Alerts System:**
+  - BSC critical indicators (status vermelho or amarelo)
+  - Overdue initiatives (prazo passed, status not concluída)
+  - Stale key results (no updates in 30+ days)
+  - Alerts displayed prominently at top of page
+
+**Ritual Types & Checklists:**
+1. **Diário** - Quick check items, blockers, priorities
+2. **Semanal** - OKR updates, initiatives review, blockers, weekly priorities
+3. **Mensal** - Strategic review, initiatives deep-dive, metrics analysis, adjustments
+4. **Trimestral** - OKR closure, BSC full review, strategic realignment, next quarter planning
+
+**Technical Implementation:**
+- Auto-initialization on first page load creates all 4 rituals if none exist
+- Completion workflow: PATCH sends `{ completado: "true" }`, backend auto-sets `dataUltimo`
+- Collapsible cards using Radix UI Collapsible primitive
+- "Ritual Semanal" expanded by default for ease of access
+- Toast notifications for save/complete actions
+- Query invalidation ensures UI reflects latest state
+
+**Bug Fixes Applied:**
+- Fixed JSON date serialization issue: removed `dataUltimo` from frontend PATCH payload
+- Backend now auto-sets `dataUltimo = new Date()` when ritual marked complete
+- Ensures proper timestamp handling without frontend/backend type mismatch

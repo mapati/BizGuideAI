@@ -137,7 +137,6 @@ export default function Acompanhamento() {
     mutationFn: async (ritualId: string) => {
       const res = await apiRequest("PATCH", `/api/rituais/${ritualId}`, {
         completado: "true",
-        dataUltimo: new Date().toISOString(),
       });
       return await res.json();
     },

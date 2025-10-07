@@ -1574,6 +1574,12 @@ Responda em JSON:
     try {
       const { id } = req.params;
       const data = insertRitualSchema.partial().parse(req.body);
+      
+      // Se está marcando como completado, definir dataUltimo automaticamente
+      if (data.completado === "true" && !data.dataUltimo) {
+        data.dataUltimo = new Date();
+      }
+      
       const ritual = await storage.updateRitual(id, data);
       res.json(ritual);
     } catch (error: any) {

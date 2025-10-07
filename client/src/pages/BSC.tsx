@@ -43,13 +43,13 @@ export default function BSC() {
   const empresaId = empresa?.id;
 
   // Buscar objetivos
-  const { data: objetivos = [], isLoading: loadingObjetivos } = useQuery<Objetivo[]>({
+  const { data: objetivos = [], isLoading: loadingObjetivos, isFetching: fetchingObjetivos } = useQuery<Objetivo[]>({
     queryKey: ["/api/objetivos", empresaId],
     enabled: !!empresaId,
   });
 
   // Buscar todos os resultados-chave para todos os objetivos
-  const { data: allResultadosChave = [], isLoading: loadingResultados } = useQuery<ResultadoChave[]>({
+  const { data: allResultadosChave = [], isLoading: loadingResultados, isFetching: fetchingResultados } = useQuery<ResultadoChave[]>({
     queryKey: ["/api/resultados-chave/all", empresaId, objetivos.map(o => o.id).join(',')],
     queryFn: async () => {
       if (!empresaId || objetivos.length === 0) return [];
@@ -86,16 +86,23 @@ export default function BSC() {
     return somaProgressos / krs.length;
   };
 
-  // Calcular performance geral (média de todos os objetivos)
+  // Calcular performance geral (média apenas dos objetivos que têm resultados-chave)
   const performanceGeral = useMemo(() => {
     if (objetivos.length === 0) return 0;
     
-    const somaPerformances = objetivos.reduce(
+    // Filtrar apenas objetivos que têm pelo menos 1 resultado-chave
+    const objetivosComKRs = objetivos.filter(obj => 
+      allResultadosChave.some(kr => kr.objetivoId === obj.id)
+    );
+    
+    if (objetivosComKRs.length === 0) return 0;
+    
+    const somaPerformances = objetivosComKRs.reduce(
       (acc, obj) => acc + calcularPerformanceObjetivo(obj.id), 
       0
     );
     
-    return somaPerformances / objetivos.length;
+    return somaPerformances / objetivosComKRs.length;
   }, [objetivos, allResultadosChave]);
 
   // Agrupar objetivos por perspectiva
@@ -104,7 +111,10 @@ export default function BSC() {
     objetivos: objetivos.filter((obj) => obj.perspectiva === persp.value),
   }));
 
-  if (loadingObjetivos || loadingResultados) {
+  // Mostrar loading enquanto carrega ou revalida dados
+  const isLoading = loadingObjetivos || loadingResultados || fetchingObjetivos || fetchingResultados;
+  
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -192,6 +202,7 @@ export default function BSC() {
                   {perspectiva.objetivos.map((objetivo) => {
                     const performance = calcularPerformanceObjetivo(objetivo.id);
                     const numKRs = allResultadosChave.filter(kr => kr.objetivoId === objetivo.id).length;
+                    const hasKRs = numKRs > 0;
                     
                     return (
                       <Card
@@ -199,7 +210,13 @@ export default function BSC() {
                         className="p-6 flex flex-col items-center gap-4 hover-elevate"
                         data-testid={`card-objetivo-${objetivo.id}`}
                       >
-                        <CircularProgress value={performance} size={100} strokeWidth={10} />
+                        {hasKRs ? (
+                          <CircularProgress value={performance} size={100} strokeWidth={10} />
+                        ) : (
+                          <div className="h-[100px] w-[100px] flex items-center justify-center border-2 border-dashed border-muted-foreground/30 rounded-full">
+                            <span className="text-xs text-muted-foreground text-center px-2">Sem KRs</span>
+                          </div>
+                        )}
                         
                         <div className="text-center space-y-2 w-full">
                           <h4 className="font-semibold text-sm leading-tight" data-testid={`text-objetivo-titulo-${objetivo.id}`}>

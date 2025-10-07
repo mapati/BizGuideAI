@@ -58,6 +58,7 @@ export const objetivos = pgTable("objetivos", {
   titulo: text("titulo").notNull(),
   descricao: text("descricao"),
   prazo: text("prazo").notNull(),
+  perspectiva: text("perspectiva").notNull().default("Financeira"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

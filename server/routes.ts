@@ -1145,13 +1145,20 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         messages: [
           {
             role: "system",
-            content: `Você é um consultor estratégico especializado em OKRs (Objectives and Key Results). Sua missão é criar objetivos estratégicos claros, inspiradores e mensuráveis que traduzam as apostas estratégicas da empresa em direções concretas. Use linguagem simples, sem jargões.
+            content: `Você é um consultor estratégico especializado em OKRs (Objectives and Key Results) e Balanced Scorecard (BSC). Sua missão é criar objetivos estratégicos claros, inspiradores e mensuráveis que traduzam as apostas estratégicas da empresa em direções concretas. Use linguagem simples, sem jargões.
 
 REGRA CRÍTICA DE DUPLICAÇÃO:
 - Analise TODOS os objetivos já existentes listados
 - NUNCA crie objetivos semelhantes ou que abordem os mesmos temas
 - Cada objetivo DEVE ser único e trazer uma perspectiva diferente
-- Se você sugerir algo muito parecido com o que já existe, está VIOLANDO esta regra`
+- Se você sugerir algo muito parecido com o que já existe, está VIOLANDO esta regra
+
+PERSPECTIVAS DO BALANCED SCORECARD:
+Para cada objetivo, classifique-o em UMA das 4 perspectivas do BSC:
+1. "Financeira" - Objetivos relacionados a resultados financeiros, receita, lucro, custos, rentabilidade
+2. "Clientes" - Objetivos sobre satisfação, retenção, aquisição de clientes, experiência, valor percebido
+3. "Processos Internos" - Objetivos sobre eficiência operacional, qualidade, inovação, processos
+4. "Aprendizado e Crescimento" - Objetivos sobre capacitação de pessoas, cultura, tecnologia, conhecimento`
           },
           {
             role: "user",
@@ -1185,19 +1192,21 @@ Cada objetivo deve:
 - titulo: Objetivo claro e inspirador (máx 80 caracteres) - ex: "Aumentar participação no mercado premium"
 - descricao: Contexto e justificativa estratégica (2-3 frases) explicando POR QUE este objetivo é importante
 - prazo: Horizonte temporal - "Q4 2025", "Anual 2025", etc
+- perspectiva: Classifique em uma das 4 perspectivas BSC: "Financeira", "Clientes", "Processos Internos" ou "Aprendizado e Crescimento"
 
 Os objetivos devem ser:
 ✓ Qualitativos e aspiracionais (não números)
 ✓ Alinhados com as estratégias e oportunidades
 ✓ Mensuráveis através de resultados-chave (que serão criados depois)
 ✓ Diferentes entre si
+✓ Distribuídos entre diferentes perspectivas BSC quando possível
 
 Responda em JSON:
 {
   "objetivos": [
-    {"titulo": "...", "descricao": "...", "prazo": "Q4 2025"},
-    {"titulo": "...", "descricao": "...", "prazo": "Anual 2025"},
-    {"titulo": "...", "descricao": "...", "prazo": "Q2 2026"}
+    {"titulo": "...", "descricao": "...", "prazo": "Q4 2025", "perspectiva": "Financeira"},
+    {"titulo": "...", "descricao": "...", "prazo": "Anual 2025", "perspectiva": "Clientes"},
+    {"titulo": "...", "descricao": "...", "prazo": "Q2 2026", "perspectiva": "Processos Internos"}
   ]
 }`
           }

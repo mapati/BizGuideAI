@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { ExampleCard } from "@/components/ExampleCard";
-import { Plus, Sparkles, Target as TargetIcon, Loader2, Trash2, Edit2, ChevronDown, ChevronUp } from "lucide-react";
+import { Plus, Sparkles, Target as TargetIcon, Loader2, Trash2, Edit2, TrendingUp, Users, Cog, GraduationCap, DollarSign } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Objetivo, ResultadoChave } from "@shared/schema";
@@ -19,13 +19,27 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+const perspectivas = [
+  { valor: "Financeira", label: "Financeira", icon: DollarSign, cor: "bg-green-500" },
+  { valor: "Clientes", label: "Clientes", icon: Users, cor: "bg-blue-500" },
+  { valor: "Processos Internos", label: "Processos Internos", icon: Cog, cor: "bg-orange-500" },
+  { valor: "Aprendizado e Crescimento", label: "Aprendizado e Crescimento", icon: GraduationCap, cor: "bg-purple-500" },
+];
 
 export default function OKRs() {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editandoObjetivo, setEditandoObjetivo] = useState<Objetivo | null>(null);
-  const [novoObjetivo, setNovoObjetivo] = useState({ titulo: "", descricao: "", prazo: "" });
-  const [objetivoExpandido, setObjetivoExpandido] = useState<string | null>(null);
+  const [novoObjetivo, setNovoObjetivo] = useState({ titulo: "", descricao: "", prazo: "", perspectiva: "Financeira" });
+  const [objetivoSelecionado, setObjetivoSelecionado] = useState<Objetivo | null>(null);
+  const [dialogResultadosOpen, setDialogResultadosOpen] = useState(false);
   const [editandoResultado, setEditandoResultado] = useState<ResultadoChave | null>(null);
   const [novoResultado, setNovoResultado] = useState({
     metrica: "",
@@ -35,28 +49,24 @@ export default function OKRs() {
     owner: "",
     prazo: "",
   });
-  const [dialogResultadoOpen, setDialogResultadoOpen] = useState(false);
+  const [dialogNovoResultadoOpen, setDialogNovoResultadoOpen] = useState(false);
 
-  // Buscar empresa
   const { data: empresa } = useQuery<any>({
     queryKey: ["/api/empresa"],
   });
 
   const empresaId = empresa?.id;
 
-  // Buscar objetivos
   const { data: objetivos = [], isLoading } = useQuery<Objetivo[]>({
     queryKey: ["/api/objetivos", empresaId],
     enabled: !!empresaId,
   });
 
-  // Buscar resultados-chave para objetivo expandido
   const { data: resultadosChave = [] } = useQuery<ResultadoChave[]>({
-    queryKey: ["/api/resultados-chave", objetivoExpandido],
-    enabled: !!objetivoExpandido,
+    queryKey: ["/api/resultados-chave", objetivoSelecionado?.id],
+    enabled: !!objetivoSelecionado,
   });
 
-  // Gerar objetivos com IA
   const gerarObjetivosMutation = useMutation({
     mutationFn: async () => {
       if (!empresaId) throw new Error("Empresa não encontrada");
@@ -66,7 +76,7 @@ export default function OKRs() {
       if (data.objetivos && data.objetivos.length > 0) {
         toast({
           title: "Objetivos Gerados!",
-          description: `${data.objetivos.length} objetivo(s) sugerido(s) pela IA. Revise e ajuste conforme necessário.`,
+          description: `${data.objetivos.length} objetivo(s) sugerido(s) pela IA com perspectivas BSC.`,
         });
         data.objetivos.forEach(async (obj: any) => {
           await criarObjetivoMutation.mutateAsync({
@@ -74,6 +84,7 @@ export default function OKRs() {
             titulo: obj.titulo,
             descricao: obj.descricao,
             prazo: obj.prazo,
+            perspectiva: obj.perspectiva || "Financeira",
           });
         });
       } else {
@@ -93,7 +104,6 @@ export default function OKRs() {
     },
   });
 
-  // Gerar resultados-chave com IA
   const gerarResultadosMutation = useMutation({
     mutationFn: async (objetivoId: string) => {
       return await apiRequest("POST", "/api/ai/gerar-resultados-chave", { objetivoId });
@@ -132,7 +142,6 @@ export default function OKRs() {
     },
   });
 
-  // Criar objetivo
   const criarObjetivoMutation = useMutation({
     mutationFn: async (data: any) => {
       return await apiRequest("POST", "/api/objetivos", data);
@@ -142,21 +151,6 @@ export default function OKRs() {
     },
   });
 
-  // Editar objetivo
-  const editarObjetivoMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: any }) => {
-      return await apiRequest("PATCH", `/api/objetivos/${id}`, data);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/objetivos", empresaId] });
-      toast({
-        title: "Objetivo atualizado",
-        description: "As alterações foram salvas com sucesso.",
-      });
-    },
-  });
-
-  // Deletar objetivo
   const deletarObjetivoMutation = useMutation({
     mutationFn: async (id: string) => {
       return await apiRequest("DELETE", `/api/objetivos/${id}`);
@@ -170,23 +164,21 @@ export default function OKRs() {
     },
   });
 
-  // Criar resultado-chave
   const criarResultadoMutation = useMutation({
     mutationFn: async (data: any) => {
       return await apiRequest("POST", "/api/resultados-chave", data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/resultados-chave", objetivoExpandido] });
+      queryClient.invalidateQueries({ queryKey: ["/api/resultados-chave", objetivoSelecionado?.id] });
     },
   });
 
-  // Editar resultado-chave
   const editarResultadoMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
       return await apiRequest("PATCH", `/api/resultados-chave/${id}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/resultados-chave", objetivoExpandido] });
+      queryClient.invalidateQueries({ queryKey: ["/api/resultados-chave", objetivoSelecionado?.id] });
       toast({
         title: "Resultado atualizado",
         description: "As alterações foram salvas.",
@@ -194,13 +186,12 @@ export default function OKRs() {
     },
   });
 
-  // Deletar resultado-chave
   const deletarResultadoMutation = useMutation({
     mutationFn: async (id: string) => {
       return await apiRequest("DELETE", `/api/resultados-chave/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/resultados-chave", objetivoExpandido] });
+      queryClient.invalidateQueries({ queryKey: ["/api/resultados-chave", objetivoSelecionado?.id] });
       toast({
         title: "Resultado removido",
         description: "O resultado-chave foi removido.",
@@ -223,7 +214,7 @@ export default function OKRs() {
       ...novoObjetivo,
     });
 
-    setNovoObjetivo({ titulo: "", descricao: "", prazo: "" });
+    setNovoObjetivo({ titulo: "", descricao: "", prazo: "", perspectiva: "Financeira" });
     setIsDialogOpen(false);
     toast({
       title: "Objetivo criado!",
@@ -231,32 +222,8 @@ export default function OKRs() {
     });
   };
 
-  const handleEditarObjetivo = async () => {
-    if (!editandoObjetivo) return;
-
-    if (!editandoObjetivo.titulo || !editandoObjetivo.prazo) {
-      toast({
-        title: "Campos obrigatórios",
-        description: "Preencha o título e prazo do objetivo.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    await editarObjetivoMutation.mutateAsync({
-      id: editandoObjetivo.id,
-      data: {
-        titulo: editandoObjetivo.titulo,
-        descricao: editandoObjetivo.descricao,
-        prazo: editandoObjetivo.prazo,
-      },
-    });
-
-    setEditandoObjetivo(null);
-  };
-
   const handleCriarResultado = async () => {
-    if (!objetivoExpandido) return;
+    if (!objetivoSelecionado) return;
 
     if (!novoResultado.metrica || !novoResultado.valorInicial || !novoResultado.valorAlvo || !novoResultado.owner || !novoResultado.prazo) {
       toast({
@@ -268,7 +235,7 @@ export default function OKRs() {
     }
 
     await criarResultadoMutation.mutateAsync({
-      objetivoId: objetivoExpandido,
+      objetivoId: objetivoSelecionado.id,
       ...novoResultado,
     });
 
@@ -280,7 +247,7 @@ export default function OKRs() {
       owner: "",
       prazo: "",
     });
-    setDialogResultadoOpen(false);
+    setDialogNovoResultadoOpen(false);
     toast({
       title: "Resultado-chave criado!",
       description: "Novo resultado adicionado ao objetivo.",
@@ -317,6 +284,10 @@ export default function OKRs() {
     return Math.max(0, Math.min(100, progresso));
   };
 
+  const objetivosPorPerspectiva = (perspectiva: string) => {
+    return objetivos.filter(obj => obj.perspectiva === perspectiva);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -328,9 +299,9 @@ export default function OKRs() {
   return (
     <div>
       <PageHeader
-        title="Objetivos e Resultados-Chave"
-        description="Defina objetivos claros e os resultados concretos que você quer atingir. A IA ajuda a transformar suas apostas estratégicas em objetivos mensuráveis."
-        tooltip="Esta ferramenta conecta seus objetivos ambiciosos (onde você quer chegar) com resultados concretos e mensuráveis (como você vai saber que chegou lá)."
+        title="Balanced Scorecard (BSC)"
+        description="Organize seus objetivos estratégicos nas 4 perspectivas do BSC. Clique em um objetivo para gerenciar seus resultados-chave."
+        tooltip="O BSC organiza objetivos em 4 perspectivas: Financeira, Clientes, Processos Internos e Aprendizado & Crescimento, criando uma visão estratégica equilibrada."
         action={
           <div className="flex gap-2">
             <Button
@@ -389,6 +360,24 @@ export default function OKRs() {
                       data-testid="input-objetivo-prazo"
                     />
                   </div>
+                  <div>
+                    <Label htmlFor="perspectiva">Perspectiva BSC</Label>
+                    <Select
+                      value={novoObjetivo.perspectiva}
+                      onValueChange={(value) => setNovoObjetivo({ ...novoObjetivo, perspectiva: value })}
+                    >
+                      <SelectTrigger data-testid="select-perspectiva">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {perspectivas.map((p) => (
+                          <SelectItem key={p.valor} value={p.valor}>
+                            {p.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <Button
                     onClick={handleCriarObjetivo}
                     className="w-full"
@@ -408,8 +397,7 @@ export default function OKRs() {
       />
 
       <ExampleCard>
-        <strong>Objetivo:</strong> Aumentar a rentabilidade do negócio<br />
-        <strong>Resultados esperados:</strong> (1) Margem bruta sair de 38% para 42%; (2) Perda de material cair de 3,2% para 2,0%; (3) Contratos com reajuste automático subir de 45% para 70%
+        <strong>Balanced Scorecard:</strong> Organize objetivos em 4 perspectivas estratégicas. Clique em um objetivo para ver e gerenciar seus resultados-chave (KRs).
       </ExampleCard>
 
       {objetivos.length === 0 ? (
@@ -437,344 +425,329 @@ export default function OKRs() {
           </div>
         </Card>
       ) : (
-        <div className="space-y-6 mt-6">
-          {objetivos.map((objetivo) => {
-            const isExpanded = objetivoExpandido === objetivo.id;
-            const isEditing = editandoObjetivo?.id === objetivo.id;
-
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+          {perspectivas.map((perspectiva) => {
+            const Icon = perspectiva.icon;
+            const objs = objetivosPorPerspectiva(perspectiva.valor);
+            
             return (
-              <Card key={objetivo.id} className="p-6" data-testid={`card-objetivo-${objetivo.id}`}>
-                <div className="flex items-start gap-3">
-                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <TargetIcon className="h-5 w-5 text-primary" />
+              <Card key={perspectiva.valor} className="p-6" data-testid={`card-perspectiva-${perspectiva.valor}`}>
+                <div className="flex items-center gap-3 mb-4 pb-4 border-b">
+                  <div className={`h-10 w-10 rounded-full ${perspectiva.cor} flex items-center justify-center flex-shrink-0`}>
+                    <Icon className="h-5 w-5 text-white" />
                   </div>
-                  <div className="flex-1">
-                    {isEditing ? (
-                      <div className="space-y-3 mb-4">
-                        <div>
-                          <Label>Título do Objetivo</Label>
-                          <Input
-                            value={editandoObjetivo.titulo}
-                            onChange={(e) => setEditandoObjetivo({ ...editandoObjetivo, titulo: e.target.value })}
-                            data-testid={`input-edit-titulo-${objetivo.id}`}
-                          />
-                        </div>
-                        <div>
-                          <Label>Descrição (opcional)</Label>
-                          <Textarea
-                            value={editandoObjetivo.descricao || ""}
-                            onChange={(e) => setEditandoObjetivo({ ...editandoObjetivo, descricao: e.target.value })}
-                            rows={2}
-                            data-testid={`input-edit-descricao-${objetivo.id}`}
-                          />
-                        </div>
-                        <div>
-                          <Label>Prazo</Label>
-                          <Input
-                            value={editandoObjetivo.prazo}
-                            onChange={(e) => setEditandoObjetivo({ ...editandoObjetivo, prazo: e.target.value })}
-                            data-testid={`input-edit-prazo-${objetivo.id}`}
-                          />
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={handleEditarObjetivo}
-                            disabled={editarObjetivoMutation.isPending}
-                            size="sm"
-                            data-testid={`button-save-objetivo-${objetivo.id}`}
-                          >
-                            Salvar
-                          </Button>
-                          <Button
-                            onClick={() => setEditandoObjetivo(null)}
-                            variant="outline"
-                            size="sm"
-                            data-testid={`button-cancel-objetivo-${objetivo.id}`}
-                          >
-                            Cancelar
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex items-start justify-between mb-2">
-                          <div>
-                            <h3 className="text-xl font-semibold mb-1" data-testid={`text-objetivo-${objetivo.id}`}>
-                              {objetivo.titulo}
-                            </h3>
+                  <div>
+                    <h3 className="font-semibold text-lg">{perspectiva.label}</h3>
+                    <p className="text-sm text-muted-foreground">{objs.length} objetivo(s)</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {objs.length === 0 ? (
+                    <div className="text-center py-8 text-sm text-muted-foreground">
+                      Nenhum objetivo nesta perspectiva
+                    </div>
+                  ) : (
+                    objs.map((objetivo) => (
+                      <Card
+                        key={objetivo.id}
+                        className="p-4 hover-elevate cursor-pointer"
+                        onClick={() => {
+                          setObjetivoSelecionado(objetivo);
+                          setDialogResultadosOpen(true);
+                        }}
+                        data-testid={`card-objetivo-${objetivo.id}`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-sm mb-1">{objetivo.titulo}</h4>
                             {objetivo.descricao && (
-                              <p className="text-sm text-muted-foreground mb-2">{objetivo.descricao}</p>
+                              <p className="text-xs text-muted-foreground mb-2">{objetivo.descricao}</p>
                             )}
-                            <p className="text-sm text-muted-foreground">
-                              Prazo: {objetivo.prazo}
-                            </p>
+                            <p className="text-xs text-muted-foreground">Prazo: {objetivo.prazo}</p>
                           </div>
-                          <div className="flex gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setEditandoObjetivo(objetivo)}
-                              data-testid={`button-edit-objetivo-${objetivo.id}`}
-                            >
-                              <Edit2 className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => deletarObjetivoMutation.mutate(objetivo.id)}
-                              data-testid={`button-delete-objetivo-${objetivo.id}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-
-                        <div className="mt-4">
                           <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setObjetivoExpandido(isExpanded ? null : objetivo.id)}
-                            className="w-full"
-                            data-testid={`button-toggle-resultados-${objetivo.id}`}
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deletarObjetivoMutation.mutate(objetivo.id);
+                            }}
+                            data-testid={`button-delete-objetivo-${objetivo.id}`}
                           >
-                            {isExpanded ? (
-                              <>
-                                <ChevronUp className="h-4 w-4 mr-2" />
-                                Ocultar Resultados-Chave
-                              </>
-                            ) : (
-                              <>
-                                <ChevronDown className="h-4 w-4 mr-2" />
-                                Ver Resultados-Chave
-                              </>
-                            )}
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
-
-                        {isExpanded && (
-                          <div className="mt-4 p-4 bg-muted/30 rounded-lg space-y-4">
-                            <div className="flex items-center justify-between">
-                              <h4 className="font-semibold">Resultados-Chave</h4>
-                              <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => gerarResultadosMutation.mutate(objetivo.id)}
-                                  disabled={gerarResultadosMutation.isPending}
-                                  data-testid={`button-gerar-resultados-${objetivo.id}`}
-                                >
-                                  {gerarResultadosMutation.isPending ? (
-                                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                  ) : (
-                                    <Sparkles className="h-4 w-4 mr-2" />
-                                  )}
-                                  Gerar com IA
-                                </Button>
-                                <Dialog open={dialogResultadoOpen} onOpenChange={setDialogResultadoOpen}>
-                                  <DialogTrigger asChild>
-                                    <Button size="sm" data-testid={`button-add-resultado-${objetivo.id}`}>
-                                      <Plus className="h-4 w-4 mr-2" />
-                                      Adicionar
-                                    </Button>
-                                  </DialogTrigger>
-                                  <DialogContent>
-                                    <DialogHeader>
-                                      <DialogTitle>Novo Resultado-Chave</DialogTitle>
-                                    </DialogHeader>
-                                    <div className="space-y-4 py-4">
-                                      <div>
-                                        <Label>Métrica</Label>
-                                        <Input
-                                          placeholder="Ex: Margem bruta"
-                                          value={novoResultado.metrica}
-                                          onChange={(e) => setNovoResultado({ ...novoResultado, metrica: e.target.value })}
-                                          data-testid="input-resultado-metrica"
-                                        />
-                                      </div>
-                                      <div className="grid grid-cols-3 gap-2">
-                                        <div>
-                                          <Label>Inicial</Label>
-                                          <Input
-                                            placeholder="38.5"
-                                            value={novoResultado.valorInicial}
-                                            onChange={(e) => setNovoResultado({ ...novoResultado, valorInicial: e.target.value })}
-                                            data-testid="input-resultado-inicial"
-                                          />
-                                        </div>
-                                        <div>
-                                          <Label>Alvo</Label>
-                                          <Input
-                                            placeholder="42.0"
-                                            value={novoResultado.valorAlvo}
-                                            onChange={(e) => setNovoResultado({ ...novoResultado, valorAlvo: e.target.value })}
-                                            data-testid="input-resultado-alvo"
-                                          />
-                                        </div>
-                                        <div>
-                                          <Label>Atual</Label>
-                                          <Input
-                                            placeholder="38.5"
-                                            value={novoResultado.valorAtual}
-                                            onChange={(e) => setNovoResultado({ ...novoResultado, valorAtual: e.target.value })}
-                                            data-testid="input-resultado-atual"
-                                          />
-                                        </div>
-                                      </div>
-                                      <div>
-                                        <Label>Responsável</Label>
-                                        <Input
-                                          placeholder="Ex: CFO"
-                                          value={novoResultado.owner}
-                                          onChange={(e) => setNovoResultado({ ...novoResultado, owner: e.target.value })}
-                                          data-testid="input-resultado-owner"
-                                        />
-                                      </div>
-                                      <div>
-                                        <Label>Prazo</Label>
-                                        <Input
-                                          placeholder="Ex: Q4 2025"
-                                          value={novoResultado.prazo}
-                                          onChange={(e) => setNovoResultado({ ...novoResultado, prazo: e.target.value })}
-                                          data-testid="input-resultado-prazo"
-                                        />
-                                      </div>
-                                      <Button
-                                        onClick={handleCriarResultado}
-                                        className="w-full"
-                                        disabled={criarResultadoMutation.isPending}
-                                        data-testid="button-criar-resultado"
-                                      >
-                                        Criar
-                                      </Button>
-                                    </div>
-                                  </DialogContent>
-                                </Dialog>
-                              </div>
-                            </div>
-
-                            {resultadosChave.length === 0 ? (
-                              <div className="text-center py-8 text-sm text-muted-foreground">
-                                <p>Nenhum resultado-chave definido ainda.</p>
-                                <p className="mt-2">Gere com IA ou adicione manualmente.</p>
-                              </div>
-                            ) : (
-                              <div className="space-y-3">
-                                {resultadosChave.map((resultado) => {
-                                  const isEditingRes = editandoResultado?.id === resultado.id;
-                                  const progresso = calcularProgresso(
-                                    resultado.valorInicial,
-                                    resultado.valorAtual,
-                                    resultado.valorAlvo
-                                  );
-
-                                  return (
-                                    <Card key={resultado.id} className="p-4" data-testid={`card-resultado-${resultado.id}`}>
-                                      {isEditingRes ? (
-                                        <div className="space-y-3">
-                                          <div>
-                                            <Label>Métrica</Label>
-                                            <Input
-                                              value={editandoResultado.metrica}
-                                              onChange={(e) => setEditandoResultado({ ...editandoResultado, metrica: e.target.value })}
-                                            />
-                                          </div>
-                                          <div className="grid grid-cols-3 gap-2">
-                                            <div>
-                                              <Label>Inicial</Label>
-                                              <Input
-                                                value={editandoResultado.valorInicial}
-                                                onChange={(e) => setEditandoResultado({ ...editandoResultado, valorInicial: e.target.value })}
-                                              />
-                                            </div>
-                                            <div>
-                                              <Label>Alvo</Label>
-                                              <Input
-                                                value={editandoResultado.valorAlvo}
-                                                onChange={(e) => setEditandoResultado({ ...editandoResultado, valorAlvo: e.target.value })}
-                                              />
-                                            </div>
-                                            <div>
-                                              <Label>Atual</Label>
-                                              <Input
-                                                value={editandoResultado.valorAtual}
-                                                onChange={(e) => setEditandoResultado({ ...editandoResultado, valorAtual: e.target.value })}
-                                              />
-                                            </div>
-                                          </div>
-                                          <div>
-                                            <Label>Responsável</Label>
-                                            <Input
-                                              value={editandoResultado.owner}
-                                              onChange={(e) => setEditandoResultado({ ...editandoResultado, owner: e.target.value })}
-                                            />
-                                          </div>
-                                          <div>
-                                            <Label>Prazo</Label>
-                                            <Input
-                                              value={editandoResultado.prazo}
-                                              onChange={(e) => setEditandoResultado({ ...editandoResultado, prazo: e.target.value })}
-                                            />
-                                          </div>
-                                          <div className="flex gap-2">
-                                            <Button onClick={handleEditarResultado} size="sm">
-                                              Salvar
-                                            </Button>
-                                            <Button onClick={() => setEditandoResultado(null)} variant="outline" size="sm">
-                                              Cancelar
-                                            </Button>
-                                          </div>
-                                        </div>
-                                      ) : (
-                                        <>
-                                          <div className="flex items-start justify-between mb-3">
-                                            <div className="flex-1">
-                                              <h5 className="font-semibold text-sm mb-1">{resultado.metrica}</h5>
-                                              <p className="text-xs text-muted-foreground">
-                                                {resultado.valorInicial} → {resultado.valorAlvo} (Atual: {resultado.valorAtual})
-                                              </p>
-                                            </div>
-                                            <div className="flex gap-1">
-                                              <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => setEditandoResultado(resultado)}
-                                                data-testid={`button-edit-resultado-${resultado.id}`}
-                                              >
-                                                <Edit2 className="h-4 w-4" />
-                                              </Button>
-                                              <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => deletarResultadoMutation.mutate(resultado.id)}
-                                                data-testid={`button-delete-resultado-${resultado.id}`}
-                                              >
-                                                <Trash2 className="h-4 w-4" />
-                                              </Button>
-                                            </div>
-                                          </div>
-                                          <Progress value={progresso} className="h-2 mb-2" />
-                                          <div className="flex justify-between text-xs text-muted-foreground">
-                                            <span>Owner: {resultado.owner}</span>
-                                            <span>Prazo: {resultado.prazo}</span>
-                                          </div>
-                                        </>
-                                      )}
-                                    </Card>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
+                      </Card>
+                    ))
+                  )}
                 </div>
               </Card>
             );
           })}
         </div>
       )}
+
+      <Dialog open={dialogResultadosOpen} onOpenChange={setDialogResultadosOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{objetivoSelecionado?.titulo}</DialogTitle>
+          </DialogHeader>
+          {objetivoSelecionado && (
+            <div className="space-y-4 py-4">
+              {objetivoSelecionado.descricao && (
+                <p className="text-sm text-muted-foreground">{objetivoSelecionado.descricao}</p>
+              )}
+              <div className="flex items-center justify-between">
+                <h4 className="font-semibold">Resultados-Chave</h4>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => gerarResultadosMutation.mutate(objetivoSelecionado.id)}
+                    disabled={gerarResultadosMutation.isPending}
+                    data-testid={`button-gerar-resultados-${objetivoSelecionado.id}`}
+                  >
+                    {gerarResultadosMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-4 w-4 mr-2" />
+                    )}
+                    Gerar com IA
+                  </Button>
+                  <Dialog open={dialogNovoResultadoOpen} onOpenChange={setDialogNovoResultadoOpen}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" data-testid={`button-add-resultado-${objetivoSelecionado.id}`}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Adicionar
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Novo Resultado-Chave</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div>
+                          <Label>Métrica</Label>
+                          <Input
+                            placeholder="Ex: Taxa de conversão"
+                            value={novoResultado.metrica}
+                            onChange={(e) => setNovoResultado({ ...novoResultado, metrica: e.target.value })}
+                            data-testid="input-resultado-metrica"
+                          />
+                        </div>
+                        <div className="grid grid-cols-3 gap-3">
+                          <div>
+                            <Label>Valor Inicial</Label>
+                            <Input
+                              type="number"
+                              placeholder="0"
+                              value={novoResultado.valorInicial}
+                              onChange={(e) => setNovoResultado({ ...novoResultado, valorInicial: e.target.value })}
+                              data-testid="input-resultado-inicial"
+                            />
+                          </div>
+                          <div>
+                            <Label>Valor Atual</Label>
+                            <Input
+                              type="number"
+                              placeholder="0"
+                              value={novoResultado.valorAtual}
+                              onChange={(e) => setNovoResultado({ ...novoResultado, valorAtual: e.target.value })}
+                              data-testid="input-resultado-atual"
+                            />
+                          </div>
+                          <div>
+                            <Label>Valor Alvo</Label>
+                            <Input
+                              type="number"
+                              placeholder="100"
+                              value={novoResultado.valorAlvo}
+                              onChange={(e) => setNovoResultado({ ...novoResultado, valorAlvo: e.target.value })}
+                              data-testid="input-resultado-alvo"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label>Responsável</Label>
+                            <Input
+                              placeholder="Nome do responsável"
+                              value={novoResultado.owner}
+                              onChange={(e) => setNovoResultado({ ...novoResultado, owner: e.target.value })}
+                              data-testid="input-resultado-owner"
+                            />
+                          </div>
+                          <div>
+                            <Label>Prazo</Label>
+                            <Input
+                              placeholder="Ex: Q4 2025"
+                              value={novoResultado.prazo}
+                              onChange={(e) => setNovoResultado({ ...novoResultado, prazo: e.target.value })}
+                              data-testid="input-resultado-prazo"
+                            />
+                          </div>
+                        </div>
+                        <Button
+                          onClick={handleCriarResultado}
+                          className="w-full"
+                          disabled={criarResultadoMutation.isPending}
+                          data-testid="button-criar-resultado"
+                        >
+                          {criarResultadoMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : null}
+                          Criar Resultado-Chave
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </div>
+
+              {resultadosChave.length === 0 ? (
+                <div className="text-center py-8 text-sm text-muted-foreground">
+                  Nenhum resultado-chave definido ainda
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {resultadosChave.map((resultado) => {
+                    const isEditing = editandoResultado?.id === resultado.id;
+                    const progresso = calcularProgresso(resultado.valorInicial, resultado.valorAtual, resultado.valorAlvo);
+
+                    return (
+                      <Card key={resultado.id} className="p-4" data-testid={`card-resultado-${resultado.id}`}>
+                        {isEditing ? (
+                          <div className="space-y-3">
+                            <div>
+                              <Label>Métrica</Label>
+                              <Input
+                                value={editandoResultado.metrica}
+                                onChange={(e) => setEditandoResultado({ ...editandoResultado, metrica: e.target.value })}
+                                data-testid={`input-edit-metrica-${resultado.id}`}
+                              />
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                              <div>
+                                <Label className="text-xs">Inicial</Label>
+                                <Input
+                                  type="number"
+                                  value={editandoResultado.valorInicial}
+                                  onChange={(e) => setEditandoResultado({ ...editandoResultado, valorInicial: e.target.value })}
+                                  data-testid={`input-edit-inicial-${resultado.id}`}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Atual</Label>
+                                <Input
+                                  type="number"
+                                  value={editandoResultado.valorAtual}
+                                  onChange={(e) => setEditandoResultado({ ...editandoResultado, valorAtual: e.target.value })}
+                                  data-testid={`input-edit-atual-${resultado.id}`}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Alvo</Label>
+                                <Input
+                                  type="number"
+                                  value={editandoResultado.valorAlvo}
+                                  onChange={(e) => setEditandoResultado({ ...editandoResultado, valorAlvo: e.target.value })}
+                                  data-testid={`input-edit-alvo-${resultado.id}`}
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <Label className="text-xs">Responsável</Label>
+                                <Input
+                                  value={editandoResultado.owner}
+                                  onChange={(e) => setEditandoResultado({ ...editandoResultado, owner: e.target.value })}
+                                  data-testid={`input-edit-owner-${resultado.id}`}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Prazo</Label>
+                                <Input
+                                  value={editandoResultado.prazo}
+                                  onChange={(e) => setEditandoResultado({ ...editandoResultado, prazo: e.target.value })}
+                                  data-testid={`input-edit-prazo-${resultado.id}`}
+                                />
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                onClick={handleEditarResultado}
+                                disabled={editarResultadoMutation.isPending}
+                                size="sm"
+                                data-testid={`button-save-resultado-${resultado.id}`}
+                              >
+                                Salvar
+                              </Button>
+                              <Button
+                                onClick={() => setEditandoResultado(null)}
+                                variant="outline"
+                                size="sm"
+                                data-testid={`button-cancel-resultado-${resultado.id}`}
+                              >
+                                Cancelar
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex-1">
+                                <h5 className="font-semibold text-sm mb-1">{resultado.metrica}</h5>
+                                <div className="flex gap-4 text-xs text-muted-foreground">
+                                  <span>Inicial: {resultado.valorInicial}</span>
+                                  <span>Atual: {resultado.valorAtual}</span>
+                                  <span>Alvo: {resultado.valorAlvo}</span>
+                                </div>
+                              </div>
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => setEditandoResultado(resultado)}
+                                  data-testid={`button-edit-resultado-${resultado.id}`}
+                                >
+                                  <Edit2 className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => deletarResultadoMutation.mutate(resultado.id)}
+                                  data-testid={`button-delete-resultado-${resultado.id}`}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-muted-foreground">Progresso</span>
+                                <span className="font-semibold">{Math.round(progresso)}%</span>
+                              </div>
+                              <Progress value={progresso} className="h-2" data-testid={`progress-resultado-${resultado.id}`} />
+                            </div>
+                            <div className="flex justify-between mt-2 text-xs text-muted-foreground">
+                              <span>Responsável: {resultado.owner}</span>
+                              <span>Prazo: {resultado.prazo}</span>
+                            </div>
+                          </div>
+                        )}
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

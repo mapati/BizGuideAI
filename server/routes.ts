@@ -12,7 +12,8 @@ import {
   insertModeloNegocioSchema,
   insertEstrategiaSchema,
   insertOportunidadeCrescimentoSchema,
-  insertIniciativaSchema
+  insertIniciativaSchema,
+  insertRitualSchema
 } from "@shared/schema";
 import OpenAI from "openai";
 
@@ -1490,6 +1491,168 @@ Responda em JSON:
       }
       
       res.json(sugestoes);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ==================== RITUAIS ====================
+  
+  app.get("/api/rituais/:empresaId", async (req, res) => {
+    try {
+      const { empresaId } = req.params;
+      let rituais = await storage.getRituais(empresaId);
+      
+      // Se não há rituais, criar os padrão
+      if (rituais.length === 0) {
+        const hoje = new Date();
+        const amanha = new Date(hoje);
+        amanha.setDate(amanha.getDate() + 1);
+        amanha.setHours(9, 0, 0, 0);
+        
+        const proximaSegunda = new Date(hoje);
+        proximaSegunda.setDate(proximaSegunda.getDate() - proximaSegunda.getDay() + 8);
+        proximaSegunda.setHours(10, 0, 0, 0);
+        
+        const proximoMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 1);
+        proximoMes.setHours(14, 0, 0, 0);
+        
+        const proximoTrimestre = new Date(hoje.getFullYear(), Math.floor(hoje.getMonth() / 3) * 3 + 3, 1);
+        proximoTrimestre.setHours(14, 0, 0, 0);
+        
+        const rituaisPadrao = [
+          {
+            empresaId,
+            tipo: "diario",
+            dataProximo: amanha,
+            completado: "false"
+          },
+          {
+            empresaId,
+            tipo: "semanal",
+            dataProximo: proximaSegunda,
+            completado: "false"
+          },
+          {
+            empresaId,
+            tipo: "mensal",
+            dataProximo: proximoMes,
+            completado: "false"
+          },
+          {
+            empresaId,
+            tipo: "trimestral",
+            dataProximo: proximoTrimestre,
+            completado: "false"
+          }
+        ];
+        
+        for (const ritual of rituaisPadrao) {
+          await storage.createRitual(ritual);
+        }
+        
+        rituais = await storage.getRituais(empresaId);
+      }
+      
+      res.json(rituais);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/rituais", async (req, res) => {
+    try {
+      const data = insertRitualSchema.parse(req.body);
+      const ritual = await storage.createRitual(data);
+      res.json(ritual);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/rituais/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const data = insertRitualSchema.partial().parse(req.body);
+      const ritual = await storage.updateRitual(id, data);
+      res.json(ritual);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/rituais/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteRitual(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ==================== ALERTAS ====================
+  
+  app.get("/api/alertas/:empresaId", async (req, res) => {
+    try {
+      const { empresaId } = req.params;
+      
+      const indicadores = await storage.getIndicadores(empresaId);
+      const iniciativas = await storage.getIniciativas(empresaId);
+      
+      const alertas = [];
+      
+      // Alertas de indicadores críticos (status vermelho ou amarelo)
+      for (const indicador of indicadores) {
+        if (indicador.status === "vermelho") {
+          alertas.push({
+            tipo: "indicador_critico",
+            severidade: "alta",
+            mensagem: `Indicador "${indicador.nome}" está em status vermelho`,
+            detalhes: {
+              perspectiva: indicador.perspectiva,
+              meta: indicador.meta,
+              atual: indicador.atual,
+              owner: indicador.owner
+            }
+          });
+        } else if (indicador.status === "amarelo") {
+          alertas.push({
+            tipo: "indicador_atencao",
+            severidade: "media",
+            mensagem: `Indicador "${indicador.nome}" precisa de atenção`,
+            detalhes: {
+              perspectiva: indicador.perspectiva,
+              meta: indicador.meta,
+              atual: indicador.atual,
+              owner: indicador.owner
+            }
+          });
+        }
+      }
+      
+      // Alertas de iniciativas atrasadas
+      const hoje = new Date();
+      for (const iniciativa of iniciativas) {
+        if (iniciativa.status !== "concluida") {
+          const prazo = new Date(iniciativa.prazo);
+          if (prazo < hoje) {
+            alertas.push({
+              tipo: "iniciativa_atrasada",
+              severidade: "alta",
+              mensagem: `Iniciativa "${iniciativa.titulo}" está atrasada`,
+              detalhes: {
+                prazo: iniciativa.prazo,
+                status: iniciativa.status,
+                responsavel: iniciativa.responsavel,
+                prioridade: iniciativa.prioridade
+              }
+            });
+          }
+        }
+      }
+      
+      res.json(alertas);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

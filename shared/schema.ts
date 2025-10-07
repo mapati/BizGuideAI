@@ -193,3 +193,22 @@ export const insertIniciativaSchema = createInsertSchema(iniciativas).omit({
 });
 export type InsertIniciativa = z.infer<typeof insertIniciativaSchema>;
 export type Iniciativa = typeof iniciativas.$inferSelect;
+
+export const rituais = pgTable("rituais", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  empresaId: varchar("empresa_id").notNull().references(() => empresas.id, { onDelete: "cascade" }),
+  tipo: text("tipo").notNull(),
+  dataUltimo: timestamp("data_ultimo"),
+  dataProximo: timestamp("data_proximo").notNull(),
+  notas: text("notas"),
+  decisoes: text("decisoes"),
+  completado: text("completado").notNull().default("false"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertRitualSchema = createInsertSchema(rituais).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertRitual = z.infer<typeof insertRitualSchema>;
+export type Ritual = typeof rituais.$inferSelect;

@@ -20,6 +20,7 @@ import OportunidadesCrescimento from "@/pages/OportunidadesCrescimento";
 import Iniciativas from "@/pages/Iniciativas";
 import OKRs from "@/pages/OKRs";
 import BSC from "@/pages/BSC";
+import Acompanhamento from "@/pages/Acompanhamento";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -36,6 +37,7 @@ function Router() {
       <Route path="/iniciativas" component={Iniciativas} />
       <Route path="/okrs" component={OKRs} />
       <Route path="/bsc" component={BSC} />
+      <Route path="/ritos" component={Acompanhamento} />
       <Route component={NotFound} />
     </Switch>
   );

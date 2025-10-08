@@ -2,12 +2,7 @@
 
 ## Overview
 
-This is a web-based strategic planning application designed to guide entrepreneurs, partners, and CEOs through a complete strategic planning and management journey without business jargon. The application uses AI to transform simple user responses into professional strategic frameworks including PESTEL analysis, SWOT analysis, OKRs (Objectives and Key Results), and BSC (Balanced Scorecard).
-
-**Core Purpose:** Enable business owners without formal management or accounting training to create a comprehensive "One-Page Strategy" document in one day, then execute it with structured rituals and alerts.
-
-**Target Language:** Brazilian Portuguese (pt-BR)  
-**User Experience Philosophy:** "Senior consultant + patient teacher" - simple, direct, positive communication
+This web-based strategic planning application guides entrepreneurs, partners, and CEOs through a strategic planning and management journey. It uses AI to convert simple user input into professional strategic frameworks like PESTEL, SWOT, OKRs, and Balanced Scorecard. The core purpose is to enable business owners without formal training to create a "One-Page Strategy" and execute it with structured rituals and alerts. The application targets Brazilian Portuguese speakers and adopts a "Senior consultant + patient teacher" communication style.
 
 ## User Preferences
 
@@ -17,253 +12,85 @@ Preferred communication style: Simple, everyday language.
 
 ### Frontend Architecture
 
-**Framework:** React with TypeScript  
-**Build Tool:** Vite  
-**Routing:** Wouter (lightweight client-side routing)  
-**State Management:** TanStack Query (React Query) for server state  
-**UI Framework:** shadcn/ui component library with Radix UI primitives  
-**Styling:** Tailwind CSS with custom design tokens
+**Frameworks & Libraries:** React with TypeScript, Vite, Wouter for routing, TanStack Query for server state management, shadcn/ui with Radix UI primitives, Tailwind CSS for styling.
 
-**Design System:**
-- Hybrid approach inspired by Linear, Notion, and Stripe
-- Core principles: Clarity over complexity, progressive disclosure, contextual education, action-oriented
-- Light and dark mode support with custom color palettes
-- Typography: Inter (primary), JetBrains Mono (metrics/KPIs)
-- Custom HSL-based theming system with CSS variables
+**Design System:** A hybrid approach inspired by Linear, Notion, and Stripe, emphasizing clarity, progressive disclosure, contextual education, and action orientation. Features include light/dark mode, custom HSL-based theming, and specific typography (Inter, JetBrains Mono).
 
-**Key Components:**
-- Page layouts with consistent headers and navigation
-- Reusable metric cards, progress bars, badges, and status indicators
-- AI Assistant component for contextual help
-- Form components with validation using react-hook-form and zod
-- Empty states and example cards for user guidance
+**Key Components:** Consistent page layouts, reusable UI elements (metric cards, progress bars), an AI Assistant for contextual help, form components with `react-hook-form` and `zod` validation, and guiding empty states.
 
 ### Backend Architecture
 
-**Runtime:** Node.js with Express  
-**Language:** TypeScript (ESM modules)  
-**API Style:** RESTful JSON API under `/api/*` routes  
-**Development Server:** Vite middleware for HMR in development
+**Technology:** Node.js with Express and TypeScript (ESM modules).
 
-**Route Structure:**
-- Company/organization profile management (`/api/empresa`)
-- PESTEL factor analysis (`/api/fatores-pestel/:empresaId`)
-- Five Forces analysis (`/api/cinco-forcas/:empresaId`)
-- SWOT analysis (`/api/analise-swot/:empresaId`)
-- Business Model Canvas (`/api/modelo-negocio/:empresaId`)
-- Strategic planning (`/api/estrategias/:empresaId`)
-- Growth opportunities - Ansoff Matrix (`/api/oportunidades-crescimento/:empresaId`)
-- Priority initiatives (`/api/iniciativas/:empresaId`)
-- OKR management (`/api/objetivos`, `/api/resultados-chave`)
-- BSC indicators (`/api/indicadores/:empresaId`)
-- Management rituals (`/api/rituais/:empresaId`, `/api/rituais/inicializar/:empresaId`)
-- Intelligent alerts (`/api/alertas/:empresaId`)
+**API Style:** RESTful JSON API under `/api/*` routes.
 
-**Error Handling:** Centralized error middleware with standardized JSON error responses
+**Core API Routes:**
+- Company/organization profile (`/api/empresa`)
+- Strategic analysis frameworks (PESTEL, Five Forces, SWOT, Business Model Canvas, Ansoff Matrix)
+- Strategic planning and execution (Strategies, Priority Initiatives, OKRs, BSC Indicators)
+- Management rituals and alerts (`/api/rituais`, `/api/alertas`)
+- Custom events registry (`/api/eventos`)
+
+**Error Handling:** Centralized middleware for standardized JSON error responses.
 
 ### Data Storage Solutions
 
-**Database:** PostgreSQL (via Neon serverless)  
-**ORM:** Drizzle ORM with Drizzle Kit for migrations  
-**Schema Validation:** Zod schemas generated from Drizzle tables using drizzle-zod
+**Database:** PostgreSQL (via Neon serverless).
 
-**Database Schema:**
-- `empresas` - Company/organization profiles
-- `fatores_pestel` - External factors analysis (Political, Economic, Social, Technological, Environmental, Legal)
-- `cinco_forcas` - Porter's Five Forces competitive analysis
-- `analise_swot` - Strengths, Weaknesses, Opportunities, Threats analysis
-- `modelo_negocio` - Business Model Canvas blocks
-- `estrategias` - TOWS strategic matrix (FO, FA, DO, DA strategies)
-- `oportunidades_crescimento` - Ansoff Matrix growth opportunities (penetração_mercado, desenvolvimento_mercado, desenvolvimento_produto, diversificação)
-- `iniciativas` - Priority initiatives portfolio (status, prioridade, prazo, responsavel, impacto)
-- `objetivos` - Strategic objectives (for OKRs)
-- `resultados_chave` - Key results linked to objectives
-- `indicadores` - BSC performance indicators across four perspectives
-- `rituais` - Management rituals (tipo, dataUltimo, dataProximo, notas, decisoes, completado)
+**ORM:** Drizzle ORM with Drizzle Kit for migrations.
 
-**Data Flow Pattern:**
-1. Client makes request via TanStack Query
-2. Request hits Express API route
-3. Route handler validates input with Zod schemas
-4. Storage layer executes Drizzle ORM queries
-5. Response returned as JSON
-6. TanStack Query caches and updates UI
+**Schema Validation:** Zod schemas generated from Drizzle tables.
+
+**Key Database Tables:**
+- `empresas`: Company profiles
+- `fatores_pestel`, `cinco_forcas`, `analise_swot`, `modelo_negocio`: Strategic analysis data
+- `estrategias`, `oportunidades_crescimento`, `iniciativas`: Strategic planning and growth
+- `objetivos`, `resultados_chave`: OKRs
+- `indicadores`: BSC performance indicators
+- `rituais`: Management rituals (tipo, dataUltimo, dataProximo, notas, decisoes, completado, checklist)
+- `eventos`: Custom strategic events (tipo, titulo, descricao, participantes, decisoes, anexos, dataEvento)
+
+**Data Flow:** Client requests via TanStack Query -> Express API -> Zod validation -> Drizzle ORM queries -> JSON response.
 
 ### Authentication and Authorization
 
-Currently not implemented - appears to be single-user application design. Future consideration for multi-user support would require session management (connect-pg-simple dependency present for PostgreSQL session storage).
+Currently designed as a single-user application. Multi-user support is a future consideration.
 
-### External Dependencies
+### Key Features Implemented:
+
+- **Priority Initiatives Portfolio:** Full CRUD for initiatives (title, description, status, priority, deadline, responsible, impact) with AI generation and anti-duplication.
+- **OKR Management:** Full CRUD for Objectives and Key Results with AI-powered generation based on strategic context, including anti-duplication.
+- **Balanced Scorecard (BSC) Indicators:** Full CRUD for indicators across four perspectives (Finances, Customers, Processes, People) with AI generation and anti-duplication.
+- **Management Rituals & Alerts System:**
+    - Four ritual cadences (Daily, Weekly, Monthly, Quarterly) with pre-defined checklists and guiding questions.
+    - Intelligent alerts for critical BSC indicators, overdue initiatives, and stale key results.
+    - Persistent ritual checklists saved to the database.
+- **Timeline of Events (Custom Events & Feed System):**
+    - Unified feed/timeline showing both completed rituals and custom strategic events (e.g., Council Meetings, Exceptional Facts, Strategic Changes).
+    - Full CRUD for custom events with various types and detailed logging capabilities.
+    - Persistent ritual checklists saved to database as JSON.
+    - Combined chronological view with visual distinction between event types.
+
+## External Dependencies
 
 **AI Integration:**
-- OpenAI API (GPT-4o-mini) for generating strategic insights and suggestions
-- Used for explaining frameworks, generating examples, and providing contextual assistance
-- AI endpoints with anti-duplication safeguards (both prompt-based and programmatic filtering)
-- API key configured via `OPENAI_API_KEY` environment variable
-- All AI generation uses temperature 0.8 for creative yet consistent outputs
+- OpenAI API (GPT-4o-mini) for generating strategic insights, suggestions, and contextual assistance. Configured via `OPENAI_API_KEY`. Uses temperature 0.8 for creative outputs.
 
 **Database Service:**
-- Neon serverless PostgreSQL
-- WebSocket support for serverless connections
-- Connection string via `DATABASE_URL` environment variable
+- Neon serverless PostgreSQL, connected via `DATABASE_URL`.
 
 **UI Component Libraries:**
-- Radix UI primitives (dialogs, dropdowns, tooltips, etc.)
+- Radix UI primitives
 - shadcn/ui component system
 - Lucide React for icons
-- cmdk for command palette functionality
+- cmdk for command palette
 - embla-carousel for carousels
 - date-fns for date manipulation
 
 **Development Tools:**
-- Replit-specific plugins for error overlays, cartographer, and dev banners (development only)
-- tsx for running TypeScript directly
+- Replit-specific plugins (error overlays, cartographer, dev banners)
+- tsx for direct TypeScript execution
 - esbuild for production builds
 
 **Design Resources:**
-- Google Fonts (Inter, JetBrains Mono)
-- Custom Tailwind configuration with extended color palette and design tokens
-
-## Recent Changes (October 2025)
-
-### Iniciativas Prioritárias (Priority Initiatives Portfolio)
-**Date:** October 6, 2025  
-**Feature:** Complete priority initiatives management system for strategy execution
-
-**Implementation:**
-- Database table `iniciativas` with fields: titulo, descricao, status, prioridade, prazo, responsavel, impacto
-- Full CRUD API endpoints at `/api/iniciativas/:empresaId`
-- AI generation endpoint `/api/ai/gerar-iniciativas` that generates 5 unique initiatives
-- Frontend page at `/iniciativas` with grouping by priority level (alta, média, baixa)
-- Anti-duplication system: AI prompt instructions + programmatic filtering (case-insensitive title comparison)
-- Integration with existing estrategias and oportunidades_crescimento for context-aware AI generation
-
-**Key Features:**
-- AI generates 5 initiatives based on company profile, strategies, and growth opportunities
-- Manual CRUD operations with full form validation
-- Visual organization by priority with distinct sections
-- Status tracking: planejada, em_andamento, concluida, pausada
-- Impact assessment: alto, médio, baixo
-- Responsible party and deadline tracking
-- Seamless integration with sidebar navigation
-
-**Technical Notes:**
-- Fixed `apiRequest` function to properly parse JSON responses (added `.json()` call)
-- Consistent with established UI/UX patterns across the application
-- Follows anti-duplication pattern established in Estrategias and Oportunidades features
-
-### OKRs (Objectives and Key Results) - AI-Powered Generation
-**Date:** October 6, 2025  
-**Feature:** Complete OKR management system connecting Apostas to Marcha (execution)
-
-**Implementation:**
-- Database tables: `objetivos` (titulo, descricao, prazo), `resultados_chave` (metrica, valorInicial, valorAlvo, valorAtual, owner, prazo)
-- Full CRUD API endpoints at `/api/objetivos/:empresaId` and `/api/resultados-chave/:objetivoId`
-- AI generation endpoint `/api/ai/gerar-objetivos` that generates 3 unique strategic objectives
-- Frontend page at `/okrs` with visual cards showing objectives
-- Anti-duplication system: AI prompt instructions + programmatic filtering (case-insensitive title comparison)
-- Context-aware generation based on estrategias, oportunidades_crescimento, and iniciativas
-
-**Key Features:**
-- AI generates 3 qualitative, aspirational objectives aligned with strategic bets
-- Manual objective creation with titulo, descricao (optional), and prazo
-- Text-based objectives (no numeric targets at objective level)
-- Integration with Apostas context for relevant strategic alignment
-- Delete functionality for objectives
-- Empty state with prominent AI generation CTA
-
-**AI Context:**
-- Empresa profile (nome, setor, descricao)
-- Estrategias (TOWS matrix strategies)
-- Oportunidades de Crescimento (Ansoff matrix opportunities)
-- Iniciativas Prioritárias (priority initiatives portfolio)
-- Existing objectives (for anti-duplication)
-
-### BSC (Balanced Scorecard) Indicators - AI-Powered Generation
-**Date:** October 6, 2025  
-**Feature:** Complete BSC indicator management across 4 perspectives
-
-**Implementation:**
-- Database table: `indicadores` (perspectiva, nome, meta, atual, status, owner)
-- Full CRUD API endpoints at `/api/indicadores/:empresaId`
-- AI generation endpoint `/api/ai/gerar-indicadores` that generates 8 unique indicators (2 per perspective)
-- Frontend page at `/bsc` with 4 perspective cards (Finanças, Clientes, Processos, Pessoas)
-- Anti-duplication system: AI prompt instructions + programmatic filtering (case-insensitive nome comparison)
-- Context-aware generation based on objetivos, estrategias, oportunidades, and iniciativas
-
-**Key Features:**
-- AI generates 8 indicators distributed across 4 BSC perspectives
-- Manual indicator creation with full form: perspectiva, nome, meta, atual, status, owner
-- Visual organization by perspective with distinct icons (DollarSign, Users, Zap, Target)
-- Status tracking with semaphore badges (verde, amarelo, vermelho)
-- Text-based meta/atual values (no strict numeric enforcement)
-- Delete functionality for indicators
-- Empty state per perspective when no indicators exist
-
-**BSC Perspectives:**
-1. **Finanças** - Financial metrics (e.g., Margem Bruta, Lucro Operacional)
-2. **Clientes** - Customer satisfaction metrics (e.g., Entregas no Prazo, Satisfação)
-3. **Processos** - Internal process efficiency (e.g., Eficiência dos Equipamentos, Perda de Material)
-4. **Pessoas** - Human capital development (e.g., Horas de Treinamento, Rotatividade)
-
-**AI Context:**
-- Empresa profile
-- Objetivos estratégicos (OKRs)
-- Estrategias (TOWS)
-- Oportunidades de Crescimento (Ansoff)
-- Iniciativas Prioritárias
-- Existing indicadores (for anti-duplication)
-
-**Technical Notes:**
-- All AI endpoints use temperature 0.8 for creative yet consistent outputs
-- Anti-duplication pattern: prompt-based warnings + programmatic Set-based filtering
-- Frontend auto-creates items after AI generation (loops through returned array)
-- Toast notifications for user feedback on generation success/failure
-
-### Acompanhamento (Management Rituals & Alerts System)
-**Date:** October 7, 2025  
-**Feature:** Complete strategic execution tracking system with structured rituals and intelligent alerts
-
-**Implementation:**
-- Database table: `rituais` (tipo, dataUltimo, dataProximo, notas, decisoes, completado)
-- Full CRUD API endpoints at `/api/rituais/:empresaId` (GET, POST, PATCH, DELETE)
-- Intelligent alerts endpoint `/api/alertas/:empresaId` that monitors BSC indicators, initiatives, and KRs
-- Initialization endpoint `/api/rituais/inicializar/:empresaId` auto-creates 4 ritual types on first access
-- Frontend page at `/ritos` with expandable ritual cards, checklists, and tracking features
-
-**Key Features:**
-- **Four Ritual Cadences:**
-  - Diário (5 min) - Daily tactical review
-  - Semanal (30 min) - Weekly progress check
-  - Mensal (1h) - Monthly strategic review
-  - Trimestral (2h) - Quarterly OKR and BSC assessment
-- **Each Ritual Includes:**
-  - Pre-defined checklist items (4-6 items per ritual)
-  - Guiding questions (perguntas-guia) for structured reflection
-  - Editable notes section (notas & observações)
-  - Decision logging (decisões tomadas)
-  - Completion tracking with automatic timestamp
-- **Intelligent Alerts System:**
-  - BSC critical indicators (status vermelho or amarelo)
-  - Overdue initiatives (prazo passed, status not concluída)
-  - Stale key results (no updates in 30+ days)
-  - Alerts displayed prominently at top of page
-
-**Ritual Types & Checklists:**
-1. **Diário** - Quick check items, blockers, priorities
-2. **Semanal** - OKR updates, initiatives review, blockers, weekly priorities
-3. **Mensal** - Strategic review, initiatives deep-dive, metrics analysis, adjustments
-4. **Trimestral** - OKR closure, BSC full review, strategic realignment, next quarter planning
-
-**Technical Implementation:**
-- Auto-initialization on first page load creates all 4 rituals if none exist
-- Completion workflow: PATCH sends `{ completado: "true" }`, backend auto-sets `dataUltimo`
-- Collapsible cards using Radix UI Collapsible primitive
-- "Ritual Semanal" expanded by default for ease of access
-- Toast notifications for save/complete actions
-- Query invalidation ensures UI reflects latest state
-
-**Bug Fixes Applied:**
-- Fixed JSON date serialization issue: removed `dataUltimo` from frontend PATCH payload
-- Backend now auto-sets `dataUltimo = new Date()` when ritual marked complete
-- Ensures proper timestamp handling without frontend/backend type mismatch
+- Google Fonts (Inter, JetBrains Mono).

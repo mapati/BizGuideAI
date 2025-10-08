@@ -1659,6 +1659,49 @@ Responda em JSON:
     }
   });
 
+  // ==================== EVENTOS ====================
+
+  app.get("/api/eventos/:empresaId", async (req, res) => {
+    try {
+      const { empresaId } = req.params;
+      const eventos = await storage.getEventos(empresaId);
+      res.json(eventos);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/eventos", async (req, res) => {
+    try {
+      const data = req.body;
+      const evento = await storage.createEvento(data);
+      res.json(evento);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/eventos/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const data = req.body;
+      const evento = await storage.updateEvento(id, data);
+      res.json(evento);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/eventos/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteEvento(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ==================== ALERTAS ====================
   
   app.get("/api/alertas/:empresaId", async (req, res) => {

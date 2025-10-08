@@ -340,7 +340,7 @@ export default function Acompanhamento() {
     createEventoMutation.mutate({
       ...eventoForm,
       empresaId,
-      dataEvento: new Date(eventoForm.dataEvento),
+      dataEvento: eventoForm.dataEvento, // Envia como string ISO
     });
   };
 

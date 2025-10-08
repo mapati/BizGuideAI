@@ -1674,6 +1674,10 @@ Responda em JSON:
   app.post("/api/eventos", async (req, res) => {
     try {
       const data = req.body;
+      // Converter dataEvento de string para Date se necessário
+      if (data.dataEvento && typeof data.dataEvento === 'string') {
+        data.dataEvento = new Date(data.dataEvento);
+      }
       const evento = await storage.createEvento(data);
       res.json(evento);
     } catch (error: any) {

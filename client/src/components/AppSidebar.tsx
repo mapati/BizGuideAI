@@ -42,7 +42,7 @@ export function AppSidebar() {
             <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center">
               <Target className="h-5 w-5 text-primary-foreground" />
             </div>
-            <span className="text-lg font-semibold">Estratégia Simples</span>
+            <span className="text-lg font-semibold">BizGuideAI</span>
           </div>
         </Link>
       </SidebarHeader>

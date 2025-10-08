@@ -30,6 +30,10 @@ interface Alerta {
   detalhes: any;
 }
 
+interface RitualComStatus extends Ritual {
+  pendente: boolean;
+}
+
 const RITUAIS_CONFIG = [
   {
     tipo: "diario",
@@ -123,7 +127,7 @@ export default function Acompanhamento() {
 
   const empresaId = empresa?.id;
 
-  const { data: rituais = [], isLoading: loadingRituais } = useQuery<Ritual[]>({
+  const { data: rituais = [], isLoading: loadingRituais } = useQuery<RitualComStatus[]>({
     queryKey: ["/api/rituais", empresaId],
     enabled: !!empresaId,
   });
@@ -320,7 +324,7 @@ export default function Acompanhamento() {
         {RITUAIS_CONFIG.map((config) => {
           const ritualData = getRitualData(config.tipo);
           const isExpanded = expandedRituais.has(config.tipo);
-          const isCompleto = ritualData?.completado === "true";
+          const isPendente = ritualData?.pendente !== false;
 
           return (
             <Card key={config.tipo} data-testid={`card-ritual-${config.tipo}`}>
@@ -329,7 +333,7 @@ export default function Acompanhamento() {
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-4 flex-1">
                       <div className={`h-10 w-10 rounded-full ${config.cor} flex items-center justify-center`}>
-                        {isCompleto ? (
+                        {!isPendente ? (
                           <CheckCircle2 className="h-5 w-5 text-white" />
                         ) : (
                           <Circle className="h-5 w-5 text-white" />
@@ -338,9 +342,14 @@ export default function Acompanhamento() {
                       <div className="flex-1">
                         <div className="flex items-center gap-3">
                           <CardTitle>{config.nome}</CardTitle>
-                          {isCompleto && (
+                          {!isPendente && (
                             <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-900">
-                              Completo
+                              Concluído
+                            </Badge>
+                          )}
+                          {isPendente && (
+                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-900">
+                              Pendente
                             </Badge>
                           )}
                         </div>
@@ -363,40 +372,67 @@ export default function Acompanhamento() {
 
                 <CollapsibleContent>
                   <CardContent className="space-y-6 pt-0">
-                    {/* Checklist */}
-                    <div>
-                      <h4 className="font-semibold mb-3">Checklist</h4>
-                      <div className="space-y-2">
-                        {config.checklist.map((item, idx) => (
-                          <div key={idx} className="flex items-start gap-3" data-testid={`checklist-item-${config.tipo}-${idx}`}>
-                            <Checkbox id={`${config.tipo}-${idx}`} />
-                            <label htmlFor={`${config.tipo}-${idx}`} className="text-sm leading-relaxed cursor-pointer">
-                              {item}
-                            </label>
-                          </div>
-                        ))}
+                    {!isPendente ? (
+                      // Mensagem quando o ritual já foi completado
+                      <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-900 rounded-lg p-6 text-center">
+                        <CheckCircle2 className="h-12 w-12 text-green-600 dark:text-green-400 mx-auto mb-3" />
+                        <h3 className="text-lg font-semibold text-green-900 dark:text-green-100 mb-2">
+                          Ritual já realizado! 🎉
+                        </h3>
+                        <p className="text-green-700 dark:text-green-300 mb-4">
+                          {config.tipo === "diario" && "Você já completou o ritual diário de hoje. Volte amanhã para o próximo!"}
+                          {config.tipo === "semanal" && "Você já completou o ritual semanal desta semana. Vejo você na próxima segunda-feira!"}
+                          {config.tipo === "mensal" && "Você já completou o ritual mensal deste mês. Nos vemos no próximo mês!"}
+                          {config.tipo === "trimestral" && "Você já completou o ritual trimestral deste período. Até o próximo trimestre!"}
+                        </p>
+                        {ritualData?.dataUltimo && (
+                          <p className="text-sm text-green-600 dark:text-green-400">
+                            Realizado em: {new Date(ritualData.dataUltimo).toLocaleDateString('pt-BR', { 
+                              day: 'numeric', 
+                              month: 'long', 
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </p>
+                        )}
                       </div>
-                    </div>
-
-                    {/* Perguntas Guia */}
-                    <div>
-                      <h4 className="font-semibold mb-3">Perguntas-Guia</h4>
-                      <div className="space-y-2 text-sm text-muted-foreground">
-                        {config.perguntas.map((pergunta, idx) => (
-                          <div key={idx} className="flex items-start gap-2">
-                            <span className="text-primary">•</span>
-                            <span>{pergunta}</span>
+                    ) : (
+                      <>
+                        {/* Checklist */}
+                        <div>
+                          <h4 className="font-semibold mb-3">Checklist</h4>
+                          <div className="space-y-2">
+                            {config.checklist.map((item, idx) => (
+                              <div key={idx} className="flex items-start gap-3" data-testid={`checklist-item-${config.tipo}-${idx}`}>
+                                <Checkbox id={`${config.tipo}-${idx}`} />
+                                <label htmlFor={`${config.tipo}-${idx}`} className="text-sm leading-relaxed cursor-pointer">
+                                  {item}
+                                </label>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    </div>
+                        </div>
 
-                    {/* Notas */}
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-semibold">Notas & Observações</h4>
-                        {editandoNotas === config.tipo ? (
-                          <Button 
+                        {/* Perguntas Guia */}
+                        <div>
+                          <h4 className="font-semibold mb-3">Perguntas-Guia</h4>
+                          <div className="space-y-2 text-sm text-muted-foreground">
+                            {config.perguntas.map((pergunta, idx) => (
+                              <div key={idx} className="flex items-start gap-2">
+                                <span className="text-primary">•</span>
+                                <span>{pergunta}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Notas */}
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="font-semibold">Notas & Observações</h4>
+                            {editandoNotas === config.tipo ? (
+                              <Button 
                             size="sm" 
                             onClick={() => salvarNotasMutation.mutate({ id: ritualData?.id || "", notas })}
                             disabled={salvarNotasMutation.isPending}
@@ -475,19 +511,19 @@ export default function Acompanhamento() {
                           {ritualData?.decisoes || "Nenhuma decisão registrada ainda"}
                         </p>
                       )}
-                    </div>
+                        </div>
 
-                    {/* Botão Completar */}
-                    {!isCompleto && (
-                      <Button 
-                        onClick={() => completarRitualMutation.mutate(ritualData?.id || "")}
-                        disabled={completarRitualMutation.isPending || !ritualData}
-                        className="w-full"
-                        data-testid={`button-completar-${config.tipo}`}
-                      >
-                        <CheckCircle2 className="h-4 w-4 mr-2" />
-                        Marcar como Completo
-                      </Button>
+                        {/* Botão Completar */}
+                        <Button 
+                          onClick={() => completarRitualMutation.mutate(ritualData?.id || "")}
+                          disabled={completarRitualMutation.isPending || !ritualData}
+                          className="w-full"
+                          data-testid={`button-completar-${config.tipo}`}
+                        >
+                          <CheckCircle2 className="h-4 w-4 mr-2" />
+                          Marcar como Completo
+                        </Button>
+                      </>
                     )}
                   </CardContent>
                 </CollapsibleContent>

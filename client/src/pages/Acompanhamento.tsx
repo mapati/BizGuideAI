@@ -433,84 +433,84 @@ export default function Acompanhamento() {
                             <h4 className="font-semibold">Notas & Observações</h4>
                             {editandoNotas === config.tipo ? (
                               <Button 
-                            size="sm" 
-                            onClick={() => salvarNotasMutation.mutate({ id: ritualData?.id || "", notas })}
-                            disabled={salvarNotasMutation.isPending}
-                            data-testid={`button-salvar-notas-${config.tipo}`}
-                          >
-                            <Save className="h-4 w-4 mr-2" />
-                            Salvar
-                          </Button>
-                        ) : (
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => {
-                              setEditandoNotas(config.tipo);
-                              setNotas(ritualData?.notas || "");
-                            }}
-                            data-testid={`button-editar-notas-${config.tipo}`}
-                          >
-                            Editar
-                          </Button>
-                        )}
-                      </div>
-                      {editandoNotas === config.tipo ? (
-                        <Textarea
-                          value={notas}
-                          onChange={(e) => setNotas(e.target.value)}
-                          placeholder="Registre observações importantes do ritual..."
-                          className="min-h-[100px]"
-                          data-testid={`textarea-notas-${config.tipo}`}
-                        />
-                      ) : (
-                        <p className="text-sm text-muted-foreground bg-muted/30 p-3 rounded-md">
-                          {ritualData?.notas || "Nenhuma nota registrada ainda"}
-                        </p>
-                      )}
-                    </div>
+                                size="sm" 
+                                onClick={() => salvarNotasMutation.mutate({ id: ritualData?.id || "", notas })}
+                                disabled={salvarNotasMutation.isPending}
+                                data-testid={`button-salvar-notas-${config.tipo}`}
+                              >
+                                <Save className="h-4 w-4 mr-2" />
+                                Salvar
+                              </Button>
+                            ) : (
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => {
+                                  setEditandoNotas(config.tipo);
+                                  setNotas(ritualData?.notas || "");
+                                }}
+                                data-testid={`button-editar-notas-${config.tipo}`}
+                              >
+                                Editar
+                              </Button>
+                            )}
+                          </div>
+                          {editandoNotas === config.tipo ? (
+                            <Textarea
+                              value={notas}
+                              onChange={(e) => setNotas(e.target.value)}
+                              placeholder="Registre observações importantes do ritual..."
+                              className="min-h-[100px]"
+                              data-testid={`textarea-notas-${config.tipo}`}
+                            />
+                          ) : (
+                            <p className="text-sm text-muted-foreground bg-muted/30 p-3 rounded-md">
+                              {ritualData?.notas || "Nenhuma nota registrada ainda"}
+                            </p>
+                          )}
+                        </div>
 
-                    {/* Decisões */}
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-semibold">Decisões Tomadas</h4>
-                        {editandoDecisoes === config.tipo ? (
-                          <Button 
-                            size="sm" 
-                            onClick={() => salvarDecisoesMutation.mutate({ id: ritualData?.id || "", decisoes })}
-                            disabled={salvarDecisoesMutation.isPending}
-                            data-testid={`button-salvar-decisoes-${config.tipo}`}
-                          >
-                            <Save className="h-4 w-4 mr-2" />
-                            Salvar
-                          </Button>
-                        ) : (
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => {
-                              setEditandoDecisoes(config.tipo);
-                              setDecisoes(ritualData?.decisoes || "");
-                            }}
-                            data-testid={`button-editar-decisoes-${config.tipo}`}
-                          >
-                            Editar
-                          </Button>
-                        )}
-                      </div>
-                      {editandoDecisoes === config.tipo ? (
-                        <Textarea
-                          value={decisoes}
-                          onChange={(e) => setDecisoes(e.target.value)}
-                          placeholder="Registre as decisões importantes tomadas neste ritual..."
-                          className="min-h-[100px]"
-                          data-testid={`textarea-decisoes-${config.tipo}`}
-                        />
-                      ) : (
-                        <p className="text-sm text-muted-foreground bg-muted/30 p-3 rounded-md">
-                          {ritualData?.decisoes || "Nenhuma decisão registrada ainda"}
-                        </p>
-                      )}
+                        {/* Decisões */}
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="font-semibold">Decisões Tomadas</h4>
+                            {editandoDecisoes === config.tipo ? (
+                              <Button 
+                                size="sm" 
+                                onClick={() => salvarDecisoesMutation.mutate({ id: ritualData?.id || "", decisoes })}
+                                disabled={salvarDecisoesMutation.isPending}
+                                data-testid={`button-salvar-decisoes-${config.tipo}`}
+                              >
+                                <Save className="h-4 w-4 mr-2" />
+                                Salvar
+                              </Button>
+                            ) : (
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => {
+                                  setEditandoDecisoes(config.tipo);
+                                  setDecisoes(ritualData?.decisoes || "");
+                                }}
+                                data-testid={`button-editar-decisoes-${config.tipo}`}
+                              >
+                                Editar
+                              </Button>
+                            )}
+                          </div>
+                          {editandoDecisoes === config.tipo ? (
+                            <Textarea
+                              value={decisoes}
+                              onChange={(e) => setDecisoes(e.target.value)}
+                              placeholder="Registre as decisões importantes tomadas neste ritual..."
+                              className="min-h-[100px]"
+                              data-testid={`textarea-decisoes-${config.tipo}`}
+                            />
+                          ) : (
+                            <p className="text-sm text-muted-foreground bg-muted/30 p-3 rounded-md">
+                              {ritualData?.decisoes || "Nenhuma decisão registrada ainda"}
+                            </p>
+                          )}
                         </div>
 
                         {/* Botão Completar */}

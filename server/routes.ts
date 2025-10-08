@@ -1498,6 +1498,62 @@ Responda em JSON:
 
   // ==================== RITUAIS ====================
   
+  // Funções auxiliares para verificar se ritual está pendente
+  function isRitualPendente(ritual: any, tipo: string): boolean {
+    if (!ritual || !ritual.dataUltimo) return true;
+    
+    const dataUltimo = new Date(ritual.dataUltimo);
+    const hoje = new Date();
+    
+    switch (tipo) {
+      case "diario":
+        // Pendente se não foi completado hoje
+        return !isMesmaData(dataUltimo, hoje);
+      
+      case "semanal":
+        // Pendente se não foi completado esta semana
+        return !isMesmaSemana(dataUltimo, hoje);
+      
+      case "mensal":
+        // Pendente se não foi completado este mês
+        return !isMesmoMes(dataUltimo, hoje);
+      
+      case "trimestral":
+        // Pendente se não foi completado este trimestre
+        return !isMesmoTrimestre(dataUltimo, hoje);
+      
+      default:
+        return true;
+    }
+  }
+  
+  function isMesmaData(data1: Date, data2: Date): boolean {
+    return data1.getFullYear() === data2.getFullYear() &&
+           data1.getMonth() === data2.getMonth() &&
+           data1.getDate() === data2.getDate();
+  }
+  
+  function isMesmaSemana(data1: Date, data2: Date): boolean {
+    const umDia = 24 * 60 * 60 * 1000;
+    const primeiroDia = new Date(data2.getFullYear(), 0, 1);
+    const dias1 = Math.floor((data1.getTime() - primeiroDia.getTime()) / umDia);
+    const dias2 = Math.floor((data2.getTime() - primeiroDia.getTime()) / umDia);
+    const semana1 = Math.floor(dias1 / 7);
+    const semana2 = Math.floor(dias2 / 7);
+    return semana1 === semana2 && data1.getFullYear() === data2.getFullYear();
+  }
+  
+  function isMesmoMes(data1: Date, data2: Date): boolean {
+    return data1.getFullYear() === data2.getFullYear() &&
+           data1.getMonth() === data2.getMonth();
+  }
+  
+  function isMesmoTrimestre(data1: Date, data2: Date): boolean {
+    const trimestre1 = Math.floor(data1.getMonth() / 3);
+    const trimestre2 = Math.floor(data2.getMonth() / 3);
+    return data1.getFullYear() === data2.getFullYear() && trimestre1 === trimestre2;
+  }
+  
   app.get("/api/rituais/:empresaId", async (req, res) => {
     try {
       const { empresaId } = req.params;
@@ -1554,7 +1610,13 @@ Responda em JSON:
         rituais = await storage.getRituais(empresaId);
       }
       
-      res.json(rituais);
+      // Adicionar informação de pendência a cada ritual
+      const rituaisComStatus = rituais.map(ritual => ({
+        ...ritual,
+        pendente: isRitualPendente(ritual, ritual.tipo)
+      }));
+      
+      res.json(rituaisComStatus);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

@@ -202,6 +202,7 @@ export const rituais = pgTable("rituais", {
   dataProximo: timestamp("data_proximo").notNull(),
   notas: text("notas"),
   decisoes: text("decisoes"),
+  checklist: text("checklist"),
   completado: text("completado").notNull().default("false"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -212,3 +213,23 @@ export const insertRitualSchema = createInsertSchema(rituais).omit({
 });
 export type InsertRitual = z.infer<typeof insertRitualSchema>;
 export type Ritual = typeof rituais.$inferSelect;
+
+export const eventos = pgTable("eventos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  empresaId: varchar("empresa_id").notNull().references(() => empresas.id, { onDelete: "cascade" }),
+  tipo: text("tipo").notNull(),
+  titulo: text("titulo").notNull(),
+  descricao: text("descricao").notNull(),
+  participantes: text("participantes"),
+  decisoes: text("decisoes"),
+  anexos: text("anexos"),
+  dataEvento: timestamp("data_evento").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertEventoSchema = createInsertSchema(eventos).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertEvento = z.infer<typeof insertEventoSchema>;
+export type Evento = typeof eventos.$inferSelect;

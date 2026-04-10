@@ -254,3 +254,4 @@ export const insertEventoSchema = createInsertSchema(eventos).omit({
 });
 export type InsertEvento = z.infer<typeof insertEventoSchema>;
 export type Evento = typeof eventos.$inferSelect;
+

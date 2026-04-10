@@ -13,7 +13,7 @@ import {
   insertEstrategiaSchema,
   insertOportunidadeCrescimentoSchema,
   insertIniciativaSchema,
-  insertRitualSchema
+  insertRitualSchema,
 } from "@shared/schema";
 import OpenAI from "openai";
 import bcrypt from "bcryptjs";
@@ -100,17 +100,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/auth/login", async (req, res) => {
     try {
-      const { email, senha } = req.body;
-      if (!email || !senha) {
-        return res.status(400).json({ error: "E-mail e senha são obrigatórios" });
-      }
+      const schema = z.object({
+        email: z.string().email(),
+        senha: z.string().min(1),
+      });
+      const data = schema.parse(req.body);
 
-      const usuario = await storage.getUsuarioByEmail(email);
+      const usuario = await storage.getUsuarioByEmail(data.email);
       if (!usuario) {
         return res.status(401).json({ error: "Credenciais inválidas" });
       }
 
-      const senhaCorreta = await bcrypt.compare(senha, usuario.senha);
+      const senhaCorreta = await bcrypt.compare(data.senha, usuario.senha);
       if (!senhaCorreta) {
         return res.status(401).json({ error: "Credenciais inválidas" });
       }
@@ -179,6 +180,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/ai", requireAuth);
 
   // ==================== EMPRESA ====================
+
 
   app.get("/api/empresa", async (req, res) => {
     try {

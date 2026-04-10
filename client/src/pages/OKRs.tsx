@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import { ExampleCard } from "@/components/ExampleCard";
+
 import { Plus, Sparkles, Target as TargetIcon, Loader2, Trash2, Edit2, TrendingUp, Users, Cog, GraduationCap, DollarSign } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -444,9 +444,37 @@ export default function OKRs() {
         }
       />
 
-      <ExampleCard>
-        <strong>Balanced Scorecard:</strong> Organize objetivos em 4 perspectivas estratégicas. Clique em um objetivo para ver e gerenciar seus resultados-chave (KRs).
-      </ExampleCard>
+      {/* Educational callout: OKR vs KPI */}
+      <Card className="p-4 bg-muted/30" data-testid="card-educational-okr">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex-1 space-y-1">
+            <div className="flex items-center gap-2">
+              <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
+                <TargetIcon className="h-3.5 w-3.5 text-primary" />
+              </div>
+              <span className="text-sm font-semibold">OKRs — Mudança e crescimento (esta página)</span>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed pl-8">
+              Definem onde você quer chegar em um ciclo. Têm prazo e progresso de 0–100%.
+              Clique em um objetivo para gerenciar seus resultados-chave (KRs).
+            </p>
+          </div>
+          <div className="hidden sm:flex items-center text-muted-foreground/40">
+            <span className="text-lg font-light">vs</span>
+          </div>
+          <div className="flex-1 space-y-1">
+            <div className="flex items-center gap-2">
+              <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
+                <TrendingUp className="h-3.5 w-3.5 text-primary" />
+              </div>
+              <span className="text-sm font-semibold">KPIs — Saúde contínua do negócio</span>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed pl-8">
+              Medem o que já está em operação com status verde/amarelo/vermelho. Sem prazo de encerramento — monitorados permanentemente.
+            </p>
+          </div>
+        </div>
+      </Card>
 
       {objetivos.length === 0 ? (
         <Card className="p-12 text-center">

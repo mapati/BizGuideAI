@@ -69,26 +69,29 @@ export default function OKRs() {
     enabled: !!objetivoSelecionado,
   });
 
+  const [gerandoPerspectiva, setGerandoPerspectiva] = useState<string | null>(null);
+
   const gerarObjetivosMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (perspectiva?: string) => {
       if (!empresaId) throw new Error("Empresa não encontrada");
-      return await apiRequest("POST", "/api/ai/gerar-objetivos", { empresaId });
+      return await apiRequest("POST", "/api/ai/gerar-objetivos", { empresaId, perspectiva });
     },
-    onSuccess: (data) => {
+    onSuccess: async (data, perspectiva) => {
       if (data.objetivos && data.objetivos.length > 0) {
+        const label = perspectiva ? `perspectiva ${perspectiva}` : "todas as perspectivas";
         toast({
-          title: "Objetivos Gerados!",
-          description: `${data.objetivos.length} objetivo(s) sugerido(s) pela IA com perspectivas BSC.`,
+          title: "Objetivo(s) Gerado(s)!",
+          description: `${data.objetivos.length} objetivo(s) sugerido(s) pela IA para ${label}.`,
         });
-        data.objetivos.forEach(async (obj: any) => {
+        for (const obj of data.objetivos) {
           await criarObjetivoMutation.mutateAsync({
             empresaId,
             titulo: obj.titulo,
             descricao: obj.descricao,
             prazo: obj.prazo,
-            perspectiva: obj.perspectiva || "Financeira",
+            perspectiva: obj.perspectiva || perspectiva || "Financeira",
           });
-        });
+        }
       } else {
         toast({
           title: "Nenhum objetivo novo",
@@ -96,6 +99,7 @@ export default function OKRs() {
           variant: "destructive",
         });
       }
+      setGerandoPerspectiva(null);
     },
     onError: () => {
       toast({
@@ -103,8 +107,14 @@ export default function OKRs() {
         description: "Não foi possível gerar objetivos com IA. Tente novamente.",
         variant: "destructive",
       });
+      setGerandoPerspectiva(null);
     },
   });
+
+  const handleGerarParaPerspectiva = (perspectiva: string) => {
+    setGerandoPerspectiva(perspectiva);
+    gerarObjetivosMutation.mutate(perspectiva);
+  };
 
   const gerarResultadosMutation = useMutation({
     mutationFn: async (objetivoId: string) => {
@@ -343,17 +353,17 @@ export default function OKRs() {
         action={
           <div className="flex gap-2">
             <Button
-              onClick={() => gerarObjetivosMutation.mutate()}
+              onClick={() => gerarObjetivosMutation.mutate(undefined)}
               disabled={gerarObjetivosMutation.isPending}
               variant="outline"
               data-testid="button-gerar-objetivos"
             >
-              {gerarObjetivosMutation.isPending ? (
+              {gerarObjetivosMutation.isPending && !gerandoPerspectiva ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <Sparkles className="h-4 w-4 mr-2" />
               )}
-              Gerar com IA
+              Gerar para todas as perspectivas
             </Button>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
@@ -449,7 +459,7 @@ export default function OKRs() {
               Comece gerando objetivos com IA baseados nas suas apostas estratégicas ou crie manualmente.
             </p>
             <Button
-              onClick={() => gerarObjetivosMutation.mutate()}
+              onClick={() => gerarObjetivosMutation.mutate(undefined)}
               disabled={gerarObjetivosMutation.isPending}
               data-testid="button-gerar-objetivos-empty"
             >
@@ -470,14 +480,30 @@ export default function OKRs() {
             
             return (
               <Card key={perspectiva.valor} className="p-6" data-testid={`card-perspectiva-${perspectiva.valor}`}>
-                <div className="flex items-center gap-3 mb-4 pb-4 border-b">
-                  <div className={`h-10 w-10 rounded-full ${perspectiva.cor} flex items-center justify-center flex-shrink-0`}>
-                    <Icon className="h-5 w-5 text-white" />
+                <div className="flex items-center justify-between gap-3 mb-4 pb-4 border-b">
+                  <div className="flex items-center gap-3">
+                    <div className={`h-10 w-10 rounded-full ${perspectiva.cor} flex items-center justify-center flex-shrink-0`}>
+                      <Icon className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-lg">{perspectiva.label}</h3>
+                      <p className="text-sm text-muted-foreground">{objs.length} objetivo(s)</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-lg">{perspectiva.label}</h3>
-                    <p className="text-sm text-muted-foreground">{objs.length} objetivo(s)</p>
-                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleGerarParaPerspectiva(perspectiva.valor)}
+                    disabled={gerarObjetivosMutation.isPending}
+                    data-testid={`button-gerar-perspectiva-${perspectiva.valor}`}
+                  >
+                    {gerandoPerspectiva === perspectiva.valor ? (
+                      <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                    )}
+                    Gerar com IA
+                  </Button>
                 </div>
 
                 <div className="space-y-3">

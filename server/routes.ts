@@ -1294,6 +1294,7 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
   app.post("/api/ai/gerar-objetivos", async (req, res) => {
     try {
       const empresaId = req.session.empresaId!;
+      const { perspectiva: perspectivaSolicitada } = req.body;
 
       const empresa = await storage.getEmpresa(empresaId);
       if (!empresa) {
@@ -1305,107 +1306,119 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
       const oportunidades = await storage.getOportunidadesCrescimento(empresaId);
       const iniciativas = await storage.getIniciativas(empresaId);
 
-      const objetivosResume = objetivosExistentes.map(o => 
-        `- ${o.titulo}\n  Descrição: ${o.descricao || 'Sem descrição'}\n  Prazo: ${o.prazo}`
-      ).join("\n\n");
-
       const estrategiasResume = estrategiasLista.map(e => `${e.tipo}: ${e.titulo} - ${e.descricao}`).join("\n");
       const oportunidadesResume = oportunidades.map(o => `${o.tipo}: ${o.titulo} - ${o.descricao}`).join("\n");
       const iniciativasResume = iniciativas.map(i => `${i.titulo} (Prioridade: ${i.prioridade})`).join("\n");
 
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: `Você é um consultor estratégico especializado em OKRs (Objectives and Key Results) e Balanced Scorecard (BSC). Sua missão é criar objetivos estratégicos claros, inspiradores e mensuráveis que traduzam as apostas estratégicas da empresa em direções concretas. Use linguagem simples, sem jargões.
+      const definicoesPerspectivasBSC: Record<string, { definicao: string; exemplos: string }> = {
+        "Financeira": {
+          definicao: "Objetivos EXCLUSIVAMENTE sobre desempenho financeiro: receita, lucro, margem, custos, EBITDA, retorno sobre investimento, redução de dívidas, fluxo de caixa, rentabilidade.",
+          exemplos: "Exemplos CORRETOS de objetivos Financeiros:\n- Aumentar a margem de lucro líquida\n- Reduzir os custos operacionais\n- Crescer o faturamento total\n- Melhorar o fluxo de caixa\n- Reduzir o endividamento\n- Aumentar o retorno sobre o investimento (ROI)\n\nExemplos INCORRETOS (NÃO usar para perspectiva Financeira):\n- Lançar novos produtos (isso é Processos Internos)\n- Aumentar satisfação de clientes (isso é Clientes)\n- Capacitar equipe (isso é Aprendizado)"
+        },
+        "Clientes": {
+          definicao: "Objetivos EXCLUSIVAMENTE sobre relacionamento com clientes: satisfação, fidelização, aquisição, retenção, NPS, experiência de compra, participação de mercado, valor percebido pelo cliente.",
+          exemplos: "Exemplos CORRETOS de objetivos de Clientes:\n- Aumentar a satisfação e fidelização dos clientes\n- Expandir base de clientes em novos segmentos\n- Melhorar o NPS (Net Promoter Score)\n- Reduzir a taxa de cancelamento/churn\n- Fortalecer o posicionamento de marca\n- Aumentar participação de mercado\n\nExemplos INCORRETOS (NÃO usar para perspectiva Clientes):\n- Reduzir custos (isso é Financeira)\n- Melhorar processos internos (isso é Processos Internos)"
+        },
+        "Processos Internos": {
+          definicao: "Objetivos EXCLUSIVAMENTE sobre operações e processos internos: eficiência, qualidade, produtividade, tempo de ciclo, inovação de produtos/serviços, desenvolvimento de novos produtos, cadeia de suprimentos.",
+          exemplos: "Exemplos CORRETOS de objetivos de Processos Internos:\n- Reduzir o tempo de entrega de pedidos\n- Melhorar a qualidade dos produtos e serviços\n- Aumentar a eficiência produtiva\n- Lançar novas linhas de produtos\n- Desenvolver processo de inovação contínua\n- Modernizar a cadeia de suprimentos\n\nExemplos INCORRETOS (NÃO usar para Processos Internos):\n- Aumentar faturamento (isso é Financeira)\n- Melhorar satisfação do cliente (isso é Clientes)"
+        },
+        "Aprendizado e Crescimento": {
+          definicao: "Objetivos EXCLUSIVAMENTE sobre capital humano e organizacional: capacitação de pessoas, desenvolvimento de competências, cultura organizacional, tecnologia da informação, gestão do conhecimento.",
+          exemplos: "Exemplos CORRETOS de objetivos de Aprendizado e Crescimento:\n- Desenvolver competências técnicas e comerciais da equipe\n- Fortalecer a cultura de inovação e melhoria contínua\n- Implementar ferramentas digitais para gestão\n- Aumentar o engajamento e retenção de talentos\n- Desenvolver programa estruturado de lideranças\n- Criar base de conhecimento institucional\n\nExemplos INCORRETOS (NÃO usar para Aprendizado):\n- Aumentar lucro (isso é Financeira)\n- Lançar produtos (isso é Processos Internos)"
+        }
+      };
 
-REGRA CRÍTICA DE DUPLICAÇÃO:
-- Analise TODOS os objetivos já existentes listados
-- NUNCA crie objetivos semelhantes ou que abordem os mesmos temas
-- Cada objetivo DEVE ser único e trazer uma perspectiva diferente
-- Se você sugerir algo muito parecido com o que já existe, está VIOLANDO esta regra
+      const gerarParaPerspectiva = async (perspectiva: string) => {
+        const def = definicoesPerspectivasBSC[perspectiva];
+        const objetivosDestaPerspectiva = objetivosExistentes.filter(o => o.perspectiva === perspectiva);
+        const objetivosResume = objetivosDestaPerspectiva.map(o => `- ${o.titulo}`).join("\n");
 
-PERSPECTIVAS DO BALANCED SCORECARD:
-Para cada objetivo, classifique-o em UMA das 4 perspectivas do BSC:
-1. "Financeira" - Objetivos relacionados a resultados financeiros, receita, lucro, custos, rentabilidade
-2. "Clientes" - Objetivos sobre satisfação, retenção, aquisição de clientes, experiência, valor percebido
-3. "Processos Internos" - Objetivos sobre eficiência operacional, qualidade, inovação, processos
-4. "Aprendizado e Crescimento" - Objetivos sobre capacitação de pessoas, cultura, tecnologia, conhecimento`
-          },
-          {
-            role: "user",
-            content: `Empresa: ${empresa.nome}
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: `Você é um consultor especializado em Balanced Scorecard (BSC). Sua ÚNICA tarefa agora é criar objetivos para a perspectiva "${perspectiva}".
+
+DEFINIÇÃO DESTA PERSPECTIVA:
+${def.definicao}
+
+${def.exemplos}
+
+REGRA ABSOLUTA: Todo objetivo que você criar DEVE pertencer exclusivamente à perspectiva "${perspectiva}". Se o objetivo não se encaixa perfeitamente nessa perspectiva, NÃO o inclua.
+
+REGRA DE DUPLICAÇÃO: Nunca repita objetivos já existentes listados pelo usuário.`
+            },
+            {
+              role: "user",
+              content: `Empresa: ${empresa.nome}
 Setor: ${empresa.setor}
 Descrição: ${empresa.descricao || 'Não informada'}
 
-## CONTEXTO DAS APOSTAS ESTRATÉGICAS:
+## CONTEXTO ESTRATÉGICO:
+${estrategiasLista.length > 0 ? `Estratégias:\n${estrategiasResume}` : ""}
+${oportunidades.length > 0 ? `\nOportunidades de crescimento:\n${oportunidadesResume}` : ""}
+${iniciativas.length > 0 ? `\nIniciativas prioritárias:\n${iniciativasResume}` : ""}
 
-### ESTRATÉGIAS (TOWS):
-${estrategiasLista.length > 0 ? estrategiasResume : "Nenhuma estratégia definida"}
-
-### OPORTUNIDADES DE CRESCIMENTO (Ansoff):
-${oportunidades.length > 0 ? oportunidadesResume : "Nenhuma oportunidade identificada"}
-
-### INICIATIVAS PRIORITÁRIAS:
-${iniciativas.length > 0 ? iniciativasResume : "Nenhuma iniciativa definida"}
-
-## OBJETIVOS JÁ EXISTENTES (NÃO REPITA):
-${objetivosExistentes.length > 0 ? objetivosResume : "Nenhum objetivo criado ainda"}
-
-${objetivosExistentes.length > 0 ? `
-⚠️ ATENÇÃO: Já existem ${objetivosExistentes.length} objetivo(s). 
-Suas sugestões DEVEM ser diferentes e complementares aos existentes.
-` : ''}
+## OBJETIVOS JÁ EXISTENTES NA PERSPECTIVA "${perspectiva}" (NÃO REPITA):
+${objetivosDestaPerspectiva.length > 0 ? objetivosResume : "Nenhum ainda"}
 
 ## TAREFA:
-Crie EXATAMENTE 3 objetivos estratégicos ÚNICOS baseados nas apostas acima.
+Crie EXATAMENTE 1 objetivo estratégico para a perspectiva "${perspectiva}" desta empresa.
 
-Cada objetivo deve:
-- titulo: Objetivo claro e inspirador (máx 80 caracteres) - ex: "Aumentar participação no mercado premium"
-- descricao: Contexto e justificativa estratégica (2-3 frases) explicando POR QUE este objetivo é importante
-- prazo: Horizonte temporal - "Q4 2025", "Anual 2025", etc
-- perspectiva: Classifique em uma das 4 perspectivas BSC: "Financeira", "Clientes", "Processos Internos" ou "Aprendizado e Crescimento"
-
-Os objetivos devem ser:
-✓ Qualitativos e aspiracionais (não números)
-✓ Alinhados com as estratégias e oportunidades
-✓ Mensuráveis através de resultados-chave (que serão criados depois)
-✓ Diferentes entre si
-✓ Distribuídos entre diferentes perspectivas BSC quando possível
+O objetivo deve:
+- ser qualitativo e aspiracional (sem números no título)
+- refletir claramente a perspectiva "${perspectiva}"
+- ser relevante para o setor e contexto desta empresa
+- ser diferente dos já existentes
 
 Responda em JSON:
 {
-  "objetivos": [
-    {"titulo": "...", "descricao": "...", "prazo": "Q4 2025", "perspectiva": "Financeira"},
-    {"titulo": "...", "descricao": "...", "prazo": "Anual 2025", "perspectiva": "Clientes"},
-    {"titulo": "...", "descricao": "...", "prazo": "Q2 2026", "perspectiva": "Processos Internos"}
-  ]
+  "objetivo": {
+    "titulo": "...",
+    "descricao": "...",
+    "prazo": "Anual 2025",
+    "perspectiva": "${perspectiva}"
+  }
 }`
-          }
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.8,
-      });
-
-      const sugestoes = JSON.parse(completion.choices[0].message.content || "{}");
-      
-      if (sugestoes.objetivos && Array.isArray(sugestoes.objetivos)) {
-        const seenTitles = new Set(
-          objetivosExistentes.map(o => o.titulo.toLowerCase().trim())
-        );
-        
-        sugestoes.objetivos = sugestoes.objetivos.filter((objetivo: any) => {
-          const titulo = objetivo.titulo?.toLowerCase().trim();
-          if (!titulo || seenTitles.has(titulo)) {
-            return false;
-          }
-          seenTitles.add(titulo);
-          return true;
+            }
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0.8,
         });
+
+        const result = JSON.parse(completion.choices[0].message.content || "{}");
+        return result.objetivo || null;
+      };
+
+      const todasPerspectivas = ["Financeira", "Clientes", "Processos Internos", "Aprendizado e Crescimento"];
+      const seenTitles = new Set(objetivosExistentes.map(o => o.titulo.toLowerCase().trim()));
+
+      let objetivosGerados: any[] = [];
+
+      if (perspectivaSolicitada && todasPerspectivas.includes(perspectivaSolicitada)) {
+        const objetivo = await gerarParaPerspectiva(perspectivaSolicitada);
+        if (objetivo && objetivo.titulo) {
+          const titulo = objetivo.titulo.toLowerCase().trim();
+          if (!seenTitles.has(titulo)) {
+            objetivosGerados = [{ ...objetivo, perspectiva: perspectivaSolicitada }];
+          }
+        }
+      } else {
+        const resultados = await Promise.all(todasPerspectivas.map(p => gerarParaPerspectiva(p)));
+        objetivosGerados = resultados
+          .filter((obj): obj is NonNullable<typeof obj> => obj !== null && !!obj.titulo)
+          .filter(obj => {
+            const titulo = obj.titulo.toLowerCase().trim();
+            if (seenTitles.has(titulo)) return false;
+            seenTitles.add(titulo);
+            return true;
+          })
+          .map((obj, idx) => ({ ...obj, perspectiva: obj.perspectiva || todasPerspectivas[idx] }));
       }
-      
-      res.json(sugestoes);
+
+      res.json({ objetivos: objetivosGerados });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

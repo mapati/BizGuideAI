@@ -54,7 +54,17 @@ Preferred communication style: Simple, everyday language.
 
 ### Authentication and Authorization
 
-Currently designed as a single-user application. Multi-user support is a future consideration.
+**Multi-company SaaS with full data isolation.**
+
+- `usuarios` table: id, empresaId (FK), nome, email, senha (bcrypt hash), createdAt
+- `express-session` + `connect-pg-simple` for PostgreSQL-backed sessions (cookie-based)
+- Requires `SESSION_SECRET` environment secret
+- Auth routes (unprotected): POST /api/auth/register, POST /api/auth/login, POST /api/auth/logout, GET /api/auth/me
+- All other `/api/*` routes are protected by `requireAuth` middleware
+- Each route uses `req.session.empresaId` to scope data — no cross-tenant access possible
+- Registration creates empresa + usuario atomically; one user per company (admin)
+- Frontend: `AuthContext` + `useAuth` hook, protected routing in `AppLayout`, 401 → redirect to /login
+- Profile page (Onboarding) supports editing CNPJ, endereço, cidade, estado, CEP and changing password via PATCH /api/auth/senha
 
 ### Key Features Implemented:
 

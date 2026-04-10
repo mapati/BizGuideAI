@@ -463,20 +463,6 @@ export class DbStorage implements IStorage {
     if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
   }
 
-  async getUsuarioByEmail(email: string): Promise<Usuario | undefined> {
-    const result = await db.select().from(usuarios).where(eq(usuarios.email, email)).limit(1);
-    return result[0];
-  }
-
-  async getUsuarioById(id: string): Promise<Usuario | undefined> {
-    const result = await db.select().from(usuarios).where(eq(usuarios.id, id)).limit(1);
-    return result[0];
-  }
-
-  async createUsuario(usuario: InsertUsuario): Promise<Usuario> {
-    const result = await db.insert(usuarios).values(usuario).returning();
-    return result[0];
-  }
 }
 
 export const storage = new DbStorage();

@@ -1920,6 +1920,174 @@ Responda em JSON:
     }
   });
 
+  // ==================== DIAGNÓSTICO ESTRATÉGICO IA ====================
+
+  app.post("/api/ai/diagnostico-estrategico", async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+
+      const empresa = await storage.getEmpresa(empresaId);
+      if (!empresa) return res.status(404).json({ error: "Empresa não encontrada" });
+
+      const [objetivosList, indicadores, eventos, iniciativas] = await Promise.all([
+        storage.getObjetivos(empresaId),
+        storage.getIndicadores(empresaId),
+        storage.getEventos(empresaId),
+        storage.getIniciativas(empresaId),
+      ]);
+
+      const krsArrays = await Promise.all(
+        objetivosList.map((obj) => storage.getResultadosChave(obj.id, empresaId))
+      );
+      const todosKRs = krsArrays.flat();
+
+      const calcProgresso = (kr: any): number => {
+        const i = parseFloat(kr.valorInicial);
+        const a = parseFloat(kr.valorAtual);
+        const v = parseFloat(kr.valorAlvo);
+        if (isNaN(i) || isNaN(a) || isNaN(v)) return 0;
+        if (i === v) return 100;
+        return Math.max(0, Math.min(100, ((a - i) / (v - i)) * 100));
+      };
+
+      const objetivosComProgresso = objetivosList.map((obj) => {
+        const krs = todosKRs.filter((kr) => kr.objetivoId === obj.id);
+        const progresso =
+          krs.length === 0
+            ? 0
+            : Math.round(krs.reduce((acc, kr) => acc + calcProgresso(kr), 0) / krs.length);
+        return { ...obj, progresso, numKRs: krs.length, krs };
+      });
+
+      const perspectivas = [
+        "Financeira",
+        "Clientes",
+        "Processos Internos",
+        "Aprendizado e Crescimento",
+      ];
+      const progressoPorPerspectiva = perspectivas.map((p) => {
+        const objs = objetivosComProgresso.filter(
+          (o) => o.perspectiva === p && o.numKRs > 0
+        );
+        const media =
+          objs.length === 0
+            ? 0
+            : Math.round(objs.reduce((acc, o) => acc + o.progresso, 0) / objs.length);
+        return { perspectiva: p, progresso: media, numObjetivos: objs.length };
+      });
+
+      const kpiVerde = indicadores.filter((i) => i.status === "verde").length;
+      const kpiAmarelo = indicadores.filter((i) => i.status === "amarelo").length;
+      const kpiVermelho = indicadores.filter((i) => i.status === "vermelho").length;
+
+      const hoje = new Date();
+      const iniciativasAtrasadas = iniciativas.filter(
+        (i) => i.status !== "concluida" && new Date(i.prazo) < hoje
+      );
+
+      const eventosRecentes = [...eventos]
+        .sort(
+          (a, b) =>
+            new Date(b.dataEvento).getTime() - new Date(a.dataEvento).getTime()
+        )
+        .slice(0, 5);
+
+      const objetivosResume =
+        objetivosComProgresso.length > 0
+          ? objetivosComProgresso
+              .map(
+                (o) =>
+                  `- [${o.perspectiva}] "${o.titulo}" — ${o.progresso}% progresso (${o.numKRs} KRs)\n${o.krs
+                    .map(
+                      (kr: any) =>
+                        `  • ${kr.metrica}: inicial=${kr.valorInicial}, atual=${kr.valorAtual}, alvo=${kr.valorAlvo} (${Math.round(calcProgresso(kr))}%)`
+                    )
+                    .join("\n")}`
+              )
+              .join("\n\n")
+          : "Nenhum objetivo cadastrado.";
+
+      const indicadoresResume =
+        indicadores.length > 0
+          ? indicadores
+              .map(
+                (i) =>
+                  `- [${i.perspectiva}] ${i.nome}: meta=${i.meta}, atual=${i.atual}, status=${i.status}`
+              )
+              .join("\n")
+          : "Nenhum indicador cadastrado.";
+
+      const eventosResume =
+        eventosRecentes.length > 0
+          ? eventosRecentes
+              .map(
+                (e) =>
+                  `- ${new Date(e.dataEvento).toLocaleDateString("pt-BR")}: [${e.tipo}] ${e.titulo}`
+              )
+              .join("\n")
+          : "Nenhum evento registrado.";
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `Você é um consultor estratégico sênior especializado em Balanced Scorecard (BSC) e OKRs. Analise os dados do plano estratégico da empresa e forneça um diagnóstico executivo completo e honesto. Seja específico, cite métricas reais, dê recomendações acionáveis. Use linguagem simples e direta. Responda sempre em português brasileiro.`,
+          },
+          {
+            role: "user",
+            content: `# Empresa: ${empresa.nome}
+Setor: ${empresa.setor} | Tamanho: ${empresa.tamanho}
+
+## OKRs — Objetivos e Resultados-Chave
+${objetivosResume}
+
+### Progresso por Perspectiva BSC:
+${progressoPorPerspectiva
+  .map((p) => `- ${p.perspectiva}: ${p.progresso}% (${p.numObjetivos} objetivo(s) com KRs)`)
+  .join("\n")}
+
+## Indicadores de Desempenho (KPIs)
+${indicadoresResume}
+Resumo KPIs: ${kpiVerde} verde | ${kpiAmarelo} amarelo | ${kpiVermelho} vermelho
+
+## Iniciativas Prioritárias
+Total: ${iniciativas.length} | Atrasadas: ${iniciativasAtrasadas.length}
+${
+  iniciativasAtrasadas.length > 0
+    ? iniciativasAtrasadas
+        .map((i) => `- ATRASADA: "${i.titulo}" (responsável: ${i.responsavel}, prazo: ${i.prazo})`)
+        .join("\n")
+    : "Nenhuma iniciativa atrasada."
+}
+
+## Eventos Recentes de Acompanhamento
+${eventosResume}
+
+---
+Gere um diagnóstico estratégico em JSON com esta estrutura exata:
+{
+  "saudePlano": <número 0-100 representando a saúde geral>,
+  "resumoExecutivo": "<parágrafo de 3-5 frases com visão geral honesta do estado do plano>",
+  "pontosFortes": ["<ponto forte específico com dado>", ...],
+  "pontosAtencao": ["<ponto de atenção com dado específico>", ...],
+  "riscos": ["<risco identificado com possível impacto>", ...],
+  "recomendacoes": ["<ação concreta e prioritária>", ...]
+}
+Inclua 3-5 itens em cada lista. Seja específico e cite os dados reais fornecidos.`,
+          },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.7,
+      });
+
+      const diagnostico = JSON.parse(completion.choices[0].message.content || "{}");
+      res.json({ diagnostico });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

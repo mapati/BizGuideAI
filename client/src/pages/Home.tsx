@@ -1,170 +1,580 @@
-import { MetricCard } from "@/components/MetricCard";
+import { useState, useMemo } from "react";
+import { useQuery, useQueries, useMutation } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Target, TrendingUp, Users, DollarSign, Zap, ArrowRight, FileText } from "lucide-react";
-import { ExampleCard } from "@/components/ExampleCard";
+import { Badge } from "@/components/ui/badge";
+import { CircularProgress } from "@/components/CircularProgress";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import {
+  TrendingUp,
+  DollarSign,
+  Users,
+  Cog,
+  GraduationCap,
+  AlertTriangle,
+  CheckCircle2,
+  Circle,
+  Calendar,
+  Sparkles,
+  Loader2,
+  Target,
+  BarChart3,
+  Activity,
+  ChevronRight,
+} from "lucide-react";
 import { Link } from "wouter";
+import type { Empresa, Objetivo, ResultadoChave, Indicador, Evento } from "@shared/schema";
+
+interface Alerta {
+  tipo: string;
+  severidade: "alta" | "media";
+  mensagem: string;
+  detalhes: any;
+}
+
+interface Diagnostico {
+  saudePlano: number;
+  resumoExecutivo: string;
+  pontosFortes: string[];
+  pontosAtencao: string[];
+  riscos: string[];
+  recomendacoes: string[];
+}
+
+const PERSPECTIVAS = [
+  { nome: "Financeira", value: "Financeira", icon: DollarSign, cor: "text-green-600 bg-green-50 dark:bg-green-950/30" },
+  { nome: "Clientes", value: "Clientes", icon: Users, cor: "text-blue-600 bg-blue-50 dark:bg-blue-950/30" },
+  { nome: "Processos", value: "Processos Internos", icon: Cog, cor: "text-orange-600 bg-orange-50 dark:bg-orange-950/30" },
+  { nome: "Pessoas", value: "Aprendizado e Crescimento", icon: GraduationCap, cor: "text-purple-600 bg-purple-50 dark:bg-purple-950/30" },
+];
+
+const TIPO_EVENTO_LABELS: Record<string, string> = {
+  reuniao_conselho: "Reunião de Conselho",
+  fato_relevante: "Fato Relevante",
+  mudanca_estrategica: "Mudança Estratégica",
+  marco_projeto: "Marco de Projeto",
+  crise: "Crise",
+  oportunidade: "Oportunidade",
+  outro: "Outro",
+};
+
+function calcularProgressoKR(kr: ResultadoChave): number {
+  const inicial = parseFloat(kr.valorInicial);
+  const atual = parseFloat(kr.valorAtual);
+  const alvo = parseFloat(kr.valorAlvo);
+  if (isNaN(inicial) || isNaN(atual) || isNaN(alvo)) return 0;
+  if (inicial === alvo) return 100;
+  return Math.max(0, Math.min(100, ((atual - inicial) / (alvo - inicial)) * 100));
+}
+
+function getSaudeCor(saude: number): { label: string; className: string } {
+  if (saude >= 70) return { label: "Excelente", className: "text-green-600" };
+  if (saude >= 30) return { label: "Atenção", className: "text-yellow-600" };
+  return { label: "Crítico", className: "text-red-600" };
+}
 
 export default function Home() {
+  const { toast } = useToast();
+  const [diagnostico, setDiagnostico] = useState<Diagnostico | null>(null);
+
+  const { data: empresa } = useQuery<Empresa>({ queryKey: ["/api/empresa"] });
+  const empresaId = empresa?.id;
+
+  const { data: objetivos = [], isLoading: loadingObjetivos } = useQuery<Objetivo[]>({
+    queryKey: ["/api/objetivos", empresaId],
+    enabled: !!empresaId,
+  });
+
+  const { data: indicadores = [], isLoading: loadingIndicadores } = useQuery<Indicador[]>({
+    queryKey: ["/api/indicadores"],
+    enabled: !!empresaId,
+  });
+
+  const { data: eventos = [], isLoading: loadingEventos } = useQuery<Evento[]>({
+    queryKey: ["/api/eventos"],
+    enabled: !!empresaId,
+  });
+
+  const { data: alertas = [], isLoading: loadingAlertas } = useQuery<Alerta[]>({
+    queryKey: ["/api/alertas"],
+    enabled: !!empresaId,
+  });
+
+  const krQueries = useQueries({
+    queries: objetivos.map((obj) => ({
+      queryKey: [`/api/resultados-chave/${obj.id}`],
+      enabled: !!obj.id,
+    })),
+  });
+
+  const allKRs: ResultadoChave[] = useMemo(
+    () => krQueries.flatMap((q) => (q.data as ResultadoChave[]) || []),
+    [krQueries]
+  );
+
+  const loadingKRs = krQueries.some((q) => q.isLoading);
+
+  const calcularPerformanceObjetivo = (objId: string): number => {
+    const krs = allKRs.filter((kr) => kr.objetivoId === objId);
+    if (krs.length === 0) return 0;
+    return krs.reduce((acc, kr) => acc + calcularProgressoKR(kr), 0) / krs.length;
+  };
+
+  const performanceGeral = useMemo(() => {
+    const comKRs = objetivos.filter((obj) => allKRs.some((kr) => kr.objetivoId === obj.id));
+    if (comKRs.length === 0) return 0;
+    return Math.round(
+      comKRs.reduce((acc, obj) => acc + calcularPerformanceObjetivo(obj.id), 0) / comKRs.length
+    );
+  }, [objetivos, allKRs]);
+
+  const perspActivaData = useMemo(() =>
+    PERSPECTIVAS.map((p) => {
+      const objs = objetivos.filter((o) => o.perspectiva === p.value);
+      const comKRs = objs.filter((o) => allKRs.some((kr) => kr.objetivoId === o.id));
+      const media =
+        comKRs.length === 0
+          ? 0
+          : Math.round(
+              comKRs.reduce((acc, o) => acc + calcularPerformanceObjetivo(o.id), 0) / comKRs.length
+            );
+      return { ...p, numObjetivos: objs.length, comKRs: comKRs.length, media };
+    }),
+    [objetivos, allKRs]
+  );
+
+  const kpiVerde = indicadores.filter((i) => i.status === "verde").length;
+  const kpiAmarelo = indicadores.filter((i) => i.status === "amarelo").length;
+  const kpiVermelho = indicadores.filter((i) => i.status === "vermelho").length;
+  const kpisCriticos = indicadores.filter((i) => i.status === "vermelho");
+
+  const alertasAlta = alertas.filter((a) => a.severidade === "alta");
+
+  const eventosRecentes = useMemo(
+    () =>
+      [...eventos]
+        .sort((a, b) => new Date(b.dataEvento).getTime() - new Date(a.dataEvento).getTime())
+        .slice(0, 3),
+    [eventos]
+  );
+
+  const diagnosticoMutation = useMutation({
+    mutationFn: async () => apiRequest("POST", "/api/ai/diagnostico-estrategico"),
+    onSuccess: (data) => {
+      if (data?.diagnostico) {
+        setDiagnostico(data.diagnostico);
+        toast({ title: "Diagnóstico gerado!", description: "Análise estratégica concluída pela IA." });
+      }
+    },
+    onError: () => {
+      toast({
+        title: "Erro ao gerar diagnóstico",
+        description: "Não foi possível gerar o diagnóstico. Tente novamente.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const isLoading = loadingObjetivos || loadingKRs || loadingIndicadores;
+
+  const hoje = new Date();
+  const saudeCor = diagnostico ? getSaudeCor(diagnostico.saudePlano) : null;
+
+  const totalKRs = allKRs.length;
+  const hasData = objetivos.length > 0 || indicadores.length > 0;
+
   return (
-    <div className="space-y-8">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-4xl font-bold mb-2" data-testid="text-home-title">
-            Bem-vindo de volta!
-          </h1>
-          <p className="text-muted-foreground">
-            Acompanhe sua estratégia e veja o progresso dos seus objetivos.
-          </p>
-        </div>
-        <Link href="/exportar">
-          <Button data-testid="button-export">
-            <FileText className="h-4 w-4 mr-2" />
-            Exportar Estratégia
-          </Button>
-        </Link>
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold" data-testid="text-home-title">
+          {empresa ? `Olá, ${empresa.nome}` : "Início"}
+        </h1>
+        <p className="text-muted-foreground mt-1">
+          {hoje.toLocaleDateString("pt-BR", {
+            weekday: "long",
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+          })}
+        </p>
       </div>
 
-      <Card className="p-8 bg-gradient-to-r from-primary/10 to-accent/10 border-primary/20">
-        <div className="flex items-start justify-between">
-          <div className="space-y-2">
-            <div className="text-sm font-semibold text-primary uppercase tracking-wide">
-              Métrica Norte (NSM)
-            </div>
-            <div className="text-5xl font-bold font-mono" data-testid="text-nsm-value">R$ 142,50</div>
-            <div className="text-lg text-muted-foreground">Margem Bruta por Peça</div>
-            <div className="flex items-center gap-2 mt-4">
-              <TrendingUp className="h-5 w-5 text-green-600" />
-              <span className="text-green-600 font-semibold">+8,5%</span>
-              <span className="text-muted-foreground text-sm">vs. trimestre anterior</span>
-            </div>
+      {/* Performance Geral + OKRs por Perspectiva */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        {/* Performance Geral */}
+        <Card className="p-6 lg:col-span-2 flex flex-col items-center justify-center gap-4" data-testid="card-performance-geral">
+          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground self-start w-full">
+            <TrendingUp className="h-4 w-4" />
+            <span>Performance Geral dos OKRs</span>
           </div>
-          <Target className="h-16 w-16 text-primary/30" />
-        </div>
-      </Card>
+          {isLoading ? (
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          ) : objetivos.length === 0 ? (
+            <div className="text-center space-y-2">
+              <Target className="h-10 w-10 text-muted-foreground/40 mx-auto" />
+              <p className="text-sm text-muted-foreground">Nenhum objetivo cadastrado</p>
+              <Link href="/okrs">
+                <Button size="sm" variant="outline" data-testid="button-go-okrs">
+                  Criar OKRs
+                </Button>
+              </Link>
+            </div>
+          ) : (
+            <>
+              <CircularProgress value={performanceGeral} size={120} strokeWidth={12} />
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground">
+                  {objetivos.length} objetivo{objetivos.length !== 1 ? "s" : ""} · {totalKRs} resultado{totalKRs !== 1 ? "s" : ""}-chave
+                </p>
+              </div>
+            </>
+          )}
+        </Card>
 
-      <div>
-        <h2 className="text-2xl font-semibold mb-4">Principais Drivers</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <MetricCard
-            title="Finanças"
-            value="74%"
-            trend={5}
-            icon={<DollarSign className="h-5 w-5" />}
-            description="Eficiência Atual"
-          />
-          <MetricCard
-            title="Clientes"
-            value="92%"
-            trend={3}
-            icon={<Users className="h-5 w-5" />}
-            description="Entregas no Prazo"
-          />
-          <MetricCard
-            title="Processos"
-            value="2,1%"
-            trend={-12}
-            icon={<Zap className="h-5 w-5" />}
-            description="Perda de Material"
-          />
-          <MetricCard
-            title="Pessoas"
-            value="85%"
-            trend={7}
-            icon={<Target className="h-5 w-5" />}
-            description="Treinamentos"
-          />
+        {/* OKRs por Perspectiva */}
+        <div className="lg:col-span-3 grid grid-cols-2 gap-4">
+          {perspActivaData.map((p) => {
+            const Icon = p.icon;
+            return (
+              <Card
+                key={p.value}
+                className="p-4 flex flex-col gap-3"
+                data-testid={`card-perspectiva-${p.value}`}
+              >
+                <div className="flex items-center gap-2">
+                  <div className={`h-8 w-8 rounded-full flex items-center justify-center ${p.cor}`}>
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  <span className="font-medium text-sm">{p.nome}</span>
+                </div>
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                ) : p.numObjetivos === 0 ? (
+                  <p className="text-xs text-muted-foreground">Sem objetivos</p>
+                ) : (
+                  <>
+                    <div className="flex items-end gap-2">
+                      <span className="text-2xl font-bold" data-testid={`text-progresso-${p.value}`}>
+                        {p.comKRs > 0 ? `${p.media}%` : "—"}
+                      </span>
+                      {p.comKRs > 0 && (
+                        <span className="text-xs text-muted-foreground mb-1">progresso</span>
+                      )}
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-1.5">
+                      <div
+                        className="h-1.5 rounded-full bg-primary transition-all"
+                        style={{ width: `${p.comKRs > 0 ? p.media : 0}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {p.numObjetivos} objetivo{p.numObjetivos !== 1 ? "s" : ""}
+                      {p.comKRs < p.numObjetivos && ` · ${p.numObjetivos - p.comKRs} sem KRs`}
+                    </p>
+                  </>
+                )}
+              </Card>
+            );
+          })}
         </div>
       </div>
 
-      <Card className="p-6">
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <h3 className="text-lg font-semibold mb-1">O que mudou esta semana?</h3>
-            <p className="text-sm text-muted-foreground">Resumo gerado pela IA</p>
-          </div>
-        </div>
-        <div className="space-y-4 text-sm">
-          <div className="flex gap-3">
-            <div className="h-2 w-2 rounded-full bg-green-600 mt-2 flex-shrink-0" />
-            <div>
-              <span className="font-medium">Eficiência atingiu 74%:</span>{" "}
-              <span className="text-muted-foreground">
-                Superou a meta de 73% pela primeira vez no trimestre. Principal contribuição veio da redução do tempo de troca de ferramentas em 28% nas máquinas A, B e C.
-              </span>
+      {/* KPIs + Alertas */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* KPIs */}
+        <Card className="p-5" data-testid="card-kpis">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-muted-foreground" />
+              <h3 className="font-semibold">Indicadores BSC (KPIs)</h3>
             </div>
+            <Link href="/indicadores">
+              <Button size="sm" variant="ghost" data-testid="button-ver-indicadores">
+                Ver todos
+                <ChevronRight className="h-3 w-3 ml-1" />
+              </Button>
+            </Link>
           </div>
-          <div className="flex gap-3">
-            <div className="h-2 w-2 rounded-full bg-yellow-600 mt-2 flex-shrink-0" />
-            <div>
-              <span className="font-medium">Perda de material ainda acima da meta:</span>{" "}
-              <span className="text-muted-foreground">
-                Apesar da melhoria de 12%, continua em 2,1% (meta: 2,0%). Recomenda-se revisar o plano de ação na próxima reunião mensal.
-              </span>
+          {loadingIndicadores ? (
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          ) : indicadores.length === 0 ? (
+            <div className="text-center py-4 space-y-2">
+              <p className="text-sm text-muted-foreground">Nenhum indicador cadastrado</p>
+              <Link href="/indicadores">
+                <Button size="sm" variant="outline" data-testid="button-criar-indicadores">
+                  Criar indicadores
+                </Button>
+              </Link>
             </div>
-          </div>
-          <div className="flex gap-3">
-            <div className="h-2 w-2 rounded-full bg-green-600 mt-2 flex-shrink-0" />
-            <div>
-              <span className="font-medium">Entregas no prazo mantêm tendência positiva:</span>{" "}
-              <span className="text-muted-foreground">
-                92% de entregas no prazo, +3% vs. semana anterior. Cliente Alfa destacou a melhoria em suas últimas reuniões.
-              </span>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <div className="h-3 w-3 rounded-full bg-green-500" />
+                  <span className="text-sm font-semibold" data-testid="text-kpi-verde">{kpiVerde}</span>
+                  <span className="text-xs text-muted-foreground">verde</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="h-3 w-3 rounded-full bg-yellow-500" />
+                  <span className="text-sm font-semibold" data-testid="text-kpi-amarelo">{kpiAmarelo}</span>
+                  <span className="text-xs text-muted-foreground">atenção</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="h-3 w-3 rounded-full bg-red-500" />
+                  <span className="text-sm font-semibold" data-testid="text-kpi-vermelho">{kpiVermelho}</span>
+                  <span className="text-xs text-muted-foreground">crítico</span>
+                </div>
+              </div>
+              {kpisCriticos.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-red-600 uppercase tracking-wide">
+                    Indicadores críticos
+                  </p>
+                  {kpisCriticos.slice(0, 3).map((kpi) => (
+                    <div
+                      key={kpi.id}
+                      className="flex items-start justify-between gap-2 text-sm p-2 rounded-md bg-red-50 dark:bg-red-950/20"
+                      data-testid={`item-kpi-critico-${kpi.id}`}
+                    >
+                      <span className="font-medium text-sm leading-tight">{kpi.nome}</span>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {kpi.atual} / {kpi.meta}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-        </div>
-      </Card>
+          )}
+        </Card>
 
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-semibold">Próximos Passos</h2>
-          <Link href="/ritos">
-            <Button variant="ghost" data-testid="button-view-all-ritos">
-              Ver todos
-              <ArrowRight className="h-4 w-4 ml-2" />
+        {/* Alertas */}
+        <Card className="p-5" data-testid="card-alertas">
+          <div className="flex items-center gap-2 mb-4">
+            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+            <h3 className="font-semibold">Alertas Ativos</h3>
+            {alertasAlta.length > 0 && (
+              <Badge variant="destructive" data-testid="badge-alertas-count">
+                {alertasAlta.length}
+              </Badge>
+            )}
+          </div>
+          {loadingAlertas ? (
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          ) : alertas.length === 0 ? (
+            <div className="flex items-center gap-2 text-sm text-green-600 py-4 justify-center">
+              <CheckCircle2 className="h-4 w-4" />
+              <span>Sem alertas no momento</span>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {alertas.slice(0, 5).map((alerta, i) => (
+                <div
+                  key={i}
+                  className={`flex items-start gap-2 text-sm p-2 rounded-md ${
+                    alerta.severidade === "alta"
+                      ? "bg-red-50 dark:bg-red-950/20"
+                      : "bg-yellow-50 dark:bg-yellow-950/20"
+                  }`}
+                  data-testid={`item-alerta-${i}`}
+                >
+                  <AlertTriangle
+                    className={`h-4 w-4 mt-0.5 flex-shrink-0 ${
+                      alerta.severidade === "alta" ? "text-red-500" : "text-yellow-500"
+                    }`}
+                  />
+                  <span className="leading-snug">{alerta.mensagem}</span>
+                </div>
+              ))}
+              {alertas.length > 5 && (
+                <p className="text-xs text-muted-foreground text-center pt-1">
+                  +{alertas.length - 5} outros alertas
+                </p>
+              )}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Eventos Recentes */}
+      <Card className="p-5" data-testid="card-eventos-recentes">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <h3 className="font-semibold">Eventos Recentes</h3>
+          </div>
+          <Link href="/acompanhamento">
+            <Button size="sm" variant="ghost" data-testid="button-ver-acompanhamento">
+              Ver acompanhamento
+              <ChevronRight className="h-3 w-3 ml-1" />
             </Button>
           </Link>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card className="p-6 hover-elevate cursor-pointer" data-testid="card-checkin">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <div className="text-sm font-semibold text-accent uppercase tracking-wide mb-1">
-                  Amanhã · 9h00
+        {loadingEventos ? (
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        ) : eventosRecentes.length === 0 ? (
+          <div className="text-center py-4">
+            <Circle className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground">Nenhum evento registrado ainda</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {eventosRecentes.map((evento) => (
+              <div
+                key={evento.id}
+                className="flex items-start gap-3 p-3 rounded-md bg-muted/40"
+                data-testid={`item-evento-${evento.id}`}
+              >
+                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <Activity className="h-4 w-4 text-primary" />
                 </div>
-                <h3 className="text-lg font-semibold">Revisão Semanal de Objetivos</h3>
+                <div className="min-w-0">
+                  <p className="font-medium text-sm truncate">{evento.titulo}</p>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    <Badge variant="secondary" className="text-xs">
+                      {TIPO_EVENTO_LABELS[evento.tipo] || evento.tipo}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(evento.dataEvento).toLocaleDateString("pt-BR")}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="h-10 w-10 rounded-full bg-accent/10 flex items-center justify-center">
-                <Target className="h-5 w-5 text-accent" />
-              </div>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Atualizar o progresso dos resultados esperados e identificar obstáculos.
-            </p>
-          </Card>
+            ))}
+          </div>
+        )}
+      </Card>
 
-          <Card className="p-6 hover-elevate cursor-pointer" data-testid="card-reuniao-bsc">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <div className="text-sm font-semibold text-primary uppercase tracking-wide mb-1">
-                  15 Jan · 14h00
-                </div>
-                <h3 className="text-lg font-semibold">Reunião Mensal de Indicadores</h3>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <TrendingUp className="h-5 w-5 text-primary" />
-              </div>
+      {/* Diagnóstico IA */}
+      <Card className="p-6" data-testid="card-diagnostico-ia">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <Sparkles className="h-5 w-5 text-primary" />
             </div>
-            <p className="text-sm text-muted-foreground">
-              Revisar todos os indicadores, analisar desvios e definir plano de correção.
-            </p>
-          </Card>
+            <div>
+              <h3 className="font-semibold text-lg">Diagnóstico Estratégico com IA</h3>
+              <p className="text-sm text-muted-foreground">
+                Análise completa de OKRs, KPIs e eventos para um relatório executivo do plano
+              </p>
+            </div>
+          </div>
+          <Button
+            onClick={() => diagnosticoMutation.mutate()}
+            disabled={diagnosticoMutation.isPending || !hasData}
+            data-testid="button-gerar-diagnostico"
+          >
+            {diagnosticoMutation.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Analisando...
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4 mr-2" />
+                {diagnostico ? "Atualizar Diagnóstico" : "Gerar Diagnóstico"}
+              </>
+            )}
+          </Button>
         </div>
-      </div>
 
-      <ExampleCard>
-        Este é um exemplo de como a Home pode aparecer com dados reais da sua empresa. Os números e textos serão atualizados automaticamente conforme você preenche as etapas da jornada estratégica.
-      </ExampleCard>
+        {!hasData && !diagnosticoMutation.isPending && (
+          <div className="mt-4 p-4 rounded-md bg-muted/40 text-sm text-muted-foreground text-center">
+            Cadastre objetivos ou indicadores para gerar o diagnóstico estratégico.
+          </div>
+        )}
+
+        {diagnostico && (
+          <div className="mt-6 space-y-6" data-testid="section-diagnostico-resultado">
+            {/* Saúde do Plano */}
+            <div className="flex items-center gap-4 p-4 rounded-md bg-muted/40">
+              <CircularProgress value={diagnostico.saudePlano} size={80} strokeWidth={8} />
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Saúde do Plano
+                </p>
+                <p
+                  className={`text-2xl font-bold ${saudeCor?.className}`}
+                  data-testid="text-saude-plano"
+                >
+                  {diagnostico.saudePlano}% — {saudeCor?.label}
+                </p>
+                <p className="text-sm text-muted-foreground mt-1 max-w-xl leading-relaxed">
+                  {diagnostico.resumoExecutivo}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Pontos Fortes */}
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-green-700 dark:text-green-400 flex items-center gap-1">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Pontos Fortes
+                </p>
+                <ul className="space-y-1.5" data-testid="list-pontos-fortes">
+                  {diagnostico.pontosFortes.map((p, i) => (
+                    <li key={i} className="text-sm flex items-start gap-2">
+                      <div className="h-1.5 w-1.5 rounded-full bg-green-500 mt-2 flex-shrink-0" />
+                      <span>{p}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Pontos de Atenção */}
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-yellow-700 dark:text-yellow-400 flex items-center gap-1">
+                  <AlertTriangle className="h-4 w-4" />
+                  Pontos de Atenção
+                </p>
+                <ul className="space-y-1.5" data-testid="list-pontos-atencao">
+                  {diagnostico.pontosAtencao.map((p, i) => (
+                    <li key={i} className="text-sm flex items-start gap-2">
+                      <div className="h-1.5 w-1.5 rounded-full bg-yellow-500 mt-2 flex-shrink-0" />
+                      <span>{p}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Riscos */}
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-red-700 dark:text-red-400 flex items-center gap-1">
+                  <AlertTriangle className="h-4 w-4" />
+                  Riscos Identificados
+                </p>
+                <ul className="space-y-1.5" data-testid="list-riscos">
+                  {diagnostico.riscos.map((r, i) => (
+                    <li key={i} className="text-sm flex items-start gap-2">
+                      <div className="h-1.5 w-1.5 rounded-full bg-red-500 mt-2 flex-shrink-0" />
+                      <span>{r}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Recomendações */}
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-primary flex items-center gap-1">
+                  <Target className="h-4 w-4" />
+                  Recomendações Prioritárias
+                </p>
+                <ul className="space-y-1.5" data-testid="list-recomendacoes">
+                  {diagnostico.recomendacoes.map((r, i) => (
+                    <li key={i} className="text-sm flex items-start gap-2">
+                      <span className="font-bold text-primary flex-shrink-0">{i + 1}.</span>
+                      <span>{r}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

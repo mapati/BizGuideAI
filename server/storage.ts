@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { 
   empresas, 
+  usuarios,
   fatoresPestel, 
   analiseSwot, 
   objetivos, 
@@ -15,6 +16,8 @@ import {
   eventos,
   type Empresa,
   type InsertEmpresa,
+  type Usuario,
+  type InsertUsuario,
   type FatorPestel,
   type InsertFatorPestel,
   type AnaliseSwot,
@@ -40,77 +43,88 @@ import {
   type Evento,
   type InsertEvento,
 } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 export interface IStorage {
-  getEmpresa(): Promise<Empresa | undefined>;
+  getEmpresa(id: string): Promise<Empresa | undefined>;
   createEmpresa(empresa: InsertEmpresa): Promise<Empresa>;
   updateEmpresa(id: string, empresa: Partial<InsertEmpresa>): Promise<Empresa>;
+
+  createUsuario(usuario: InsertUsuario): Promise<Usuario>;
+  getUsuarioByEmail(email: string): Promise<Usuario | undefined>;
+  getUsuarioById(id: string): Promise<Usuario | undefined>;
   
   getFatoresPestel(empresaId: string): Promise<FatorPestel[]>;
   createFatorPestel(fator: InsertFatorPestel): Promise<FatorPestel>;
-  updateFatorPestel(id: string, fator: Partial<InsertFatorPestel>): Promise<FatorPestel>;
-  deleteFatorPestel(id: string): Promise<void>;
+  updateFatorPestel(id: string, empresaId: string, fator: Partial<InsertFatorPestel>): Promise<FatorPestel>;
+  deleteFatorPestel(id: string, empresaId: string): Promise<void>;
   
   getAnaliseSwot(empresaId: string): Promise<AnaliseSwot[]>;
   createAnaliseSwot(analise: InsertAnaliseSwot): Promise<AnaliseSwot>;
-  updateAnaliseSwot(id: string, analise: Partial<InsertAnaliseSwot>): Promise<AnaliseSwot>;
-  deleteAnaliseSwot(id: string): Promise<void>;
+  updateAnaliseSwot(id: string, empresaId: string, analise: Partial<InsertAnaliseSwot>): Promise<AnaliseSwot>;
+  deleteAnaliseSwot(id: string, empresaId: string): Promise<void>;
   
   getObjetivos(empresaId: string): Promise<Objetivo[]>;
   createObjetivo(objetivo: InsertObjetivo): Promise<Objetivo>;
-  updateObjetivo(id: string, objetivo: Partial<InsertObjetivo>): Promise<Objetivo>;
-  deleteObjetivo(id: string): Promise<void>;
+  updateObjetivo(id: string, empresaId: string, objetivo: Partial<InsertObjetivo>): Promise<Objetivo>;
+  deleteObjetivo(id: string, empresaId: string): Promise<void>;
   
-  getResultadosChave(objetivoId: string): Promise<ResultadoChave[]>;
-  createResultadoChave(resultado: InsertResultadoChave): Promise<ResultadoChave>;
-  updateResultadoChave(id: string, resultado: Partial<InsertResultadoChave>): Promise<ResultadoChave>;
-  deleteResultadoChave(id: string): Promise<void>;
+  getResultadosChave(objetivoId: string, empresaId: string): Promise<ResultadoChave[]>;
+  createResultadoChave(resultado: InsertResultadoChave, empresaId: string): Promise<ResultadoChave>;
+  updateResultadoChave(id: string, empresaId: string, resultado: Partial<InsertResultadoChave>): Promise<ResultadoChave>;
+  deleteResultadoChave(id: string, empresaId: string): Promise<void>;
   
   getIndicadores(empresaId: string): Promise<Indicador[]>;
   createIndicador(indicador: InsertIndicador): Promise<Indicador>;
-  updateIndicador(id: string, indicador: Partial<InsertIndicador>): Promise<Indicador>;
-  deleteIndicador(id: string): Promise<void>;
+  updateIndicador(id: string, empresaId: string, indicador: Partial<InsertIndicador>): Promise<Indicador>;
+  deleteIndicador(id: string, empresaId: string): Promise<void>;
   
   getCincoForcas(empresaId: string): Promise<CincoForcas[]>;
   createCincoForcas(forca: InsertCincoForcas): Promise<CincoForcas>;
-  updateCincoForcas(id: string, forca: Partial<InsertCincoForcas>): Promise<CincoForcas>;
-  deleteCincoForcas(id: string): Promise<void>;
+  updateCincoForcas(id: string, empresaId: string, forca: Partial<InsertCincoForcas>): Promise<CincoForcas>;
+  deleteCincoForcas(id: string, empresaId: string): Promise<void>;
   
   getModeloNegocio(empresaId: string): Promise<ModeloNegocio[]>;
   createModeloNegocio(bloco: InsertModeloNegocio): Promise<ModeloNegocio>;
-  updateModeloNegocio(id: string, bloco: Partial<InsertModeloNegocio>): Promise<ModeloNegocio>;
-  deleteModeloNegocio(id: string): Promise<void>;
+  updateModeloNegocio(id: string, empresaId: string, bloco: Partial<InsertModeloNegocio>): Promise<ModeloNegocio>;
+  deleteModeloNegocio(id: string, empresaId: string): Promise<void>;
   
   getEstrategias(empresaId: string): Promise<Estrategia[]>;
   createEstrategia(estrategia: InsertEstrategia): Promise<Estrategia>;
-  updateEstrategia(id: string, estrategia: Partial<InsertEstrategia>): Promise<Estrategia>;
-  deleteEstrategia(id: string): Promise<void>;
+  updateEstrategia(id: string, empresaId: string, estrategia: Partial<InsertEstrategia>): Promise<Estrategia>;
+  deleteEstrategia(id: string, empresaId: string): Promise<void>;
   
   getOportunidadesCrescimento(empresaId: string): Promise<OportunidadeCrescimento[]>;
   createOportunidadeCrescimento(oportunidade: InsertOportunidadeCrescimento): Promise<OportunidadeCrescimento>;
-  updateOportunidadeCrescimento(id: string, oportunidade: Partial<InsertOportunidadeCrescimento>): Promise<OportunidadeCrescimento>;
-  deleteOportunidadeCrescimento(id: string): Promise<void>;
+  updateOportunidadeCrescimento(id: string, empresaId: string, oportunidade: Partial<InsertOportunidadeCrescimento>): Promise<OportunidadeCrescimento>;
+  deleteOportunidadeCrescimento(id: string, empresaId: string): Promise<void>;
   
   getIniciativas(empresaId: string): Promise<Iniciativa[]>;
   createIniciativa(iniciativa: InsertIniciativa): Promise<Iniciativa>;
-  updateIniciativa(id: string, iniciativa: Partial<InsertIniciativa>): Promise<Iniciativa>;
-  deleteIniciativa(id: string): Promise<void>;
+  updateIniciativa(id: string, empresaId: string, iniciativa: Partial<InsertIniciativa>): Promise<Iniciativa>;
+  deleteIniciativa(id: string, empresaId: string): Promise<void>;
   
   getRituais(empresaId: string): Promise<Ritual[]>;
   createRitual(ritual: InsertRitual): Promise<Ritual>;
-  updateRitual(id: string, ritual: Partial<InsertRitual>): Promise<Ritual>;
-  deleteRitual(id: string): Promise<void>;
+  updateRitual(id: string, empresaId: string, ritual: Partial<InsertRitual>): Promise<Ritual>;
+  deleteRitual(id: string, empresaId: string): Promise<void>;
   
   getEventos(empresaId: string): Promise<Evento[]>;
   createEvento(evento: InsertEvento): Promise<Evento>;
-  updateEvento(id: string, evento: Partial<InsertEvento>): Promise<Evento>;
-  deleteEvento(id: string): Promise<void>;
+  updateEvento(id: string, empresaId: string, evento: Partial<InsertEvento>): Promise<Evento>;
+  deleteEvento(id: string, empresaId: string): Promise<void>;
+}
+
+function omitTenantFields<T extends Record<string, unknown>>(data: T): Omit<T, "empresaId" | "objetivoId"> {
+  const result = { ...data };
+  delete (result as Record<string, unknown>)["empresaId"];
+  delete (result as Record<string, unknown>)["objetivoId"];
+  return result as Omit<T, "empresaId" | "objetivoId">;
 }
 
 export class DbStorage implements IStorage {
-  async getEmpresa(): Promise<Empresa | undefined> {
-    const result = await db.select().from(empresas).limit(1);
+  async getEmpresa(id: string): Promise<Empresa | undefined> {
+    const result = await db.select().from(empresas).where(eq(empresas.id, id)).limit(1);
     return result[0];
   }
 
@@ -120,7 +134,22 @@ export class DbStorage implements IStorage {
   }
 
   async updateEmpresa(id: string, empresa: Partial<InsertEmpresa>): Promise<Empresa> {
-    const result = await db.update(empresas).set(empresa).where(eq(empresas.id, id)).returning();
+    const result = await db.update(empresas).set(omitTenantFields(empresa)).where(eq(empresas.id, id)).returning();
+    return result[0];
+  }
+
+  async createUsuario(usuario: InsertUsuario): Promise<Usuario> {
+    const result = await db.insert(usuarios).values(usuario).returning();
+    return result[0];
+  }
+
+  async getUsuarioByEmail(email: string): Promise<Usuario | undefined> {
+    const result = await db.select().from(usuarios).where(eq(usuarios.email, email)).limit(1);
+    return result[0];
+  }
+
+  async getUsuarioById(id: string): Promise<Usuario | undefined> {
+    const result = await db.select().from(usuarios).where(eq(usuarios.id, id)).limit(1);
     return result[0];
   }
 
@@ -133,13 +162,19 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async updateFatorPestel(id: string, fator: Partial<InsertFatorPestel>): Promise<FatorPestel> {
-    const result = await db.update(fatoresPestel).set(fator).where(eq(fatoresPestel.id, id)).returning();
+  async updateFatorPestel(id: string, empresaId: string, fator: Partial<InsertFatorPestel>): Promise<FatorPestel> {
+    const result = await db.update(fatoresPestel).set(omitTenantFields(fator))
+      .where(and(eq(fatoresPestel.id, id), eq(fatoresPestel.empresaId, empresaId)))
+      .returning();
+    if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
     return result[0];
   }
 
-  async deleteFatorPestel(id: string): Promise<void> {
-    await db.delete(fatoresPestel).where(eq(fatoresPestel.id, id));
+  async deleteFatorPestel(id: string, empresaId: string): Promise<void> {
+    const result = await db.delete(fatoresPestel)
+      .where(and(eq(fatoresPestel.id, id), eq(fatoresPestel.empresaId, empresaId)))
+      .returning();
+    if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
   }
 
   async getAnaliseSwot(empresaId: string): Promise<AnaliseSwot[]> {
@@ -151,13 +186,19 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async updateAnaliseSwot(id: string, analise: Partial<InsertAnaliseSwot>): Promise<AnaliseSwot> {
-    const result = await db.update(analiseSwot).set(analise).where(eq(analiseSwot.id, id)).returning();
+  async updateAnaliseSwot(id: string, empresaId: string, analise: Partial<InsertAnaliseSwot>): Promise<AnaliseSwot> {
+    const result = await db.update(analiseSwot).set(omitTenantFields(analise))
+      .where(and(eq(analiseSwot.id, id), eq(analiseSwot.empresaId, empresaId)))
+      .returning();
+    if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
     return result[0];
   }
 
-  async deleteAnaliseSwot(id: string): Promise<void> {
-    await db.delete(analiseSwot).where(eq(analiseSwot.id, id));
+  async deleteAnaliseSwot(id: string, empresaId: string): Promise<void> {
+    const result = await db.delete(analiseSwot)
+      .where(and(eq(analiseSwot.id, id), eq(analiseSwot.empresaId, empresaId)))
+      .returning();
+    if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
   }
 
   async getObjetivos(empresaId: string): Promise<Objetivo[]> {
@@ -169,30 +210,59 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async updateObjetivo(id: string, objetivo: Partial<InsertObjetivo>): Promise<Objetivo> {
-    const result = await db.update(objetivos).set(objetivo).where(eq(objetivos.id, id)).returning();
+  async updateObjetivo(id: string, empresaId: string, objetivo: Partial<InsertObjetivo>): Promise<Objetivo> {
+    const result = await db.update(objetivos).set(omitTenantFields(objetivo))
+      .where(and(eq(objetivos.id, id), eq(objetivos.empresaId, empresaId)))
+      .returning();
+    if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
     return result[0];
   }
 
-  async deleteObjetivo(id: string): Promise<void> {
-    await db.delete(objetivos).where(eq(objetivos.id, id));
+  async deleteObjetivo(id: string, empresaId: string): Promise<void> {
+    const result = await db.delete(objetivos)
+      .where(and(eq(objetivos.id, id), eq(objetivos.empresaId, empresaId)))
+      .returning();
+    if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
   }
 
-  async getResultadosChave(objetivoId: string): Promise<ResultadoChave[]> {
-    return db.select().from(resultadosChave).where(eq(resultadosChave.objetivoId, objetivoId));
+  async getResultadosChave(objetivoId: string, empresaId: string): Promise<ResultadoChave[]> {
+    const result = await db
+      .select({ resultadosChave })
+      .from(resultadosChave)
+      .innerJoin(objetivos, eq(resultadosChave.objetivoId, objetivos.id))
+      .where(and(eq(resultadosChave.objetivoId, objetivoId), eq(objetivos.empresaId, empresaId)));
+    return result.map(r => r.resultadosChave);
   }
 
-  async createResultadoChave(resultado: InsertResultadoChave): Promise<ResultadoChave> {
+  async createResultadoChave(resultado: InsertResultadoChave, empresaId: string): Promise<ResultadoChave> {
+    const objetivo = await db.select().from(objetivos)
+      .where(and(eq(objetivos.id, resultado.objetivoId), eq(objetivos.empresaId, empresaId)))
+      .limit(1);
+    if (!objetivo[0]) throw new Error("Objetivo não encontrado ou acesso negado");
     const result = await db.insert(resultadosChave).values(resultado).returning();
     return result[0];
   }
 
-  async updateResultadoChave(id: string, resultado: Partial<InsertResultadoChave>): Promise<ResultadoChave> {
-    const result = await db.update(resultadosChave).set(resultado).where(eq(resultadosChave.id, id)).returning();
-    return result[0];
+  async updateResultadoChave(id: string, empresaId: string, resultado: Partial<InsertResultadoChave>): Promise<ResultadoChave> {
+    const existing = await db
+      .select({ resultadosChave })
+      .from(resultadosChave)
+      .innerJoin(objetivos, eq(resultadosChave.objetivoId, objetivos.id))
+      .where(and(eq(resultadosChave.id, id), eq(objetivos.empresaId, empresaId)))
+      .limit(1);
+    if (!existing[0]) throw new Error("Recurso não encontrado ou acesso negado");
+    const updated = await db.update(resultadosChave).set(omitTenantFields(resultado)).where(eq(resultadosChave.id, id)).returning();
+    return updated[0];
   }
 
-  async deleteResultadoChave(id: string): Promise<void> {
+  async deleteResultadoChave(id: string, empresaId: string): Promise<void> {
+    const existing = await db
+      .select({ resultadosChave })
+      .from(resultadosChave)
+      .innerJoin(objetivos, eq(resultadosChave.objetivoId, objetivos.id))
+      .where(and(eq(resultadosChave.id, id), eq(objetivos.empresaId, empresaId)))
+      .limit(1);
+    if (!existing[0]) throw new Error("Recurso não encontrado ou acesso negado");
     await db.delete(resultadosChave).where(eq(resultadosChave.id, id));
   }
 
@@ -205,13 +275,19 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async updateIndicador(id: string, indicador: Partial<InsertIndicador>): Promise<Indicador> {
-    const result = await db.update(indicadores).set(indicador).where(eq(indicadores.id, id)).returning();
+  async updateIndicador(id: string, empresaId: string, indicador: Partial<InsertIndicador>): Promise<Indicador> {
+    const result = await db.update(indicadores).set(omitTenantFields(indicador))
+      .where(and(eq(indicadores.id, id), eq(indicadores.empresaId, empresaId)))
+      .returning();
+    if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
     return result[0];
   }
 
-  async deleteIndicador(id: string): Promise<void> {
-    await db.delete(indicadores).where(eq(indicadores.id, id));
+  async deleteIndicador(id: string, empresaId: string): Promise<void> {
+    const result = await db.delete(indicadores)
+      .where(and(eq(indicadores.id, id), eq(indicadores.empresaId, empresaId)))
+      .returning();
+    if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
   }
 
   async getCincoForcas(empresaId: string): Promise<CincoForcas[]> {
@@ -223,13 +299,19 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async updateCincoForcas(id: string, forca: Partial<InsertCincoForcas>): Promise<CincoForcas> {
-    const result = await db.update(cincoForcas).set(forca).where(eq(cincoForcas.id, id)).returning();
+  async updateCincoForcas(id: string, empresaId: string, forca: Partial<InsertCincoForcas>): Promise<CincoForcas> {
+    const result = await db.update(cincoForcas).set(omitTenantFields(forca))
+      .where(and(eq(cincoForcas.id, id), eq(cincoForcas.empresaId, empresaId)))
+      .returning();
+    if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
     return result[0];
   }
 
-  async deleteCincoForcas(id: string): Promise<void> {
-    await db.delete(cincoForcas).where(eq(cincoForcas.id, id));
+  async deleteCincoForcas(id: string, empresaId: string): Promise<void> {
+    const result = await db.delete(cincoForcas)
+      .where(and(eq(cincoForcas.id, id), eq(cincoForcas.empresaId, empresaId)))
+      .returning();
+    if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
   }
 
   async getModeloNegocio(empresaId: string): Promise<ModeloNegocio[]> {
@@ -241,13 +323,19 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async updateModeloNegocio(id: string, bloco: Partial<InsertModeloNegocio>): Promise<ModeloNegocio> {
-    const result = await db.update(modeloNegocio).set(bloco).where(eq(modeloNegocio.id, id)).returning();
+  async updateModeloNegocio(id: string, empresaId: string, bloco: Partial<InsertModeloNegocio>): Promise<ModeloNegocio> {
+    const result = await db.update(modeloNegocio).set(omitTenantFields(bloco))
+      .where(and(eq(modeloNegocio.id, id), eq(modeloNegocio.empresaId, empresaId)))
+      .returning();
+    if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
     return result[0];
   }
 
-  async deleteModeloNegocio(id: string): Promise<void> {
-    await db.delete(modeloNegocio).where(eq(modeloNegocio.id, id));
+  async deleteModeloNegocio(id: string, empresaId: string): Promise<void> {
+    const result = await db.delete(modeloNegocio)
+      .where(and(eq(modeloNegocio.id, id), eq(modeloNegocio.empresaId, empresaId)))
+      .returning();
+    if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
   }
 
   async getEstrategias(empresaId: string): Promise<Estrategia[]> {
@@ -259,13 +347,19 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async updateEstrategia(id: string, estrategia: Partial<InsertEstrategia>): Promise<Estrategia> {
-    const result = await db.update(estrategias).set(estrategia).where(eq(estrategias.id, id)).returning();
+  async updateEstrategia(id: string, empresaId: string, estrategia: Partial<InsertEstrategia>): Promise<Estrategia> {
+    const result = await db.update(estrategias).set(omitTenantFields(estrategia))
+      .where(and(eq(estrategias.id, id), eq(estrategias.empresaId, empresaId)))
+      .returning();
+    if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
     return result[0];
   }
 
-  async deleteEstrategia(id: string): Promise<void> {
-    await db.delete(estrategias).where(eq(estrategias.id, id));
+  async deleteEstrategia(id: string, empresaId: string): Promise<void> {
+    const result = await db.delete(estrategias)
+      .where(and(eq(estrategias.id, id), eq(estrategias.empresaId, empresaId)))
+      .returning();
+    if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
   }
 
   async getOportunidadesCrescimento(empresaId: string): Promise<OportunidadeCrescimento[]> {
@@ -277,13 +371,19 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async updateOportunidadeCrescimento(id: string, oportunidade: Partial<InsertOportunidadeCrescimento>): Promise<OportunidadeCrescimento> {
-    const result = await db.update(oportunidadesCrescimento).set(oportunidade).where(eq(oportunidadesCrescimento.id, id)).returning();
+  async updateOportunidadeCrescimento(id: string, empresaId: string, oportunidade: Partial<InsertOportunidadeCrescimento>): Promise<OportunidadeCrescimento> {
+    const result = await db.update(oportunidadesCrescimento).set(omitTenantFields(oportunidade))
+      .where(and(eq(oportunidadesCrescimento.id, id), eq(oportunidadesCrescimento.empresaId, empresaId)))
+      .returning();
+    if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
     return result[0];
   }
 
-  async deleteOportunidadeCrescimento(id: string): Promise<void> {
-    await db.delete(oportunidadesCrescimento).where(eq(oportunidadesCrescimento.id, id));
+  async deleteOportunidadeCrescimento(id: string, empresaId: string): Promise<void> {
+    const result = await db.delete(oportunidadesCrescimento)
+      .where(and(eq(oportunidadesCrescimento.id, id), eq(oportunidadesCrescimento.empresaId, empresaId)))
+      .returning();
+    if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
   }
 
   async getIniciativas(empresaId: string): Promise<Iniciativa[]> {
@@ -295,13 +395,19 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async updateIniciativa(id: string, iniciativa: Partial<InsertIniciativa>): Promise<Iniciativa> {
-    const result = await db.update(iniciativas).set(iniciativa).where(eq(iniciativas.id, id)).returning();
+  async updateIniciativa(id: string, empresaId: string, iniciativa: Partial<InsertIniciativa>): Promise<Iniciativa> {
+    const result = await db.update(iniciativas).set(omitTenantFields(iniciativa))
+      .where(and(eq(iniciativas.id, id), eq(iniciativas.empresaId, empresaId)))
+      .returning();
+    if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
     return result[0];
   }
 
-  async deleteIniciativa(id: string): Promise<void> {
-    await db.delete(iniciativas).where(eq(iniciativas.id, id));
+  async deleteIniciativa(id: string, empresaId: string): Promise<void> {
+    const result = await db.delete(iniciativas)
+      .where(and(eq(iniciativas.id, id), eq(iniciativas.empresaId, empresaId)))
+      .returning();
+    if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
   }
 
   async getRituais(empresaId: string): Promise<Ritual[]> {
@@ -313,13 +419,19 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async updateRitual(id: string, ritual: Partial<InsertRitual>): Promise<Ritual> {
-    const result = await db.update(rituais).set(ritual).where(eq(rituais.id, id)).returning();
+  async updateRitual(id: string, empresaId: string, ritual: Partial<InsertRitual>): Promise<Ritual> {
+    const result = await db.update(rituais).set(omitTenantFields(ritual))
+      .where(and(eq(rituais.id, id), eq(rituais.empresaId, empresaId)))
+      .returning();
+    if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
     return result[0];
   }
 
-  async deleteRitual(id: string): Promise<void> {
-    await db.delete(rituais).where(eq(rituais.id, id));
+  async deleteRitual(id: string, empresaId: string): Promise<void> {
+    const result = await db.delete(rituais)
+      .where(and(eq(rituais.id, id), eq(rituais.empresaId, empresaId)))
+      .returning();
+    if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
   }
 
   async getEventos(empresaId: string): Promise<Evento[]> {
@@ -331,13 +443,19 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async updateEvento(id: string, evento: Partial<InsertEvento>): Promise<Evento> {
-    const result = await db.update(eventos).set(evento).where(eq(eventos.id, id)).returning();
+  async updateEvento(id: string, empresaId: string, evento: Partial<InsertEvento>): Promise<Evento> {
+    const result = await db.update(eventos).set(omitTenantFields(evento))
+      .where(and(eq(eventos.id, id), eq(eventos.empresaId, empresaId)))
+      .returning();
+    if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
     return result[0];
   }
 
-  async deleteEvento(id: string): Promise<void> {
-    await db.delete(eventos).where(eq(eventos.id, id));
+  async deleteEvento(id: string, empresaId: string): Promise<void> {
+    const result = await db.delete(eventos)
+      .where(and(eq(eventos.id, id), eq(eventos.empresaId, empresaId)))
+      .returning();
+    if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
   }
 }
 

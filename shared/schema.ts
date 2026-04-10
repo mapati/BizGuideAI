@@ -9,6 +9,11 @@ export const empresas = pgTable("empresas", {
   setor: text("setor").notNull(),
   tamanho: text("tamanho").notNull(),
   descricao: text("descricao"),
+  cnpj: text("cnpj"),
+  endereco: text("endereco"),
+  cidade: text("cidade"),
+  estado: text("estado"),
+  cep: text("cep"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -18,6 +23,22 @@ export const insertEmpresaSchema = createInsertSchema(empresas).omit({
 });
 export type InsertEmpresa = z.infer<typeof insertEmpresaSchema>;
 export type Empresa = typeof empresas.$inferSelect;
+
+export const usuarios = pgTable("usuarios", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  empresaId: varchar("empresa_id").notNull().references(() => empresas.id, { onDelete: "cascade" }),
+  nome: text("nome").notNull(),
+  email: text("email").notNull().unique(),
+  senha: text("senha").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertUsuarioSchema = createInsertSchema(usuarios).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertUsuario = z.infer<typeof insertUsuarioSchema>;
+export type Usuario = typeof usuarios.$inferSelect;
 
 export const fatoresPestel = pgTable("fatores_pestel", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

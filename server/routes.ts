@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { 
@@ -16,46 +16,194 @@ import {
   insertRitualSchema
 } from "@shared/schema";
 import OpenAI from "openai";
+import bcrypt from "bcryptjs";
+import { z } from "zod";
+import "./session.d";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (!req.session?.userId || !req.session?.empresaId) {
+    return res.status(401).json({ error: "Não autenticado" });
+  }
+  next();
+}
+
+function stripTenantFields<T extends Record<string, unknown>>(data: T): Omit<T, "empresaId" | "objetivoId"> {
+  const result = { ...data };
+  delete (result as Record<string, unknown>)["empresaId"];
+  delete (result as Record<string, unknown>)["objetivoId"];
+  return result as Omit<T, "empresaId" | "objetivoId">;
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
+
+  // ==================== AUTH ====================
+
+  const registerSchema = z.object({
+    nome: z.string().min(1),
+    email: z.string().email(),
+    senha: z.string().min(6),
+    nomeEmpresa: z.string().min(1),
+    setor: z.string().min(1),
+    tamanho: z.string().min(1),
+    descricao: z.string().optional(),
+    cnpj: z.string().optional(),
+    endereco: z.string().optional(),
+    cidade: z.string().optional(),
+    estado: z.string().optional(),
+    cep: z.string().optional(),
+  });
+
+  app.post("/api/auth/register", async (req, res) => {
+    try {
+      const data = registerSchema.parse(req.body);
+
+      const existing = await storage.getUsuarioByEmail(data.email);
+      if (existing) {
+        return res.status(409).json({ error: "E-mail já cadastrado" });
+      }
+
+      const empresa = await storage.createEmpresa({
+        nome: data.nomeEmpresa,
+        setor: data.setor,
+        tamanho: data.tamanho,
+        descricao: data.descricao,
+        cnpj: data.cnpj,
+        endereco: data.endereco,
+        cidade: data.cidade,
+        estado: data.estado,
+        cep: data.cep,
+      });
+
+      const senhaHash = await bcrypt.hash(data.senha, 10);
+      const usuario = await storage.createUsuario({
+        empresaId: empresa.id,
+        nome: data.nome,
+        email: data.email,
+        senha: senhaHash,
+      });
+
+      req.session.userId = usuario.id;
+      req.session.empresaId = empresa.id;
+
+      res.json({
+        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresaId: usuario.empresaId },
+        empresa,
+      });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { email, senha } = req.body;
+      if (!email || !senha) {
+        return res.status(400).json({ error: "E-mail e senha são obrigatórios" });
+      }
+
+      const usuario = await storage.getUsuarioByEmail(email);
+      if (!usuario) {
+        return res.status(401).json({ error: "Credenciais inválidas" });
+      }
+
+      const senhaCorreta = await bcrypt.compare(senha, usuario.senha);
+      if (!senhaCorreta) {
+        return res.status(401).json({ error: "Credenciais inválidas" });
+      }
+
+      req.session.userId = usuario.id;
+      req.session.empresaId = usuario.empresaId;
+
+      const empresa = await storage.getEmpresa(usuario.empresaId);
+
+      res.json({
+        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresaId: usuario.empresaId },
+        empresa,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/auth/logout", (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({ error: "Erro ao encerrar sessão" });
+      }
+      res.clearCookie("connect.sid");
+      res.json({ success: true });
+    });
+  });
+
+  app.get("/api/auth/me", async (req, res) => {
+    try {
+      if (!req.session?.userId || !req.session?.empresaId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+
+      const usuario = await storage.getUsuarioById(req.session.userId);
+      if (!usuario) {
+        return res.status(401).json({ error: "Usuário não encontrado" });
+      }
+
+      const empresa = await storage.getEmpresa(req.session.empresaId);
+
+      res.json({
+        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresaId: usuario.empresaId },
+        empresa,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // All routes below require authentication
+  app.use("/api/empresa", requireAuth);
+  app.use("/api/fatores-pestel", requireAuth);
+  app.use("/api/analise-swot", requireAuth);
+  app.use("/api/objetivos", requireAuth);
+  app.use("/api/resultados-chave", requireAuth);
+  app.use("/api/indicadores", requireAuth);
+  app.use("/api/cinco-forcas", requireAuth);
+  app.use("/api/modelo-negocio", requireAuth);
+  app.use("/api/estrategias", requireAuth);
+  app.use("/api/oportunidades-crescimento", requireAuth);
+  app.use("/api/iniciativas", requireAuth);
+  app.use("/api/rituais", requireAuth);
+  app.use("/api/eventos", requireAuth);
+  app.use("/api/alertas", requireAuth);
+  app.use("/api/ai", requireAuth);
+
+  // ==================== EMPRESA ====================
+
   app.get("/api/empresa", async (req, res) => {
     try {
-      const empresa = await storage.getEmpresa();
+      const empresa = await storage.getEmpresa(req.session.empresaId!);
       res.json(empresa || null);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.post("/api/empresa", async (req, res) => {
+  app.patch("/api/empresa", async (req, res) => {
     try {
-      const data = insertEmpresaSchema.parse(req.body);
-      const empresa = await storage.createEmpresa(data);
+      const data = stripTenantFields(insertEmpresaSchema.partial().parse(req.body));
+      const empresa = await storage.updateEmpresa(req.session.empresaId!, data);
       res.json(empresa);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
   });
 
-  app.patch("/api/empresa/:id", async (req, res) => {
-    try {
-      const { id } = req.params;
-      const data = insertEmpresaSchema.partial().parse(req.body);
-      const empresa = await storage.updateEmpresa(id, data);
-      res.json(empresa);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
-    }
-  });
+  // ==================== FATORES PESTEL ====================
 
-  app.get("/api/fatores-pestel/:empresaId", async (req, res) => {
+  app.get("/api/fatores-pestel", async (req, res) => {
     try {
-      const { empresaId } = req.params;
-      const fatores = await storage.getFatoresPestel(empresaId);
+      const fatores = await storage.getFatoresPestel(req.session.empresaId!);
       res.json(fatores);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -64,7 +212,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/fatores-pestel", async (req, res) => {
     try {
-      const data = insertFatorPestelSchema.parse(req.body);
+      const data = insertFatorPestelSchema.parse({ ...req.body, empresaId: req.session.empresaId });
       const fator = await storage.createFatorPestel(data);
       res.json(fator);
     } catch (error: any) {
@@ -75,8 +223,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/fatores-pestel/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const data = insertFatorPestelSchema.partial().parse(req.body);
-      const fator = await storage.updateFatorPestel(id, data);
+      const data = stripTenantFields(insertFatorPestelSchema.partial().parse(req.body));
+      const fator = await storage.updateFatorPestel(id, req.session.empresaId!, data);
       res.json(fator);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -86,17 +234,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/fatores-pestel/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      await storage.deleteFatorPestel(id);
+      await storage.deleteFatorPestel(id, req.session.empresaId!);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.get("/api/analise-swot/:empresaId", async (req, res) => {
+  // ==================== ANALISE SWOT ====================
+
+  app.get("/api/analise-swot", async (req, res) => {
     try {
-      const { empresaId } = req.params;
-      const analises = await storage.getAnaliseSwot(empresaId);
+      const analises = await storage.getAnaliseSwot(req.session.empresaId!);
       res.json(analises);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -105,7 +254,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/analise-swot", async (req, res) => {
     try {
-      const data = insertAnaliseSwotSchema.parse(req.body);
+      const data = insertAnaliseSwotSchema.parse({ ...req.body, empresaId: req.session.empresaId });
       const analise = await storage.createAnaliseSwot(data);
       res.json(analise);
     } catch (error: any) {
@@ -116,8 +265,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/analise-swot/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const data = insertAnaliseSwotSchema.partial().parse(req.body);
-      const analise = await storage.updateAnaliseSwot(id, data);
+      const data = stripTenantFields(insertAnaliseSwotSchema.partial().parse(req.body));
+      const analise = await storage.updateAnaliseSwot(id, req.session.empresaId!, data);
       res.json(analise);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -127,17 +276,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/analise-swot/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      await storage.deleteAnaliseSwot(id);
+      await storage.deleteAnaliseSwot(id, req.session.empresaId!);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.get("/api/objetivos/:empresaId", async (req, res) => {
+  // ==================== OBJETIVOS ====================
+
+  app.get("/api/objetivos", async (req, res) => {
     try {
-      const { empresaId } = req.params;
-      const objetivos = await storage.getObjetivos(empresaId);
+      const objetivos = await storage.getObjetivos(req.session.empresaId!);
       res.json(objetivos);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -146,7 +296,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/objetivos", async (req, res) => {
     try {
-      const data = insertObjetivoSchema.parse(req.body);
+      const data = insertObjetivoSchema.parse({ ...req.body, empresaId: req.session.empresaId });
       const objetivo = await storage.createObjetivo(data);
       res.json(objetivo);
     } catch (error: any) {
@@ -157,8 +307,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/objetivos/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const data = insertObjetivoSchema.partial().parse(req.body);
-      const objetivo = await storage.updateObjetivo(id, data);
+      const data = stripTenantFields(insertObjetivoSchema.partial().parse(req.body));
+      const objetivo = await storage.updateObjetivo(id, req.session.empresaId!, data);
       res.json(objetivo);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -168,17 +318,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/objetivos/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      await storage.deleteObjetivo(id);
+      await storage.deleteObjetivo(id, req.session.empresaId!);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
+  // ==================== RESULTADOS CHAVE ====================
+
   app.get("/api/resultados-chave/:objetivoId", async (req, res) => {
     try {
       const { objetivoId } = req.params;
-      const resultados = await storage.getResultadosChave(objetivoId);
+      const resultados = await storage.getResultadosChave(objetivoId, req.session.empresaId!);
       res.json(resultados);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -188,7 +340,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/resultados-chave", async (req, res) => {
     try {
       const data = insertResultadoChaveSchema.parse(req.body);
-      const resultado = await storage.createResultadoChave(data);
+      const resultado = await storage.createResultadoChave(data, req.session.empresaId!);
       res.json(resultado);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -198,8 +350,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/resultados-chave/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const data = insertResultadoChaveSchema.partial().parse(req.body);
-      const resultado = await storage.updateResultadoChave(id, data);
+      const data = stripTenantFields(insertResultadoChaveSchema.partial().parse(req.body));
+      const resultado = await storage.updateResultadoChave(id, req.session.empresaId!, data);
       res.json(resultado);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -209,17 +361,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/resultados-chave/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      await storage.deleteResultadoChave(id);
+      await storage.deleteResultadoChave(id, req.session.empresaId!);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.get("/api/indicadores/:empresaId", async (req, res) => {
+  // ==================== INDICADORES ====================
+
+  app.get("/api/indicadores", async (req, res) => {
     try {
-      const { empresaId } = req.params;
-      const indicadores = await storage.getIndicadores(empresaId);
+      const indicadores = await storage.getIndicadores(req.session.empresaId!);
       res.json(indicadores);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -228,7 +381,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/indicadores", async (req, res) => {
     try {
-      const data = insertIndicadorSchema.parse(req.body);
+      const data = insertIndicadorSchema.parse({ ...req.body, empresaId: req.session.empresaId });
       const indicador = await storage.createIndicador(data);
       res.json(indicador);
     } catch (error: any) {
@@ -239,8 +392,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/indicadores/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const data = insertIndicadorSchema.partial().parse(req.body);
-      const indicador = await storage.updateIndicador(id, data);
+      const data = stripTenantFields(insertIndicadorSchema.partial().parse(req.body));
+      const indicador = await storage.updateIndicador(id, req.session.empresaId!, data);
       res.json(indicador);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -250,17 +403,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/indicadores/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      await storage.deleteIndicador(id);
+      await storage.deleteIndicador(id, req.session.empresaId!);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.get("/api/cinco-forcas/:empresaId", async (req, res) => {
+  // ==================== CINCO FORCAS ====================
+
+  app.get("/api/cinco-forcas", async (req, res) => {
     try {
-      const { empresaId } = req.params;
-      const forcas = await storage.getCincoForcas(empresaId);
+      const forcas = await storage.getCincoForcas(req.session.empresaId!);
       res.json(forcas);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -269,7 +423,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/cinco-forcas", async (req, res) => {
     try {
-      const data = insertCincoForcasSchema.parse(req.body);
+      const data = insertCincoForcasSchema.parse({ ...req.body, empresaId: req.session.empresaId });
       const forca = await storage.createCincoForcas(data);
       res.json(forca);
     } catch (error: any) {
@@ -280,8 +434,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/cinco-forcas/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const data = insertCincoForcasSchema.partial().parse(req.body);
-      const forca = await storage.updateCincoForcas(id, data);
+      const data = stripTenantFields(insertCincoForcasSchema.partial().parse(req.body));
+      const forca = await storage.updateCincoForcas(id, req.session.empresaId!, data);
       res.json(forca);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -291,17 +445,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/cinco-forcas/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      await storage.deleteCincoForcas(id);
+      await storage.deleteCincoForcas(id, req.session.empresaId!);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
 
-  app.get("/api/modelo-negocio/:empresaId", async (req, res) => {
+  // ==================== MODELO NEGOCIO ====================
+
+  app.get("/api/modelo-negocio", async (req, res) => {
     try {
-      const { empresaId } = req.params;
-      const blocos = await storage.getModeloNegocio(empresaId);
+      const blocos = await storage.getModeloNegocio(req.session.empresaId!);
       res.json(blocos);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -310,7 +465,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/modelo-negocio", async (req, res) => {
     try {
-      const data = insertModeloNegocioSchema.parse(req.body);
+      const data = insertModeloNegocioSchema.parse({ ...req.body, empresaId: req.session.empresaId });
       const bloco = await storage.createModeloNegocio(data);
       res.json(bloco);
     } catch (error: any) {
@@ -321,8 +476,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/modelo-negocio/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const data = insertModeloNegocioSchema.partial().parse(req.body);
-      const bloco = await storage.updateModeloNegocio(id, data);
+      const data = stripTenantFields(insertModeloNegocioSchema.partial().parse(req.body));
+      const bloco = await storage.updateModeloNegocio(id, req.session.empresaId!, data);
       res.json(bloco);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -332,12 +487,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/modelo-negocio/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      await storage.deleteModeloNegocio(id);
+      await storage.deleteModeloNegocio(id, req.session.empresaId!);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
+
+  // ==================== AI ROUTES ====================
 
   app.post("/api/ai/sugerir-pestel", async (req, res) => {
     try {
@@ -397,25 +554,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/ai/sugerir-swot-individual", async (req, res) => {
     try {
-      const { empresaId, tipo } = req.body;
+      const { tipo } = req.body;
+      const empresaId = req.session.empresaId!;
       
-      if (!empresaId || !tipo) {
-        return res.status(400).json({ error: "empresaId e tipo são obrigatórios" });
+      if (!tipo) {
+        return res.status(400).json({ error: "tipo é obrigatório" });
       }
 
-      const empresa = await storage.getEmpresa();
-      if (!empresa || empresa.id !== empresaId) {
+      const empresa = await storage.getEmpresa(empresaId);
+      if (!empresa) {
         return res.status(404).json({ error: "Empresa não encontrada" });
       }
 
-      const fatoresPestel = await storage.getFatoresPestel(empresaId);
-      const cincoForcas = await storage.getCincoForcas(empresaId);
-      const modeloNegocio = await storage.getModeloNegocio(empresaId);
+      const fatoresPestelList = await storage.getFatoresPestel(empresaId);
+      const cincoForcasList = await storage.getCincoForcas(empresaId);
+      const modeloNegocioList = await storage.getModeloNegocio(empresaId);
       const swotExistente = await storage.getAnaliseSwot(empresaId);
 
-      const fatoresPestelResumo = fatoresPestel.map(f => `${f.tipo}: ${f.descricao}`).join("\n");
-      const cincoForcasResumo = cincoForcas.map(f => `${f.forca}: ${f.descricao} (intensidade ${f.intensidade})`).join("\n");
-      const modeloNegocioResumo = modeloNegocio.map(m => `${m.bloco}: ${m.descricao}`).join("\n");
+      const fatoresPestelResumo = fatoresPestelList.map(f => `${f.tipo}: ${f.descricao}`).join("\n");
+      const cincoForcasResumo = cincoForcasList.map(f => `${f.forca}: ${f.descricao} (intensidade ${f.intensidade})`).join("\n");
+      const modeloNegocioResumo = modeloNegocioList.map(m => `${m.bloco}: ${m.descricao}`).join("\n");
       
       const swotPorTipo = swotExistente.filter(s => s.tipo === tipo).map(s => s.descricao);
 
@@ -476,25 +634,21 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
 
   app.post("/api/ai/sugerir-swot-completo", async (req, res) => {
     try {
-      const { empresaId } = req.body;
-      
-      if (!empresaId) {
-        return res.status(400).json({ error: "empresaId é obrigatório" });
-      }
+      const empresaId = req.session.empresaId!;
 
-      const empresa = await storage.getEmpresa();
-      if (!empresa || empresa.id !== empresaId) {
+      const empresa = await storage.getEmpresa(empresaId);
+      if (!empresa) {
         return res.status(404).json({ error: "Empresa não encontrada" });
       }
 
-      const fatoresPestel = await storage.getFatoresPestel(empresaId);
-      const cincoForcas = await storage.getCincoForcas(empresaId);
-      const modeloNegocio = await storage.getModeloNegocio(empresaId);
+      const fatoresPestelList = await storage.getFatoresPestel(empresaId);
+      const cincoForcasList = await storage.getCincoForcas(empresaId);
+      const modeloNegocioList = await storage.getModeloNegocio(empresaId);
       const swotExistente = await storage.getAnaliseSwot(empresaId);
 
-      const fatoresPestelResumo = fatoresPestel.map(f => `${f.tipo}: ${f.descricao}`).join("\n");
-      const cincoForcasResumo = cincoForcas.map(f => `${f.forca}: ${f.descricao} (intensidade ${f.intensidade})`).join("\n");
-      const modeloNegocioResumo = modeloNegocio.map(m => `${m.bloco}: ${m.descricao}`).join("\n");
+      const fatoresPestelResumo = fatoresPestelList.map(f => `${f.tipo}: ${f.descricao}`).join("\n");
+      const cincoForcasResumo = cincoForcasList.map(f => `${f.forca}: ${f.descricao} (intensidade ${f.intensidade})`).join("\n");
+      const modeloNegocioResumo = modeloNegocioList.map(m => `${m.bloco}: ${m.descricao}`).join("\n");
       
       const swotExistenteResumo = {
         forcas: swotExistente.filter(s => s.tipo === "forca").map(s => s.descricao),
@@ -685,10 +839,11 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
     }
   });
 
-  app.get("/api/estrategias/:empresaId", async (req, res) => {
+  // ==================== ESTRATEGIAS ====================
+
+  app.get("/api/estrategias", async (req, res) => {
     try {
-      const { empresaId } = req.params;
-      const estrategias = await storage.getEstrategias(empresaId);
+      const estrategias = await storage.getEstrategias(req.session.empresaId!);
       res.json(estrategias);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -697,7 +852,7 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
 
   app.post("/api/estrategias", async (req, res) => {
     try {
-      const data = insertEstrategiaSchema.parse(req.body);
+      const data = insertEstrategiaSchema.parse({ ...req.body, empresaId: req.session.empresaId });
       const estrategia = await storage.createEstrategia(data);
       res.json(estrategia);
     } catch (error: any) {
@@ -708,8 +863,8 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
   app.patch("/api/estrategias/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const data = insertEstrategiaSchema.partial().parse(req.body);
-      const estrategia = await storage.updateEstrategia(id, data);
+      const data = stripTenantFields(insertEstrategiaSchema.partial().parse(req.body));
+      const estrategia = await storage.updateEstrategia(id, req.session.empresaId!, data);
       res.json(estrategia);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -719,7 +874,7 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
   app.delete("/api/estrategias/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      await storage.deleteEstrategia(id);
+      await storage.deleteEstrategia(id, req.session.empresaId!);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -728,14 +883,10 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
 
   app.post("/api/ai/gerar-estrategias", async (req, res) => {
     try {
-      const { empresaId } = req.body;
-      
-      if (!empresaId) {
-        return res.status(400).json({ error: "empresaId é obrigatório" });
-      }
+      const empresaId = req.session.empresaId!;
 
-      const empresa = await storage.getEmpresa();
-      if (!empresa || empresa.id !== empresaId) {
+      const empresa = await storage.getEmpresa(empresaId);
+      if (!empresa) {
         return res.status(404).json({ error: "Empresa não encontrada" });
       }
 
@@ -828,10 +979,11 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
     }
   });
 
-  app.get("/api/oportunidades-crescimento/:empresaId", async (req, res) => {
+  // ==================== OPORTUNIDADES CRESCIMENTO ====================
+
+  app.get("/api/oportunidades-crescimento", async (req, res) => {
     try {
-      const { empresaId } = req.params;
-      const oportunidades = await storage.getOportunidadesCrescimento(empresaId);
+      const oportunidades = await storage.getOportunidadesCrescimento(req.session.empresaId!);
       res.json(oportunidades);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -840,7 +992,7 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
 
   app.post("/api/oportunidades-crescimento", async (req, res) => {
     try {
-      const data = insertOportunidadeCrescimentoSchema.parse(req.body);
+      const data = insertOportunidadeCrescimentoSchema.parse({ ...req.body, empresaId: req.session.empresaId });
       const oportunidade = await storage.createOportunidadeCrescimento(data);
       res.json(oportunidade);
     } catch (error: any) {
@@ -851,8 +1003,8 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
   app.patch("/api/oportunidades-crescimento/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const data = insertOportunidadeCrescimentoSchema.partial().parse(req.body);
-      const oportunidade = await storage.updateOportunidadeCrescimento(id, data);
+      const data = stripTenantFields(insertOportunidadeCrescimentoSchema.partial().parse(req.body));
+      const oportunidade = await storage.updateOportunidadeCrescimento(id, req.session.empresaId!, data);
       res.json(oportunidade);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -862,7 +1014,7 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
   app.delete("/api/oportunidades-crescimento/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      await storage.deleteOportunidadeCrescimento(id);
+      await storage.deleteOportunidadeCrescimento(id, req.session.empresaId!);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -871,14 +1023,10 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
 
   app.post("/api/ai/gerar-oportunidades-crescimento", async (req, res) => {
     try {
-      const { empresaId } = req.body;
-      
-      if (!empresaId) {
-        return res.status(400).json({ error: "empresaId é obrigatório" });
-      }
+      const empresaId = req.session.empresaId!;
 
-      const empresa = await storage.getEmpresa();
-      if (!empresa || empresa.id !== empresaId) {
+      const empresa = await storage.getEmpresa(empresaId);
+      if (!empresa) {
         return res.status(404).json({ error: "Empresa não encontrada" });
       }
 
@@ -964,10 +1112,11 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
     }
   });
 
-  app.get("/api/iniciativas/:empresaId", async (req, res) => {
+  // ==================== INICIATIVAS ====================
+
+  app.get("/api/iniciativas", async (req, res) => {
     try {
-      const { empresaId } = req.params;
-      const iniciativas = await storage.getIniciativas(empresaId);
+      const iniciativas = await storage.getIniciativas(req.session.empresaId!);
       res.json(iniciativas);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -976,7 +1125,7 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
 
   app.post("/api/iniciativas", async (req, res) => {
     try {
-      const data = insertIniciativaSchema.parse(req.body);
+      const data = insertIniciativaSchema.parse({ ...req.body, empresaId: req.session.empresaId });
       const iniciativa = await storage.createIniciativa(data);
       res.json(iniciativa);
     } catch (error: any) {
@@ -987,8 +1136,8 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
   app.patch("/api/iniciativas/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const data = insertIniciativaSchema.partial().parse(req.body);
-      const iniciativa = await storage.updateIniciativa(id, data);
+      const data = stripTenantFields(insertIniciativaSchema.partial().parse(req.body));
+      const iniciativa = await storage.updateIniciativa(id, req.session.empresaId!, data);
       res.json(iniciativa);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -998,7 +1147,7 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
   app.delete("/api/iniciativas/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      await storage.deleteIniciativa(id);
+      await storage.deleteIniciativa(id, req.session.empresaId!);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -1007,26 +1156,22 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
 
   app.post("/api/ai/gerar-iniciativas", async (req, res) => {
     try {
-      const { empresaId } = req.body;
-      
-      if (!empresaId) {
-        return res.status(400).json({ error: "empresaId é obrigatório" });
-      }
+      const empresaId = req.session.empresaId!;
 
-      const empresa = await storage.getEmpresa();
-      if (!empresa || empresa.id !== empresaId) {
+      const empresa = await storage.getEmpresa(empresaId);
+      if (!empresa) {
         return res.status(404).json({ error: "Empresa não encontrada" });
       }
 
       const iniciativasExistentes = await storage.getIniciativas(empresaId);
-      const estrategias = await storage.getEstrategias(empresaId);
+      const estrategiasLista = await storage.getEstrategias(empresaId);
       const oportunidades = await storage.getOportunidadesCrescimento(empresaId);
 
       const iniciativasResume = iniciativasExistentes.map(i => 
         `- ${i.titulo}\n  Descrição: ${i.descricao}\n  Status: ${i.status} | Prioridade: ${i.prioridade}`
       ).join("\n\n");
 
-      const estrategiasResume = estrategias.map(e => `${e.tipo}: ${e.titulo}`).join("\n");
+      const estrategiasResume = estrategiasLista.map(e => `${e.tipo}: ${e.titulo}`).join("\n");
       const oportunidadesResume = oportunidades.map(o => `${o.tipo}: ${o.titulo}`).join("\n");
 
       const completion = await openai.chat.completions.create({
@@ -1050,7 +1195,7 @@ Setor: ${empresa.setor}
 ## CONTEXTO ESTRATÉGICO:
 
 ### ESTRATÉGIAS DEFINIDAS:
-${estrategias.length > 0 ? estrategiasResume : "Nenhuma estratégia definida"}
+${estrategiasLista.length > 0 ? estrategiasResume : "Nenhuma estratégia definida"}
 
 ### OPORTUNIDADES DE CRESCIMENTO:
 ${oportunidades.length > 0 ? oportunidadesResume : "Nenhuma oportunidade identificada"}
@@ -1117,19 +1262,15 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
 
   app.post("/api/ai/gerar-objetivos", async (req, res) => {
     try {
-      const { empresaId } = req.body;
-      
-      if (!empresaId) {
-        return res.status(400).json({ error: "empresaId é obrigatório" });
-      }
+      const empresaId = req.session.empresaId!;
 
-      const empresa = await storage.getEmpresa();
-      if (!empresa || empresa.id !== empresaId) {
+      const empresa = await storage.getEmpresa(empresaId);
+      if (!empresa) {
         return res.status(404).json({ error: "Empresa não encontrada" });
       }
 
       const objetivosExistentes = await storage.getObjetivos(empresaId);
-      const estrategias = await storage.getEstrategias(empresaId);
+      const estrategiasLista = await storage.getEstrategias(empresaId);
       const oportunidades = await storage.getOportunidadesCrescimento(empresaId);
       const iniciativas = await storage.getIniciativas(empresaId);
 
@@ -1137,7 +1278,7 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         `- ${o.titulo}\n  Descrição: ${o.descricao || 'Sem descrição'}\n  Prazo: ${o.prazo}`
       ).join("\n\n");
 
-      const estrategiasResume = estrategias.map(e => `${e.tipo}: ${e.titulo} - ${e.descricao}`).join("\n");
+      const estrategiasResume = estrategiasLista.map(e => `${e.tipo}: ${e.titulo} - ${e.descricao}`).join("\n");
       const oportunidadesResume = oportunidades.map(o => `${o.tipo}: ${o.titulo} - ${o.descricao}`).join("\n");
       const iniciativasResume = iniciativas.map(i => `${i.titulo} (Prioridade: ${i.prioridade})`).join("\n");
 
@@ -1170,7 +1311,7 @@ Descrição: ${empresa.descricao || 'Não informada'}
 ## CONTEXTO DAS APOSTAS ESTRATÉGICAS:
 
 ### ESTRATÉGIAS (TOWS):
-${estrategias.length > 0 ? estrategiasResume : "Nenhuma estratégia definida"}
+${estrategiasLista.length > 0 ? estrategiasResume : "Nenhuma estratégia definida"}
 
 ### OPORTUNIDADES DE CRESCIMENTO (Ansoff):
 ${oportunidades.length > 0 ? oportunidadesResume : "Nenhuma oportunidade identificada"}
@@ -1242,33 +1383,34 @@ Responda em JSON:
   app.post("/api/ai/gerar-resultados-chave", async (req, res) => {
     try {
       const { objetivoId } = req.body;
+      const empresaId = req.session.empresaId!;
       
       if (!objetivoId) {
         return res.status(400).json({ error: "objetivoId é obrigatório" });
       }
 
-      const empresa = await storage.getEmpresa();
+      const empresa = await storage.getEmpresa(empresaId);
       if (!empresa) {
         return res.status(404).json({ error: "Empresa não encontrada" });
       }
 
-      const objetivos = await storage.getObjetivos(empresa.id);
-      const objetivo = objetivos.find(o => o.id === objetivoId);
+      const objetivosList = await storage.getObjetivos(empresaId);
+      const objetivo = objetivosList.find(o => o.id === objetivoId);
       
       if (!objetivo) {
         return res.status(404).json({ error: "Objetivo não encontrado" });
       }
 
-      const resultadosExistentes = await storage.getResultadosChave(objetivoId);
-      const estrategias = await storage.getEstrategias(empresa.id);
-      const oportunidades = await storage.getOportunidadesCrescimento(empresa.id);
-      const iniciativas = await storage.getIniciativas(empresa.id);
+      const resultadosExistentes = await storage.getResultadosChave(objetivoId, empresaId);
+      const estrategiasLista = await storage.getEstrategias(empresaId);
+      const oportunidades = await storage.getOportunidadesCrescimento(empresaId);
+      const iniciativas = await storage.getIniciativas(empresaId);
 
       const resultadosResume = resultadosExistentes.map(r => 
         `- ${r.metrica}\n  Inicial: ${r.valorInicial}, Alvo: ${r.valorAlvo}, Atual: ${r.valorAtual}\n  Owner: ${r.owner}, Prazo: ${r.prazo}`
       ).join("\n\n");
 
-      const estrategiasResume = estrategias.map(e => `${e.tipo}: ${e.titulo}`).join("\n");
+      const estrategiasResume = estrategiasLista.map(e => `${e.tipo}: ${e.titulo}`).join("\n");
       const oportunidadesResume = oportunidades.map(o => `${o.tipo}: ${o.titulo}`).join("\n");
       const iniciativasResume = iniciativas.map(i => i.titulo).join("\n");
 
@@ -1298,7 +1440,7 @@ Prazo: ${objetivo.prazo}
 ## CONTEXTO DAS APOSTAS ESTRATÉGICAS:
 
 ### ESTRATÉGIAS (TOWS):
-${estrategias.length > 0 ? estrategiasResume : "Nenhuma estratégia definida"}
+${estrategiasLista.length > 0 ? estrategiasResume : "Nenhuma estratégia definida"}
 
 ### OPORTUNIDADES DE CRESCIMENTO (Ansoff):
 ${oportunidades.length > 0 ? oportunidadesResume : "Nenhuma oportunidade identificada"}
@@ -1378,31 +1520,27 @@ Responda em JSON:
 
   app.post("/api/ai/gerar-indicadores", async (req, res) => {
     try {
-      const { empresaId } = req.body;
-      
-      if (!empresaId) {
-        return res.status(400).json({ error: "empresaId é obrigatório" });
-      }
+      const empresaId = req.session.empresaId!;
 
-      const empresa = await storage.getEmpresa();
-      if (!empresa || empresa.id !== empresaId) {
+      const empresa = await storage.getEmpresa(empresaId);
+      if (!empresa) {
         return res.status(404).json({ error: "Empresa não encontrada" });
       }
 
       const indicadoresExistentes = await storage.getIndicadores(empresaId);
-      const estrategias = await storage.getEstrategias(empresaId);
+      const estrategiasLista = await storage.getEstrategias(empresaId);
       const oportunidades = await storage.getOportunidadesCrescimento(empresaId);
       const iniciativas = await storage.getIniciativas(empresaId);
-      const objetivos = await storage.getObjetivos(empresaId);
+      const objetivosList = await storage.getObjetivos(empresaId);
 
       const indicadoresResume = indicadoresExistentes.map(i => 
         `[${i.perspectiva}] ${i.nome} - Owner: ${i.owner}`
       ).join("\n");
 
-      const estrategiasResume = estrategias.map(e => `${e.tipo}: ${e.titulo}`).join("\n");
+      const estrategiasResume = estrategiasLista.map(e => `${e.tipo}: ${e.titulo}`).join("\n");
       const oportunidadesResume = oportunidades.map(o => `${o.tipo}: ${o.titulo}`).join("\n");
       const iniciativasResume = iniciativas.map(i => i.titulo).join("\n");
-      const objetivosResume = objetivos.map(o => o.titulo).join("\n");
+      const objetivosResume = objetivosList.map(o => o.titulo).join("\n");
 
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
@@ -1425,10 +1563,10 @@ Setor: ${empresa.setor}
 ## CONTEXTO ESTRATÉGICO:
 
 ### OBJETIVOS ESTRATÉGICOS:
-${objetivos.length > 0 ? objetivosResume : "Nenhum objetivo definido"}
+${objetivosList.length > 0 ? objetivosResume : "Nenhum objetivo definido"}
 
 ### ESTRATÉGIAS:
-${estrategias.length > 0 ? estrategiasResume : "Nenhuma estratégia"}
+${estrategiasLista.length > 0 ? estrategiasResume : "Nenhuma estratégia"}
 
 ### OPORTUNIDADES:
 ${oportunidades.length > 0 ? oportunidadesResume : "Nenhuma oportunidade"}
@@ -1498,7 +1636,6 @@ Responda em JSON:
 
   // ==================== RITUAIS ====================
   
-  // Funções auxiliares para verificar se ritual está pendente
   function isRitualPendente(ritual: any, tipo: string): boolean {
     if (!ritual || !ritual.dataUltimo) return true;
     
@@ -1507,21 +1644,13 @@ Responda em JSON:
     
     switch (tipo) {
       case "diario":
-        // Pendente se não foi completado hoje
         return !isMesmaData(dataUltimo, hoje);
-      
       case "semanal":
-        // Pendente se não foi completado esta semana
         return !isMesmaSemana(dataUltimo, hoje);
-      
       case "mensal":
-        // Pendente se não foi completado este mês
         return !isMesmoMes(dataUltimo, hoje);
-      
       case "trimestral":
-        // Pendente se não foi completado este trimestre
         return !isMesmoTrimestre(dataUltimo, hoje);
-      
       default:
         return true;
     }
@@ -1554,12 +1683,11 @@ Responda em JSON:
     return data1.getFullYear() === data2.getFullYear() && trimestre1 === trimestre2;
   }
   
-  app.get("/api/rituais/:empresaId", async (req, res) => {
+  app.get("/api/rituais", async (req, res) => {
     try {
-      const { empresaId } = req.params;
+      const empresaId = req.session.empresaId!;
       let rituais = await storage.getRituais(empresaId);
       
-      // Se não há rituais, criar os padrão
       if (rituais.length === 0) {
         const hoje = new Date();
         const amanha = new Date(hoje);
@@ -1577,30 +1705,10 @@ Responda em JSON:
         proximoTrimestre.setHours(14, 0, 0, 0);
         
         const rituaisPadrao = [
-          {
-            empresaId,
-            tipo: "diario",
-            dataProximo: amanha,
-            completado: "false"
-          },
-          {
-            empresaId,
-            tipo: "semanal",
-            dataProximo: proximaSegunda,
-            completado: "false"
-          },
-          {
-            empresaId,
-            tipo: "mensal",
-            dataProximo: proximoMes,
-            completado: "false"
-          },
-          {
-            empresaId,
-            tipo: "trimestral",
-            dataProximo: proximoTrimestre,
-            completado: "false"
-          }
+          { empresaId, tipo: "diario", dataProximo: amanha, completado: "false" },
+          { empresaId, tipo: "semanal", dataProximo: proximaSegunda, completado: "false" },
+          { empresaId, tipo: "mensal", dataProximo: proximoMes, completado: "false" },
+          { empresaId, tipo: "trimestral", dataProximo: proximoTrimestre, completado: "false" }
         ];
         
         for (const ritual of rituaisPadrao) {
@@ -1610,7 +1718,6 @@ Responda em JSON:
         rituais = await storage.getRituais(empresaId);
       }
       
-      // Adicionar informação de pendência a cada ritual
       const rituaisComStatus = rituais.map(ritual => ({
         ...ritual,
         pendente: isRitualPendente(ritual, ritual.tipo)
@@ -1624,7 +1731,7 @@ Responda em JSON:
 
   app.post("/api/rituais", async (req, res) => {
     try {
-      const data = insertRitualSchema.parse(req.body);
+      const data = insertRitualSchema.parse({ ...req.body, empresaId: req.session.empresaId });
       const ritual = await storage.createRitual(data);
       res.json(ritual);
     } catch (error: any) {
@@ -1635,14 +1742,13 @@ Responda em JSON:
   app.patch("/api/rituais/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const data = insertRitualSchema.partial().parse(req.body);
+      const data = stripTenantFields(insertRitualSchema.partial().parse(req.body));
       
-      // Se está marcando como completado, definir dataUltimo automaticamente
       if (data.completado === "true" && !data.dataUltimo) {
         data.dataUltimo = new Date();
       }
       
-      const ritual = await storage.updateRitual(id, data);
+      const ritual = await storage.updateRitual(id, req.session.empresaId!, data);
       res.json(ritual);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -1652,7 +1758,7 @@ Responda em JSON:
   app.delete("/api/rituais/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      await storage.deleteRitual(id);
+      await storage.deleteRitual(id, req.session.empresaId!);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -1661,10 +1767,9 @@ Responda em JSON:
 
   // ==================== EVENTOS ====================
 
-  app.get("/api/eventos/:empresaId", async (req, res) => {
+  app.get("/api/eventos", async (req, res) => {
     try {
-      const { empresaId } = req.params;
-      const eventos = await storage.getEventos(empresaId);
+      const eventos = await storage.getEventos(req.session.empresaId!);
       res.json(eventos);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -1674,10 +1779,10 @@ Responda em JSON:
   app.post("/api/eventos", async (req, res) => {
     try {
       const data = req.body;
-      // Converter dataEvento de string para Date se necessário
       if (data.dataEvento && typeof data.dataEvento === 'string') {
         data.dataEvento = new Date(data.dataEvento);
       }
+      data.empresaId = req.session.empresaId;
       const evento = await storage.createEvento(data);
       res.json(evento);
     } catch (error: any) {
@@ -1689,7 +1794,7 @@ Responda em JSON:
     try {
       const { id } = req.params;
       const data = req.body;
-      const evento = await storage.updateEvento(id, data);
+      const evento = await storage.updateEvento(id, req.session.empresaId!, data);
       res.json(evento);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -1699,7 +1804,7 @@ Responda em JSON:
   app.delete("/api/eventos/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      await storage.deleteEvento(id);
+      await storage.deleteEvento(id, req.session.empresaId!);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -1708,16 +1813,15 @@ Responda em JSON:
 
   // ==================== ALERTAS ====================
   
-  app.get("/api/alertas/:empresaId", async (req, res) => {
+  app.get("/api/alertas", async (req, res) => {
     try {
-      const { empresaId } = req.params;
+      const empresaId = req.session.empresaId!;
       
       const indicadores = await storage.getIndicadores(empresaId);
       const iniciativas = await storage.getIniciativas(empresaId);
       
       const alertas = [];
       
-      // Alertas de indicadores críticos (status vermelho ou amarelo)
       for (const indicador of indicadores) {
         if (indicador.status === "vermelho") {
           alertas.push({
@@ -1746,7 +1850,6 @@ Responda em JSON:
         }
       }
       
-      // Alertas de iniciativas atrasadas
       const hoje = new Date();
       for (const iniciativa of iniciativas) {
         if (iniciativa.status !== "concluida") {

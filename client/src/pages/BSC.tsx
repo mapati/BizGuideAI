@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueries } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
 import { GaugeChart } from "@/components/GaugeChart";
@@ -35,85 +35,74 @@ const PERSPECTIVAS = [
 ];
 
 export default function BSC() {
-  // Buscar empresa
   const { data: empresa } = useQuery<Empresa>({
     queryKey: ["/api/empresa"],
   });
 
   const empresaId = empresa?.id;
 
-  // Buscar objetivos
-  const { data: objetivos = [], isLoading: loadingObjetivos, isFetching: fetchingObjetivos } = useQuery<Objetivo[]>({
+  const { data: objetivos = [], isLoading: loadingObjetivos } = useQuery<Objetivo[]>({
     queryKey: ["/api/objetivos", empresaId],
     enabled: !!empresaId,
   });
 
-  // Buscar todos os resultados-chave para todos os objetivos
-  const { data: allResultadosChave = [], isLoading: loadingResultados, isFetching: fetchingResultados } = useQuery<ResultadoChave[]>({
-    queryKey: ["/api/resultados-chave/all", empresaId, objetivos.map(o => o.id).join(',')],
-    queryFn: async () => {
-      if (!empresaId || objetivos.length === 0) return [];
-      
-      const promises = objetivos.map((obj: Objetivo) => 
-        fetch(`/api/resultados-chave/${obj.id}`).then(r => r.json())
-      );
-      
-      const results = await Promise.all(promises);
-      return results.flat() as ResultadoChave[];
-    },
-    enabled: !!empresaId && objetivos.length > 0,
+  // Usa as mesmas entradas de cache que a página OKRs — uma query por objetivo
+  const krQueries = useQueries({
+    queries: objetivos.map((obj) => ({
+      queryKey: [`/api/resultados-chave/${obj.id}`],
+      enabled: !!obj.id,
+    })),
   });
 
-  // Função para calcular o progresso de um resultado-chave (0-100%)
+  const allResultadosChave: ResultadoChave[] = useMemo(
+    () => krQueries.flatMap((q) => (q.data as ResultadoChave[]) || []),
+    [krQueries]
+  );
+
+  const loadingResultados = krQueries.some((q) => q.isLoading);
+
+  // Progresso de um resultado-chave (0-100%)
   const calcularProgressoKR = (kr: ResultadoChave): number => {
     const inicial = parseFloat(kr.valorInicial);
     const atual = parseFloat(kr.valorAtual);
     const alvo = parseFloat(kr.valorAlvo);
 
+    if (isNaN(inicial) || isNaN(atual) || isNaN(alvo)) return 0;
     if (inicial === alvo) return 100;
-    
+
     const progresso = ((atual - inicial) / (alvo - inicial)) * 100;
     return Math.max(0, Math.min(100, progresso));
   };
 
-  // Função para calcular a performance de um objetivo (média dos KRs)
+  // Performance de um objetivo (média dos KRs)
   const calcularPerformanceObjetivo = (objetivoId: string): number => {
-    const krs = allResultadosChave.filter(kr => kr.objetivoId === objetivoId);
-    
+    const krs = allResultadosChave.filter((kr) => kr.objetivoId === objetivoId);
     if (krs.length === 0) return 0;
-    
-    const somaProgressos = krs.reduce((acc, kr) => acc + calcularProgressoKR(kr), 0);
-    return somaProgressos / krs.length;
+    const soma = krs.reduce((acc, kr) => acc + calcularProgressoKR(kr), 0);
+    return soma / krs.length;
   };
 
-  // Calcular performance geral (média apenas dos objetivos que têm resultados-chave)
+  // Performance geral (média apenas dos objetivos com KRs)
   const performanceGeral = useMemo(() => {
     if (objetivos.length === 0) return 0;
-    
-    // Filtrar apenas objetivos que têm pelo menos 1 resultado-chave
-    const objetivosComKRs = objetivos.filter(obj => 
-      allResultadosChave.some(kr => kr.objetivoId === obj.id)
+    const objetivosComKRs = objetivos.filter((obj) =>
+      allResultadosChave.some((kr) => kr.objetivoId === obj.id)
     );
-    
     if (objetivosComKRs.length === 0) return 0;
-    
-    const somaPerformances = objetivosComKRs.reduce(
-      (acc, obj) => acc + calcularPerformanceObjetivo(obj.id), 
+    const soma = objetivosComKRs.reduce(
+      (acc, obj) => acc + calcularPerformanceObjetivo(obj.id),
       0
     );
-    
-    return somaPerformances / objetivosComKRs.length;
+    return soma / objetivosComKRs.length;
   }, [objetivos, allResultadosChave]);
 
-  // Agrupar objetivos por perspectiva
   const objetivosPorPerspectiva = PERSPECTIVAS.map((persp) => ({
     ...persp,
     objetivos: objetivos.filter((obj) => obj.perspectiva === persp.value),
   }));
 
-  // Mostrar loading enquanto carrega ou revalida dados
-  const isLoading = loadingObjetivos || loadingResultados || fetchingObjetivos || fetchingResultados;
-  
+  const isLoading = loadingObjetivos || loadingResultados;
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -146,9 +135,9 @@ export default function BSC() {
               </p>
             </div>
           </div>
-          
+
           <GaugeChart value={performanceGeral} size={240} />
-          
+
           <div className="flex items-center gap-8 text-sm">
             <div className="flex items-center gap-2">
               <div className="h-3 w-3 rounded-full bg-[hsl(0,84%,60%)]" />
@@ -183,11 +172,14 @@ export default function BSC() {
         <div className="space-y-8">
           {objetivosPorPerspectiva.map((perspectiva) => {
             const Icon = perspectiva.icon;
-            
             if (perspectiva.objetivos.length === 0) return null;
-            
+
             return (
-              <div key={perspectiva.value} className="space-y-4" data-testid={`section-perspectiva-${perspectiva.value}`}>
+              <div
+                key={perspectiva.value}
+                className="space-y-4"
+                data-testid={`section-perspectiva-${perspectiva.value}`}
+              >
                 <div className="flex items-center gap-3 pb-3 border-b">
                   <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
                     <Icon className="h-5 w-5 text-primary" />
@@ -201,9 +193,11 @@ export default function BSC() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {perspectiva.objetivos.map((objetivo) => {
                     const performance = calcularPerformanceObjetivo(objetivo.id);
-                    const numKRs = allResultadosChave.filter(kr => kr.objetivoId === objetivo.id).length;
+                    const numKRs = allResultadosChave.filter(
+                      (kr) => kr.objetivoId === objetivo.id
+                    ).length;
                     const hasKRs = numKRs > 0;
-                    
+
                     return (
                       <Card
                         key={objetivo.id}
@@ -214,16 +208,23 @@ export default function BSC() {
                           <CircularProgress value={performance} size={100} strokeWidth={10} />
                         ) : (
                           <div className="h-[100px] w-[100px] flex items-center justify-center border-2 border-dashed border-muted-foreground/30 rounded-full">
-                            <span className="text-xs text-muted-foreground text-center px-2">Sem KRs</span>
+                            <span className="text-xs text-muted-foreground text-center px-2">
+                              Sem KRs
+                            </span>
                           </div>
                         )}
-                        
+
                         <div className="text-center space-y-2 w-full">
-                          <h4 className="font-semibold text-sm leading-tight" data-testid={`text-objetivo-titulo-${objetivo.id}`}>
+                          <h4
+                            className="font-semibold text-sm leading-tight"
+                            data-testid={`text-objetivo-titulo-${objetivo.id}`}
+                          >
                             {objetivo.titulo}
                           </h4>
                           <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                            <span>{numKRs} resultado{numKRs !== 1 ? 's' : ''}-chave</span>
+                            <span>
+                              {numKRs} resultado{numKRs !== 1 ? "s" : ""}-chave
+                            </span>
                           </div>
                         </div>
                       </Card>

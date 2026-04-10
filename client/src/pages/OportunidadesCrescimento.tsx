@@ -115,8 +115,7 @@ export default function OportunidadesCrescimento() {
   const criarOportunidadeMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       if (!empresa?.id) throw new Error("Empresa não encontrada");
-      const res = await apiRequest("POST", "/api/oportunidades-crescimento", { ...data, empresaId: empresa.id });
-      return await res.json();
+      return await apiRequest("POST", "/api/oportunidades-crescimento", { ...data, empresaId: empresa.id });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/oportunidades-crescimento/${empresa?.id}`] });
@@ -138,8 +137,7 @@ export default function OportunidadesCrescimento() {
 
   const editarOportunidadeMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<typeof formData> }) => {
-      const res = await apiRequest("PATCH", `/api/oportunidades-crescimento/${id}`, data);
-      return await res.json();
+      return await apiRequest("PATCH", `/api/oportunidades-crescimento/${id}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/oportunidades-crescimento/${empresa?.id}`] });
@@ -162,8 +160,7 @@ export default function OportunidadesCrescimento() {
 
   const deletarOportunidadeMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await apiRequest("DELETE", `/api/oportunidades-crescimento/${id}`);
-      return await res.json();
+      return await apiRequest("DELETE", `/api/oportunidades-crescimento/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/oportunidades-crescimento/${empresa?.id}`] });
@@ -223,10 +220,9 @@ export default function OportunidadesCrescimento() {
 
     setIsGenerating(true);
     try {
-      const res = await apiRequest("POST", "/api/ai/gerar-oportunidades-crescimento", {
+      const response = await apiRequest("POST", "/api/ai/gerar-oportunidades-crescimento", {
         empresaId: empresa.id,
       });
-      const response = await res.json();
 
       if (response.oportunidades && response.oportunidades.length > 0) {
         let adicionadas = 0;

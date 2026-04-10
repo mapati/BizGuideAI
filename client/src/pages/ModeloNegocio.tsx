@@ -120,12 +120,11 @@ export default function ModeloNegocio() {
 
     setIsSuggesting(true);
     try {
-      const res = await apiRequest("POST", "/api/ai/sugerir-modelo-negocio", {
+      const response = await apiRequest("POST", "/api/ai/sugerir-modelo-negocio", {
         nomeEmpresa: empresa.nome,
         setor: empresa.setor,
         descricao: empresa.descricao,
       });
-      const response = await res.json();
 
       const sugestoes = response.blocos || [];
       const novosValores: Record<string, string> = { ...formValues };

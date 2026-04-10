@@ -79,8 +79,7 @@ export default function Swot() {
   const criarAnaliseMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       if (!empresa?.id) throw new Error("Empresa não encontrada");
-      const res = await apiRequest("POST", "/api/analise-swot", { ...data, empresaId: empresa.id });
-      return await res.json();
+      return await apiRequest("POST", "/api/analise-swot", { ...data, empresaId: empresa.id });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/analise-swot/${empresa?.id}`] });
@@ -102,8 +101,7 @@ export default function Swot() {
 
   const editarAnaliseMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<typeof formData> }) => {
-      const res = await apiRequest("PATCH", `/api/analise-swot/${id}`, data);
-      return await res.json();
+      return await apiRequest("PATCH", `/api/analise-swot/${id}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/analise-swot/${empresa?.id}`] });
@@ -126,8 +124,7 @@ export default function Swot() {
 
   const deletarAnaliseMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await apiRequest("DELETE", `/api/analise-swot/${id}`);
-      return await res.json();
+      return await apiRequest("DELETE", `/api/analise-swot/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/analise-swot/${empresa?.id}`] });
@@ -186,13 +183,12 @@ export default function Swot() {
     setIsSuggesting(true);
     setTipoSugestao(tipo);
     try {
-      const res = await apiRequest("POST", "/api/ai/sugerir-swot", {
+      const response = await apiRequest("POST", "/api/ai/sugerir-swot", {
         nomeEmpresa: empresa.nome,
         setor: empresa.setor,
         descricao: empresa.descricao,
         tipo: tipo,
       });
-      const response = await res.json();
 
       const sugestoes = response.itens || [];
       
@@ -242,11 +238,10 @@ export default function Swot() {
 
     setIsSuggestingModal(true);
     try {
-      const res = await apiRequest("POST", "/api/ai/sugerir-swot-individual", {
+      const response = await apiRequest("POST", "/api/ai/sugerir-swot-individual", {
         empresaId: empresa.id,
         tipo: formData.tipo,
       });
-      const response = await res.json();
 
       if (response.descricao) {
         setFormData(prev => ({
@@ -283,10 +278,9 @@ export default function Swot() {
 
     setIsSuggestingComplete(true);
     try {
-      const res = await apiRequest("POST", "/api/ai/sugerir-swot-completo", {
+      const response = await apiRequest("POST", "/api/ai/sugerir-swot-completo", {
         empresaId: empresa.id,
       });
-      const response = await res.json();
 
       const itens = response.itens || [];
       

@@ -192,8 +192,7 @@ export default function Acompanhamento() {
 
   const createEventoMutation = useMutation({
     mutationFn: async (evento: any) => {
-      const res = await apiRequest("POST", "/api/eventos", evento);
-      return await res.json();
+      return await apiRequest("POST", "/api/eventos", evento);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/eventos", empresaId] });
@@ -215,8 +214,7 @@ export default function Acompanhamento() {
 
   const salvarChecklistMutation = useMutation({
     mutationFn: async ({ id, checklist }: { id: string; checklist: string }) => {
-      const res = await apiRequest("PATCH", `/api/rituais/${id}`, { checklist });
-      return await res.json();
+      return await apiRequest("PATCH", `/api/rituais/${id}`, { checklist });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/rituais", empresaId] });
@@ -229,10 +227,9 @@ export default function Acompanhamento() {
 
   const completarRitualMutation = useMutation({
     mutationFn: async (ritualId: string) => {
-      const res = await apiRequest("PATCH", `/api/rituais/${ritualId}`, {
+      return await apiRequest("PATCH", `/api/rituais/${ritualId}`, {
         completado: "true",
       });
-      return await res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/rituais", empresaId] });
@@ -245,8 +242,7 @@ export default function Acompanhamento() {
 
   const salvarNotasMutation = useMutation({
     mutationFn: async ({ id, notas }: { id: string; notas: string }) => {
-      const res = await apiRequest("PATCH", `/api/rituais/${id}`, { notas });
-      return await res.json();
+      return await apiRequest("PATCH", `/api/rituais/${id}`, { notas });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/rituais", empresaId] });
@@ -260,8 +256,7 @@ export default function Acompanhamento() {
 
   const salvarDecisoesMutation = useMutation({
     mutationFn: async ({ id, decisoes }: { id: string; decisoes: string }) => {
-      const res = await apiRequest("PATCH", `/api/rituais/${id}`, { decisoes });
-      return await res.json();
+      return await apiRequest("PATCH", `/api/rituais/${id}`, { decisoes });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/rituais", empresaId] });

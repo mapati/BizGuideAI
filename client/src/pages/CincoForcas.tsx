@@ -69,8 +69,7 @@ export default function CincoForcas() {
   const criarForcaMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       if (!empresa?.id) throw new Error("Empresa não encontrada");
-      const res = await apiRequest("POST", "/api/cinco-forcas", { ...data, empresaId: empresa.id });
-      return await res.json();
+      return await apiRequest("POST", "/api/cinco-forcas", { ...data, empresaId: empresa.id });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/cinco-forcas/${empresa?.id}`] });
@@ -92,8 +91,7 @@ export default function CincoForcas() {
 
   const editarForcaMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<typeof formData> }) => {
-      const res = await apiRequest("PATCH", `/api/cinco-forcas/${id}`, data);
-      return await res.json();
+      return await apiRequest("PATCH", `/api/cinco-forcas/${id}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/cinco-forcas/${empresa?.id}`] });
@@ -116,8 +114,7 @@ export default function CincoForcas() {
 
   const deletarForcaMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await apiRequest("DELETE", `/api/cinco-forcas/${id}`);
-      return await res.json();
+      return await apiRequest("DELETE", `/api/cinco-forcas/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/cinco-forcas/${empresa?.id}`] });
@@ -174,12 +171,11 @@ export default function CincoForcas() {
 
     setIsSuggesting(true);
     try {
-      const res = await apiRequest("POST", "/api/ai/sugerir-cinco-forcas", {
+      const response = await apiRequest("POST", "/api/ai/sugerir-cinco-forcas", {
         nomeEmpresa: empresa.nome,
         setor: empresa.setor,
         descricao: empresa.descricao,
       });
-      const response = await res.json();
 
       const sugestoes = response.forcas || [];
       

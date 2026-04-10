@@ -71,8 +71,7 @@ export default function Pestel() {
   const criarFatorMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       if (!empresa?.id) throw new Error("Empresa não encontrada");
-      const res = await apiRequest("POST", "/api/fatores-pestel", { ...data, empresaId: empresa.id });
-      return await res.json();
+      return await apiRequest("POST", "/api/fatores-pestel", { ...data, empresaId: empresa.id });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/fatores-pestel/${empresa?.id}`] });
@@ -94,8 +93,7 @@ export default function Pestel() {
 
   const editarFatorMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Partial<typeof formData> }) => {
-      const res = await apiRequest("PATCH", `/api/fatores-pestel/${id}`, data);
-      return await res.json();
+      return await apiRequest("PATCH", `/api/fatores-pestel/${id}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/fatores-pestel/${empresa?.id}`] });
@@ -118,8 +116,7 @@ export default function Pestel() {
 
   const deletarFatorMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await apiRequest("DELETE", `/api/fatores-pestel/${id}`);
-      return await res.json();
+      return await apiRequest("DELETE", `/api/fatores-pestel/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/fatores-pestel/${empresa?.id}`] });
@@ -176,12 +173,11 @@ export default function Pestel() {
 
     setIsSuggesting(true);
     try {
-      const res = await apiRequest("POST", "/api/ai/sugerir-pestel", {
+      const response = await apiRequest("POST", "/api/ai/sugerir-pestel", {
         nomeEmpresa: empresa.nome,
         setor: empresa.setor,
         descricao: empresa.descricao,
       });
-      const response = await res.json();
 
       const sugestoes = response.fatores || [];
       

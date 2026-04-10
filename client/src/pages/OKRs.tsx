@@ -65,8 +65,8 @@ export default function OKRs() {
   });
 
   const { data: resultadosChave = [] } = useQuery<ResultadoChave[]>({
-    queryKey: ["/api/resultados-chave", objetivoSelecionado?.id],
-    enabled: !!objetivoSelecionado,
+    queryKey: [`/api/resultados-chave/${objetivoSelecionado?.id}`],
+    enabled: !!objetivoSelecionado?.id,
   });
 
   const [gerandoPerspectiva, setGerandoPerspectiva] = useState<string | null>(null);
@@ -120,13 +120,13 @@ export default function OKRs() {
     mutationFn: async (objetivoId: string) => {
       return await apiRequest("POST", "/api/ai/gerar-resultados-chave", { objetivoId });
     },
-    onSuccess: (data, objetivoId) => {
+    onSuccess: async (data, objetivoId) => {
       if (data.resultados && data.resultados.length > 0) {
         toast({
           title: "Resultados-Chave Gerados!",
           description: `${data.resultados.length} resultado(s)-chave sugerido(s) pela IA.`,
         });
-        data.resultados.forEach(async (res: any) => {
+        for (const res of data.resultados) {
           await criarResultadoMutation.mutateAsync({
             objetivoId,
             metrica: res.metrica,
@@ -136,7 +136,7 @@ export default function OKRs() {
             owner: res.owner,
             prazo: res.prazo,
           });
-        });
+        }
       } else {
         toast({
           title: "Nenhum resultado novo",
@@ -195,8 +195,8 @@ export default function OKRs() {
     mutationFn: async (data: any) => {
       return await apiRequest("POST", "/api/resultados-chave", data);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/resultados-chave", objetivoSelecionado?.id] });
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: [`/api/resultados-chave/${vars.objetivoId}`] });
     },
   });
 
@@ -205,7 +205,7 @@ export default function OKRs() {
       return await apiRequest("PATCH", `/api/resultados-chave/${id}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/resultados-chave", objetivoSelecionado?.id] });
+      queryClient.invalidateQueries({ queryKey: [`/api/resultados-chave/${objetivoSelecionado?.id}`] });
       toast({
         title: "Resultado atualizado",
         description: "As alterações foram salvas.",
@@ -218,7 +218,7 @@ export default function OKRs() {
       return await apiRequest("DELETE", `/api/resultados-chave/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/resultados-chave", objetivoSelecionado?.id] });
+      queryClient.invalidateQueries({ queryKey: [`/api/resultados-chave/${objetivoSelecionado?.id}`] });
       toast({
         title: "Resultado removido",
         description: "O resultado-chave foi removido.",

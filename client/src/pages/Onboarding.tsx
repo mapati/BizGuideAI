@@ -45,8 +45,7 @@ export default function Onboarding() {
 
   const criarEmpresaMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      const res = await apiRequest("POST", "/api/empresa", data);
-      return await res.json();
+      return await apiRequest("POST", "/api/empresa", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/empresa"] });
@@ -67,8 +66,7 @@ export default function Onboarding() {
 
   const atualizarEmpresaMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      const res = await apiRequest("PATCH", `/api/empresa/${empresaExistente?.id}`, data);
-      return await res.json();
+      return await apiRequest("PATCH", `/api/empresa/${empresaExistente?.id}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/empresa"] });

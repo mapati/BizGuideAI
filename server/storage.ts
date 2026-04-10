@@ -53,6 +53,7 @@ export interface IStorage {
   createUsuario(usuario: InsertUsuario): Promise<Usuario>;
   getUsuarioByEmail(email: string): Promise<Usuario | undefined>;
   getUsuarioById(id: string): Promise<Usuario | undefined>;
+  updateUsuarioSenha(id: string, senhaHash: string): Promise<void>;
   
   getFatoresPestel(empresaId: string): Promise<FatorPestel[]>;
   createFatorPestel(fator: InsertFatorPestel): Promise<FatorPestel>;
@@ -151,6 +152,10 @@ export class DbStorage implements IStorage {
   async getUsuarioById(id: string): Promise<Usuario | undefined> {
     const result = await db.select().from(usuarios).where(eq(usuarios.id, id)).limit(1);
     return result[0];
+  }
+
+  async updateUsuarioSenha(id: string, senhaHash: string): Promise<void> {
+    await db.update(usuarios).set({ senha: senhaHash }).where(eq(usuarios.id, id));
   }
 
   async getFatoresPestel(empresaId: string): Promise<FatorPestel[]> {

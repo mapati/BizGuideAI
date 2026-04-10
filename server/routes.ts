@@ -130,6 +130,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/auth/senha", async (req, res) => {
+    try {
+      if (!req.session?.userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+      const { senhaAtual, novaSenha } = req.body;
+      if (!senhaAtual || !novaSenha) {
+        return res.status(400).json({ error: "Senha atual e nova senha são obrigatórias" });
+      }
+      if (novaSenha.length < 6) {
+        return res.status(400).json({ error: "A nova senha deve ter pelo menos 6 caracteres" });
+      }
+      const usuario = await storage.getUsuarioById(req.session.userId);
+      if (!usuario) {
+        return res.status(401).json({ error: "Usuário não encontrado" });
+      }
+      const senhaCorreta = await bcrypt.compare(senhaAtual, usuario.senha);
+      if (!senhaCorreta) {
+        return res.status(400).json({ error: "Senha atual incorreta" });
+      }
+      const senhaHash = await bcrypt.hash(novaSenha, 10);
+      await storage.updateUsuarioSenha(usuario.id, senhaHash);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/auth/logout", (req, res) => {
     req.session.destroy((err) => {
       if (err) {

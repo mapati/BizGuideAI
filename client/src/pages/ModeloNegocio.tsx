@@ -94,7 +94,7 @@ export default function ModeloNegocio() {
   });
 
   const { data: blocosData = [], isLoading } = useQuery<ModeloNegocio[]>({
-    queryKey: [`/api/modelo-negocio/${empresa?.id}`],
+    queryKey: ["/api/modelo-negocio", empresa?.id],
     enabled: !!empresa?.id,
   });
 
@@ -151,7 +151,7 @@ export default function ModeloNegocio() {
         }
       }
 
-      queryClient.invalidateQueries({ queryKey: [`/api/modelo-negocio/${empresa.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/modelo-negocio", empresa.id] });
       
       toast({
         title: "Modelo gerado!",
@@ -202,7 +202,7 @@ export default function ModeloNegocio() {
         [editingBloco]: editValue,
       }));
 
-      queryClient.invalidateQueries({ queryKey: [`/api/modelo-negocio/${empresa.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/modelo-negocio", empresa.id] });
       
       toast({
         title: "Bloco salvo!",

@@ -64,7 +64,7 @@ export default function Pestel() {
   });
 
   const { data: fatores = [], isLoading } = useQuery<FatorPESTEL[]>({
-    queryKey: [`/api/fatores-pestel/${empresa?.id}`],
+    queryKey: ["/api/fatores-pestel", empresa?.id],
     enabled: !!empresa?.id,
   });
 
@@ -74,7 +74,7 @@ export default function Pestel() {
       return await apiRequest("POST", "/api/fatores-pestel", { ...data, empresaId: empresa.id });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/fatores-pestel/${empresa?.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/fatores-pestel", empresa?.id] });
       toast({
         title: "Fator adicionado!",
         description: "O fator externo foi salvo com sucesso.",
@@ -96,7 +96,7 @@ export default function Pestel() {
       return await apiRequest("PATCH", `/api/fatores-pestel/${id}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/fatores-pestel/${empresa?.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/fatores-pestel", empresa?.id] });
       toast({
         title: "Fator atualizado!",
         description: "O fator externo foi atualizado com sucesso.",
@@ -119,7 +119,7 @@ export default function Pestel() {
       return await apiRequest("DELETE", `/api/fatores-pestel/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/fatores-pestel/${empresa?.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/fatores-pestel", empresa?.id] });
       toast({
         title: "Fator removido",
         description: "O fator externo foi excluído.",
@@ -188,7 +188,7 @@ export default function Pestel() {
         });
       }
 
-      queryClient.invalidateQueries({ queryKey: [`/api/fatores-pestel/${empresa.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/fatores-pestel", empresa.id] });
       toast({
         title: "Sugestões adicionadas!",
         description: `${sugestoes.length} fatores foram sugeridos pela IA.`,

@@ -108,7 +108,7 @@ export default function OportunidadesCrescimento() {
   });
 
   const { data: oportunidades = [], isLoading } = useQuery<OportunidadeCrescimento[]>({
-    queryKey: [`/api/oportunidades-crescimento/${empresa?.id}`],
+    queryKey: ["/api/oportunidades-crescimento", empresa?.id],
     enabled: !!empresa?.id,
   });
 
@@ -118,7 +118,7 @@ export default function OportunidadesCrescimento() {
       return await apiRequest("POST", "/api/oportunidades-crescimento", { ...data, empresaId: empresa.id });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/oportunidades-crescimento/${empresa?.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/oportunidades-crescimento", empresa?.id] });
       toast({
         title: "Oportunidade adicionada!",
         description: "A oportunidade de crescimento foi salva com sucesso.",
@@ -140,7 +140,7 @@ export default function OportunidadesCrescimento() {
       return await apiRequest("PATCH", `/api/oportunidades-crescimento/${id}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/oportunidades-crescimento/${empresa?.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/oportunidades-crescimento", empresa?.id] });
       toast({
         title: "Oportunidade atualizada!",
         description: "A oportunidade foi atualizada com sucesso.",
@@ -163,7 +163,7 @@ export default function OportunidadesCrescimento() {
       return await apiRequest("DELETE", `/api/oportunidades-crescimento/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/oportunidades-crescimento/${empresa?.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/oportunidades-crescimento", empresa?.id] });
       toast({
         title: "Oportunidade removida",
         description: "A oportunidade foi excluída.",
@@ -238,7 +238,7 @@ export default function OportunidadesCrescimento() {
           }
         }
 
-        queryClient.invalidateQueries({ queryKey: [`/api/oportunidades-crescimento/${empresa.id}`] });
+        queryClient.invalidateQueries({ queryKey: ["/api/oportunidades-crescimento", empresa.id] });
         toast({
           title: "Oportunidades geradas!",
           description: `${adicionadas} oportunidade(s) de crescimento foram adicionadas com IA.`,

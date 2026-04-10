@@ -92,7 +92,7 @@ export default function Estrategias() {
   });
 
   const { data: estrategias = [], isLoading } = useQuery<Estrategia[]>({
-    queryKey: [`/api/estrategias/${empresa?.id}`],
+    queryKey: ["/api/estrategias", empresa?.id],
     enabled: !!empresa?.id,
   });
 
@@ -102,7 +102,7 @@ export default function Estrategias() {
       return await apiRequest("POST", "/api/estrategias", { ...data, empresaId: empresa.id });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/estrategias/${empresa?.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/estrategias", empresa?.id] });
       toast({
         title: "Estratégia adicionada!",
         description: "A estratégia foi salva com sucesso.",
@@ -124,7 +124,7 @@ export default function Estrategias() {
       return await apiRequest("PATCH", `/api/estrategias/${id}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/estrategias/${empresa?.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/estrategias", empresa?.id] });
       toast({
         title: "Estratégia atualizada!",
         description: "A estratégia foi atualizada com sucesso.",
@@ -147,7 +147,7 @@ export default function Estrategias() {
       return await apiRequest("DELETE", `/api/estrategias/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/estrategias/${empresa?.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/estrategias", empresa?.id] });
       toast({
         title: "Estratégia removida",
         description: "A estratégia foi excluída.",
@@ -221,7 +221,7 @@ export default function Estrategias() {
           }
         }
 
-        queryClient.invalidateQueries({ queryKey: [`/api/estrategias/${empresa.id}`] });
+        queryClient.invalidateQueries({ queryKey: ["/api/estrategias", empresa.id] });
         
         if (adicionadas > 0) {
           toast({

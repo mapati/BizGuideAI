@@ -62,7 +62,7 @@ export default function CincoForcas() {
   });
 
   const { data: forcasData = [], isLoading } = useQuery<CincoForcas[]>({
-    queryKey: [`/api/cinco-forcas/${empresa?.id}`],
+    queryKey: ["/api/cinco-forcas", empresa?.id],
     enabled: !!empresa?.id,
   });
 
@@ -72,7 +72,7 @@ export default function CincoForcas() {
       return await apiRequest("POST", "/api/cinco-forcas", { ...data, empresaId: empresa.id });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/cinco-forcas/${empresa?.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cinco-forcas", empresa?.id] });
       toast({
         title: "Força adicionada!",
         description: "A análise da força competitiva foi salva com sucesso.",
@@ -94,7 +94,7 @@ export default function CincoForcas() {
       return await apiRequest("PATCH", `/api/cinco-forcas/${id}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/cinco-forcas/${empresa?.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cinco-forcas", empresa?.id] });
       toast({
         title: "Força atualizada!",
         description: "A análise foi atualizada com sucesso.",
@@ -117,7 +117,7 @@ export default function CincoForcas() {
       return await apiRequest("DELETE", `/api/cinco-forcas/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/cinco-forcas/${empresa?.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cinco-forcas", empresa?.id] });
       toast({
         title: "Força removida",
         description: "A análise foi excluída.",
@@ -186,7 +186,7 @@ export default function CincoForcas() {
         });
       }
 
-      queryClient.invalidateQueries({ queryKey: [`/api/cinco-forcas/${empresa.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/cinco-forcas", empresa.id] });
       toast({
         title: "Sugestões adicionadas!",
         description: `${sugestoes.length} análises foram sugeridas pela IA.`,

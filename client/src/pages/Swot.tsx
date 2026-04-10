@@ -72,7 +72,7 @@ export default function Swot() {
   });
 
   const { data: analises = [], isLoading } = useQuery<AnaliseSwot[]>({
-    queryKey: [`/api/analise-swot/${empresa?.id}`],
+    queryKey: ["/api/analise-swot", empresa?.id],
     enabled: !!empresa?.id,
   });
 
@@ -82,7 +82,7 @@ export default function Swot() {
       return await apiRequest("POST", "/api/analise-swot", { ...data, empresaId: empresa.id });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/analise-swot/${empresa?.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/analise-swot", empresa?.id] });
       toast({
         title: "Item adicionado!",
         description: "A análise foi salva com sucesso.",
@@ -104,7 +104,7 @@ export default function Swot() {
       return await apiRequest("PATCH", `/api/analise-swot/${id}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/analise-swot/${empresa?.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/analise-swot", empresa?.id] });
       toast({
         title: "Item atualizado!",
         description: "A análise foi atualizada com sucesso.",
@@ -127,7 +127,7 @@ export default function Swot() {
       return await apiRequest("DELETE", `/api/analise-swot/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/analise-swot/${empresa?.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/analise-swot", empresa?.id] });
       toast({
         title: "Item removido",
         description: "A análise foi excluída.",
@@ -200,7 +200,7 @@ export default function Swot() {
         });
       }
 
-      queryClient.invalidateQueries({ queryKey: [`/api/analise-swot/${empresa.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/analise-swot", empresa.id] });
       toast({
         title: "Sugestões adicionadas!",
         description: `${sugestoes.length} itens foram sugeridos pela IA.`,
@@ -323,7 +323,7 @@ export default function Swot() {
         }
       }
 
-      queryClient.invalidateQueries({ queryKey: [`/api/analise-swot/${empresa.id}`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/analise-swot", empresa.id] });
       
       if (adicionados > 0) {
         toast({

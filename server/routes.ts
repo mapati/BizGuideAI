@@ -14,6 +14,7 @@ import {
   insertOportunidadeCrescimentoSchema,
   insertIniciativaSchema,
   insertRitualSchema,
+  type ResultadoChave,
 } from "@shared/schema";
 import OpenAI from "openai";
 import bcrypt from "bcryptjs";
@@ -1929,19 +1930,20 @@ Responda em JSON:
       const empresa = await storage.getEmpresa(empresaId);
       if (!empresa) return res.status(404).json({ error: "Empresa não encontrada" });
 
-      const [objetivosList, indicadores, eventos, iniciativas] = await Promise.all([
+      const [objetivosList, indicadores, eventos, iniciativas, rituais] = await Promise.all([
         storage.getObjetivos(empresaId),
         storage.getIndicadores(empresaId),
         storage.getEventos(empresaId),
         storage.getIniciativas(empresaId),
+        storage.getRituais(empresaId),
       ]);
 
       const krsArrays = await Promise.all(
         objetivosList.map((obj) => storage.getResultadosChave(obj.id, empresaId))
       );
-      const todosKRs = krsArrays.flat();
+      const todosKRs: ResultadoChave[] = krsArrays.flat();
 
-      const calcProgresso = (kr: any): number => {
+      const calcProgresso = (kr: ResultadoChave): number => {
         const i = parseFloat(kr.valorInicial);
         const a = parseFloat(kr.valorAtual);
         const v = parseFloat(kr.valorAlvo);
@@ -1999,7 +2001,7 @@ Responda em JSON:
                 (o) =>
                   `- [${o.perspectiva}] "${o.titulo}" — ${o.progresso}% progresso (${o.numKRs} KRs)\n${o.krs
                     .map(
-                      (kr: any) =>
+                      (kr: ResultadoChave) =>
                         `  • ${kr.metrica}: inicial=${kr.valorInicial}, atual=${kr.valorAtual}, alvo=${kr.valorAlvo} (${Math.round(calcProgresso(kr))}%)`
                     )
                     .join("\n")}`
@@ -2026,6 +2028,36 @@ Responda em JSON:
               )
               .join("\n")
           : "Nenhum evento registrado.";
+
+      const rituaisResume =
+        rituais.length > 0
+          ? rituais
+              .map((r) => {
+                const ultimo = r.dataUltimo
+                  ? new Date(r.dataUltimo).toLocaleDateString("pt-BR")
+                  : "nunca realizado";
+                const proximo = new Date(r.dataProximo).toLocaleDateString("pt-BR");
+                return `- ${r.tipo}: último=${ultimo}, próximo=${proximo}, completado=${r.completado}`;
+              })
+              .join("\n")
+          : "Nenhum ritual cadastrado.";
+
+      // Derive alertas ativos from the data already collected
+      const alertasAtivos: string[] = [];
+      indicadores
+        .filter((i) => i.status === "vermelho")
+        .forEach((i) => alertasAtivos.push(`[KPI CRÍTICO] ${i.nome}: atual=${i.atual}, meta=${i.meta}`));
+      iniciativasAtrasadas.forEach((i) =>
+        alertasAtivos.push(`[INICIATIVA ATRASADA] "${i.titulo}" (responsável: ${i.responsavel})`)
+      );
+      todosKRs
+        .filter((kr) => calcProgresso(kr) === 0)
+        .forEach((kr) => alertasAtivos.push(`[KR SEM PROGRESSO] ${kr.metrica}`));
+
+      const alertasResume =
+        alertasAtivos.length > 0
+          ? alertasAtivos.join("\n")
+          : "Sem alertas ativos no momento.";
 
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
@@ -2060,6 +2092,12 @@ ${
         .join("\n")
     : "Nenhuma iniciativa atrasada."
 }
+
+## Rituais de Gestão
+${rituaisResume}
+
+## Alertas Ativos
+${alertasResume}
 
 ## Eventos Recentes de Acompanhamento
 ${eventosResume}

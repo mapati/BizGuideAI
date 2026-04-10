@@ -363,34 +363,26 @@ export default function Home() {
           </div>
           {loadingAlertas ? (
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          ) : alertas.length === 0 ? (
+          ) : alertasAlta.length === 0 ? (
             <div className="flex items-center gap-2 text-sm text-green-600 py-4 justify-center">
               <CheckCircle2 className="h-4 w-4" />
-              <span>Sem alertas no momento</span>
+              <span>Sem alertas de alta severidade</span>
             </div>
           ) : (
             <div className="space-y-2">
-              {alertas.slice(0, 5).map((alerta, i) => (
+              {alertasAlta.slice(0, 5).map((alerta, i) => (
                 <div
                   key={i}
-                  className={`flex items-start gap-2 text-sm p-2 rounded-md ${
-                    alerta.severidade === "alta"
-                      ? "bg-red-50 dark:bg-red-950/20"
-                      : "bg-yellow-50 dark:bg-yellow-950/20"
-                  }`}
+                  className="flex items-start gap-2 text-sm p-2 rounded-md bg-red-50 dark:bg-red-950/20"
                   data-testid={`item-alerta-${i}`}
                 >
-                  <AlertTriangle
-                    className={`h-4 w-4 mt-0.5 flex-shrink-0 ${
-                      alerta.severidade === "alta" ? "text-red-500" : "text-yellow-500"
-                    }`}
-                  />
+                  <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0 text-red-500" />
                   <span className="leading-snug">{alerta.mensagem}</span>
                 </div>
               ))}
-              {alertas.length > 5 && (
+              {alertasAlta.length > 5 && (
                 <p className="text-xs text-muted-foreground text-center pt-1">
-                  +{alertas.length - 5} outros alertas
+                  +{alertasAlta.length - 5} outros alertas críticos
                 </p>
               )}
             </div>

@@ -2,9 +2,11 @@ import { useMemo } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { GaugeChart } from "@/components/GaugeChart";
 import { CircularProgress } from "@/components/CircularProgress";
-import { DollarSign, Users, Cog, GraduationCap, Loader2, TrendingUp } from "lucide-react";
+import { DollarSign, Users, Cog, GraduationCap, Loader2, TrendingUp, BarChart3, ArrowRight } from "lucide-react";
+import { Link } from "wouter";
 import type { Objetivo, ResultadoChave, Empresa } from "@shared/schema";
 
 const PERSPECTIVAS = [
@@ -114,10 +116,44 @@ export default function BSC() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Indicadores de Desempenho"
-        description="Acompanhe a performance dos seus objetivos estratégicos organizados nas 4 perspectivas do Balanced Scorecard."
-        tooltip="Os indicadores mostram o progresso médio dos resultados-chave de cada objetivo. A performance geral consolida todos os objetivos estratégicos do plano."
+        title="Performance dos OKRs"
+        description="Acompanhe o progresso dos seus objetivos estratégicos organizados nas 4 perspectivas do Balanced Scorecard."
+        tooltip="Esta visão mostra o avanço de 0–100% dos Resultados-Chave de cada OKR. Para monitorar indicadores de saúde contínua do negócio (KPIs verde/amarelo/vermelho), acesse 'KPIs — Indicadores'."
       />
+
+      {/* Educational callout */}
+      <Card className="p-4 bg-muted/30" data-testid="card-bsc-info">
+        <div className="flex flex-col sm:flex-row gap-4 items-start">
+          <div className="flex-1 space-y-1">
+            <div className="flex items-center gap-2">
+              <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
+                <TrendingUp className="h-3.5 w-3.5 text-primary" />
+              </div>
+              <span className="text-sm font-semibold">Esta página: progresso dos OKRs (0–100%)</span>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed pl-8">
+              Mostra quanto cada objetivo avançou no ciclo atual. Os percentuais são calculados a partir dos resultados-chave (KRs).
+            </p>
+          </div>
+          <div className="flex-1 space-y-1">
+            <div className="flex items-center gap-2">
+              <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
+                <BarChart3 className="h-3.5 w-3.5 text-primary" />
+              </div>
+              <span className="text-sm font-semibold">Para KPIs (verde/amarelo/vermelho) →</span>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed pl-8">
+              Indicadores de saúde contínua do negócio estão em "KPIs — Indicadores" no menu lateral.
+            </p>
+          </div>
+          <Link href="/indicadores" className="hidden sm:block self-center">
+            <Button size="sm" variant="ghost" data-testid="link-ver-kpis-bsc">
+              Ver KPIs
+              <ArrowRight className="h-3 w-3 ml-1" />
+            </Button>
+          </Link>
+        </div>
+      </Card>
 
       {/* Performance Geral do Plano */}
       <Card className="p-8" data-testid="card-performance-geral">

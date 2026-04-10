@@ -1,4 +1,4 @@
-import { Home, Map, Target, TrendingUp, CheckCircle, FileText, Compass, Layers, Grid3x3, ListChecks, Briefcase, LogOut, User } from "lucide-react";
+import { Home, Map, Target, TrendingUp, CheckCircle, FileText, Compass, Layers, Grid3x3, ListChecks, Briefcase, LogOut, BarChart3 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -30,8 +30,9 @@ const apostasItems = [
 ];
 
 const marchaItems = [
-  { title: "Objetivos e Resultados", url: "/okrs", icon: Target },
-  { title: "Indicadores de Desempenho", url: "/bsc", icon: ListChecks },
+  { title: "OKRs — Objetivos", url: "/okrs", icon: Target },
+  { title: "KPIs — Indicadores", url: "/indicadores", icon: BarChart3 },
+  { title: "Performance dos OKRs", url: "/bsc", icon: ListChecks },
   { title: "Acompanhamento", url: "/ritos", icon: CheckCircle },
 ];
 

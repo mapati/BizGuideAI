@@ -347,9 +347,9 @@ export default function OKRs() {
   return (
     <div>
       <PageHeader
-        title="Balanced Scorecard (BSC)"
-        description="Organize seus objetivos estratégicos nas 4 perspectivas do BSC. Clique em um objetivo para gerenciar seus resultados-chave."
-        tooltip="O BSC organiza objetivos em 4 perspectivas: Financeira, Clientes, Processos Internos e Aprendizado & Crescimento, criando uma visão estratégica equilibrada."
+        title="OKRs — Objetivos e Resultados-Chave"
+        description="Defina onde quer chegar e como vai medir o progresso. Cada objetivo tem resultados-chave com meta de 0–100% dentro de um prazo."
+        tooltip="OKRs (Objectives & Key Results) são metas ambiciosas com prazo definido e progresso mensurável. São diferentes dos KPIs, que medem a saúde contínua do negócio — acesse 'KPIs — Indicadores' para isso."
         action={
           <div className="flex gap-2">
             <Button

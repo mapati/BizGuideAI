@@ -647,11 +647,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/empresa/usuarios/:id", requireCompanyAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-
-      if (id === req.session.userId) {
-        return res.status(400).json({ error: "Você não pode remover a si mesmo." });
-      }
-
       const membros = await storage.getUsuariosByEmpresaId(req.session.empresaId!);
       const admins = membros.filter(u => u.role === "admin");
       const alvo = membros.find(u => u.id === id);
@@ -660,6 +655,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Usuário não encontrado nesta empresa." });
       }
 
+      // Block removal if it would leave the company with no admins
+      // (this covers self-removal when the user is the last admin)
       if (alvo.role === "admin" && admins.length <= 1) {
         return res.status(400).json({ error: "Não é possível remover o único administrador da empresa." });
       }

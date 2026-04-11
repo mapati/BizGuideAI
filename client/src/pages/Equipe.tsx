@@ -288,33 +288,31 @@ export default function Equipe() {
                     <div className="flex items-center gap-2 flex-wrap">
                       {roleBadge(m.role)}
                       {!isSelf && (
-                        <>
-                          <Select
-                            value={m.role}
-                            onValueChange={v => alterarRole.mutate({ id: m.id, role: v as "admin" | "membro" })}
+                        <Select
+                          value={m.role}
+                          onValueChange={v => alterarRole.mutate({ id: m.id, role: v as "admin" | "membro" })}
+                        >
+                          <SelectTrigger
+                            className="h-8 text-xs w-28"
+                            data-testid={`select-role-${m.id}`}
                           >
-                            <SelectTrigger
-                              className="h-8 text-xs w-28"
-                              data-testid={`select-role-${m.id}`}
-                            >
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="membro">Membro</SelectItem>
-                              <SelectItem value="admin">Admin</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => setRemoverAlvo(m)}
-                            data-testid={`button-remover-${m.id}`}
-                            title="Remover usuário"
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="membro">Membro</SelectItem>
+                            <SelectItem value="admin">Admin</SelectItem>
+                          </SelectContent>
+                        </Select>
                       )}
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setRemoverAlvo(m)}
+                        data-testid={`button-remover-${m.id}`}
+                        title={isSelf ? "Sair da empresa" : "Remover usuário"}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
                     </div>
                   </div>
                 );
@@ -329,10 +327,20 @@ export default function Equipe() {
       <AlertDialog open={!!removerAlvo} onOpenChange={() => setRemoverAlvo(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remover usuário?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {removerAlvo?.id === user?.id ? "Sair da empresa?" : "Remover usuário?"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              <strong>{removerAlvo?.nome}</strong> ({removerAlvo?.email}) perderá o acesso à
-              empresa. Esta ação não pode ser desfeita.
+              {removerAlvo?.id === user?.id ? (
+                <>
+                  Você perderá o acesso a esta empresa. Esta ação não pode ser desfeita.
+                </>
+              ) : (
+                <>
+                  <strong>{removerAlvo?.nome}</strong> ({removerAlvo?.email}) perderá o acesso à
+                  empresa. Esta ação não pode ser desfeita.
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -342,7 +350,7 @@ export default function Equipe() {
               disabled={remover.isPending}
               data-testid="button-confirmar-remover"
             >
-              {remover.isPending ? "Removendo..." : "Remover"}
+              {remover.isPending ? "Removendo..." : removerAlvo?.id === user?.id ? "Sair" : "Remover"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

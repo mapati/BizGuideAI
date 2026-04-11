@@ -1665,6 +1665,12 @@ Responda em JSON:
           .filter(Boolean)
           .slice(0, 8)
           .join(" | ");
+        const h3s = $("h3")
+          .map((_, el) => $(el).text().trim())
+          .get()
+          .filter(Boolean)
+          .slice(0, 10)
+          .join(" | ");
         const paragrafos = $("p")
           .map((_, el) => $(el).text().trim())
           .get()
@@ -1675,8 +1681,9 @@ Responda em JSON:
         conteudoSite = [
           title ? `Título: ${title}` : "",
           metaDesc ? `Descrição do site: ${metaDesc}` : "",
-          h1s ? `Títulos principais: ${h1s}` : "",
-          h2s ? `Subtítulos: ${h2s}` : "",
+          h1s ? `Títulos principais (H1): ${h1s}` : "",
+          h2s ? `Subtítulos (H2): ${h2s}` : "",
+          h3s ? `Subtítulos (H3): ${h3s}` : "",
           paragrafos ? `Conteúdo:\n${paragrafos}` : "",
         ]
           .filter(Boolean)

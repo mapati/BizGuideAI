@@ -114,9 +114,7 @@ export default function Onboarding() {
 
   const gerarDescricaoMutation = useMutation({
     mutationFn: async (website: string) => {
-      const res = await apiRequest("POST", "/api/ai/gerar-descricao-empresa", { website });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erro ao gerar descrição");
+      const data = await apiRequest("POST", "/api/ai/gerar-descricao-empresa", { website });
       return data as { descricao: string };
     },
     onSuccess: (data) => {
@@ -168,6 +166,14 @@ export default function Onboarding() {
         });
         return;
       }
+      if (formData.website && !validateWebsiteUrl(formData.website)) {
+        toast({
+          title: "Website inválido",
+          description: "Informe um endereço de site válido, ex: https://www.empresa.com.br",
+          variant: "destructive",
+        });
+        return;
+      }
       if (empresaExistente) {
         atualizarEmpresaMutation.mutate(formData);
       } else {
@@ -188,6 +194,20 @@ export default function Onboarding() {
     return true;
   }
 
+  function validateWebsiteUrl(website: string): boolean {
+    if (!website.trim()) return true;
+    let url = website.trim();
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      url = "https://" + url;
+    }
+    try {
+      const parsed = new URL(url);
+      return parsed.protocol === "http:" || parsed.protocol === "https:";
+    } catch {
+      return false;
+    }
+  }
+
   const handleSalvarPerfil = () => {
     const errors: Record<string, string> = {};
     if (!formData.nome) errors.nome = "Nome da empresa é obrigatório";
@@ -195,6 +215,9 @@ export default function Onboarding() {
     if (!formData.tamanho) errors.tamanho = "Selecione o tamanho da empresa";
     if (formData.cnpj && !validateCnpj(formData.cnpj)) {
       errors.cnpj = "CNPJ inválido. Informe os 14 dígitos (somente números ou no formato XX.XXX.XXX/XXXX-XX)";
+    }
+    if (formData.website && !validateWebsiteUrl(formData.website)) {
+      errors.website = "Endereço de website inválido. Ex: https://www.empresa.com.br";
     }
     setPerfilErrors(errors);
     if (Object.keys(errors).length > 0) return;
@@ -325,7 +348,10 @@ export default function Onboarding() {
                       type="url"
                       placeholder="https://www.suaempresa.com.br"
                       value={formData.website}
-                      onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                      onChange={(e) => {
+                        setFormData({ ...formData, website: e.target.value });
+                        if (perfilErrors.website) setPerfilErrors({ ...perfilErrors, website: "" });
+                      }}
                       className="pl-9"
                       data-testid="input-website"
                     />
@@ -345,9 +371,13 @@ export default function Onboarding() {
                     Gerar com IA
                   </Button>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Nossa IA acessa o site e cria uma descrição profissional da empresa automaticamente.
-                </p>
+                {perfilErrors.website ? (
+                  <p className="text-sm text-destructive mt-1" data-testid="error-website">{perfilErrors.website}</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Nossa IA acessa o site e cria uma descrição profissional da empresa automaticamente.
+                  </p>
+                )}
               </div>
 
               <div>

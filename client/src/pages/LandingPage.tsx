@@ -140,17 +140,19 @@ function InlineCircularProgress({ value, size = 64, strokeWidth = 7 }: { value: 
 
 function MockupSidebar({ active }: { active: "inicio" | "okrs" | "kpis" }) {
   const nav = [
-    { id: "inicio", label: "Início", icon: Home },
-    { id: "mapa", label: "Mapa Estratégico", icon: Map, section: "DIAGNÓSTICO" },
-    { id: "pestel", label: "PESTEL" },
-    { id: "swot", label: "SWOT" },
-    { id: "forcas", label: "Cinco Forças" },
+    { id: "inicio", label: "Início" },
+    { id: "mapa", label: "Mapa Estratégico" },
+    { id: "pestel", label: "Cenário Externo", section: "DIAGNÓSTICO" },
+    { id: "forcas", label: "Mercado e Concorrência" },
+    { id: "bmc", label: "Modelo de Negócio" },
+    { id: "swot", label: "Forças e Fraquezas" },
     { id: "estrategias", label: "Estratégias", section: "APOSTAS" },
-    { id: "iniciativas", label: "Iniciativas" },
-    { id: "okrs", label: "OKRs", section: "MARCHA", icon: Target },
-    { id: "kpis", label: "KPIs", icon: BarChart3 },
-    { id: "bsc", label: "BSC" },
-    { id: "ritos", label: "Ritos" },
+    { id: "oportunidades", label: "Oportunidades" },
+    { id: "iniciativas", label: "Iniciativas Prioritárias" },
+    { id: "okrs", label: "OKRs — Objetivos", section: "MARCHA" },
+    { id: "kpis", label: "KPIs — Indicadores" },
+    { id: "bsc", label: "Performance dos OKRs" },
+    { id: "ritos", label: "Acompanhamento" },
   ];
 
   let currentSection = "";
@@ -821,9 +823,9 @@ export default function LandingPage() {
               />
               <div className="relative space-y-3">
                 {[
-                  { title: "Análise de Site", desc: "IA lê seu site e gera perfil estratégico inicial", tag: "Auto", color: "text-emerald-400" },
+                  { title: "Análise de Site", desc: "IA lê seu site e gera perfil estratégico", tag: "Auto", color: "text-emerald-400" },
                   { title: "Geração de OKRs", desc: "Objetivos e KRs alinhados ao seu contexto real", tag: "Contextual", color: "text-blue-400" },
-                  { title: "SWOT Inteligente", desc: "Cruzamentos SO, WO, ST, WT gerados automaticamente", tag: "Estratégico", color: "text-purple-400" },
+                  { title: "SWOT Inteligente", desc: "Cruzamentos SO, WO, ST, WT automáticos", tag: "Estratégico", color: "text-purple-400" },
                   { title: "Diagnóstico Executivo", desc: "Relatório em linguagem de C-level, não em jargão técnico", tag: "Executivo", color: "text-amber-400" },
                 ].map(item => (
                   <div key={item.title} className="flex items-center gap-3 bg-slate-900/80 border border-white/10 rounded-xl p-4">

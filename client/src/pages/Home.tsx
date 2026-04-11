@@ -76,7 +76,7 @@ function getSaudeCor(saude: number): { label: string; className: string } {
 }
 
 export default function Home() {
-  const { usuario } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [diagnostico, setDiagnostico] = useState<Diagnostico | null>(null);
 
@@ -203,7 +203,7 @@ export default function Home() {
         )}
         <div>
           <h1 className="text-3xl font-bold" data-testid="text-home-title">
-            {usuario ? `Olá, ${usuario.nome}` : "Início"}
+            {user ? `Olá, ${user.nome}` : "Início"}
           </h1>
           <p className="text-muted-foreground mt-1">
             {hoje.toLocaleDateString("pt-BR", {

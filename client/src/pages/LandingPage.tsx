@@ -25,10 +25,14 @@ import {
   Phone,
   Mail,
   Sparkles,
-  Activity,
-  PieChart,
-  GitBranch,
   Star,
+  DollarSign,
+  Cog,
+  GraduationCap,
+  AlertCircle,
+  XCircle,
+  AlertTriangle,
+  Home,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -111,165 +115,418 @@ const steps = [
   },
 ];
 
-function DashboardMockupHome() {
+function InlineCircularProgress({ value, size = 64, strokeWidth = 7 }: { value: number; size?: number; strokeWidth?: number }) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = radius * 2 * Math.PI;
+  const offset = circumference - (value / 100) * circumference;
+  const color =
+    value < 30 ? "#f87171" :
+    value < 50 ? "#fb923c" :
+    value < 70 ? "#eab308" :
+    "#16a34a";
   return (
-    <div className="w-full rounded-xl overflow-hidden border border-white/10 shadow-2xl shadow-primary/20 bg-slate-950 text-xs">
-      <div className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 border-b border-white/10">
-        <span className="h-2.5 w-2.5 rounded-full bg-red-500/70" />
-        <span className="h-2.5 w-2.5 rounded-full bg-yellow-500/70" />
-        <span className="h-2.5 w-2.5 rounded-full bg-green-500/70" />
-        <span className="ml-2 text-slate-500 text-[10px]">BizGuideAI — Dashboard</span>
-      </div>
-      <div className="flex min-h-[300px]">
-        <div className="w-36 bg-slate-900/80 border-r border-white/5 p-3 flex flex-col gap-1 flex-shrink-0">
-          {["Início", "Mapa", "OKRs", "BSC", "Indicadores", "Ritos"].map((item, i) => (
-            <div key={item} className={`px-2 py-1.5 rounded text-[10px] font-medium ${i === 0 ? "bg-primary/20 text-primary" : "text-slate-500"}`}>
-              {item}
-            </div>
-          ))}
-        </div>
-        <div className="flex-1 p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-slate-300 font-semibold text-[11px]">Visão Geral Estratégica</p>
-            <Badge className="text-[9px] px-1.5 py-0 bg-primary/20 text-primary border-none">IA Ativa</Badge>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { label: "OKRs ativos", value: "4", sub: "+1 este mês", color: "text-emerald-400" },
-              { label: "Iniciativas", value: "7", sub: "3 em progresso", color: "text-blue-400" },
-              { label: "Indicadores", value: "12", sub: "2 em alerta", color: "text-amber-400" },
-            ].map(c => (
-              <div key={c.label} className="bg-slate-800/60 rounded-lg p-2.5 border border-white/5">
-                <p className="text-slate-500 text-[9px]">{c.label}</p>
-                <p className={`text-lg font-bold ${c.color}`}>{c.value}</p>
-                <p className="text-slate-600 text-[9px]">{c.sub}</p>
-              </div>
-            ))}
-          </div>
-          <div className="bg-slate-800/40 rounded-lg p-3 border border-white/5">
-            <p className="text-slate-400 text-[10px] font-medium mb-2">Progresso dos OKRs</p>
-            {[
-              { name: "Aumentar receita", pct: 72, color: "bg-emerald-500" },
-              { name: "Expansão de clientes", pct: 45, color: "bg-blue-500" },
-              { name: "NPS acima de 70", pct: 88, color: "bg-purple-500" },
-            ].map(okr => (
-              <div key={okr.name} className="mb-1.5">
-                <div className="flex justify-between mb-0.5">
-                  <span className="text-slate-400 text-[9px]">{okr.name}</span>
-                  <span className="text-slate-300 text-[9px] font-medium">{okr.pct}%</span>
-                </div>
-                <div className="h-1 bg-slate-700 rounded-full">
-                  <div className={`h-full ${okr.color} rounded-full`} style={{ width: `${okr.pct}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="bg-slate-800/40 rounded-lg p-2.5 border border-white/5 flex items-start gap-2">
-            <Sparkles className="h-3 w-3 text-primary flex-shrink-0 mt-0.5" />
-            <p className="text-[9px] text-slate-400 leading-relaxed">
-              <span className="text-primary font-medium">IA:</span> Sua meta de receita está 72% concluída. Recomendo revisar as iniciativas de vendas para acelerar o fechamento do trimestre.
-            </p>
-          </div>
-        </div>
+    <div className="relative inline-flex items-center justify-center flex-shrink-0">
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={radius} stroke="#e5e7eb" strokeWidth={strokeWidth} fill="none" />
+        <circle cx={size / 2} cy={size / 2} r={radius} stroke={color} strokeWidth={strokeWidth} fill="none"
+          strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className="text-[11px] font-bold" style={{ color }}>{value}%</span>
       </div>
     </div>
   );
 }
 
-function DashboardMockupBSC() {
-  return (
-    <div className="w-full rounded-xl overflow-hidden border border-white/10 shadow-2xl shadow-blue-500/20 bg-slate-950 text-xs">
-      <div className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 border-b border-white/10">
-        <span className="h-2.5 w-2.5 rounded-full bg-red-500/70" />
-        <span className="h-2.5 w-2.5 rounded-full bg-yellow-500/70" />
-        <span className="h-2.5 w-2.5 rounded-full bg-green-500/70" />
-        <span className="ml-2 text-slate-500 text-[10px]">BizGuideAI — Balanced Scorecard</span>
-      </div>
-      <div className="p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="text-slate-300 font-semibold text-[11px]">Indicadores — BSC</p>
-          <span className="text-[9px] text-slate-500">Q2 2025</span>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          {[
-            { label: "Financeiro", items: ["Receita: R$ 1.2M", "Margem: 28%", "CAC: R$ 380"], color: "border-emerald-500/40 bg-emerald-500/5", dot: "bg-emerald-500" },
-            { label: "Clientes", items: ["NPS: 74", "Churn: 2.1%", "Novos: 34/mês"], color: "border-blue-500/40 bg-blue-500/5", dot: "bg-blue-500" },
-            { label: "Processos", items: ["Lead Time: 3d", "SLA: 96%", "Retrabalho: 4%"], color: "border-purple-500/40 bg-purple-500/5", dot: "bg-purple-500" },
-            { label: "Pessoas", items: ["eNPS: 61", "Turnover: 8%", "T&D: 12h/tri"], color: "border-amber-500/40 bg-amber-500/5", dot: "bg-amber-500" },
-          ].map(q => (
-            <div key={q.label} className={`rounded-lg p-2.5 border ${q.color}`}>
-              <div className="flex items-center gap-1 mb-1.5">
-                <span className={`h-1.5 w-1.5 rounded-full ${q.dot}`} />
-                <p className="text-[9px] font-semibold text-slate-300">{q.label}</p>
-              </div>
-              {q.items.map(item => (
-                <p key={item} className="text-[9px] text-slate-500">{item}</p>
-              ))}
-            </div>
-          ))}
-        </div>
-        <div className="bg-slate-800/40 rounded-lg p-2.5 border border-white/5 flex items-start gap-2">
-          <Sparkles className="h-3 w-3 text-blue-400 flex-shrink-0 mt-0.5" />
-          <p className="text-[9px] text-slate-400 leading-relaxed">
-            <span className="text-blue-400 font-medium">IA:</span> O churn de 2.1% está dentro da meta, mas o eNPS de Pessoas merece atenção — considere ações de engajamento.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
+function MockupSidebar({ active }: { active: "inicio" | "okrs" | "kpis" }) {
+  const nav = [
+    { id: "inicio", label: "Início", icon: Home },
+    { id: "mapa", label: "Mapa Estratégico", icon: Map, section: "DIAGNÓSTICO" },
+    { id: "pestel", label: "PESTEL" },
+    { id: "swot", label: "SWOT" },
+    { id: "forcas", label: "Cinco Forças" },
+    { id: "estrategias", label: "Estratégias", section: "APOSTAS" },
+    { id: "iniciativas", label: "Iniciativas" },
+    { id: "okrs", label: "OKRs", section: "MARCHA", icon: Target },
+    { id: "kpis", label: "KPIs", icon: BarChart3 },
+    { id: "bsc", label: "BSC" },
+    { id: "ritos", label: "Ritos" },
+  ];
 
-function DashboardMockupSwot() {
+  let currentSection = "";
+
   return (
-    <div className="w-full rounded-xl overflow-hidden border border-white/10 shadow-2xl shadow-purple-500/20 bg-slate-950 text-xs">
-      <div className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 border-b border-white/10">
-        <span className="h-2.5 w-2.5 rounded-full bg-red-500/70" />
-        <span className="h-2.5 w-2.5 rounded-full bg-yellow-500/70" />
-        <span className="h-2.5 w-2.5 rounded-full bg-green-500/70" />
-        <span className="ml-2 text-slate-500 text-[10px]">BizGuideAI — Análise SWOT</span>
-      </div>
-      <div className="p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="text-slate-300 font-semibold text-[11px]">SWOT — Gerado por IA</p>
-          <Badge className="text-[9px] px-1.5 py-0 bg-purple-500/20 text-purple-400 border-none">Auto-gerado</Badge>
+    <div className="w-[108px] flex-shrink-0 bg-white border-r border-gray-100 flex flex-col">
+      <div className="flex items-center gap-1 px-2 py-2 border-b border-gray-100">
+        <div className="h-4 w-4 rounded bg-primary flex items-center justify-center flex-shrink-0">
+          <Target className="h-2.5 w-2.5 text-white" />
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          {[
-            { label: "Forças", emoji: "S", items: ["Equipe especializada", "Produto consolidado", "Alta retenção"], color: "border-emerald-500/30 bg-emerald-500/5 text-emerald-400" },
-            { label: "Fraquezas", emoji: "W", items: ["Marketing incipiente", "Processo manual", "Dependência de sócios"], color: "border-red-500/30 bg-red-500/5 text-red-400" },
-            { label: "Oportunidades", emoji: "O", items: ["Mercado em expansão", "Digitalização setorial", "Parcerias potenciais"], color: "border-blue-500/30 bg-blue-500/5 text-blue-400" },
-            { label: "Ameaças", emoji: "T", items: ["Concorrentes maiores", "Câmbio instável", "Regulação setorial"], color: "border-amber-500/30 bg-amber-500/5 text-amber-400" },
-          ].map(q => (
-            <div key={q.label} className={`rounded-lg p-2.5 border ${q.color}`}>
-              <p className={`text-[9px] font-bold mb-1.5 ${q.color.split(" ")[2]}`}>{q.emoji} — {q.label}</p>
-              {q.items.map(item => (
-                <p key={item} className="text-[9px] text-slate-500 flex items-start gap-1">
-                  <span className="mt-0.5 flex-shrink-0">·</span>{item}
+        <span className="text-[9px] font-bold text-gray-800">BizGuideAI</span>
+      </div>
+      <div className="flex flex-col p-1.5 gap-px overflow-hidden">
+        {nav.map((item) => {
+          const showSection = item.section && item.section !== currentSection;
+          if (item.section) currentSection = item.section;
+          const isActive = item.id === active;
+          return (
+            <div key={item.id}>
+              {showSection && (
+                <p className="text-[7px] font-semibold text-gray-400 uppercase tracking-wider px-1.5 pt-2 pb-0.5">
+                  {item.section}
                 </p>
-              ))}
+              )}
+              <div className={`px-1.5 py-[3px] rounded text-[8.5px] font-medium ${
+                isActive
+                  ? "bg-primary/10 text-primary"
+                  : "text-gray-500"
+              }`}>
+                {item.label}
+              </div>
             </div>
-          ))}
-        </div>
-        <div className="bg-slate-800/40 rounded-lg p-2.5 border border-white/5 flex items-start gap-2">
-          <Sparkles className="h-3 w-3 text-purple-400 flex-shrink-0 mt-0.5" />
-          <p className="text-[9px] text-slate-400 leading-relaxed">
-            <span className="text-purple-400 font-medium">IA:</span> Identifiquei 3 cruzamentos SO estratégicos — use sua equipe especializada para capturar o mercado em expansão.
-          </p>
-        </div>
+          );
+        })}
       </div>
     </div>
+  );
+}
+
+function BrowserChrome({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="w-full rounded-xl overflow-hidden border border-gray-200 shadow-2xl shadow-slate-900/30 bg-white text-xs">
+      <div className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 border-b border-gray-200">
+        <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
+        <span className="h-2.5 w-2.5 rounded-full bg-yellow-400" />
+        <span className="h-2.5 w-2.5 rounded-full bg-green-400" />
+        <div className="ml-2 flex-1 bg-white rounded px-2 py-0.5 text-[9px] text-gray-400 border border-gray-200">
+          {title}
+        </div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function MockupHome() {
+  const perspectivas = [
+    { label: "Financeira", icon: DollarSign, cor: "text-green-600 bg-green-50", pct: 72 },
+    { label: "Clientes", icon: Users, cor: "text-blue-600 bg-blue-50", pct: 58 },
+    { label: "Processos", icon: Cog, cor: "text-orange-600 bg-orange-50", pct: 45 },
+    { label: "Pessoas", icon: GraduationCap, cor: "text-purple-600 bg-purple-50", pct: 83 },
+  ];
+
+  return (
+    <BrowserChrome title="bizguideai.app — Início">
+      <div className="flex bg-gray-50" style={{ minHeight: 400 }}>
+        <MockupSidebar active="inicio" />
+        <div className="flex-1 p-3 flex flex-col gap-3 overflow-hidden min-w-0">
+          <div>
+            <h1 className="text-[13px] font-bold text-gray-900">Olá, Tecno Sul Comércio</h1>
+            <p className="text-[9px] text-gray-400">sábado, 11 de abril de 2026</p>
+          </div>
+
+          <div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr" }}>
+            <div className="col-span-2 bg-white rounded-lg border border-gray-100 p-3 flex flex-col items-center justify-center gap-2">
+              <div className="flex items-center gap-1 text-[9px] font-medium text-gray-500 self-start">
+                <TrendingUp className="h-3 w-3" />
+                Performance Geral dos OKRs
+              </div>
+              <InlineCircularProgress value={74} size={72} strokeWidth={7} />
+              <p className="text-[8px] text-gray-400 text-center">5 objetivos · 14 resultados-chave</p>
+            </div>
+
+            <div className="col-span-3 grid grid-cols-2 gap-2">
+              {perspectivas.map((p) => {
+                const Icon = p.icon;
+                return (
+                  <div key={p.label} className="bg-white rounded-lg border border-gray-100 p-2.5 flex flex-col gap-1.5">
+                    <div className="flex items-center gap-1">
+                      <div className={`h-5 w-5 rounded-full flex items-center justify-center flex-shrink-0 ${p.cor}`}>
+                        <Icon className="h-2.5 w-2.5" />
+                      </div>
+                      <span className="text-[9px] font-medium text-gray-700">{p.label}</span>
+                    </div>
+                    <div className="flex items-end gap-1">
+                      <span className="text-[15px] font-bold text-gray-900">{p.pct}%</span>
+                      <span className="text-[8px] text-gray-400 mb-0.5">progresso</span>
+                    </div>
+                    <div className="w-full bg-gray-100 rounded-full" style={{ height: 4 }}>
+                      <div className="bg-primary rounded-full" style={{ height: 4, width: `${p.pct}%` }} />
+                    </div>
+                    <p className="text-[8px] text-gray-400">2 objetivos</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-white rounded-lg border border-gray-100 p-2.5">
+              <div className="flex items-center gap-1 mb-2">
+                <BarChart3 className="h-3 w-3 text-gray-400" />
+                <span className="text-[9px] font-semibold text-gray-700">Indicadores BSC (KPIs)</span>
+              </div>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="flex items-center gap-1">
+                  <div className="h-2 w-2 rounded-full bg-green-500" />
+                  <span className="text-[9px] font-semibold text-gray-800">7</span>
+                  <span className="text-[8px] text-gray-400">verde</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="h-2 w-2 rounded-full bg-yellow-500" />
+                  <span className="text-[9px] font-semibold text-gray-800">2</span>
+                  <span className="text-[8px] text-gray-400">atenção</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="h-2 w-2 rounded-full bg-red-500" />
+                  <span className="text-[9px] font-semibold text-gray-800">1</span>
+                  <span className="text-[8px] text-gray-400">crítico</span>
+                </div>
+              </div>
+              <p className="text-[7.5px] font-semibold text-red-600 uppercase tracking-wide mb-1">Indicadores críticos</p>
+              <div className="flex items-center justify-between bg-red-50 rounded p-1.5">
+                <span className="text-[8.5px] font-medium text-gray-800">Inadimplência</span>
+                <span className="text-[8px] text-gray-500">3.2% / 1%</span>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg border border-gray-100 p-2.5">
+              <div className="flex items-center gap-1 mb-2">
+                <AlertTriangle className="h-3 w-3 text-gray-400" />
+                <span className="text-[9px] font-semibold text-gray-700">Alertas Ativos</span>
+              </div>
+              <div className="flex items-center gap-1.5 py-3 justify-center">
+                <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                <span className="text-[8.5px] text-green-600 font-medium">Sem alertas de alta severidade</span>
+              </div>
+              <div className="mt-1 border border-gray-100 rounded p-1.5 flex items-start gap-1.5 bg-primary/5">
+                <Sparkles className="h-3 w-3 text-primary flex-shrink-0 mt-0.5" />
+                <p className="text-[7.5px] text-gray-600 leading-relaxed">
+                  <span className="text-primary font-semibold">IA:</span> Sua Margem Bruta está 4pp abaixo da meta. Revise a precificação dos serviços de maior volume.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </BrowserChrome>
+  );
+}
+
+function MockupOKRs() {
+  const okrs = [
+    {
+      perspectiva: "Financeira",
+      icon: DollarSign,
+      cor: "text-green-600",
+      dot: "bg-green-500",
+      objetivos: [
+        {
+          titulo: "Crescer receita bruta em 30%",
+          prazo: "dez/2025",
+          krs: [
+            { metrica: "Receita mensal de R$ 180k", pct: 72 },
+            { metrica: "Margem bruta acima de 28%", pct: 60 },
+          ],
+        },
+        {
+          titulo: "Reduzir inadimplência para 1%",
+          prazo: "jun/2025",
+          krs: [
+            { metrica: "Inadimplência ≤ 1% ao mês", pct: 45 },
+          ],
+        },
+      ],
+    },
+    {
+      perspectiva: "Clientes",
+      icon: Users,
+      cor: "text-blue-600",
+      dot: "bg-blue-500",
+      objetivos: [
+        {
+          titulo: "NPS acima de 75 pontos",
+          prazo: "dez/2025",
+          krs: [
+            { metrica: "Pesquisa mensal com 100+ respostas", pct: 88 },
+            { metrica: "Resolver 95% reclamações em 24h", pct: 55 },
+          ],
+        },
+      ],
+    },
+  ];
+
+  return (
+    <BrowserChrome title="bizguideai.app — OKRs">
+      <div className="flex bg-gray-50" style={{ minHeight: 400 }}>
+        <MockupSidebar active="okrs" />
+        <div className="flex-1 p-3 flex flex-col gap-3 overflow-hidden min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h1 className="text-[13px] font-bold text-gray-900">OKRs — Objetivos e Resultados-Chave</h1>
+              <p className="text-[9px] text-gray-400">Defina objetivos ambiciosos e acompanhe resultados mensuráveis</p>
+            </div>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <div className="flex items-center gap-0.5 bg-primary text-white rounded px-1.5 py-1 text-[8px] font-medium">
+                <Sparkles className="h-2.5 w-2.5" />
+                Gerar com IA
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            {okrs.map((persp) => {
+              const Icon = persp.icon;
+              return (
+                <div key={persp.perspectiva} className="flex flex-col gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <div className={`h-3 w-3 rounded-full flex-shrink-0 ${persp.dot}`} />
+                    <Icon className={`h-3 w-3 ${persp.cor}`} />
+                    <span className={`text-[9px] font-semibold ${persp.cor}`}>{persp.perspectiva}</span>
+                  </div>
+                  {persp.objetivos.map((obj, oi) => (
+                    <div key={oi} className="bg-white rounded-lg border border-gray-100 p-2.5 flex flex-col gap-1.5">
+                      <p className="text-[9px] font-semibold text-gray-800 leading-tight">{obj.titulo}</p>
+                      <p className="text-[7.5px] text-gray-400">Prazo: {obj.prazo}</p>
+                      <div className="flex flex-col gap-1.5 mt-0.5">
+                        {obj.krs.map((kr, ki) => (
+                          <div key={ki}>
+                            <div className="flex items-center justify-between mb-0.5">
+                              <span className="text-[7.5px] text-gray-500 truncate pr-2">{kr.metrica}</span>
+                              <span className="text-[8px] font-semibold text-gray-700 flex-shrink-0">{kr.pct}%</span>
+                            </div>
+                            <div className="w-full bg-gray-100 rounded-full" style={{ height: 4 }}>
+                              <div className="bg-primary rounded-full transition-all" style={{ height: 4, width: `${kr.pct}%` }} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  <div className="flex items-center gap-1">
+                    <div className="text-[7.5px] text-gray-400 border border-dashed border-gray-200 rounded px-1.5 py-1 flex items-center gap-1">
+                      + Novo Objetivo
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </BrowserChrome>
+  );
+}
+
+function MockupIndicadores() {
+  const secoes = [
+    {
+      label: "Finanças",
+      icon: DollarSign,
+      headerCor: "text-green-600 bg-green-50",
+      indicadores: [
+        { nome: "Receita Bruta Mensal", atual: "R$ 147k", meta: "R$ 180k", status: "verde" as const },
+        { nome: "Margem Bruta", atual: "24%", meta: "28%", status: "amarelo" as const },
+        { nome: "Inadimplência", atual: "3.2%", meta: "1%", status: "vermelho" as const },
+      ],
+    },
+    {
+      label: "Clientes",
+      icon: Users,
+      headerCor: "text-blue-600 bg-blue-50",
+      indicadores: [
+        { nome: "NPS — Net Promoter Score", atual: "74", meta: "75", status: "verde" as const },
+        { nome: "Churn Rate", atual: "2.1%", meta: "2%", status: "verde" as const },
+      ],
+    },
+  ];
+
+  const statusConfig = {
+    verde: {
+      badge: "bg-green-100 text-green-800",
+      label: "No Alvo",
+      icon: CheckCircle2,
+    },
+    amarelo: {
+      badge: "bg-yellow-100 text-yellow-800",
+      label: "Atenção",
+      icon: AlertCircle,
+    },
+    vermelho: {
+      badge: "bg-red-100 text-red-800",
+      label: "Crítico",
+      icon: XCircle,
+    },
+  };
+
+  return (
+    <BrowserChrome title="bizguideai.app — KPIs — Indicadores">
+      <div className="flex bg-gray-50" style={{ minHeight: 400 }}>
+        <MockupSidebar active="kpis" />
+        <div className="flex-1 p-3 flex flex-col gap-3 overflow-hidden min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h1 className="text-[13px] font-bold text-gray-900">KPIs — Indicadores de Performance</h1>
+              <p className="text-[9px] text-gray-400">Balanced Scorecard — monitoramento das 4 perspectivas</p>
+            </div>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <div className="flex items-center gap-0.5 border border-gray-200 bg-white rounded px-1.5 py-1 text-[8px] text-gray-600">
+                + Novo KPI
+              </div>
+              <div className="flex items-center gap-0.5 bg-primary text-white rounded px-1.5 py-1 text-[8px] font-medium">
+                <Sparkles className="h-2.5 w-2.5" />
+                Gerar com IA
+              </div>
+            </div>
+          </div>
+
+          {secoes.map((secao) => {
+            const Icon = secao.icon;
+            return (
+              <div key={secao.label} className="flex flex-col gap-1.5">
+                <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${secao.headerCor} w-fit`}>
+                  <Icon className="h-3 w-3" />
+                  <span className="text-[9px] font-semibold">{secao.label}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {secao.indicadores.map((ind) => {
+                    const cfg = statusConfig[ind.status];
+                    const StatusIcon = cfg.icon;
+                    return (
+                      <div key={ind.nome} className="bg-white rounded-lg border border-gray-100 p-2.5 flex flex-col gap-1.5">
+                        <div className="flex items-start justify-between gap-1">
+                          <p className="text-[8.5px] font-semibold text-gray-800 leading-tight">{ind.nome}</p>
+                        </div>
+                        <div className="flex items-center gap-1 text-[8px] text-gray-500">
+                          <span className="font-medium text-gray-700">{ind.atual}</span>
+                          <ArrowRight className="h-2.5 w-2.5 text-gray-400 flex-shrink-0" />
+                          <span>{ind.meta}</span>
+                        </div>
+                        <div className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[7.5px] font-medium ${cfg.badge} w-fit`}>
+                          <StatusIcon className="h-2.5 w-2.5 flex-shrink-0" />
+                          {cfg.label}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </BrowserChrome>
   );
 }
 
 const showcaseTabs = [
-  { id: "home", label: "Dashboard", icon: Activity, component: DashboardMockupHome },
-  { id: "bsc", label: "BSC & KPIs", icon: PieChart, component: DashboardMockupBSC },
-  { id: "swot", label: "SWOT com IA", icon: GitBranch, component: DashboardMockupSwot },
+  { id: "home", label: "Início", icon: Home, component: MockupHome },
+  { id: "okrs", label: "OKRs", icon: Target, component: MockupOKRs },
+  { id: "indicadores", label: "Indicadores", icon: BarChart3, component: MockupIndicadores },
 ];
 
 export default function LandingPage() {
   const [activeTab, setActiveTab] = useState("home");
-  const ActiveMockup = showcaseTabs.find(t => t.id === activeTab)?.component ?? DashboardMockupHome;
+  const ActiveMockup = showcaseTabs.find(t => t.id === activeTab)?.component ?? MockupHome;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -352,22 +609,13 @@ export default function LandingPage() {
 
               <div className="flex flex-wrap items-center gap-3">
                 <Link href="/register">
-                  <Button
-                    size="lg"
-                    className="gap-2 text-base"
-                    data-testid="button-hero-cta-register"
-                  >
+                  <Button size="lg" className="gap-2 text-base" data-testid="button-hero-cta-register">
                     Começar Período de Testes
                     <ArrowRight className="h-5 w-5" />
                   </Button>
                 </Link>
                 <Link href="/login">
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="gap-2 text-base border-slate-600 text-slate-300 bg-transparent"
-                    data-testid="button-hero-cta-login"
-                  >
+                  <Button size="lg" variant="outline" className="gap-2 text-base border-slate-600 text-slate-300 bg-transparent" data-testid="button-hero-cta-login">
                     Fazer Login
                   </Button>
                 </Link>
@@ -380,14 +628,14 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Right — dashboard mockup */}
+            {/* Right — hero mockup (Início) */}
             <div className="relative">
               <div
                 className="absolute -inset-4 rounded-2xl opacity-30 blur-2xl pointer-events-none"
                 style={{ background: "radial-gradient(ellipse, hsl(var(--primary)) 0%, transparent 70%)" }}
               />
               <div className="relative">
-                <DashboardMockupHome />
+                <MockupHome />
               </div>
             </div>
           </div>
@@ -424,7 +672,7 @@ export default function LandingPage() {
               Um sistema completo, guiado por IA
             </h2>
             <p className="text-slate-400 text-lg max-w-2xl mx-auto">
-              Cada tela foi projetada para tornar o planejamento estratégico simples, visual e accionável.
+              Cada tela foi projetada para tornar o planejamento estratégico simples, visual e acionável.
             </p>
           </div>
 
@@ -527,7 +775,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* POWERED BY AI — DESTAQUE */}
+      {/* POWERED BY AI */}
       <section className="py-20 bg-slate-950 relative overflow-hidden" data-testid="section-ai-highlight">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-blue-600/10 pointer-events-none" />
         <div
@@ -554,7 +802,7 @@ export default function LandingPage() {
                   "Analisa o site da empresa e gera o perfil estratégico automaticamente",
                   "Sugere OKRs, iniciativas e KPIs alinhados ao contexto do seu setor",
                   "Identifica cruzamentos estratégicos no SWOT e prioriza ações",
-                  "Gera insights contextuais em cada etapa do planejamento",
+                  "Gera diagnóstico executivo completo com pontos fortes, riscos e recomendações",
                 ].map(item => (
                   <div key={item} className="flex items-start gap-3">
                     <div className="h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -573,9 +821,9 @@ export default function LandingPage() {
               />
               <div className="relative space-y-3">
                 {[
-                  { title: "Análise de Site", desc: "IA lê seu site e gera perfil estratégico", tag: "Auto", color: "text-emerald-400" },
+                  { title: "Análise de Site", desc: "IA lê seu site e gera perfil estratégico inicial", tag: "Auto", color: "text-emerald-400" },
                   { title: "Geração de OKRs", desc: "Objetivos e KRs alinhados ao seu contexto real", tag: "Contextual", color: "text-blue-400" },
-                  { title: "SWOT Inteligente", desc: "Cruzamentos SO, WO, ST, WT automáticos", tag: "Estratégico", color: "text-purple-400" },
+                  { title: "SWOT Inteligente", desc: "Cruzamentos SO, WO, ST, WT gerados automaticamente", tag: "Estratégico", color: "text-purple-400" },
                   { title: "Diagnóstico Executivo", desc: "Relatório em linguagem de C-level, não em jargão técnico", tag: "Executivo", color: "text-amber-400" },
                 ].map(item => (
                   <div key={item.title} className="flex items-center gap-3 bg-slate-900/80 border border-white/10 rounded-xl p-4">
@@ -623,7 +871,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* DEPOIMENTOS / PROVA SOCIAL */}
+      {/* PROVA SOCIAL */}
       <section className="py-20 bg-muted/30" data-testid="section-testimonials">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
@@ -638,7 +886,7 @@ export default function LandingPage() {
               {
                 icon: Target,
                 title: "Frameworks de classe mundial",
-                desc: "PESTEL, SWOT, BSC, OKR, Cinco Forças e Modelo de Negócio Canvas — metodologias usadas pelas maiores empresas do mundo, acessíveis à sua PME.",
+                desc: "PESTEL, SWOT, BSC, OKR, Cinco Forças e Business Model Canvas — metodologias usadas pelas maiores empresas do mundo, acessíveis à sua PME.",
               },
               {
                 icon: Zap,
@@ -669,10 +917,7 @@ export default function LandingPage() {
       </section>
 
       {/* CTA FINAL */}
-      <section
-        className="py-20 bg-gradient-to-br from-primary to-primary/80 relative overflow-hidden"
-        data-testid="section-cta"
-      >
+      <section className="py-20 bg-gradient-to-br from-primary to-primary/80 relative overflow-hidden" data-testid="section-cta">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent pointer-events-none" />
         <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center flex flex-col items-center gap-6">
           <Badge className="bg-white/20 text-white border-white/30 text-sm px-4 py-1">
@@ -709,12 +954,7 @@ export default function LandingPage() {
             Nossa equipe está pronta para ajudar você a dar o próximo passo no planejamento estratégico da sua empresa.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <a
-              href="https://wa.me/5511950377286?text=Ol%C3%A1%2C%20gostaria%20de%20saber%20mais%20sobre%20o%20BizGuideAI"
-              target="_blank"
-              rel="noopener noreferrer"
-              data-testid="link-whatsapp-contato"
-            >
+            <a href="https://wa.me/5511950377286?text=Ol%C3%A1%2C%20gostaria%20de%20saber%20mais%20sobre%20o%20BizGuideAI" target="_blank" rel="noopener noreferrer" data-testid="link-whatsapp-contato">
               <Button size="lg" className="gap-2 w-full sm:w-auto">
                 <MessageCircle className="h-5 w-5" />
                 WhatsApp: (11) 95037-7286

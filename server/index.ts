@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
+import bcrypt from "bcryptjs";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { pool } from "./db";
@@ -33,6 +34,33 @@ async function runStartupMigrations() {
       SET plano_ativado_em = created_at
       WHERE plano_status = 'ativo' AND plano_ativado_em IS NULL
     `);
+
+    // Seed: create initial admin user if none exists and env vars are provided
+    const adminEmail = process.env.ADMIN_EMAIL;
+    const adminSenha = process.env.ADMIN_SENHA;
+    if (adminEmail && adminSenha) {
+      const { rows: existingAdmins } = await client.query(
+        `SELECT id FROM usuarios WHERE is_admin = true LIMIT 1`
+      );
+      if (existingAdmins.length === 0) {
+        const adminNome = process.env.ADMIN_NOME || "Administrador";
+        const adminEmpresaNome = process.env.ADMIN_EMPRESA_NOME || "BizGuideAI";
+        const { rows: empresaRows } = await client.query(
+          `INSERT INTO empresas (nome, setor, tamanho, plano_status, trial_started_at, created_at)
+           VALUES ($1, 'Tecnologia', 'pequena', 'ativo', NOW(), NOW())
+           RETURNING id`,
+          [adminEmpresaNome]
+        );
+        const empresaId = empresaRows[0].id;
+        const senhaHash = await bcrypt.hash(adminSenha, 10);
+        await client.query(
+          `INSERT INTO usuarios (nome, email, senha, empresa_id, is_admin, role, created_at)
+           VALUES ($1, $2, $3, $4, true, 'admin', NOW())`,
+          [adminNome, adminEmail, senhaHash, empresaId]
+        );
+        log(`[SEED] Admin criado com sucesso: ${adminEmail}`);
+      }
+    }
   } finally {
     client.release();
   }

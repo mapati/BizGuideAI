@@ -188,13 +188,9 @@ export default function Equipe() {
 
   const isCompanyAdmin = user?.role === "admin" || user?.isAdmin;
 
-  if (!isCompanyAdmin) {
-    navigate("/");
-    return null;
-  }
-
   const { data: membros = [], isLoading } = useQuery<Membro[]>({
     queryKey: ["/api/empresa/usuarios"],
+    enabled: isCompanyAdmin,
   });
 
   const remover = useMutation({
@@ -221,6 +217,11 @@ export default function Equipe() {
 
   const initials = (nome: string) =>
     nome.split(" ").slice(0, 2).map(n => n[0]).join("").toUpperCase();
+
+  if (!isCompanyAdmin) {
+    navigate("/");
+    return null;
+  }
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">

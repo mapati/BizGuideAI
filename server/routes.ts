@@ -1807,7 +1807,7 @@ REGRAS:
             role: "user",
             content: `Empresa: ${empresa.nome}
 Setor: ${empresa.setor}
-Website: ${website}
+Website: ${websiteHttps}
 
 CONTEÚDO EXTRAÍDO DO SITE:
 ${conteudoSite}

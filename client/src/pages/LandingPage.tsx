@@ -122,7 +122,7 @@ export default function LandingPage() {
             </Link>
             <Link href="/register">
               <Button size="sm" data-testid="nav-link-register">
-                Começar Grátis
+                Começar Período de Testes
               </Button>
             </Link>
           </div>
@@ -169,7 +169,7 @@ export default function LandingPage() {
                   className="gap-2 text-base"
                   data-testid="button-hero-cta-register"
                 >
-                  Começar Grátis Agora
+                  Começar Período de Testes
                   <ArrowRight className="h-5 w-5" />
                 </Button>
               </Link>
@@ -378,7 +378,7 @@ export default function LandingPage() {
                 className="gap-2 text-base font-semibold"
                 data-testid="button-cta-final"
               >
-                Começar Grátis Agora
+                Começar Período de Testes
                 <ArrowRight className="h-5 w-5" />
               </Button>
             </Link>

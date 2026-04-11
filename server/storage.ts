@@ -54,6 +54,7 @@ export interface IStorage {
   getUsuarioByEmail(email: string): Promise<Usuario | undefined>;
   getUsuarioById(id: string): Promise<Usuario | undefined>;
   updateUsuarioSenha(id: string, senhaHash: string): Promise<void>;
+  updateUsuario(id: string, data: Partial<Pick<Usuario, "planoStatus" | "isAdmin" | "trialStartedAt">>): Promise<Usuario>;
   
   getFatoresPestel(empresaId: string): Promise<FatorPestel[]>;
   createFatorPestel(fator: InsertFatorPestel): Promise<FatorPestel>;
@@ -156,6 +157,12 @@ export class DbStorage implements IStorage {
 
   async updateUsuarioSenha(id: string, senhaHash: string): Promise<void> {
     await db.update(usuarios).set({ senha: senhaHash }).where(eq(usuarios.id, id));
+  }
+
+  async updateUsuario(id: string, data: Partial<Pick<Usuario, "planoStatus" | "isAdmin" | "trialStartedAt">>): Promise<Usuario> {
+    const result = await db.update(usuarios).set(data).where(eq(usuarios.id, id)).returning();
+    if (!result[0]) throw new Error("Usuário não encontrado");
+    return result[0];
   }
 
   async getFatoresPestel(empresaId: string): Promise<FatorPestel[]> {

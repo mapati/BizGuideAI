@@ -7,6 +7,20 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+async function handleTrialExpired(res: Response): Promise<boolean> {
+  if (res.status === 403) {
+    try {
+      const data = await res.clone().json();
+      if (data?.error === "TRIAL_EXPIRADO") {
+        window.location.href = "/trial-expirado";
+        return true;
+      }
+    } catch {
+    }
+  }
+  return false;
+}
+
 export async function apiRequest(
   method: string,
   url: string,
@@ -22,6 +36,10 @@ export async function apiRequest(
   if (res.status === 401) {
     window.location.href = "/login";
     throw new Error("401: Não autenticado");
+  }
+
+  if (await handleTrialExpired(res)) {
+    throw new Error("403: TRIAL_EXPIRADO");
   }
 
   await throwIfResNotOk(res);
@@ -47,6 +65,10 @@ export const getQueryFn: <T>(options: {
         return null;
       }
       await throwIfResNotOk(res);
+    }
+
+    if (await handleTrialExpired(res)) {
+      return null;
     }
 
     await throwIfResNotOk(res);

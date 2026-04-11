@@ -7,7 +7,13 @@ interface Usuario {
   nome: string;
   email: string;
   empresaId: string | null;
-  createdAt: string;
+  isAdmin: boolean;
+}
+
+interface TrialInfo {
+  planoStatus: string;
+  diasRestantes: number | null;
+  trialExpirado: boolean;
 }
 
 interface Empresa {
@@ -21,6 +27,7 @@ interface Empresa {
 interface AuthContextType {
   user: Usuario | null;
   empresa: Empresa | null;
+  trialInfo: TrialInfo | null;
   isLoading: boolean;
   login: (email: string, senha: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -41,6 +48,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Usuario | null>(null);
   const [empresa, setEmpresa] = useState<Empresa | null>(null);
+  const [trialInfo, setTrialInfo] = useState<TrialInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [, navigate] = useLocation();
 
@@ -54,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (data) {
           setUser(data.usuario);
           setEmpresa(data.empresa);
+          setTrialInfo(data.trialInfo ?? null);
         }
       })
       .catch(() => {})
@@ -74,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data = await res.json();
     setUser(data.usuario);
     setEmpresa(data.empresa);
+    setTrialInfo(data.trialInfo ?? null);
     queryClient.clear();
     navigate("/");
   };
@@ -82,6 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     setUser(null);
     setEmpresa(null);
+    setTrialInfo(null);
     queryClient.clear();
     navigate("/login");
   };
@@ -100,12 +111,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data = await res.json();
     setUser(data.usuario);
     setEmpresa(data.empresa);
+    setTrialInfo(data.trialInfo ?? null);
     queryClient.clear();
     navigate("/");
   };
 
   return (
-    <AuthContext.Provider value={{ user, empresa, isLoading, login, logout, register }}>
+    <AuthContext.Provider value={{ user, empresa, trialInfo, isLoading, login, logout, register }}>
       {children}
     </AuthContext.Provider>
   );

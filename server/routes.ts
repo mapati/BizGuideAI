@@ -118,11 +118,33 @@ async function ssrfSafeFetch(rawUrl: string): Promise<string> {
   return await response.text();
 }
 
-function requireAuth(req: Request, res: Response, next: NextFunction) {
-  if (!req.session?.userId || !req.session?.empresaId) {
-    return res.status(401).json({ error: "Não autenticado" });
+async function requireAuth(req: Request, res: Response, next: NextFunction) {
+  try {
+    if (!req.session?.userId || !req.session?.empresaId) {
+      return res.status(401).json({ error: "Não autenticado" });
+    }
+
+    const usuario = await storage.getUsuarioById(req.session.userId);
+    if (!usuario) {
+      return res.status(401).json({ error: "Não autenticado" });
+    }
+
+    if (usuario.planoStatus === "expirado" || usuario.planoStatus === "suspenso") {
+      return res.status(403).json({ error: "TRIAL_EXPIRADO" });
+    }
+
+    if (usuario.planoStatus === "trial") {
+      const trialStart = usuario.trialStartedAt || usuario.createdAt;
+      const daysSinceStart = Math.floor((Date.now() - trialStart.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysSinceStart >= 7) {
+        return res.status(403).json({ error: "TRIAL_EXPIRADO" });
+      }
+    }
+
+    next();
+  } catch (error: any) {
+    res.status(500).json({ error: "Erro interno do servidor" });
   }
-  next();
 }
 
 function stripTenantFields<T extends Record<string, unknown>>(data: T): Omit<T, "empresaId" | "objetivoId"> {
@@ -130,6 +152,18 @@ function stripTenantFields<T extends Record<string, unknown>>(data: T): Omit<T, 
   delete (result as Record<string, unknown>)["empresaId"];
   delete (result as Record<string, unknown>)["objetivoId"];
   return result as Omit<T, "empresaId" | "objetivoId">;
+}
+
+function computeTrialInfo(usuario: { planoStatus: string; trialStartedAt: Date | null; createdAt: Date; isAdmin: boolean }) {
+  const planoStatus = usuario.planoStatus;
+  if (planoStatus === "ativo") {
+    return { planoStatus, diasRestantes: null, trialExpirado: false };
+  }
+  const trialStart = usuario.trialStartedAt || usuario.createdAt;
+  const daysSinceStart = Math.floor((Date.now() - trialStart.getTime()) / (1000 * 60 * 60 * 24));
+  const diasRestantes = Math.max(0, 7 - daysSinceStart);
+  const trialExpirado = daysSinceStart >= 7;
+  return { planoStatus, diasRestantes, trialExpirado };
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -173,19 +207,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       const senhaHash = await bcrypt.hash(data.senha, 10);
+      const now = new Date();
       const usuario = await storage.createUsuario({
         empresaId: empresa.id,
         nome: data.nome,
         email: data.email,
         senha: senhaHash,
+        trialStartedAt: now,
+        planoStatus: "trial",
+        isAdmin: false,
       });
 
       req.session.userId = usuario.id;
       req.session.empresaId = empresa.id;
 
       res.json({
-        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresaId: usuario.empresaId },
+        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresaId: usuario.empresaId, isAdmin: usuario.isAdmin },
         empresa,
+        trialInfo: computeTrialInfo(usuario),
       });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -216,8 +255,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const empresa = await storage.getEmpresa(usuario.empresaId);
 
       res.json({
-        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresaId: usuario.empresaId },
+        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresaId: usuario.empresaId, isAdmin: usuario.isAdmin },
         empresa,
+        trialInfo: computeTrialInfo(usuario),
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -276,8 +316,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const empresa = await storage.getEmpresa(req.session.empresaId);
 
       res.json({
-        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresaId: usuario.empresaId },
+        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresaId: usuario.empresaId, isAdmin: usuario.isAdmin },
         empresa,
+        trialInfo: computeTrialInfo(usuario),
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });

@@ -43,6 +43,7 @@ Preferred communication style: Simple, everyday language.
 
 **Key Database Tables:**
 - `empresas`: Company profiles
+- `usuarios`: User accounts (includes `trialStartedAt`, `planoStatus` ['trial'/'ativo'/'expirado'/'suspenso'], `isAdmin`)
 - `fatores_pestel`, `cinco_forcas`, `analise_swot`, `modelo_negocio`: Strategic analysis data
 - `estrategias`, `oportunidades_crescimento`, `iniciativas`: Strategic planning and growth
 - `objetivos`, `resultados_chave`: OKRs
@@ -65,6 +66,17 @@ Preferred communication style: Simple, everyday language.
 - Registration creates empresa + usuario atomically; one user per company (admin)
 - Frontend: `AuthContext` + `useAuth` hook, protected routing in `AppLayout`, 401 → redirect to /login
 - Profile page (Onboarding) supports editing CNPJ, endereço, cidade, estado, CEP and changing password via PATCH /api/auth/senha
+
+### Monetization Model
+
+**7-Day Trial System:**
+- New users get `planoStatus = 'trial'` and `trialStartedAt = NOW()` on registration
+- `requireAuth` middleware checks trial status on every protected route; returns 403 `{error: "TRIAL_EXPIRADO"}` when trial expires
+- Trial banner shows in authenticated app header (days remaining) for users in trial
+- `/trial-expirado` page (public route) shows expiry message + plan benefits + WhatsApp/email CTA
+- Frontend auto-redirects expired trial users to `/trial-expirado`
+- Users with `planoStatus = 'ativo'` have unrestricted access (no banner)
+- `isAdmin` flag on users for future admin panel
 
 ### Key Features Implemented:
 

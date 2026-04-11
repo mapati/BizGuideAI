@@ -259,3 +259,21 @@ export const insertEventoSchema = createInsertSchema(eventos).omit({
 export type InsertEvento = z.infer<typeof insertEventoSchema>;
 export type Evento = typeof eventos.$inferSelect;
 
+export const faturas = pgTable("faturas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  empresaId: varchar("empresa_id").notNull().references(() => empresas.id, { onDelete: "cascade" }),
+  valor: decimal("valor", { precision: 10, scale: 2 }).notNull(),
+  descricao: text("descricao").notNull(),
+  status: text("status").notNull().default("pendente"),
+  dataVencimento: timestamp("data_vencimento").notNull(),
+  dataPagamento: timestamp("data_pagamento"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertFaturaSchema = createInsertSchema(faturas).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertFatura = z.infer<typeof insertFaturaSchema>;
+export type Fatura = typeof faturas.$inferSelect;
+

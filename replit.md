@@ -50,6 +50,7 @@ Preferred communication style: Simple, everyday language.
 - `indicadores`: BSC performance indicators
 - `rituais`: Management rituals (tipo, dataUltimo, dataProximo, notas, decisoes, completado, checklist)
 - `eventos`: Custom strategic events (tipo, titulo, descricao, participantes, decisoes, anexos, dataEvento)
+- `faturas`: Invoice management (empresaId FK, valor decimal, descricao, status, dataVencimento, dataPagamento nullable)
 
 **Data Flow:** Client requests via TanStack Query -> Express API -> Zod validation -> Drizzle ORM queries -> JSON response.
 
@@ -92,6 +93,12 @@ Preferred communication style: Simple, everyday language.
     - Full CRUD for custom events with various types and detailed logging capabilities.
     - Persistent ritual checklists saved to database as JSON.
     - Combined chronological view with visual distinction between event types.
+- **Admin Panel (`/admin`):**
+    - Restricted to users with `isAdmin === true` (both frontend guard and `requireAdmin` middleware on backend).
+    - Admins bypass trial-blocking — they always have full access regardless of planoStatus.
+    - Three tabs: Resumo (stat cards), Usuários (filters + Ativar/Suspender actions), Faturas (list + create + mark paid/cancel).
+    - Sidebar shows "Administração" link only when `user.isAdmin === true`.
+    - Admin API routes: `GET /api/admin/usuarios`, `POST /api/admin/usuarios/:id/ativar-plano`, `POST /api/admin/usuarios/:id/suspender`, `GET /api/admin/faturas`, `POST /api/admin/faturas`, `PATCH /api/admin/faturas/:id`.
 
 ## External Dependencies
 

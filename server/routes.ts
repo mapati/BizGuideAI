@@ -14,6 +14,7 @@ import {
   insertOportunidadeCrescimentoSchema,
   insertIniciativaSchema,
   insertRitualSchema,
+  insertFaturaSchema,
   type ResultadoChave,
 } from "@shared/schema";
 import OpenAI from "openai";
@@ -325,6 +326,113 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ==================== ADMIN ====================
+
+  async function requireAdmin(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.session?.userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+      const usuario = await storage.getUsuarioById(req.session.userId);
+      if (!usuario) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+      if (!usuario.isAdmin) {
+        return res.status(403).json({ error: "Acesso negado. Área restrita a administradores." });
+      }
+      next();
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro interno do servidor" });
+    }
+  }
+
+  app.use("/api/admin", requireAdmin);
+
+  app.get("/api/admin/usuarios", async (req, res) => {
+    try {
+      const usuarios = await storage.getAllUsuarios();
+      const result = usuarios.map(u => {
+        const trialStart = u.trialStartedAt || u.createdAt;
+        const daysSinceStart = Math.floor((Date.now() - trialStart.getTime()) / (1000 * 60 * 60 * 24));
+        const diasRestantes = u.planoStatus === "trial" ? Math.max(0, 7 - daysSinceStart) : null;
+        const trialExpirado = u.planoStatus === "trial" && daysSinceStart >= 7;
+        return {
+          id: u.id,
+          nome: u.nome,
+          email: u.email,
+          empresaId: u.empresaId,
+          empresaNome: u.empresa?.nome ?? "-",
+          planoStatus: trialExpirado ? "expirado" : u.planoStatus,
+          diasRestantes,
+          isAdmin: u.isAdmin,
+          createdAt: u.createdAt,
+        };
+      });
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/usuarios/:id/ativar-plano", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const usuario = await storage.updateUsuario(id, { planoStatus: "ativo" });
+      res.json({ success: true, planoStatus: usuario.planoStatus });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/usuarios/:id/suspender", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const usuario = await storage.updateUsuario(id, { planoStatus: "suspenso" });
+      res.json({ success: true, planoStatus: usuario.planoStatus });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/admin/faturas", async (req, res) => {
+    try {
+      const faturas = await storage.getAllFaturas();
+      res.json(faturas);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/faturas", async (req, res) => {
+    try {
+      const data = insertFaturaSchema.parse(req.body);
+      const fatura = await storage.createFatura(data);
+      res.json(fatura);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/admin/faturas/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const schema = z.object({
+        status: z.enum(["pendente", "pago", "cancelado"]).optional(),
+        dataPagamento: z.string().optional().nullable(),
+      });
+      const data = schema.parse(req.body);
+      const updateData: any = {};
+      if (data.status) updateData.status = data.status;
+      if (data.dataPagamento !== undefined) {
+        updateData.dataPagamento = data.dataPagamento ? new Date(data.dataPagamento) : null;
+      }
+      const fatura = await storage.updateFatura(id, updateData);
+      res.json(fatura);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
     }
   });
 

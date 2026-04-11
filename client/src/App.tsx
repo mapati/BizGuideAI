@@ -28,6 +28,7 @@ import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import LandingPage from "@/pages/LandingPage";
 import TrialExpirado from "@/pages/TrialExpirado";
+import Admin from "@/pages/Admin";
 import NotFound from "@/pages/not-found";
 
 const PUBLIC_ROUTES = ["/", "/login", "/register", "/trial-expirado"];
@@ -111,9 +112,10 @@ function AppLayout() {
   }
 
   const isTrialBlocked =
-    trialInfo?.trialExpirado === true ||
-    trialInfo?.planoStatus === "expirado" ||
-    trialInfo?.planoStatus === "suspenso";
+    !user?.isAdmin &&
+    (trialInfo?.trialExpirado === true ||
+      trialInfo?.planoStatus === "expirado" ||
+      trialInfo?.planoStatus === "suspenso");
 
   if (isTrialBlocked) {
     if (location !== "/trial-expirado") {
@@ -159,6 +161,7 @@ function AppLayout() {
                 <Route path="/indicadores" component={Indicadores} />
                 <Route path="/ritos" component={Acompanhamento} />
                 <Route path="/trial-expirado" component={TrialExpirado} />
+                <Route path="/admin" component={Admin} />
                 <Route component={NotFound} />
               </Switch>
             </main>

@@ -14,6 +14,7 @@ import {
   iniciativas,
   rituais,
   eventos,
+  faturas,
   type Empresa,
   type InsertEmpresa,
   type Usuario,
@@ -42,6 +43,8 @@ import {
   type InsertRitual,
   type Evento,
   type InsertEvento,
+  type Fatura,
+  type InsertFatura,
 } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 
@@ -115,6 +118,11 @@ export interface IStorage {
   createEvento(evento: InsertEvento): Promise<Evento>;
   updateEvento(id: string, empresaId: string, evento: Partial<InsertEvento>): Promise<Evento>;
   deleteEvento(id: string, empresaId: string): Promise<void>;
+
+  getAllUsuarios(): Promise<(Usuario & { empresa: Empresa | undefined })[]>;
+  getAllFaturas(): Promise<(Fatura & { empresa: Empresa | undefined })[]>;
+  createFatura(fatura: InsertFatura): Promise<Fatura>;
+  updateFatura(id: string, data: Partial<Pick<Fatura, "status" | "dataPagamento">>): Promise<Fatura>;
 }
 
 function omitTenantFields<T extends Record<string, unknown>>(data: T): Omit<T, "empresaId" | "objetivoId"> {
@@ -468,6 +476,35 @@ export class DbStorage implements IStorage {
       .where(and(eq(eventos.id, id), eq(eventos.empresaId, empresaId)))
       .returning();
     if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
+  }
+
+  async getAllUsuarios(): Promise<(Usuario & { empresa: Empresa | undefined })[]> {
+    const result = await db
+      .select({ usuario: usuarios, empresa: empresas })
+      .from(usuarios)
+      .leftJoin(empresas, eq(usuarios.empresaId, empresas.id))
+      .orderBy(usuarios.createdAt);
+    return result.map(r => ({ ...r.usuario, empresa: r.empresa ?? undefined }));
+  }
+
+  async getAllFaturas(): Promise<(Fatura & { empresa: Empresa | undefined })[]> {
+    const result = await db
+      .select({ fatura: faturas, empresa: empresas })
+      .from(faturas)
+      .leftJoin(empresas, eq(faturas.empresaId, empresas.id))
+      .orderBy(faturas.createdAt);
+    return result.map(r => ({ ...r.fatura, empresa: r.empresa ?? undefined }));
+  }
+
+  async createFatura(fatura: InsertFatura): Promise<Fatura> {
+    const result = await db.insert(faturas).values(fatura).returning();
+    return result[0];
+  }
+
+  async updateFatura(id: string, data: Partial<Pick<Fatura, "status" | "dataPagamento">>): Promise<Fatura> {
+    const result = await db.update(faturas).set(data).where(eq(faturas.id, id)).returning();
+    if (!result[0]) throw new Error("Fatura não encontrada");
+    return result[0];
   }
 
 }

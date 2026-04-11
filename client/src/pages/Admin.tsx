@@ -51,6 +51,19 @@ interface AdminUsuario {
   createdAt: string;
 }
 
+interface AdminEmpresa {
+  id: string;
+  nome: string;
+  setor: string;
+  tamanho: string;
+  planoStatus: string;
+  diasRestantes: number | null;
+  totalUsuarios: number;
+  trialStartedAt: string | null;
+  planoAtivadoEm: string | null;
+  createdAt: string;
+}
+
 interface AdminFatura {
   id: string;
   empresaId: string;
@@ -89,11 +102,11 @@ const faturaStatusBadge = (status: string) => {
 function NovaFaturaDialog({
   open,
   onClose,
-  usuarios,
+  empresas,
 }: {
   open: boolean;
   onClose: () => void;
-  usuarios: AdminUsuario[];
+  empresas: AdminEmpresa[];
 }) {
   const { toast } = useToast();
   const [empresaId, setEmpresaId] = useState("");
@@ -122,8 +135,6 @@ function NovaFaturaDialog({
     onError: (error: Error) => toast({ title: "Erro ao criar fatura", description: error.message, variant: "destructive" }),
   });
 
-  const empresasDisponiveis = usuarios.filter(u => u.empresaId);
-
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent>
@@ -138,9 +149,9 @@ function NovaFaturaDialog({
                 <SelectValue placeholder="Selecione a empresa" />
               </SelectTrigger>
               <SelectContent>
-                {empresasDisponiveis.map(u => (
-                  <SelectItem key={u.empresaId!} value={u.empresaId!}>
-                    {u.empresaNome} ({u.email})
+                {empresas.map(e => (
+                  <SelectItem key={e.id} value={e.id}>
+                    {e.nome}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -193,34 +204,34 @@ function NovaFaturaDialog({
   );
 }
 
-function TabUsuarios({ usuarios, isLoading }: { usuarios: AdminUsuario[]; isLoading: boolean }) {
+function TabEmpresas({ empresas, isLoading }: { empresas: AdminEmpresa[]; isLoading: boolean }) {
   const { toast } = useToast();
   const [filtro, setFiltro] = useState<FiltroUsuario>("todos");
 
   const ativarPlano = useMutation({
-    mutationFn: (id: string) => apiRequest("POST", `/api/admin/usuarios/${id}/ativar-plano`),
+    mutationFn: (id: string) => apiRequest("POST", `/api/admin/empresas/${id}/ativar-plano`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/usuarios"] });
-      toast({ title: "Plano ativado com sucesso" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/empresas"] });
+      toast({ title: "Plano ativado para a empresa" });
     },
     onError: (error: Error) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
   });
 
   const suspender = useMutation({
-    mutationFn: (id: string) => apiRequest("POST", `/api/admin/usuarios/${id}/suspender`),
+    mutationFn: (id: string) => apiRequest("POST", `/api/admin/empresas/${id}/suspender`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/usuarios"] });
-      toast({ title: "Usuário suspenso" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/empresas"] });
+      toast({ title: "Empresa suspensa" });
     },
     onError: (error: Error) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
   });
 
-  const filtrados = usuarios.filter(u => {
+  const filtradas = empresas.filter(e => {
     if (filtro === "todos") return true;
-    if (filtro === "trial") return u.planoStatus === "trial";
-    if (filtro === "expirado") return u.planoStatus === "expirado";
-    if (filtro === "ativo") return u.planoStatus === "ativo";
-    if (filtro === "suspenso") return u.planoStatus === "suspenso";
+    if (filtro === "trial") return e.planoStatus === "trial";
+    if (filtro === "expirado") return e.planoStatus === "expirado";
+    if (filtro === "ativo") return e.planoStatus === "ativo";
+    if (filtro === "suspenso") return e.planoStatus === "suspenso";
     return true;
   });
 
@@ -234,7 +245,7 @@ function TabUsuarios({ usuarios, isLoading }: { usuarios: AdminUsuario[]; isLoad
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2" data-testid="filtros-usuarios">
+      <div className="flex flex-wrap gap-2" data-testid="filtros-empresas">
         {filtros.map(f => (
           <Button
             key={f.key}
@@ -249,59 +260,54 @@ function TabUsuarios({ usuarios, isLoading }: { usuarios: AdminUsuario[]; isLoad
       </div>
 
       {isLoading ? (
-        <div className="text-muted-foreground text-sm py-8 text-center">Carregando usuários...</div>
-      ) : filtrados.length === 0 ? (
-        <div className="text-muted-foreground text-sm py-8 text-center">Nenhum usuário encontrado.</div>
+        <div className="text-muted-foreground text-sm py-8 text-center">Carregando empresas...</div>
+      ) : filtradas.length === 0 ? (
+        <div className="text-muted-foreground text-sm py-8 text-center">Nenhuma empresa encontrada.</div>
       ) : (
         <div className="space-y-2">
-          {filtrados.map(u => (
+          {filtradas.map(e => (
             <div
-              key={u.id}
+              key={e.id}
               className="flex flex-wrap items-center gap-3 p-4 rounded-md border bg-card"
-              data-testid={`row-usuario-${u.id}`}
+              data-testid={`row-empresa-${e.id}`}
             >
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm truncate" data-testid={`text-nome-${u.id}`}>
-                  {u.nome}
-                  {u.isAdmin && <span className="text-xs text-muted-foreground ml-1">(plataforma admin)</span>}
-                </p>
-                <p className="text-xs text-muted-foreground truncate">{u.email}</p>
-                <p className="text-xs text-muted-foreground">
-                  {u.empresaNome}
-                  <span className="ml-1.5 opacity-60">
-                    · {u.role === "admin" ? "admin empresa" : "membro"}
-                  </span>
+                <p className="font-medium text-sm truncate" data-testid={`text-nome-empresa-${e.id}`}>
+                  {e.nome}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Cadastro: {format(new Date(u.createdAt), "dd/MM/yyyy", { locale: ptBR })}
+                  {e.setor} · {e.tamanho}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {e.totalUsuarios} usuário{e.totalUsuarios !== 1 ? "s" : ""}
+                  <span className="mx-1.5 opacity-50">·</span>
+                  Desde {format(new Date(e.createdAt), "dd/MM/yyyy", { locale: ptBR })}
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                {statusBadge(u.planoStatus, u.diasRestantes)}
-                {!u.isAdmin && u.planoStatus !== "ativo" && (
+                {statusBadge(e.planoStatus, e.diasRestantes)}
+                {e.planoStatus !== "ativo" && (
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => ativarPlano.mutate(u.id)}
+                    onClick={() => ativarPlano.mutate(e.id)}
                     disabled={ativarPlano.isPending}
-                    title="Ativa o plano para toda a empresa"
-                    data-testid={`button-ativar-${u.id}`}
+                    data-testid={`button-ativar-${e.id}`}
                   >
                     <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                    Ativar Empresa
+                    Ativar Plano
                   </Button>
                 )}
-                {!u.isAdmin && u.planoStatus !== "suspenso" && (
+                {e.planoStatus !== "suspenso" && (
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => suspender.mutate(u.id)}
+                    onClick={() => suspender.mutate(e.id)}
                     disabled={suspender.isPending}
-                    title="Suspende o acesso para toda a empresa"
-                    data-testid={`button-suspender-${u.id}`}
+                    data-testid={`button-suspender-${e.id}`}
                   >
                     <XCircle className="h-3.5 w-3.5 mr-1" />
-                    Suspender Empresa
+                    Suspender
                   </Button>
                 )}
               </div>
@@ -316,11 +322,11 @@ function TabUsuarios({ usuarios, isLoading }: { usuarios: AdminUsuario[]; isLoad
 function TabFaturas({
   faturas,
   isLoading,
-  usuarios,
+  empresas,
 }: {
   faturas: AdminFatura[];
   isLoading: boolean;
-  usuarios: AdminUsuario[];
+  empresas: AdminEmpresa[];
 }) {
   const { toast } = useToast();
   const [novaFaturaOpen, setNovaFaturaOpen] = useState(false);
@@ -420,18 +426,18 @@ function TabFaturas({
       <NovaFaturaDialog
         open={novaFaturaOpen}
         onClose={() => setNovaFaturaOpen(false)}
-        usuarios={usuarios}
+        empresas={empresas}
       />
     </div>
   );
 }
 
-function TabResumo({ usuarios, faturas }: { usuarios: AdminUsuario[]; faturas: AdminFatura[] }) {
-  const total = usuarios.length;
-  const emTrial = usuarios.filter(u => u.planoStatus === "trial").length;
-  const trialVencido = usuarios.filter(u => u.planoStatus === "expirado").length;
-  const ativos = usuarios.filter(u => u.planoStatus === "ativo").length;
-  const suspensos = usuarios.filter(u => u.planoStatus === "suspenso").length;
+function TabResumo({ empresas, faturas }: { empresas: AdminEmpresa[]; faturas: AdminFatura[] }) {
+  const total = empresas.length;
+  const emTrial = empresas.filter(e => e.planoStatus === "trial").length;
+  const trialVencido = empresas.filter(e => e.planoStatus === "expirado").length;
+  const ativos = empresas.filter(e => e.planoStatus === "ativo").length;
+  const suspensos = empresas.filter(e => e.planoStatus === "suspenso").length;
 
   const totalFaturas = faturas.length;
   const pendentes = faturas.filter(f => f.status === "pendente").length;
@@ -441,11 +447,11 @@ function TabResumo({ usuarios, faturas }: { usuarios: AdminUsuario[]; faturas: A
     .reduce((acc, f) => acc + parseFloat(f.valor), 0);
 
   const stats = [
-    { label: "Usuários Totais", value: total, icon: Users, color: "text-primary" },
+    { label: "Empresas Cadastradas", value: total, icon: Users, color: "text-primary" },
     { label: "Em Trial", value: emTrial, icon: Clock, color: "text-yellow-600 dark:text-yellow-400" },
     { label: "Trial Vencido", value: trialVencido, icon: AlertTriangle, color: "text-destructive" },
     { label: "Plano Ativo", value: ativos, icon: CheckCircle2, color: "text-green-600 dark:text-green-400" },
-    { label: "Suspensos", value: suspensos, icon: XCircle, color: "text-muted-foreground" },
+    { label: "Suspensas", value: suspensos, icon: XCircle, color: "text-muted-foreground" },
   ];
 
   return (
@@ -530,8 +536,8 @@ export default function Admin() {
     );
   }
 
-  const { data: usuarios = [], isLoading: loadingUsuarios } = useQuery<AdminUsuario[]>({
-    queryKey: ["/api/admin/usuarios"],
+  const { data: empresas = [], isLoading: loadingEmpresas } = useQuery<AdminEmpresa[]>({
+    queryKey: ["/api/admin/empresas"],
   });
 
   const { data: faturas = [], isLoading: loadingFaturas } = useQuery<AdminFatura[]>({
@@ -543,7 +549,7 @@ export default function Admin() {
       <div>
         <h1 className="text-2xl font-bold" data-testid="text-admin-titulo">Painel de Administração</h1>
         <p className="text-muted-foreground text-sm">
-          Gerencie usuários, faturas e acompanhe métricas do sistema.
+          Gerencie empresas, faturas e acompanhe métricas do sistema.
         </p>
       </div>
 
@@ -553,9 +559,9 @@ export default function Admin() {
             <LayoutDashboard className="h-4 w-4 mr-2" />
             Resumo
           </TabsTrigger>
-          <TabsTrigger value="usuarios" data-testid="tab-usuarios">
+          <TabsTrigger value="empresas" data-testid="tab-empresas">
             <Users className="h-4 w-4 mr-2" />
-            Usuários
+            Empresas
           </TabsTrigger>
           <TabsTrigger value="faturas" data-testid="tab-faturas">
             <FileText className="h-4 w-4 mr-2" />
@@ -564,15 +570,15 @@ export default function Admin() {
         </TabsList>
 
         <TabsContent value="resumo" className="mt-4">
-          <TabResumo usuarios={usuarios} faturas={faturas} />
+          <TabResumo empresas={empresas} faturas={faturas} />
         </TabsContent>
 
-        <TabsContent value="usuarios" className="mt-4">
-          <TabUsuarios usuarios={usuarios} isLoading={loadingUsuarios} />
+        <TabsContent value="empresas" className="mt-4">
+          <TabEmpresas empresas={empresas} isLoading={loadingEmpresas} />
         </TabsContent>
 
         <TabsContent value="faturas" className="mt-4">
-          <TabFaturas faturas={faturas} isLoading={loadingFaturas} usuarios={usuarios} />
+          <TabFaturas faturas={faturas} isLoading={loadingFaturas} empresas={empresas} />
         </TabsContent>
       </Tabs>
     </div>

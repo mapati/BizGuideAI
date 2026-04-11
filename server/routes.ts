@@ -228,8 +228,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         nome: data.nome,
         email: data.email,
         senha: senhaHash,
-        trialStartedAt: now,
-        planoStatus: "trial",
         isAdmin: false,
         role: "admin",
       });
@@ -367,18 +365,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const usuarios = await storage.getAllUsuarios();
       const result = usuarios.map(u => {
-        const empresaPlanoStatus = u.empresa?.planoStatus ?? u.planoStatus;
-        const trialStart = u.empresa?.trialStartedAt ?? u.trialStartedAt ?? u.createdAt;
+        const planoStatus = u.empresa?.planoStatus ?? "trial";
+        const trialStart = u.empresa?.trialStartedAt ?? u.empresa?.createdAt ?? u.createdAt;
         const daysSinceStart = Math.floor((Date.now() - trialStart.getTime()) / (1000 * 60 * 60 * 24));
-        const diasRestantes = empresaPlanoStatus === "trial" ? Math.max(0, 7 - daysSinceStart) : null;
-        const trialExpirado = empresaPlanoStatus === "trial" && daysSinceStart >= 7;
+        const diasRestantes = planoStatus === "trial" ? Math.max(0, 7 - daysSinceStart) : null;
+        const trialExpirado = planoStatus === "trial" && daysSinceStart >= 7;
         return {
           id: u.id,
           nome: u.nome,
           email: u.email,
           empresaId: u.empresaId,
           empresaNome: u.empresa?.nome ?? "-",
-          planoStatus: trialExpirado ? "expirado" : empresaPlanoStatus,
+          planoStatus: trialExpirado ? "expirado" : planoStatus,
           diasRestantes,
           isAdmin: u.isAdmin,
           role: u.role,
@@ -386,6 +384,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       });
       res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/admin/empresas", async (req, res) => {
+    try {
+      const empresasData = await storage.getAllEmpresas();
+      const result = empresasData.map(e => {
+        const trialStart = e.trialStartedAt ?? e.createdAt;
+        const daysSinceStart = Math.floor((Date.now() - trialStart.getTime()) / (1000 * 60 * 60 * 24));
+        const diasRestantes = e.planoStatus === "trial" ? Math.max(0, 7 - daysSinceStart) : null;
+        const trialExpirado = e.planoStatus === "trial" && daysSinceStart >= 7;
+        return {
+          id: e.id,
+          nome: e.nome,
+          setor: e.setor,
+          tamanho: e.tamanho,
+          planoStatus: trialExpirado ? "expirado" : e.planoStatus,
+          diasRestantes,
+          totalUsuarios: e.totalUsuarios,
+          trialStartedAt: e.trialStartedAt,
+          planoAtivadoEm: e.planoAtivadoEm,
+          createdAt: e.createdAt,
+        };
+      });
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/empresas/:id/ativar-plano", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const empresa = await storage.updateEmpresaPlano(id, { planoStatus: "ativo", planoAtivadoEm: new Date() });
+      res.json({ success: true, planoStatus: empresa.planoStatus });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/empresas/:id/suspender", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const empresa = await storage.updateEmpresaPlano(id, { planoStatus: "suspenso" });
+      res.json({ success: true, planoStatus: empresa.planoStatus });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -555,7 +600,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         nome: data.nome,
         email: data.email,
         senha: senhaHash,
-        planoStatus: "trial",
         isAdmin: false,
         role: data.role,
       });

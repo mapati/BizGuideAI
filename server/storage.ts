@@ -58,7 +58,7 @@ export interface IStorage {
   getUsuarioById(id: string): Promise<Usuario | undefined>;
   getUsuariosByEmpresaId(empresaId: string): Promise<Usuario[]>;
   updateUsuarioSenha(id: string, senhaHash: string): Promise<void>;
-  updateUsuario(id: string, data: Partial<Pick<Usuario, "planoStatus" | "isAdmin" | "trialStartedAt" | "planoAtivadoEm" | "role" | "nome">>): Promise<Usuario>;
+  updateUsuario(id: string, data: Partial<Pick<Usuario, "isAdmin" | "role" | "nome">>): Promise<Usuario>;
   deleteUsuario(id: string, empresaId: string): Promise<void>;
   updateEmpresaPlano(id: string, data: Partial<Pick<Empresa, "planoStatus" | "planoAtivadoEm">>): Promise<Empresa>;
   
@@ -123,6 +123,7 @@ export interface IStorage {
   deleteEvento(id: string, empresaId: string): Promise<void>;
 
   getAllUsuarios(): Promise<(Usuario & { empresa: Empresa | undefined })[]>;
+  getAllEmpresas(): Promise<(Empresa & { totalUsuarios: number })[]>;
   getAllFaturas(): Promise<(Fatura & { empresa: Empresa | undefined })[]>;
   createFatura(fatura: InsertFatura): Promise<Fatura>;
   updateFatura(id: string, data: Partial<Pick<Fatura, "status" | "dataPagamento">>): Promise<Fatura>;
@@ -174,7 +175,7 @@ export class DbStorage implements IStorage {
     return db.select().from(usuarios).where(eq(usuarios.empresaId, empresaId)).orderBy(usuarios.createdAt);
   }
 
-  async updateUsuario(id: string, data: Partial<Pick<Usuario, "planoStatus" | "isAdmin" | "trialStartedAt" | "planoAtivadoEm" | "role" | "nome">>): Promise<Usuario> {
+  async updateUsuario(id: string, data: Partial<Pick<Usuario, "isAdmin" | "role" | "nome">>): Promise<Usuario> {
     const result = await db.update(usuarios).set(data).where(eq(usuarios.id, id)).returning();
     if (!result[0]) throw new Error("Usuário não encontrado");
     return result[0];
@@ -505,6 +506,15 @@ export class DbStorage implements IStorage {
       .leftJoin(empresas, eq(usuarios.empresaId, empresas.id))
       .orderBy(usuarios.createdAt);
     return result.map(r => ({ ...r.usuario, empresa: r.empresa ?? undefined }));
+  }
+
+  async getAllEmpresas(): Promise<(Empresa & { totalUsuarios: number })[]> {
+    const allEmpresas = await db.select().from(empresas).orderBy(empresas.createdAt);
+    const allUsuarios = await db.select().from(usuarios);
+    return allEmpresas.map(e => ({
+      ...e,
+      totalUsuarios: allUsuarios.filter(u => u.empresaId === e.id).length,
+    }));
   }
 
   async getAllFaturas(): Promise<(Fatura & { empresa: Empresa | undefined })[]> {

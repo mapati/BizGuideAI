@@ -16,6 +16,7 @@ import {
   insertRitualSchema,
   insertFaturaSchema,
   type ResultadoChave,
+  type Fatura,
 } from "@shared/schema";
 import OpenAI from "openai";
 import * as cheerio from "cheerio";
@@ -429,7 +430,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         dataPagamento: z.string().optional().nullable(),
       });
       const data = schema.parse(req.body);
-      const updateData: any = {};
+      const updateData: Partial<Pick<Fatura, "status" | "dataPagamento">> = {};
       if (data.status) updateData.status = data.status;
       if (data.dataPagamento !== undefined) {
         updateData.dataPagamento = data.dataPagamento ? new Date(data.dataPagamento) : null;

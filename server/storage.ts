@@ -167,7 +167,7 @@ export class DbStorage implements IStorage {
     await db.update(usuarios).set({ senha: senhaHash }).where(eq(usuarios.id, id));
   }
 
-  async updateUsuario(id: string, data: Partial<Pick<Usuario, "planoStatus" | "isAdmin" | "trialStartedAt">>): Promise<Usuario> {
+  async updateUsuario(id: string, data: Partial<Pick<Usuario, "planoStatus" | "isAdmin" | "trialStartedAt" | "planoAtivadoEm">>): Promise<Usuario> {
     const result = await db.update(usuarios).set(data).where(eq(usuarios.id, id)).returning();
     if (!result[0]) throw new Error("Usuário não encontrado");
     return result[0];

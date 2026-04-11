@@ -161,7 +161,9 @@ function AppLayout() {
                 <Route path="/indicadores" component={Indicadores} />
                 <Route path="/ritos" component={Acompanhamento} />
                 <Route path="/trial-expirado" component={TrialExpirado} />
-                <Route path="/admin" component={Admin} />
+                <Route path="/admin">
+                  {user?.isAdmin ? <Admin /> : <Redirect to="/" />}
+                </Route>
                 <Route component={NotFound} />
               </Switch>
             </main>

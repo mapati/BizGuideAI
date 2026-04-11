@@ -118,7 +118,7 @@ function NovaFaturaDialog({
       setDescricao("");
       setDataVencimento("");
     },
-    onError: (e: any) => toast({ title: "Erro ao criar fatura", description: e.message, variant: "destructive" }),
+    onError: (error: Error) => toast({ title: "Erro ao criar fatura", description: error.message, variant: "destructive" }),
   });
 
   const empresasDisponiveis = usuarios.filter(u => u.empresaId);
@@ -202,7 +202,7 @@ function TabUsuarios({ usuarios, isLoading }: { usuarios: AdminUsuario[]; isLoad
       queryClient.invalidateQueries({ queryKey: ["/api/admin/usuarios"] });
       toast({ title: "Plano ativado com sucesso" });
     },
-    onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    onError: (error: Error) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
   });
 
   const suspender = useMutation({
@@ -211,7 +211,7 @@ function TabUsuarios({ usuarios, isLoading }: { usuarios: AdminUsuario[]; isLoad
       queryClient.invalidateQueries({ queryKey: ["/api/admin/usuarios"] });
       toast({ title: "Usuário suspenso" });
     },
-    onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    onError: (error: Error) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
   });
 
   const filtrados = usuarios.filter(u => {
@@ -326,7 +326,7 @@ function TabFaturas({
       queryClient.invalidateQueries({ queryKey: ["/api/admin/faturas"] });
       toast({ title: "Fatura marcada como paga" });
     },
-    onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    onError: (error: Error) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
   });
 
   const cancelar = useMutation({
@@ -336,7 +336,7 @@ function TabFaturas({
       queryClient.invalidateQueries({ queryKey: ["/api/admin/faturas"] });
       toast({ title: "Fatura cancelada" });
     },
-    onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    onError: (error: Error) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
   });
 
   return (

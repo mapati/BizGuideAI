@@ -570,10 +570,8 @@ export default function LandingPage() {
           }}
         />
 
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-24">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-            {/* Left — text */}
-            <div className="flex flex-col gap-6">
+        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-24">
+          <div className="flex flex-col items-center text-center gap-6">
               <div className="flex items-center gap-2">
                 <Badge
                   variant="secondary"
@@ -628,18 +626,6 @@ export default function LandingPage() {
                 <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-primary" />Sem cartão de crédito</span>
                 <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-primary" />Configuração em minutos</span>
               </div>
-            </div>
-
-            {/* Right — hero mockup (Início) */}
-            <div className="relative">
-              <div
-                className="absolute -inset-4 rounded-2xl opacity-30 blur-2xl pointer-events-none"
-                style={{ background: "radial-gradient(ellipse, hsl(var(--primary)) 0%, transparent 70%)" }}
-              />
-              <div className="relative">
-                <MockupHome />
-              </div>
-            </div>
           </div>
 
           {/* Stats bar */}

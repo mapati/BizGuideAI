@@ -1574,7 +1574,15 @@ Responda em JSON:
         return res.status(404).json({ error: "Empresa não encontrada" });
       }
 
-      const rawWebsite: string = req.body?.website || empresa.website || "";
+      const bodySchema = z.object({
+        website: z.string().min(1).max(2048).optional(),
+      });
+      const bodyParsed = bodySchema.safeParse(req.body);
+      if (!bodyParsed.success) {
+        return res.status(400).json({ error: "Dados inválidos na requisição." });
+      }
+
+      const rawWebsite: string = bodyParsed.data.website || empresa.website || "";
       if (!rawWebsite) {
         return res.status(400).json({ error: "Informe o endereço do website da empresa." });
       }
@@ -1584,10 +1592,43 @@ Responda em JSON:
         website = "https://" + website;
       }
 
+      // Validate URL format and block SSRF targets
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(website);
+      } catch {
+        return res.status(400).json({ error: "Endereço de website inválido. Verifique o formato (ex: www.empresa.com.br)." });
+      }
+
+      if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+        return res.status(400).json({ error: "Apenas endereços http e https são suportados." });
+      }
+
+      const hostname = parsedUrl.hostname.toLowerCase();
+
+      // SSRF protection: block private/internal network targets
+      const ssrfBlocked =
+        hostname === "localhost" ||
+        hostname === "::1" ||
+        /^127\./.test(hostname) ||
+        /^10\./.test(hostname) ||
+        /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
+        /^192\.168\./.test(hostname) ||
+        /^169\.254\./.test(hostname) ||
+        /^fc00:/i.test(hostname) ||
+        /^fd[0-9a-f]{2}:/i.test(hostname) ||
+        hostname === "0.0.0.0" ||
+        hostname.endsWith(".internal") ||
+        hostname.endsWith(".local");
+
+      if (ssrfBlocked) {
+        return res.status(400).json({ error: "Endereço de website inválido. Use um site público acessível pela internet." });
+      }
+
       let conteudoSite = "";
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 12000);
+        const timeout = setTimeout(() => controller.abort(), 10000);
         const response = await fetch(website, {
           signal: controller.signal,
           headers: {

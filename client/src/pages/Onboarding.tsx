@@ -61,7 +61,7 @@ export default function Onboarding() {
         setor: empresaExistente.setor || "",
         tamanho: empresaExistente.tamanho || "",
         descricao: empresaExistente.descricao || "",
-        website: (empresaExistente as any).website || "",
+        website: empresaExistente.website || "",
         cnpj: empresaExistente.cnpj || "",
         endereco: empresaExistente.endereco || "",
         cidade: empresaExistente.cidade || "",
@@ -322,7 +322,8 @@ export default function Onboarding() {
                     <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="edit-website"
-                      placeholder="www.suaempresa.com.br"
+                      type="url"
+                      placeholder="https://www.suaempresa.com.br"
                       value={formData.website}
                       onChange={(e) => setFormData({ ...formData, website: e.target.value })}
                       className="pl-9"
@@ -641,7 +642,8 @@ export default function Onboarding() {
                       <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
                         id="website-wizard"
-                        placeholder="www.suaempresa.com.br"
+                        type="url"
+                        placeholder="https://www.suaempresa.com.br"
                         value={formData.website}
                         onChange={(e) => setFormData({ ...formData, website: e.target.value })}
                         className="pl-9"

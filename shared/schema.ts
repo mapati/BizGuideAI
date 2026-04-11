@@ -9,6 +9,7 @@ export const empresas = pgTable("empresas", {
   setor: text("setor").notNull(),
   tamanho: text("tamanho").notNull(),
   descricao: text("descricao"),
+  website: text("website"),
   cnpj: text("cnpj"),
   endereco: text("endereco"),
   cidade: text("cidade"),

@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ProgressBar } from "@/components/ProgressBar";
 import { ExampleCard } from "@/components/ExampleCard";
-import { ArrowRight, ArrowLeft, CheckCircle2, ChevronDown, ChevronUp, Lock } from "lucide-react";
+import { ArrowRight, ArrowLeft, CheckCircle2, ChevronDown, ChevronUp, Lock, Globe, Sparkles, Loader2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -31,6 +31,7 @@ export default function Onboarding() {
     setor: "",
     tamanho: "",
     descricao: "",
+    website: "",
     cnpj: "",
     endereco: "",
     cidade: "",
@@ -60,6 +61,7 @@ export default function Onboarding() {
         setor: empresaExistente.setor || "",
         tamanho: empresaExistente.tamanho || "",
         descricao: empresaExistente.descricao || "",
+        website: (empresaExistente as any).website || "",
         cnpj: empresaExistente.cnpj || "",
         endereco: empresaExistente.endereco || "",
         cidade: empresaExistente.cidade || "",
@@ -104,6 +106,29 @@ export default function Onboarding() {
     onError: (error: any) => {
       toast({
         title: "Erro ao atualizar perfil",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const gerarDescricaoMutation = useMutation({
+    mutationFn: async (website: string) => {
+      const res = await apiRequest("POST", "/api/ai/gerar-descricao-empresa", { website });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao gerar descrição");
+      return data as { descricao: string };
+    },
+    onSuccess: (data) => {
+      setFormData((prev) => ({ ...prev, descricao: data.descricao }));
+      toast({
+        title: "Descrição gerada com sucesso!",
+        description: "Revise o texto gerado e ajuste se necessário.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Não foi possível gerar a descrição",
         description: error.message,
         variant: "destructive",
       });
@@ -288,6 +313,40 @@ export default function Onboarding() {
                 {perfilErrors.tamanho && (
                   <p className="text-sm text-destructive mt-1" data-testid="error-tamanho">{perfilErrors.tamanho}</p>
                 )}
+              </div>
+
+              <div>
+                <Label htmlFor="edit-website">Website da Empresa</Label>
+                <div className="flex gap-2 mt-1">
+                  <div className="relative flex-1">
+                    <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="edit-website"
+                      placeholder="www.suaempresa.com.br"
+                      value={formData.website}
+                      onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                      className="pl-9"
+                      data-testid="input-website"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => gerarDescricaoMutation.mutate(formData.website)}
+                    disabled={!formData.website.trim() || gerarDescricaoMutation.isPending}
+                    data-testid="button-gerar-descricao"
+                  >
+                    {gerarDescricaoMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Sparkles className="h-4 w-4 mr-2" />
+                    )}
+                    Gerar com IA
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Nossa IA acessa o site e cria uma descrição profissional da empresa automaticamente.
+                </p>
               </div>
 
               <div>
@@ -571,7 +630,41 @@ export default function Onboarding() {
                 <div>
                   <h3 className="text-xl font-semibold mb-4">Sobre o Negócio</h3>
                   <p className="text-sm text-muted-foreground mb-6">
-                    Descreva brevemente o que sua empresa faz.
+                    Informe o site da sua empresa para gerarmos uma descrição automaticamente com IA, ou preencha manualmente.
+                  </p>
+                </div>
+
+                <div>
+                  <Label htmlFor="website-wizard">Website da Empresa</Label>
+                  <div className="flex gap-2 mt-1">
+                    <div className="relative flex-1">
+                      <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="website-wizard"
+                        placeholder="www.suaempresa.com.br"
+                        value={formData.website}
+                        onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                        className="pl-9"
+                        data-testid="input-website"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => gerarDescricaoMutation.mutate(formData.website)}
+                      disabled={!formData.website.trim() || gerarDescricaoMutation.isPending}
+                      data-testid="button-gerar-descricao"
+                    >
+                      {gerarDescricaoMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : (
+                        <Sparkles className="h-4 w-4 mr-2" />
+                      )}
+                      Gerar com IA
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Nossa IA acessa o site e cria uma descrição profissional da empresa automaticamente.
                   </p>
                 </div>
 

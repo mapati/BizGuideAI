@@ -17,6 +17,7 @@ import {
   type ResultadoChave,
 } from "@shared/schema";
 import OpenAI from "openai";
+import * as cheerio from "cheerio";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import "./session.d";
@@ -1558,6 +1559,150 @@ Responda em JSON:
       }
       
       res.json(sugestoes);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ==================== AI: GERAR DESCRIÇÃO DA EMPRESA ====================
+
+  app.post("/api/ai/gerar-descricao-empresa", async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const empresa = await storage.getEmpresa(empresaId);
+      if (!empresa) {
+        return res.status(404).json({ error: "Empresa não encontrada" });
+      }
+
+      const rawWebsite: string = req.body?.website || empresa.website || "";
+      if (!rawWebsite) {
+        return res.status(400).json({ error: "Informe o endereço do website da empresa." });
+      }
+
+      let website = rawWebsite.trim();
+      if (!website.startsWith("http://") && !website.startsWith("https://")) {
+        website = "https://" + website;
+      }
+
+      let conteudoSite = "";
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 12000);
+        const response = await fetch(website, {
+          signal: controller.signal,
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (compatible; BizGuideAI/1.0; +https://bizguideai.com)",
+            "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+          },
+        });
+        clearTimeout(timeout);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const html = await response.text();
+        const $ = cheerio.load(html);
+
+        $("script, style, nav, footer, header, [aria-hidden='true']").remove();
+
+        const title = $("title").text().trim();
+        const metaDesc =
+          $('meta[name="description"]').attr("content") ||
+          $('meta[property="og:description"]').attr("content") ||
+          "";
+        const h1s = $("h1")
+          .map((_, el) => $(el).text().trim())
+          .get()
+          .filter(Boolean)
+          .slice(0, 5)
+          .join(" | ");
+        const h2s = $("h2")
+          .map((_, el) => $(el).text().trim())
+          .get()
+          .filter(Boolean)
+          .slice(0, 8)
+          .join(" | ");
+        const paragrafos = $("p")
+          .map((_, el) => $(el).text().trim())
+          .get()
+          .filter((t) => t.length > 40)
+          .slice(0, 20)
+          .join("\n");
+
+        conteudoSite = [
+          title ? `Título: ${title}` : "",
+          metaDesc ? `Descrição do site: ${metaDesc}` : "",
+          h1s ? `Títulos principais: ${h1s}` : "",
+          h2s ? `Subtítulos: ${h2s}` : "",
+          paragrafos ? `Conteúdo:\n${paragrafos}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n\n")
+          .slice(0, 8000);
+      } catch (fetchErr: any) {
+        if (fetchErr.name === "AbortError") {
+          return res.status(408).json({
+            error:
+              "Timeout ao acessar o site. Verifique se o endereço está correto e o site está acessível.",
+          });
+        }
+        return res.status(502).json({
+          error: `Não foi possível acessar o site: ${fetchErr.message}. Verifique o endereço e tente novamente.`,
+        });
+      }
+
+      if (!conteudoSite.trim()) {
+        return res.status(422).json({
+          error:
+            "O site não retornou conteúdo suficiente para gerar a descrição. Tente preencher manualmente.",
+        });
+      }
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `Você é um consultor de negócios especialista em estratégia empresarial. 
+Com base no conteúdo extraído do site da empresa, escreva uma DESCRIÇÃO COMPLETA E PROFISSIONAL da empresa em português do Brasil.
+
+A descrição deve incluir (quando disponível no conteúdo do site):
+- O que a empresa faz (produtos/serviços)
+- Para quem atende (público-alvo, segmentos de mercado)
+- Diferenciais competitivos e proposta de valor
+- Setor de atuação e posicionamento de mercado
+- Missão, visão ou valores (se mencionados)
+- Tamanho/porte aproximado (se mencionado)
+- Localização/abrangência (se mencionado)
+
+REGRAS:
+- Escreva em parágrafo(s) corrido(s), sem listas ou bullet points
+- Use linguagem profissional mas clara
+- Seja específico e rico em detalhes relevantes
+- Mínimo de 150 palavras, máximo de 400 palavras
+- NÃO mencione que o texto foi gerado por IA
+- NÃO inclua informações que não estejam no conteúdo fornecido`,
+          },
+          {
+            role: "user",
+            content: `Empresa: ${empresa.nome}
+Setor: ${empresa.setor}
+Website: ${website}
+
+CONTEÚDO EXTRAÍDO DO SITE:
+${conteudoSite}
+
+Gere uma descrição completa e profissional desta empresa.`,
+          },
+        ],
+        temperature: 0.7,
+        max_tokens: 600,
+      });
+
+      const descricao = completion.choices[0].message.content?.trim() || "";
+      res.json({ descricao });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

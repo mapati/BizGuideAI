@@ -187,18 +187,31 @@ export default function Home() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold" data-testid="text-home-title">
-          {empresa ? `Olá, ${empresa.nome}` : "Início"}
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          {hoje.toLocaleDateString("pt-BR", {
-            weekday: "long",
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-          })}
-        </p>
+      <div className="flex flex-wrap items-center gap-5">
+        {empresa?.logoUrl && (
+          <div className="flex-shrink-0">
+            <img
+              src={empresa.logoUrl}
+              alt={`Logotipo ${empresa.nome}`}
+              className="object-contain w-auto"
+              style={{ maxHeight: "56px", maxWidth: "160px" }}
+              data-testid="img-empresa-logo"
+            />
+          </div>
+        )}
+        <div>
+          <h1 className="text-3xl font-bold" data-testid="text-home-title">
+            {empresa ? `Olá, ${empresa.nome}` : "Início"}
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            {hoje.toLocaleDateString("pt-BR", {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })}
+          </p>
+        </div>
       </div>
 
       {/* Performance Geral + OKRs por Perspectiva */}

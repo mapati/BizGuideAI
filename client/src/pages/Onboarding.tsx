@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ProgressBar } from "@/components/ProgressBar";
 import { ExampleCard } from "@/components/ExampleCard";
-import { ArrowRight, ArrowLeft, CheckCircle2, ChevronDown, ChevronUp, Lock, Globe, Sparkles, Loader2 } from "lucide-react";
+import { ArrowRight, ArrowLeft, CheckCircle2, ChevronDown, ChevronUp, Lock, Globe, Sparkles, Loader2, ImagePlus, Trash2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -26,6 +26,8 @@ export default function Onboarding() {
   const [step, setStep] = useState(1);
   const totalSteps = 3;
 
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
   const [formData, setFormData] = useState({
     nome: "",
     setor: "",
@@ -37,6 +39,7 @@ export default function Onboarding() {
     cidade: "",
     estado: "",
     cep: "",
+    logoUrl: "",
   });
 
   const [senhaData, setSenhaData] = useState({
@@ -67,9 +70,28 @@ export default function Onboarding() {
         cidade: empresaExistente.cidade || "",
         estado: empresaExistente.estado || "",
         cep: empresaExistente.cep || "",
+        logoUrl: empresaExistente.logoUrl || "",
       });
     }
   }, [empresaExistente]);
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!["image/jpeg", "image/png"].includes(file.type)) {
+      toast({ title: "Formato inválido", description: "Selecione um arquivo JPG ou PNG.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: "Arquivo muito grande", description: "O logotipo deve ter no máximo 2 MB.", variant: "destructive" });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setFormData((prev) => ({ ...prev, logoUrl: ev.target?.result as string }));
+    };
+    reader.readAsDataURL(file);
+  };
 
   const criarEmpresaMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
@@ -259,6 +281,61 @@ export default function Onboarding() {
       {perfilCompleto ? (
         <div className="space-y-6">
           <Card className="p-8">
+            {/* Logo upload */}
+            <div className="mb-8 pb-8 border-b">
+              <h3 className="text-xl font-semibold mb-1">Logotipo da Empresa</h3>
+              <p className="text-sm text-muted-foreground mb-5">
+                Faça upload do logotipo em JPG ou PNG (máx. 2 MB). Ele será exibido na página Início.
+              </p>
+              <div className="flex flex-wrap items-center gap-5">
+                {formData.logoUrl ? (
+                  <div className="relative h-20 w-40 rounded-md border bg-muted/30 flex items-center justify-center overflow-hidden flex-shrink-0">
+                    <img
+                      src={formData.logoUrl}
+                      alt="Logotipo"
+                      className="max-h-full max-w-full object-contain p-2"
+                      data-testid="img-logo-preview"
+                    />
+                  </div>
+                ) : (
+                  <div className="h-20 w-40 rounded-md border border-dashed bg-muted/20 flex flex-col items-center justify-center gap-1 text-muted-foreground flex-shrink-0">
+                    <ImagePlus className="h-6 w-6" />
+                    <span className="text-xs">Sem logotipo</span>
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png"
+                    className="hidden"
+                    onChange={handleLogoChange}
+                    data-testid="input-logo-file"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => logoInputRef.current?.click()}
+                    data-testid="button-upload-logo"
+                  >
+                    <ImagePlus className="h-4 w-4 mr-2" />
+                    {formData.logoUrl ? "Alterar logotipo" : "Enviar logotipo"}
+                  </Button>
+                  {formData.logoUrl && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setFormData((prev) => ({ ...prev, logoUrl: "" }))}
+                      data-testid="button-remove-logo"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Remover
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+
             <h3 className="text-xl font-semibold mb-6">Informações da Empresa</h3>
             <div className="space-y-5">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

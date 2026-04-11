@@ -15,6 +15,7 @@ export const empresas = pgTable("empresas", {
   cidade: text("cidade"),
   estado: text("estado"),
   cep: text("cep"),
+  logoUrl: text("logo_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

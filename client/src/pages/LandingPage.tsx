@@ -230,7 +230,7 @@ function MockupHome() {
                 <TrendingUp className="h-3 w-3" />
                 Performance Geral dos OKRs
               </div>
-              <InlineCircularProgress value={74} size={72} strokeWidth={7} />
+              <InlineCircularProgress value={68} size={72} strokeWidth={7} />
               <p className="text-[8px] text-gray-400 text-center">5 objetivos · 14 resultados-chave</p>
             </div>
 
@@ -672,7 +672,7 @@ export default function LandingPage() {
               Um sistema completo, guiado por IA
             </h2>
             <p className="text-slate-400 text-lg max-w-2xl mx-auto">
-              Cada tela foi projetada para tornar o planejamento estratégico simples, visual e acionável.
+              Cada tela foi projetada para tornar o planejamento estratégico simples, visual e accionável.
             </p>
           </div>
 
@@ -802,7 +802,7 @@ export default function LandingPage() {
                   "Analisa o site da empresa e gera o perfil estratégico automaticamente",
                   "Sugere OKRs, iniciativas e KPIs alinhados ao contexto do seu setor",
                   "Identifica cruzamentos estratégicos no SWOT e prioriza ações",
-                  "Gera diagnóstico executivo completo com pontos fortes, riscos e recomendações",
+                  "Gera insights contextuais em cada etapa do planejamento",
                 ].map(item => (
                   <div key={item} className="flex items-start gap-3">
                     <div className="h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -886,7 +886,7 @@ export default function LandingPage() {
               {
                 icon: Target,
                 title: "Frameworks de classe mundial",
-                desc: "PESTEL, SWOT, BSC, OKR, Cinco Forças e Business Model Canvas — metodologias usadas pelas maiores empresas do mundo, acessíveis à sua PME.",
+                desc: "PESTEL, SWOT, BSC, OKR, Cinco Forças e Modelo de Negócio Canvas — metodologias usadas pelas maiores empresas do mundo, acessíveis à sua PME.",
               },
               {
                 icon: Zap,

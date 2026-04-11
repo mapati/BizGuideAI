@@ -94,10 +94,12 @@ export default function Register() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-lg">
         <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="h-10 w-10 rounded-md bg-primary flex items-center justify-center">
-            <Target className="h-6 w-6 text-primary-foreground" />
-          </div>
-          <span className="text-2xl font-bold">BizGuideAI</span>
+          <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity" data-testid="link-home-from-register">
+            <div className="h-10 w-10 rounded-md bg-primary flex items-center justify-center">
+              <Target className="h-6 w-6 text-primary-foreground" />
+            </div>
+            <span className="text-2xl font-bold">BizGuideAI</span>
+          </Link>
         </div>
         <Card>
           <CardHeader>

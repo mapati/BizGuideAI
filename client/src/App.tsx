@@ -25,9 +25,10 @@ import Indicadores from "@/pages/Indicadores";
 import Acompanhamento from "@/pages/Acompanhamento";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
+import LandingPage from "@/pages/LandingPage";
 import NotFound from "@/pages/not-found";
 
-const PUBLIC_ROUTES = ["/login", "/register"];
+const PUBLIC_ROUTES = ["/", "/login", "/register"];
 
 function AppLayout() {
   const { user, isLoading } = useAuth();
@@ -44,16 +45,17 @@ function AppLayout() {
   const isPublic = PUBLIC_ROUTES.includes(location);
 
   if (!user && !isPublic) {
-    return <Redirect to="/login" />;
+    return <Redirect to="/" />;
   }
 
-  if (user && isPublic) {
-    return <Redirect to="/" />;
+  if (user && (location === "/login" || location === "/register")) {
+    return <Redirect to="/dashboard" />;
   }
 
   if (!user) {
     return (
       <Switch>
+        <Route path="/" component={LandingPage} />
         <Route path="/login" component={Login} />
         <Route path="/register" component={Register} />
       </Switch>
@@ -77,6 +79,7 @@ function AppLayout() {
           <main className="flex-1 overflow-auto p-8">
             <Switch>
               <Route path="/" component={Home} />
+              <Route path="/dashboard" component={Home} />
               <Route path="/onboarding" component={Onboarding} />
               <Route path="/pestel" component={Pestel} />
               <Route path="/cinco-forcas" component={CincoForcas} />

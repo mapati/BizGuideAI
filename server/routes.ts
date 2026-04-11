@@ -535,8 +535,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/empresa", async (req, res) => {
     try {
-      const data = stripTenantFields(insertEmpresaSchema.partial().parse(req.body));
-      const empresa = await storage.updateEmpresa(req.session.empresaId!, data);
+      const profileSchema = z.object({
+        nome: z.string().optional(),
+        setor: z.string().optional(),
+        tamanho: z.string().optional(),
+        descricao: z.string().nullable().optional(),
+        website: z.string().nullable().optional(),
+        cnpj: z.string().nullable().optional(),
+        endereco: z.string().nullable().optional(),
+        cidade: z.string().nullable().optional(),
+        estado: z.string().nullable().optional(),
+        cep: z.string().nullable().optional(),
+        logoUrl: z.string().nullable().optional(),
+      });
+      const parsed = profileSchema.parse(req.body);
+      const { nome, setor, tamanho, descricao, website, cnpj, endereco, cidade, estado, cep, logoUrl } = parsed;
+      const safeData: Record<string, unknown> = {};
+      if (nome !== undefined) safeData.nome = nome;
+      if (setor !== undefined) safeData.setor = setor;
+      if (tamanho !== undefined) safeData.tamanho = tamanho;
+      if (descricao !== undefined) safeData.descricao = descricao;
+      if (website !== undefined) safeData.website = website;
+      if (cnpj !== undefined) safeData.cnpj = cnpj;
+      if (endereco !== undefined) safeData.endereco = endereco;
+      if (cidade !== undefined) safeData.cidade = cidade;
+      if (estado !== undefined) safeData.estado = estado;
+      if (cep !== undefined) safeData.cep = cep;
+      if (logoUrl !== undefined) safeData.logoUrl = logoUrl;
+      const empresa = await storage.updateEmpresa(req.session.empresaId!, safeData as any);
       res.json(empresa);
     } catch (error: any) {
       res.status(400).json({ error: error.message });

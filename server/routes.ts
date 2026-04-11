@@ -18,6 +18,7 @@ import {
 } from "@shared/schema";
 import OpenAI from "openai";
 import * as cheerio from "cheerio";
+import { promises as dnsLookup } from "dns";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import "./session.d";
@@ -26,6 +27,92 @@ const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
+
+function isPrivateIp(ip: string): boolean {
+  // Handle IPv4-mapped IPv6 addresses (::ffff:x.x.x.x)
+  const mapped = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+  const check = mapped ? mapped[1] : ip;
+
+  if (check === "::1" || check === "0:0:0:0:0:0:0:1") return true; // IPv6 loopback
+  if (/^127\./.test(check)) return true; // IPv4 loopback (127/8)
+  if (/^10\./.test(check)) return true; // RFC1918 10/8
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(check)) return true; // RFC1918 172.16/12
+  if (/^192\.168\./.test(check)) return true; // RFC1918 192.168/16
+  if (/^169\.254\./.test(check)) return true; // Link-local (AWS metadata, etc.)
+  if (/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(check)) return true; // CGNAT 100.64/10
+  if (check === "0.0.0.0" || /^0\./.test(check)) return true; // This network
+  if (/^(fc|fd)[0-9a-f]{2}:/i.test(check)) return true; // ULA (fc00::/7)
+  if (/^fe80:/i.test(check)) return true; // IPv6 link-local
+  return false;
+}
+
+async function ssrfSafeFetch(rawUrl: string): Promise<string> {
+  const maxRedirects = 5;
+  let currentUrl = rawUrl;
+
+  for (let hop = 0; hop <= maxRedirects; hop++) {
+    let parsed: URL;
+    try {
+      parsed = new URL(currentUrl);
+    } catch {
+      throw new Error("URL inválida encontrada durante redirecionamento.");
+    }
+
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      throw new Error("Protocolo não permitido: apenas http/https.");
+    }
+
+    // Resolve DNS to IP and validate
+    let address: string;
+    try {
+      const result = await dnsLookup.lookup(parsed.hostname);
+      address = result.address;
+    } catch {
+      throw new Error("Não foi possível resolver o domínio do website.");
+    }
+
+    if (isPrivateIp(address)) {
+      throw Object.assign(new Error("SSRF_BLOCKED"), { code: "SSRF_BLOCKED" });
+    }
+
+    // Fetch with manual redirect handling
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+
+    let response: Response;
+    try {
+      response = await fetch(currentUrl, {
+        method: "GET",
+        signal: controller.signal,
+        redirect: "manual",
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (compatible; BizGuideAI/1.0; +https://bizguideai.com)",
+          "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+
+    // Handle redirects manually
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get("location");
+      if (!location) throw new Error("Redirecionamento sem destino (sem cabeçalho Location).");
+      currentUrl = new URL(location, currentUrl).href;
+      continue;
+    }
+
+    if (!response.ok) {
+      throw new Error(`O site retornou erro HTTP ${response.status}.`);
+    }
+
+    return await response.text();
+  }
+
+  throw new Error("Muitos redirecionamentos ao tentar acessar o site.");
+}
 
 function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!req.session?.userId || !req.session?.empresaId) {
@@ -1604,46 +1691,9 @@ Responda em JSON:
         return res.status(400).json({ error: "Apenas endereços http e https são suportados." });
       }
 
-      const hostname = parsedUrl.hostname.toLowerCase();
-
-      // SSRF protection: block private/internal network targets
-      const ssrfBlocked =
-        hostname === "localhost" ||
-        hostname === "::1" ||
-        /^127\./.test(hostname) ||
-        /^10\./.test(hostname) ||
-        /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
-        /^192\.168\./.test(hostname) ||
-        /^169\.254\./.test(hostname) ||
-        /^fc00:/i.test(hostname) ||
-        /^fd[0-9a-f]{2}:/i.test(hostname) ||
-        hostname === "0.0.0.0" ||
-        hostname.endsWith(".internal") ||
-        hostname.endsWith(".local");
-
-      if (ssrfBlocked) {
-        return res.status(400).json({ error: "Endereço de website inválido. Use um site público acessível pela internet." });
-      }
-
       let conteudoSite = "";
       try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 10000);
-        const response = await fetch(website, {
-          signal: controller.signal,
-          headers: {
-            "User-Agent":
-              "Mozilla/5.0 (compatible; BizGuideAI/1.0; +https://bizguideai.com)",
-            "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
-          },
-        });
-        clearTimeout(timeout);
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-
-        const html = await response.text();
+        const html = await ssrfSafeFetch(website);
         const $ = cheerio.load(html);
 
         $("script, style, nav, footer, header, [aria-hidden='true']").remove();
@@ -1690,10 +1740,14 @@ Responda em JSON:
           .join("\n\n")
           .slice(0, 8000);
       } catch (fetchErr: any) {
+        if (fetchErr.code === "SSRF_BLOCKED") {
+          return res.status(400).json({
+            error: "Endereço de website inválido. Use um site público acessível pela internet.",
+          });
+        }
         if (fetchErr.name === "AbortError") {
           return res.status(408).json({
-            error:
-              "Timeout ao acessar o site. Verifique se o endereço está correto e o site está acessível.",
+            error: "Timeout ao acessar o site. Verifique se o endereço está correto e o site está acessível.",
           });
         }
         return res.status(502).json({

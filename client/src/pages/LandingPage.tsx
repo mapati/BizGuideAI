@@ -222,7 +222,7 @@ function MockupHome() {
         <MockupSidebar active="inicio" />
         <div className="flex-1 p-3 flex flex-col gap-3 overflow-hidden min-w-0">
           <div>
-            <h1 className="text-[13px] font-bold text-gray-900">Olá, Tecno Sul Comércio</h1>
+            <h1 className="text-[11px] font-bold text-gray-900">Olá, Tecno Sul Comércio</h1>
             <p className="text-[9px] text-gray-400">sábado, 11 de abril de 2026</p>
           </div>
 
@@ -248,7 +248,7 @@ function MockupHome() {
                       <span className="text-[9px] font-medium text-gray-700">{p.label}</span>
                     </div>
                     <div className="flex items-end gap-1">
-                      <span className="text-[15px] font-bold text-gray-900">{p.pct}%</span>
+                      <span className="text-[13px] font-bold text-gray-900">{p.pct}%</span>
                       <span className="text-[8px] text-gray-400 mb-0.5">progresso</span>
                     </div>
                     <div className="w-full bg-gray-100 rounded-full" style={{ height: 4 }}>
@@ -364,7 +364,7 @@ function MockupOKRs() {
         <div className="flex-1 p-3 flex flex-col gap-3 overflow-hidden min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <h1 className="text-[13px] font-bold text-gray-900">OKRs — Objetivos e Resultados-Chave</h1>
+              <h1 className="text-[11px] font-bold text-gray-900">OKRs — Objetivos e Resultados-Chave</h1>
               <p className="text-[9px] text-gray-400">Defina objetivos ambiciosos e acompanhe resultados mensuráveis</p>
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">
@@ -467,7 +467,7 @@ function MockupIndicadores() {
         <div className="flex-1 p-3 flex flex-col gap-3 overflow-hidden min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <h1 className="text-[13px] font-bold text-gray-900">KPIs — Indicadores de Performance</h1>
+              <h1 className="text-[11px] font-bold text-gray-900">KPIs — Indicadores de Performance</h1>
               <p className="text-[9px] text-gray-400">Balanced Scorecard — monitoramento das 4 perspectivas</p>
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">

@@ -1318,6 +1318,156 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
     }
   });
 
+  app.post("/api/ai/assistente", requireAuth, async (req, res) => {
+    try {
+      const { pergunta, historico = [] } = req.body as {
+        pergunta: string;
+        historico: { role: "user" | "assistant"; content: string }[];
+      };
+      if (!pergunta?.trim()) return res.status(400).json({ error: "Pergunta não pode ser vazia." });
+
+      const empresaId = req.session.empresaId!;
+
+      const [
+        empresa,
+        pestel,
+        swot,
+        cincoForcas,
+        modeloNegocio,
+        estrategias,
+        objetivos,
+        indicadores,
+        iniciativas,
+        rituais,
+      ] = await Promise.all([
+        storage.getEmpresa(empresaId),
+        storage.getFatoresPestel(empresaId),
+        storage.getAnaliseSwot(empresaId),
+        storage.getCincoForcas(empresaId),
+        storage.getModeloNegocio(empresaId),
+        storage.getEstrategias(empresaId),
+        storage.getObjetivos(empresaId),
+        storage.getIndicadores(empresaId),
+        storage.getIniciativas(empresaId),
+        storage.getRituais(empresaId),
+      ]);
+
+      // Fetch key results for each objective
+      const resultadosPorObjetivo = await Promise.all(
+        objetivos.map(o => storage.getResultadosChave(o.id, empresaId).then(rks => ({ objetivo: o, resultados: rks })))
+      );
+
+      // Build context
+      const ctx: string[] = [];
+
+      if (empresa) {
+        ctx.push(`## PERFIL DA EMPRESA
+Nome: ${empresa.nome}
+Setor: ${empresa.setor || "Não informado"}
+Tamanho: ${empresa.tamanho || "Não informado"}
+Descrição: ${empresa.descricao || "Não informada"}
+Website: ${empresa.website || "Não informado"}
+Cidade/Estado: ${[empresa.cidade, empresa.estado].filter(Boolean).join(" / ") || "Não informado"}`);
+      }
+
+      if (pestel.length > 0) {
+        const grupos = ["politico", "economico", "social", "tecnologico", "ambiental", "legal"];
+        const pestelStr = grupos.map(g => {
+          const items = pestel.filter(p => p.categoria === g).map(p => `  - ${p.fator}: ${p.descricao} (impacto: ${p.impacto})`);
+          return items.length ? `${g.toUpperCase()}:\n${items.join("\n")}` : null;
+        }).filter(Boolean).join("\n");
+        ctx.push(`## ANÁLISE DE CENÁRIO EXTERNO (PESTEL)\n${pestelStr}`);
+      }
+
+      if (cincoForcas.length > 0) {
+        ctx.push(`## ANÁLISE DE MERCADO E CONCORRÊNCIA (CINCO FORÇAS)\n${cincoForcas.map(f => `- ${f.forca}: ${f.descricao} (intensidade: ${f.intensidade})`).join("\n")}`);
+      }
+
+      if (swot.length > 0) {
+        const tipos = ["forca", "fraqueza", "oportunidade", "ameaca"];
+        const swotStr = tipos.map(t => {
+          const items = swot.filter(s => s.tipo === t).map(s => `  - ${s.descricao}`);
+          return items.length ? `${t.toUpperCase()}S:\n${items.join("\n")}` : null;
+        }).filter(Boolean).join("\n");
+        ctx.push(`## FORÇAS E FRAQUEZAS / OPORTUNIDADES E AMEAÇAS (SWOT)\n${swotStr}`);
+      }
+
+      if (modeloNegocio.length > 0) {
+        ctx.push(`## MODELO DE NEGÓCIO\n${modeloNegocio.map(b => `- ${b.bloco}: ${b.conteudo}`).join("\n")}`);
+      }
+
+      if (estrategias.length > 0) {
+        ctx.push(`## ESTRATÉGIAS DEFINIDAS\n${estrategias.map(e => `- [${e.tipo}] ${e.titulo}: ${e.descricao}`).join("\n")}`);
+      }
+
+      if (resultadosPorObjetivo.length > 0) {
+        const okrStr = resultadosPorObjetivo.map(({ objetivo, resultados }) => {
+          const rks = resultados.map(r => {
+            const progresso = r.valorAtual != null && r.valorMeta != null
+              ? `${parseFloat(String(r.valorAtual))}/${parseFloat(String(r.valorMeta))} ${r.unidade || ""} (${Math.round((parseFloat(String(r.valorAtual)) / parseFloat(String(r.valorMeta))) * 100)}%)`
+              : "sem dados";
+            return `    • ${r.descricao}: ${progresso}`;
+          }).join("\n");
+          return `- Objetivo: ${objetivo.titulo} (${objetivo.perspectiva})\n${rks || "    • Sem resultados-chave"}`;
+        }).join("\n");
+        ctx.push(`## OBJETIVOS E RESULTADOS-CHAVE (OKRs)\n${okrStr}`);
+      }
+
+      if (indicadores.length > 0) {
+        ctx.push(`## INDICADORES DE DESEMPENHO (KPIs / BSC)\n${indicadores.map(i => {
+          const atual = i.valorAtual != null ? parseFloat(String(i.valorAtual)) : null;
+          const meta = i.valorMeta != null ? parseFloat(String(i.valorMeta)) : null;
+          const status = atual != null && meta != null
+            ? (atual >= meta ? "Verde" : atual >= meta * 0.8 ? "Amarelo" : "Vermelho")
+            : "Sem dados";
+          return `- [${i.perspectiva}] ${i.nome}: atual=${atual ?? "—"}, meta=${meta ?? "—"} ${i.unidade || ""} — ${status}`;
+        }).join("\n")}`);
+      }
+
+      if (iniciativas.length > 0) {
+        ctx.push(`## INICIATIVAS PRIORITÁRIAS\n${iniciativas.map(i => `- ${i.titulo} [${i.status}] prazo: ${i.prazo || "não definido"} responsável: ${i.responsavel || "não definido"}`).join("\n")}`);
+      }
+
+      if (rituais.length > 0) {
+        const recentes = rituais.filter(r => r.completado).slice(0, 5);
+        if (recentes.length > 0) {
+          ctx.push(`## RITOS DE GESTÃO RECENTES\n${recentes.map(r => `- ${r.tipo} em ${r.dataUltimo || "data não registrada"}`).join("\n")}`);
+        }
+      }
+
+      const systemPrompt = `Você é o Assistente Estratégico do BizGuideAI, um consultor sênior de estratégia empresarial com profundo conhecimento em gestão para pequenas e médias empresas brasileiras.
+
+Você tem acesso completo às informações estratégicas da empresa abaixo. Use esses dados para dar respostas precisas, contextualizadas e acionáveis.
+
+REGRAS:
+- Responda SEMPRE em português do Brasil
+- Use linguagem simples e direta, sem jargões desnecessários
+- Baseie suas respostas nos dados reais da empresa quando relevante
+- Seja específico e prático — foque em ações concretas
+- Se a pergunta não tiver relação com os dados da empresa, responda da melhor forma usando seu conhecimento geral de gestão estratégica
+- Limite a resposta a no máximo 400 palavras, exceto quando o usuário pedir algo mais extenso
+
+${ctx.join("\n\n")}`;
+
+      const messages: { role: "system" | "user" | "assistant"; content: string }[] = [
+        { role: "system", content: systemPrompt },
+        ...historico.slice(-10),
+        { role: "user", content: pergunta },
+      ];
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages,
+        temperature: 0.7,
+        max_tokens: 700,
+      });
+
+      res.json({ resposta: completion.choices[0].message.content });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/ai/explicar", async (req, res) => {
     try {
       const { conceito, contexto } = req.body;

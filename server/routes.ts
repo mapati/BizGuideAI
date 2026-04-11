@@ -2,7 +2,8 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { 
-  insertEmpresaSchema, 
+  insertEmpresaSchema,
+  type InsertEmpresa,
   insertFatorPestelSchema, 
   insertAnaliseSwotSchema,
   insertObjetivoSchema,
@@ -550,7 +551,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const parsed = profileSchema.parse(req.body);
       const { nome, setor, tamanho, descricao, website, cnpj, endereco, cidade, estado, cep, logoUrl } = parsed;
-      const safeData: Record<string, unknown> = {};
+      const safeData: Partial<Pick<InsertEmpresa, "nome" | "setor" | "tamanho" | "descricao" | "website" | "cnpj" | "endereco" | "cidade" | "estado" | "cep" | "logoUrl">> = {};
       if (nome !== undefined) safeData.nome = nome;
       if (setor !== undefined) safeData.setor = setor;
       if (tamanho !== undefined) safeData.tamanho = tamanho;
@@ -562,7 +563,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (estado !== undefined) safeData.estado = estado;
       if (cep !== undefined) safeData.cep = cep;
       if (logoUrl !== undefined) safeData.logoUrl = logoUrl;
-      const empresa = await storage.updateEmpresa(req.session.empresaId!, safeData as any);
+      const empresa = await storage.updateEmpresa(req.session.empresaId!, safeData);
       res.json(empresa);
     } catch (error: any) {
       res.status(400).json({ error: error.message });

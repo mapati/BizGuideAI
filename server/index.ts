@@ -5,6 +5,19 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { pool } from "./db";
 
+async function runStartupMigrations() {
+  const client = await pool.connect();
+  try {
+    await client.query(`
+      UPDATE empresas
+      SET trial_started_at = created_at
+      WHERE trial_started_at IS NULL
+    `);
+  } finally {
+    client.release();
+  }
+}
+
 const app = express();
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: false, limit: "10mb" }));
@@ -66,6 +79,8 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  await runStartupMigrations();
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

@@ -599,7 +599,7 @@ export default function LandingPage() {
               </h1>
 
               <p className="text-lg text-slate-300 leading-relaxed" data-testid="text-hero-subtitle">
-                Transforme dados simples da sua empresa em PESTEL, SWOT, OKRs e Balanced Scorecard — estruturados por GPT-4o em minutos, não em semanas.
+                Responda perguntas simples sobre o seu negócio e receba um plano estratégico completo — com metas, indicadores de desempenho e as ações mais importantes para crescer. Tudo gerado em minutos pela inteligência artificial.
               </p>
 
               <div className="flex flex-wrap gap-3">

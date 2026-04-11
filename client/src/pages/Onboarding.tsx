@@ -281,61 +281,6 @@ export default function Onboarding() {
       {perfilCompleto ? (
         <div className="space-y-6">
           <Card className="p-8">
-            {/* Logo upload */}
-            <div className="mb-8 pb-8 border-b">
-              <h3 className="text-xl font-semibold mb-1">Logotipo da Empresa</h3>
-              <p className="text-sm text-muted-foreground mb-5">
-                Faça upload do logotipo em JPG ou PNG (máx. 2 MB). Ele será exibido na página Início.
-              </p>
-              <div className="flex flex-wrap items-center gap-5">
-                {formData.logoUrl ? (
-                  <div className="relative h-20 w-40 rounded-md border bg-muted/30 flex items-center justify-center overflow-hidden flex-shrink-0">
-                    <img
-                      src={formData.logoUrl}
-                      alt="Logotipo"
-                      className="max-h-full max-w-full object-contain p-2"
-                      data-testid="img-logo-preview"
-                    />
-                  </div>
-                ) : (
-                  <div className="h-20 w-40 rounded-md border border-dashed bg-muted/20 flex flex-col items-center justify-center gap-1 text-muted-foreground flex-shrink-0">
-                    <ImagePlus className="h-6 w-6" />
-                    <span className="text-xs">Sem logotipo</span>
-                  </div>
-                )}
-                <div className="flex flex-wrap gap-2">
-                  <input
-                    ref={logoInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png"
-                    className="hidden"
-                    onChange={handleLogoChange}
-                    data-testid="input-logo-file"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => logoInputRef.current?.click()}
-                    data-testid="button-upload-logo"
-                  >
-                    <ImagePlus className="h-4 w-4 mr-2" />
-                    {formData.logoUrl ? "Alterar logotipo" : "Enviar logotipo"}
-                  </Button>
-                  {formData.logoUrl && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setFormData((prev) => ({ ...prev, logoUrl: "" }))}
-                      data-testid="button-remove-logo"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Remover
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
-
             <h3 className="text-xl font-semibold mb-6">Informações da Empresa</h3>
             <div className="space-y-5">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -635,6 +580,76 @@ export default function Onboarding() {
                     {alterarSenhaMutation.isPending ? "Salvando..." : "Alterar Senha"}
                   </Button>
                 </div>
+              </div>
+            )}
+          </Card>
+
+          {/* Logo upload */}
+          <Card className="p-8">
+            <h3 className="text-xl font-semibold mb-1">Logotipo da Empresa</h3>
+            <p className="text-sm text-muted-foreground mb-6">
+              Faça upload do logotipo em JPG ou PNG (máx. 2 MB). Ele será exibido na página Início.
+            </p>
+            <div className="flex flex-wrap items-center gap-5">
+              {formData.logoUrl ? (
+                <div className="h-20 w-40 rounded-md border bg-muted/30 flex items-center justify-center overflow-hidden flex-shrink-0">
+                  <img
+                    src={formData.logoUrl}
+                    alt="Logotipo"
+                    className="max-h-full max-w-full object-contain p-2"
+                    data-testid="img-logo-preview"
+                  />
+                </div>
+              ) : (
+                <div className="h-20 w-40 rounded-md border border-dashed bg-muted/20 flex flex-col items-center justify-center gap-1 text-muted-foreground flex-shrink-0">
+                  <ImagePlus className="h-6 w-6" />
+                  <span className="text-xs">Sem logotipo</span>
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png"
+                  className="hidden"
+                  onChange={handleLogoChange}
+                  data-testid="input-logo-file"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => logoInputRef.current?.click()}
+                  data-testid="button-upload-logo"
+                >
+                  <ImagePlus className="h-4 w-4 mr-2" />
+                  {formData.logoUrl ? "Alterar logotipo" : "Enviar logotipo"}
+                </Button>
+                {formData.logoUrl && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setFormData((prev) => ({ ...prev, logoUrl: "" }));
+                      atualizarEmpresaMutation.mutate({ ...formData, logoUrl: "" });
+                    }}
+                    data-testid="button-remove-logo"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Remover
+                  </Button>
+                )}
+              </div>
+            </div>
+            {formData.logoUrl && (
+              <div className="flex justify-end mt-6">
+                <Button
+                  type="button"
+                  onClick={() => atualizarEmpresaMutation.mutate(formData)}
+                  disabled={atualizarEmpresaMutation.isPending}
+                  data-testid="button-salvar-logo"
+                >
+                  {atualizarEmpresaMutation.isPending ? "Salvando..." : "Salvar Logotipo"}
+                </Button>
               </div>
             )}
           </Card>

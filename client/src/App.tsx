@@ -110,7 +110,12 @@ function AppLayout() {
     );
   }
 
-  if (trialInfo?.trialExpirado) {
+  const isTrialBlocked =
+    trialInfo?.trialExpirado === true ||
+    trialInfo?.planoStatus === "expirado" ||
+    trialInfo?.planoStatus === "suspenso";
+
+  if (isTrialBlocked) {
     if (location !== "/trial-expirado") {
       return <Redirect to="/trial-expirado" />;
     }

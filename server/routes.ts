@@ -159,6 +159,9 @@ function computeTrialInfo(usuario: { planoStatus: string; trialStartedAt: Date |
   if (planoStatus === "ativo") {
     return { planoStatus, diasRestantes: null, trialExpirado: false };
   }
+  if (planoStatus === "expirado" || planoStatus === "suspenso") {
+    return { planoStatus, diasRestantes: 0, trialExpirado: true };
+  }
   const trialStart = usuario.trialStartedAt || usuario.createdAt;
   const daysSinceStart = Math.floor((Date.now() - trialStart.getTime()) / (1000 * 60 * 60 * 24));
   const diasRestantes = Math.max(0, 7 - daysSinceStart);

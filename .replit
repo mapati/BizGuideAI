@@ -7,7 +7,7 @@ channel = "stable-24_05"
 
 [deployment]
 deploymentTarget = "autoscale"
-build = ["bash", "-c", "npm run db:push --force && npm run build"]
+build = ["npm", "run", "build"]
 run = ["npm", "run", "start"]
 
 [[ports]]

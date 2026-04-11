@@ -38,11 +38,11 @@ const benefits = [
   },
 ];
 
-const WHATSAPP_NUMBER = "5511999999999";
+const WHATSAPP_NUMBER = "5511950377286";
 const WHATSAPP_MESSAGE = encodeURIComponent(
   "Olá! Meu período de testes do BizGuideAI encerrou e gostaria de contratar o plano completo. Podem me ajudar?"
 );
-const CONTACT_EMAIL = "contato@bizguideai.com.br";
+const CONTACT_EMAIL = "atendimento.jundiai@consultingnow.com.br";
 
 export default function TrialExpirado() {
   const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${WHATSAPP_MESSAGE}`;

@@ -51,7 +51,7 @@ function TrialBanner({ diasRestantes }: { diasRestantes: number }) {
       <span>
         {msg}{" "}
         <a
-          href="https://wa.me/5511999999999"
+          href="https://wa.me/5511950377286"
           target="_blank"
           rel="noopener noreferrer"
           className="font-semibold underline hover:text-amber-900 dark:hover:text-amber-300"

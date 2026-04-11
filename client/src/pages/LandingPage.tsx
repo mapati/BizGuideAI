@@ -21,6 +21,9 @@ import {
   Crosshair,
   Network,
   ChevronRight,
+  MessageCircle,
+  Phone,
+  Mail,
 } from "lucide-react";
 
 const features = [
@@ -397,6 +400,52 @@ export default function LandingPage() {
               Cancele quando quiser
             </span>
           </div>
+        </div>
+      </section>
+
+      <section
+        className="py-16 bg-muted/30 border-t"
+        data-testid="section-contato"
+      >
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-2xl font-bold mb-3">Dúvidas? Fale com um consultor</h2>
+          <p className="text-muted-foreground mb-10">
+            Nossa equipe está pronta para ajudar você a dar o próximo passo no planejamento estratégico da sua empresa.
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <a
+              href="https://wa.me/5511950377286?text=Ol%C3%A1%2C%20gostaria%20de%20saber%20mais%20sobre%20o%20BizGuideAI"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="link-whatsapp-contato"
+            >
+              <Button size="lg" className="gap-2 w-full sm:w-auto">
+                <MessageCircle className="h-5 w-5" />
+                WhatsApp: (11) 95037-7286
+              </Button>
+            </a>
+            <a
+              href="tel:+5511950377286"
+              data-testid="link-telefone-contato"
+            >
+              <Button size="lg" variant="outline" className="gap-2 w-full sm:w-auto">
+                <Phone className="h-5 w-5" />
+                (11) 95037-7286
+              </Button>
+            </a>
+            <a
+              href="mailto:atendimento.jundiai@consultingnow.com.br"
+              data-testid="link-email-contato"
+            >
+              <Button size="lg" variant="outline" className="gap-2 w-full sm:w-auto">
+                <Mail className="h-5 w-5" />
+                Enviar e-mail
+              </Button>
+            </a>
+          </div>
+          <p className="mt-6 text-xs text-muted-foreground">
+            atendimento.jundiai@consultingnow.com.br
+          </p>
         </div>
       </section>
 

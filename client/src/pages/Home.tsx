@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueries, useMutation } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -75,6 +76,7 @@ function getSaudeCor(saude: number): { label: string; className: string } {
 }
 
 export default function Home() {
+  const { usuario } = useAuth();
   const { toast } = useToast();
   const [diagnostico, setDiagnostico] = useState<Diagnostico | null>(null);
 
@@ -201,7 +203,7 @@ export default function Home() {
         )}
         <div>
           <h1 className="text-3xl font-bold" data-testid="text-home-title">
-            {empresa ? `Olá, ${empresa.nome}` : "Início"}
+            {usuario ? `Olá, ${usuario.nome}` : "Início"}
           </h1>
           <p className="text-muted-foreground mt-1">
             {hoje.toLocaleDateString("pt-BR", {

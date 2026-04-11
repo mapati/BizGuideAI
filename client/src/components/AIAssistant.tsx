@@ -107,7 +107,7 @@ export function AIAssistant() {
     return (
       <Button
         size="icon"
-        className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg"
+        className="fixed bottom-4 right-5 h-14 w-14 rounded-full shadow-lg"
         onClick={() => setIsOpen(true)}
         data-testid="button-ai-assistant-open"
         title="Assistente Estratégico"
@@ -119,8 +119,8 @@ export function AIAssistant() {
 
   return (
     <div
-      className="fixed bottom-6 right-6 w-[380px] sm:w-[440px] flex flex-col rounded-xl border bg-background shadow-2xl"
-      style={{ height: "560px", zIndex: 9999 }}
+      className="fixed bottom-4 right-5 w-[380px] sm:w-[440px] flex flex-col rounded-xl border bg-background shadow-2xl"
+      style={{ height: "min(560px, calc(100vh - 80px))", zIndex: 9999 }}
       data-testid="component-ai-assistant"
     >
       {/* Header */}

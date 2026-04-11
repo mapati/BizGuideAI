@@ -618,7 +618,10 @@ export default function Onboarding() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => logoInputRef.current?.click()}
+                  onClick={() => {
+                    if (logoInputRef.current) logoInputRef.current.value = "";
+                    logoInputRef.current?.click();
+                  }}
                   data-testid="button-upload-logo"
                 >
                   <ImagePlus className="h-4 w-4 mr-2" />

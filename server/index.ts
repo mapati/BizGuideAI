@@ -8,10 +8,30 @@ import { pool } from "./db";
 async function runStartupMigrations() {
   const client = await pool.connect();
   try {
+    // Migration: planoStatus/trialStartedAt/planoAtivadoEm were moved from usuarios to empresas.
+    // The data backfill from owner-user plan fields to empresas was performed before those
+    // columns were dropped from usuarios. This idempotent migration provides a safety net for any
+    // edge cases (e.g., empresas created in-flight or direct DB imports without plan data).
+
+    // Ensure every empresa has a valid plano_status
+    await client.query(`
+      UPDATE empresas
+      SET plano_status = 'trial'
+      WHERE plano_status IS NULL OR plano_status = ''
+    `);
+
+    // Ensure every empresa has a trial_started_at (fall back to created_at if missing)
     await client.query(`
       UPDATE empresas
       SET trial_started_at = created_at
       WHERE trial_started_at IS NULL
+    `);
+
+    // For empresas already marked as 'ativo' without a plano_ativado_em, set a reasonable default
+    await client.query(`
+      UPDATE empresas
+      SET plano_ativado_em = created_at
+      WHERE plano_status = 'ativo' AND plano_ativado_em IS NULL
     `);
   } finally {
     client.release();

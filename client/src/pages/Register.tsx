@@ -93,6 +93,12 @@ export default function Register() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-lg">
+        <div className="flex justify-start mb-4">
+          <Link href="/" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors" data-testid="link-back-home-register">
+            <Target className="h-3.5 w-3.5" />
+            Voltar ao início
+          </Link>
+        </div>
         <div className="flex items-center justify-center gap-3 mb-8">
           <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity" data-testid="link-home-from-register">
             <div className="h-10 w-10 rounded-md bg-primary flex items-center justify-center">

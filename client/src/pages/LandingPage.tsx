@@ -180,7 +180,7 @@ export default function LandingPage() {
                   className="gap-2 text-base bg-white/10 border-white/20 text-white hover:bg-white/20"
                   data-testid="button-hero-cta-login"
                 >
-                  Já tenho uma conta
+                  Fazer Login
                 </Button>
               </Link>
             </div>

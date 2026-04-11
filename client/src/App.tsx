@@ -29,6 +29,7 @@ import Register from "@/pages/Register";
 import LandingPage from "@/pages/LandingPage";
 import TrialExpirado from "@/pages/TrialExpirado";
 import Admin from "@/pages/Admin";
+import Equipe from "@/pages/Equipe";
 import NotFound from "@/pages/not-found";
 
 const PUBLIC_ROUTES = ["/", "/login", "/register", "/trial-expirado"];
@@ -162,6 +163,7 @@ function AppLayout() {
                 <Route path="/ritos" component={Acompanhamento} />
                 <Route path="/trial-expirado" component={TrialExpirado} />
                 <Route path="/admin" component={Admin} />
+                <Route path="/equipe" component={Equipe} />
                 <Route component={NotFound} />
               </Switch>
             </main>

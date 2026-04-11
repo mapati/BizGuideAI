@@ -47,6 +47,7 @@ interface AdminUsuario {
   planoStatus: string;
   diasRestantes: number | null;
   isAdmin: boolean;
+  role: string;
   createdAt: string;
 }
 
@@ -261,10 +262,16 @@ function TabUsuarios({ usuarios, isLoading }: { usuarios: AdminUsuario[]; isLoad
             >
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm truncate" data-testid={`text-nome-${u.id}`}>
-                  {u.nome} {u.isAdmin && <span className="text-xs text-muted-foreground ml-1">(admin)</span>}
+                  {u.nome}
+                  {u.isAdmin && <span className="text-xs text-muted-foreground ml-1">(plataforma admin)</span>}
                 </p>
                 <p className="text-xs text-muted-foreground truncate">{u.email}</p>
-                <p className="text-xs text-muted-foreground">{u.empresaNome}</p>
+                <p className="text-xs text-muted-foreground">
+                  {u.empresaNome}
+                  <span className="ml-1.5 opacity-60">
+                    · {u.role === "admin" ? "admin empresa" : "membro"}
+                  </span>
+                </p>
                 <p className="text-xs text-muted-foreground">
                   Cadastro: {format(new Date(u.createdAt), "dd/MM/yyyy", { locale: ptBR })}
                 </p>
@@ -277,10 +284,11 @@ function TabUsuarios({ usuarios, isLoading }: { usuarios: AdminUsuario[]; isLoad
                     variant="outline"
                     onClick={() => ativarPlano.mutate(u.id)}
                     disabled={ativarPlano.isPending}
+                    title="Ativa o plano para toda a empresa"
                     data-testid={`button-ativar-${u.id}`}
                   >
                     <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                    Ativar Plano
+                    Ativar Empresa
                   </Button>
                 )}
                 {!u.isAdmin && u.planoStatus !== "suspenso" && (
@@ -289,10 +297,11 @@ function TabUsuarios({ usuarios, isLoading }: { usuarios: AdminUsuario[]; isLoad
                     variant="outline"
                     onClick={() => suspender.mutate(u.id)}
                     disabled={suspender.isPending}
+                    title="Suspende o acesso para toda a empresa"
                     data-testid={`button-suspender-${u.id}`}
                   >
                     <XCircle className="h-3.5 w-3.5 mr-1" />
-                    Suspender
+                    Suspender Empresa
                   </Button>
                 )}
               </div>

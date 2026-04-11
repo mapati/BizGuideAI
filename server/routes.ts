@@ -131,12 +131,20 @@ async function requireAuth(req: Request, res: Response, next: NextFunction) {
       return res.status(401).json({ error: "Não autenticado" });
     }
 
-    if (usuario.planoStatus === "expirado" || usuario.planoStatus === "suspenso") {
+    if (usuario.isAdmin) { next(); return; }
+
+    const empresa = await storage.getEmpresa(req.session.empresaId);
+    if (!empresa) {
+      return res.status(401).json({ error: "Empresa não encontrada" });
+    }
+
+    const planoStatus = empresa.planoStatus;
+    if (planoStatus === "expirado" || planoStatus === "suspenso") {
       return res.status(403).json({ error: "TRIAL_EXPIRADO" });
     }
 
-    if (usuario.planoStatus === "trial") {
-      const trialStart = usuario.trialStartedAt || usuario.createdAt;
+    if (planoStatus === "trial") {
+      const trialStart = empresa.trialStartedAt || empresa.createdAt;
       const daysSinceStart = Math.floor((Date.now() - trialStart.getTime()) / (1000 * 60 * 60 * 24));
       if (daysSinceStart >= 7) {
         return res.status(403).json({ error: "TRIAL_EXPIRADO" });
@@ -156,15 +164,15 @@ function stripTenantFields<T extends Record<string, unknown>>(data: T): Omit<T, 
   return result as Omit<T, "empresaId" | "objetivoId">;
 }
 
-function computeTrialInfo(usuario: { planoStatus: string; trialStartedAt: Date | null; createdAt: Date; isAdmin: boolean }) {
-  const planoStatus = usuario.planoStatus;
+function computeTrialInfo(empresa: { planoStatus: string; trialStartedAt: Date | null; createdAt: Date }) {
+  const planoStatus = empresa.planoStatus;
   if (planoStatus === "ativo") {
     return { planoStatus, diasRestantes: null, trialExpirado: false };
   }
   if (planoStatus === "expirado" || planoStatus === "suspenso") {
     return { planoStatus, diasRestantes: 0, trialExpirado: true };
   }
-  const trialStart = usuario.trialStartedAt || usuario.createdAt;
+  const trialStart = empresa.trialStartedAt || empresa.createdAt;
   const daysSinceStart = Math.floor((Date.now() - trialStart.getTime()) / (1000 * 60 * 60 * 24));
   const diasRestantes = Math.max(0, 7 - daysSinceStart);
   const trialExpirado = daysSinceStart >= 7;
@@ -199,6 +207,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(409).json({ error: "E-mail já cadastrado" });
       }
 
+      const now = new Date();
       const empresa = await storage.createEmpresa({
         nome: data.nomeEmpresa,
         setor: data.setor,
@@ -209,10 +218,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         cidade: data.cidade,
         estado: data.estado,
         cep: data.cep,
+        planoStatus: "trial",
+        trialStartedAt: now,
       });
 
       const senhaHash = await bcrypt.hash(data.senha, 10);
-      const now = new Date();
       const usuario = await storage.createUsuario({
         empresaId: empresa.id,
         nome: data.nome,
@@ -221,15 +231,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         trialStartedAt: now,
         planoStatus: "trial",
         isAdmin: false,
+        role: "admin",
       });
 
       req.session.userId = usuario.id;
       req.session.empresaId = empresa.id;
 
       res.json({
-        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresaId: usuario.empresaId, isAdmin: usuario.isAdmin },
+        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresaId: usuario.empresaId, isAdmin: usuario.isAdmin, role: usuario.role },
         empresa,
-        trialInfo: computeTrialInfo(usuario),
+        trialInfo: computeTrialInfo(empresa),
       });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -260,9 +271,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const empresa = await storage.getEmpresa(usuario.empresaId);
 
       res.json({
-        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresaId: usuario.empresaId, isAdmin: usuario.isAdmin },
+        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresaId: usuario.empresaId, isAdmin: usuario.isAdmin, role: usuario.role },
         empresa,
-        trialInfo: computeTrialInfo(usuario),
+        trialInfo: empresa ? computeTrialInfo(empresa) : null,
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -321,9 +332,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const empresa = await storage.getEmpresa(req.session.empresaId);
 
       res.json({
-        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresaId: usuario.empresaId, isAdmin: usuario.isAdmin },
+        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresaId: usuario.empresaId, isAdmin: usuario.isAdmin, role: usuario.role },
         empresa,
-        trialInfo: computeTrialInfo(usuario),
+        trialInfo: empresa ? computeTrialInfo(empresa) : null,
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -356,19 +367,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const usuarios = await storage.getAllUsuarios();
       const result = usuarios.map(u => {
-        const trialStart = u.trialStartedAt || u.createdAt;
+        const empresaPlanoStatus = u.empresa?.planoStatus ?? u.planoStatus;
+        const trialStart = u.empresa?.trialStartedAt ?? u.trialStartedAt ?? u.createdAt;
         const daysSinceStart = Math.floor((Date.now() - trialStart.getTime()) / (1000 * 60 * 60 * 24));
-        const diasRestantes = u.planoStatus === "trial" ? Math.max(0, 7 - daysSinceStart) : null;
-        const trialExpirado = u.planoStatus === "trial" && daysSinceStart >= 7;
+        const diasRestantes = empresaPlanoStatus === "trial" ? Math.max(0, 7 - daysSinceStart) : null;
+        const trialExpirado = empresaPlanoStatus === "trial" && daysSinceStart >= 7;
         return {
           id: u.id,
           nome: u.nome,
           email: u.email,
           empresaId: u.empresaId,
           empresaNome: u.empresa?.nome ?? "-",
-          planoStatus: trialExpirado ? "expirado" : u.planoStatus,
+          planoStatus: trialExpirado ? "expirado" : empresaPlanoStatus,
           diasRestantes,
           isAdmin: u.isAdmin,
+          role: u.role,
           createdAt: u.createdAt,
         };
       });
@@ -381,8 +394,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/admin/usuarios/:id/ativar-plano", async (req, res) => {
     try {
       const { id } = req.params;
-      const usuario = await storage.updateUsuario(id, { planoStatus: "ativo", planoAtivadoEm: new Date() });
-      res.json({ success: true, planoStatus: usuario.planoStatus });
+      const usuario = await storage.getUsuarioById(id);
+      if (!usuario) return res.status(404).json({ error: "Usuário não encontrado" });
+      const empresa = await storage.updateEmpresaPlano(usuario.empresaId, { planoStatus: "ativo", planoAtivadoEm: new Date() });
+      res.json({ success: true, planoStatus: empresa.planoStatus });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -391,8 +406,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/admin/usuarios/:id/suspender", async (req, res) => {
     try {
       const { id } = req.params;
-      const usuario = await storage.updateUsuario(id, { planoStatus: "suspenso" });
-      res.json({ success: true, planoStatus: usuario.planoStatus });
+      const usuario = await storage.getUsuarioById(id);
+      if (!usuario) return res.status(404).json({ error: "Usuário não encontrado" });
+      const empresa = await storage.updateEmpresaPlano(usuario.empresaId, { planoStatus: "suspenso" });
+      res.json({ success: true, planoStatus: empresa.planoStatus });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -476,6 +493,144 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const data = stripTenantFields(insertEmpresaSchema.partial().parse(req.body));
       const empresa = await storage.updateEmpresa(req.session.empresaId!, data);
       res.json(empresa);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // ==================== GERENCIAMENTO DE USUÁRIOS DA EMPRESA ====================
+
+  async function requireCompanyAdmin(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.session?.userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+      const usuario = await storage.getUsuarioById(req.session.userId);
+      if (!usuario) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+      if (usuario.role !== "admin" && !usuario.isAdmin) {
+        return res.status(403).json({ error: "Apenas administradores da empresa podem gerenciar usuários." });
+      }
+      next();
+    } catch (error: any) {
+      res.status(500).json({ error: "Erro interno do servidor" });
+    }
+  }
+
+  app.get("/api/empresa/usuarios", requireCompanyAdmin, async (req, res) => {
+    try {
+      const membros = await storage.getUsuariosByEmpresaId(req.session.empresaId!);
+      res.json(membros.map(u => ({
+        id: u.id,
+        nome: u.nome,
+        email: u.email,
+        role: u.role,
+        isAdmin: u.isAdmin,
+        createdAt: u.createdAt,
+      })));
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/empresa/usuarios", requireCompanyAdmin, async (req, res) => {
+    try {
+      const schema = z.object({
+        nome: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
+        email: z.string().email("E-mail inválido"),
+        senha: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
+        role: z.enum(["admin", "membro"]).default("membro"),
+      });
+      const data = schema.parse(req.body);
+
+      const existing = await storage.getUsuarioByEmail(data.email);
+      if (existing) {
+        return res.status(409).json({ error: "E-mail já cadastrado" });
+      }
+
+      const senhaHash = await bcrypt.hash(data.senha, 10);
+      const novoUsuario = await storage.createUsuario({
+        empresaId: req.session.empresaId!,
+        nome: data.nome,
+        email: data.email,
+        senha: senhaHash,
+        planoStatus: "trial",
+        isAdmin: false,
+        role: data.role,
+      });
+
+      res.status(201).json({
+        id: novoUsuario.id,
+        nome: novoUsuario.nome,
+        email: novoUsuario.email,
+        role: novoUsuario.role,
+        isAdmin: novoUsuario.isAdmin,
+        createdAt: novoUsuario.createdAt,
+      });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/empresa/usuarios/:id", requireCompanyAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      if (id === req.session.userId) {
+        return res.status(400).json({ error: "Você não pode remover a si mesmo." });
+      }
+
+      const membros = await storage.getUsuariosByEmpresaId(req.session.empresaId!);
+      const admins = membros.filter(u => u.role === "admin");
+      const alvo = membros.find(u => u.id === id);
+
+      if (!alvo) {
+        return res.status(404).json({ error: "Usuário não encontrado nesta empresa." });
+      }
+
+      if (alvo.role === "admin" && admins.length <= 1) {
+        return res.status(400).json({ error: "Não é possível remover o único administrador da empresa." });
+      }
+
+      await storage.deleteUsuario(id, req.session.empresaId!);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/empresa/usuarios/:id", requireCompanyAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const schema = z.object({
+        nome: z.string().min(2).optional(),
+        role: z.enum(["admin", "membro"]).optional(),
+      });
+      const data = schema.parse(req.body);
+
+      const membros = await storage.getUsuariosByEmpresaId(req.session.empresaId!);
+      const alvo = membros.find(u => u.id === id);
+      if (!alvo) {
+        return res.status(404).json({ error: "Usuário não encontrado nesta empresa." });
+      }
+
+      if (data.role === "membro" && alvo.role === "admin") {
+        const admins = membros.filter(u => u.role === "admin");
+        if (admins.length <= 1) {
+          return res.status(400).json({ error: "Não é possível rebaixar o único administrador da empresa." });
+        }
+      }
+
+      const updated = await storage.updateUsuario(id, data);
+      res.json({
+        id: updated.id,
+        nome: updated.nome,
+        email: updated.email,
+        role: updated.role,
+        isAdmin: updated.isAdmin,
+        createdAt: updated.createdAt,
+      });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }

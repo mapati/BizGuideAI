@@ -56,8 +56,11 @@ export interface IStorage {
   createUsuario(usuario: InsertUsuario): Promise<Usuario>;
   getUsuarioByEmail(email: string): Promise<Usuario | undefined>;
   getUsuarioById(id: string): Promise<Usuario | undefined>;
+  getUsuariosByEmpresaId(empresaId: string): Promise<Usuario[]>;
   updateUsuarioSenha(id: string, senhaHash: string): Promise<void>;
-  updateUsuario(id: string, data: Partial<Pick<Usuario, "planoStatus" | "isAdmin" | "trialStartedAt" | "planoAtivadoEm">>): Promise<Usuario>;
+  updateUsuario(id: string, data: Partial<Pick<Usuario, "planoStatus" | "isAdmin" | "trialStartedAt" | "planoAtivadoEm" | "role" | "nome">>): Promise<Usuario>;
+  deleteUsuario(id: string, empresaId: string): Promise<void>;
+  updateEmpresaPlano(id: string, data: Partial<Pick<Empresa, "planoStatus" | "planoAtivadoEm">>): Promise<Empresa>;
   
   getFatoresPestel(empresaId: string): Promise<FatorPestel[]>;
   createFatorPestel(fator: InsertFatorPestel): Promise<FatorPestel>;
@@ -167,9 +170,26 @@ export class DbStorage implements IStorage {
     await db.update(usuarios).set({ senha: senhaHash }).where(eq(usuarios.id, id));
   }
 
-  async updateUsuario(id: string, data: Partial<Pick<Usuario, "planoStatus" | "isAdmin" | "trialStartedAt" | "planoAtivadoEm">>): Promise<Usuario> {
+  async getUsuariosByEmpresaId(empresaId: string): Promise<Usuario[]> {
+    return db.select().from(usuarios).where(eq(usuarios.empresaId, empresaId)).orderBy(usuarios.createdAt);
+  }
+
+  async updateUsuario(id: string, data: Partial<Pick<Usuario, "planoStatus" | "isAdmin" | "trialStartedAt" | "planoAtivadoEm" | "role" | "nome">>): Promise<Usuario> {
     const result = await db.update(usuarios).set(data).where(eq(usuarios.id, id)).returning();
     if (!result[0]) throw new Error("Usuário não encontrado");
+    return result[0];
+  }
+
+  async deleteUsuario(id: string, empresaId: string): Promise<void> {
+    const result = await db.delete(usuarios)
+      .where(and(eq(usuarios.id, id), eq(usuarios.empresaId, empresaId)))
+      .returning();
+    if (!result[0]) throw new Error("Usuário não encontrado");
+  }
+
+  async updateEmpresaPlano(id: string, data: Partial<Pick<Empresa, "planoStatus" | "planoAtivadoEm">>): Promise<Empresa> {
+    const result = await db.update(empresas).set(data).where(eq(empresas.id, id)).returning();
+    if (!result[0]) throw new Error("Empresa não encontrada");
     return result[0];
   }
 

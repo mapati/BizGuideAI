@@ -16,6 +16,9 @@ export const empresas = pgTable("empresas", {
   estado: text("estado"),
   cep: text("cep"),
   logoUrl: text("logo_url"),
+  planoStatus: text("plano_status").notNull().default("trial"),
+  trialStartedAt: timestamp("trial_started_at").defaultNow(),
+  planoAtivadoEm: timestamp("plano_ativado_em"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -36,6 +39,7 @@ export const usuarios = pgTable("usuarios", {
   planoStatus: text("plano_status").notNull().default("trial"),
   planoAtivadoEm: timestamp("plano_ativado_em"),
   isAdmin: boolean("is_admin").notNull().default(false),
+  role: text("role").notNull().default("admin"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

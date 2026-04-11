@@ -8,6 +8,7 @@ interface Usuario {
   email: string;
   empresaId: string | null;
   isAdmin: boolean;
+  role: "admin" | "membro";
 }
 
 interface TrialInfo {

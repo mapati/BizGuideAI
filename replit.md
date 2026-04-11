@@ -42,8 +42,8 @@ Preferred communication style: Simple, everyday language.
 **Schema Validation:** Zod schemas generated from Drizzle tables.
 
 **Key Database Tables:**
-- `empresas`: Company profiles
-- `usuarios`: User accounts (includes `trialStartedAt`, `planoStatus` ['trial'/'ativo'/'expirado'/'suspenso'], `isAdmin`)
+- `empresas`: Company profiles (includes `planoStatus` ['trial'/'ativo'/'expirado'/'suspenso'], `trialStartedAt`, `planoAtivadoEm`)
+- `usuarios`: User accounts (includes `role` ['admin'/'membro'], `isAdmin` for platform admin; `empresaId` FK links to empresa)
 - `fatores_pestel`, `cinco_forcas`, `analise_swot`, `modelo_negocio`: Strategic analysis data
 - `estrategias`, `oportunidades_crescimento`, `iniciativas`: Strategic planning and growth
 - `objetivos`, `resultados_chave`: OKRs
@@ -56,17 +56,29 @@ Preferred communication style: Simple, everyday language.
 
 ### Authentication and Authorization
 
-**Multi-company SaaS with full data isolation.**
+**Multi-company SaaS with full data isolation and multi-user support.**
 
-- `usuarios` table: id, empresaId (FK), nome, email, senha (bcrypt hash), createdAt
+- `usuarios` table: id, empresaId (FK), nome, email, senha (bcrypt hash), role ('admin'|'membro'), isAdmin, createdAt
 - `express-session` + `connect-pg-simple` for PostgreSQL-backed sessions (cookie-based)
 - Requires `SESSION_SECRET` environment secret
 - Auth routes (unprotected): POST /api/auth/register, POST /api/auth/login, POST /api/auth/logout, GET /api/auth/me
 - All other `/api/*` routes are protected by `requireAuth` middleware
 - Each route uses `req.session.empresaId` to scope data — no cross-tenant access possible
-- Registration creates empresa + usuario atomically; one user per company (admin)
+- Registration creates empresa + usuario atomically with `role='admin'` (first user is always company admin)
+- Multiple users can belong to the same empresa; each logs in with their own credentials
+- Two authorization levels: `isAdmin=true` (platform admin) and `role='admin'` (company admin)
+- Company admin routes guarded by `requireCompanyAdmin` middleware
 - Frontend: `AuthContext` + `useAuth` hook, protected routing in `AppLayout`, 401 → redirect to /login
 - Profile page (Onboarding) supports editing CNPJ, endereço, cidade, estado, CEP and changing password via PATCH /api/auth/senha
+
+### Team Management (Equipe)
+
+- Company admins can manage their team at `/equipe`
+- API routes: `GET /api/empresa/usuarios`, `POST /api/empresa/usuarios`, `DELETE /api/empresa/usuarios/:id`, `PATCH /api/empresa/usuarios/:id`
+- `POST /api/empresa/usuarios`: creates new user in same empresa, requires nome/email/senha/role
+- `DELETE /api/empresa/usuarios/:id`: blocks self-removal and removal of last company admin
+- `PATCH /api/empresa/usuarios/:id`: change user role ('admin'|'membro')
+- Sidebar shows "Equipe" link only for users with `role='admin'` or `isAdmin=true`
 
 ### Monetization Model
 

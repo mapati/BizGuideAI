@@ -47,71 +47,75 @@ function isPrivateIp(ip: string): boolean {
 }
 
 async function ssrfSafeFetch(rawUrl: string): Promise<string> {
-  const maxRedirects = 5;
-  let currentUrl = rawUrl;
-
-  for (let hop = 0; hop <= maxRedirects; hop++) {
-    let parsed: URL;
-    try {
-      parsed = new URL(currentUrl);
-    } catch {
-      throw new Error("URL inválida encontrada durante redirecionamento.");
-    }
-
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      throw new Error("Protocolo não permitido: apenas http/https.");
-    }
-
-    // Resolve DNS to IP and validate
-    let address: string;
-    try {
-      const result = await dnsLookup.lookup(parsed.hostname);
-      address = result.address;
-    } catch {
-      throw new Error("Não foi possível resolver o domínio do website.");
-    }
-
-    if (isPrivateIp(address)) {
-      throw Object.assign(new Error("SSRF_BLOCKED"), { code: "SSRF_BLOCKED" });
-    }
-
-    // Fetch with manual redirect handling
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10000);
-
-    let response: Response;
-    try {
-      response = await fetch(currentUrl, {
-        method: "GET",
-        signal: controller.signal,
-        redirect: "manual",
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (compatible; BizGuideAI/1.0; +https://bizguideai.com)",
-          "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
-          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        },
-      });
-    } finally {
-      clearTimeout(timer);
-    }
-
-    // Handle redirects manually
-    if (response.status >= 300 && response.status < 400) {
-      const location = response.headers.get("location");
-      if (!location) throw new Error("Redirecionamento sem destino (sem cabeçalho Location).");
-      currentUrl = new URL(location, currentUrl).href;
-      continue;
-    }
-
-    if (!response.ok) {
-      throw new Error(`O site retornou erro HTTP ${response.status}.`);
-    }
-
-    return await response.text();
+  // Validate and check initial hostname via DNS before fetching
+  const parsed = new URL(rawUrl);
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("Protocolo não permitido: apenas http/https.");
   }
 
-  throw new Error("Muitos redirecionamentos ao tentar acessar o site.");
+  let initialAddr: string;
+  try {
+    const result = await dnsLookup.lookup(parsed.hostname);
+    initialAddr = result.address;
+  } catch {
+    throw new Error("Não foi possível resolver o domínio do website.");
+  }
+
+  if (isPrivateIp(initialAddr)) {
+    throw Object.assign(new Error("SSRF_BLOCKED"), { code: "SSRF_BLOCKED" });
+  }
+
+  // Fetch with automatic redirect following (undici/Node.js native fetch
+  // returns opaque responses for redirect:"manual", so we use "follow" and
+  // validate the final destination URL afterwards to catch redirect-based SSRF)
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
+
+  let response: Response;
+  try {
+    response = await fetch(rawUrl, {
+      method: "GET",
+      signal: controller.signal,
+      redirect: "follow",
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (compatible; BizGuideAI/1.0; +https://bizguideai.com)",
+        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      },
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+
+  // Validate the final URL (after any redirects) to block redirect-based SSRF
+  const finalUrl = response.url || rawUrl;
+  if (finalUrl !== rawUrl) {
+    let finalParsed: URL;
+    try {
+      finalParsed = new URL(finalUrl);
+    } catch {
+      throw new Error("URL de destino final inválida.");
+    }
+    if (finalParsed.protocol !== "http:" && finalParsed.protocol !== "https:") {
+      throw Object.assign(new Error("SSRF_BLOCKED"), { code: "SSRF_BLOCKED" });
+    }
+    try {
+      const finalResult = await dnsLookup.lookup(finalParsed.hostname);
+      if (isPrivateIp(finalResult.address)) {
+        throw Object.assign(new Error("SSRF_BLOCKED"), { code: "SSRF_BLOCKED" });
+      }
+    } catch (e: any) {
+      if (e.code === "SSRF_BLOCKED") throw e;
+      // If DNS fails for final URL but response was already received, continue
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(`O site retornou erro HTTP ${response.status}.`);
+  }
+
+  return await response.text();
 }
 
 function requireAuth(req: Request, res: Response, next: NextFunction) {

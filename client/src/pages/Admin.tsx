@@ -265,6 +265,9 @@ function TabUsuarios({ usuarios, isLoading }: { usuarios: AdminUsuario[]; isLoad
                 </p>
                 <p className="text-xs text-muted-foreground truncate">{u.email}</p>
                 <p className="text-xs text-muted-foreground">{u.empresaNome}</p>
+                <p className="text-xs text-muted-foreground">
+                  Cadastro: {format(new Date(u.createdAt), "dd/MM/yyyy", { locale: ptBR })}
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 {statusBadge(u.planoStatus, u.diasRestantes)}

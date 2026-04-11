@@ -33,6 +33,7 @@ export const usuarios = pgTable("usuarios", {
   senha: text("senha").notNull(),
   trialStartedAt: timestamp("trial_started_at").defaultNow(),
   planoStatus: text("plano_status").notNull().default("trial"),
+  planoAtivadoEm: timestamp("plano_ativado_em"),
   isAdmin: boolean("is_admin").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

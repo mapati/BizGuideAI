@@ -57,7 +57,7 @@ export interface IStorage {
   getUsuarioByEmail(email: string): Promise<Usuario | undefined>;
   getUsuarioById(id: string): Promise<Usuario | undefined>;
   updateUsuarioSenha(id: string, senhaHash: string): Promise<void>;
-  updateUsuario(id: string, data: Partial<Pick<Usuario, "planoStatus" | "isAdmin" | "trialStartedAt">>): Promise<Usuario>;
+  updateUsuario(id: string, data: Partial<Pick<Usuario, "planoStatus" | "isAdmin" | "trialStartedAt" | "planoAtivadoEm">>): Promise<Usuario>;
   
   getFatoresPestel(empresaId: string): Promise<FatorPestel[]>;
   createFatorPestel(fator: InsertFatorPestel): Promise<FatorPestel>;

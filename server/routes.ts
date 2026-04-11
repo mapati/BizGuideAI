@@ -380,7 +380,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/admin/usuarios/:id/ativar-plano", async (req, res) => {
     try {
       const { id } = req.params;
-      const usuario = await storage.updateUsuario(id, { planoStatus: "ativo" });
+      const usuario = await storage.updateUsuario(id, { planoStatus: "ativo", planoAtivadoEm: new Date() });
       res.json({ success: true, planoStatus: usuario.planoStatus });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -408,7 +408,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/admin/faturas", async (req, res) => {
     try {
-      const data = insertFaturaSchema.parse(req.body);
+      const body = {
+        ...req.body,
+        dataVencimento: req.body.dataVencimento ? new Date(req.body.dataVencimento) : undefined,
+        dataPagamento: req.body.dataPagamento ? new Date(req.body.dataPagamento) : undefined,
+      };
+      const data = insertFaturaSchema.parse(body);
       const fatura = await storage.createFatura(data);
       res.json(fatura);
     } catch (error: any) {

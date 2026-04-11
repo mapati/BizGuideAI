@@ -205,8 +205,8 @@ export default function LandingPage() {
               data-testid="section-hero-stats"
             >
               {[
-                { label: "Frameworks", value: "8+" },
-                { label: "Metodologias", value: "Consagradas" },
+                { label: "Ferramentas de Gestão", value: "8+" },
+                { label: "Base Acadêmica", value: "Metodologias Validadas" },
                 { label: "IA integrada", value: "GPT-4o" },
                 { label: "Suporte", value: "Remoto ou Presencial" },
               ].map((stat) => (

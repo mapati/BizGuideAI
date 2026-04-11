@@ -1678,15 +1678,16 @@ Responda em JSON:
         return res.status(400).json({ error: "Informe o endereço do website da empresa." });
       }
 
-      let website = rawWebsite.trim();
-      if (!website.startsWith("http://") && !website.startsWith("https://")) {
-        website = "https://" + website;
-      }
+      const stripped = rawWebsite.trim();
+      const hasProtocol = stripped.startsWith("http://") || stripped.startsWith("https://");
+      // Prefer https, but keep track so we can fall back to http on connection failure
+      const websiteHttps = hasProtocol ? stripped : "https://" + stripped;
+      const websiteHttp  = hasProtocol ? stripped : "http://"  + stripped;
 
-      // Validate URL format and block SSRF targets
+      // Validate URL format
       let parsedUrl: URL;
       try {
-        parsedUrl = new URL(website);
+        parsedUrl = new URL(websiteHttps);
       } catch {
         return res.status(400).json({ error: "Endereço de website inválido. Verifique o formato (ex: www.empresa.com.br)." });
       }
@@ -1697,7 +1698,18 @@ Responda em JSON:
 
       let conteudoSite = "";
       try {
-        const html = await ssrfSafeFetch(website);
+        // Try https first; if it fails with a connection/TLS error (and the user
+        // did not explicitly specify a protocol), fall back to http.
+        let html: string;
+        try {
+          html = await ssrfSafeFetch(websiteHttps);
+        } catch (firstErr: any) {
+          const isConnectionError = firstErr.code !== "SSRF_BLOCKED" &&
+            firstErr.name !== "AbortError" && !hasProtocol;
+          if (!isConnectionError) throw firstErr;
+          // Retry with plain http
+          html = await ssrfSafeFetch(websiteHttp);
+        }
         const $ = cheerio.load(html);
 
         $("script, style, nav, footer, header, [aria-hidden='true']").remove();

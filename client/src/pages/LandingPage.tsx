@@ -83,18 +83,18 @@ const features = [
 const pains = [
   {
     icon: ClipboardList,
-    problem: "Planejamento manual em planilhas",
-    solution: "Frameworks profissionais gerados por IA",
+    problem: "Planejamento manual e sem padrão",
+    solution: "Métodos confiáveis de gestão gerados e organizados pela inteligência artificial",
   },
   {
     icon: Users,
-    problem: "Sem método nem estrutura",
-    solution: "OKRs, BSC e PESTEL automáticos",
+    problem: "Sem clareza de objetivos e resultados",
+    solution: "Monitoramento de objetivos, resultados-chave e análise de cenário externo — tudo estruturado automaticamente",
   },
   {
     icon: LineChart,
     problem: "Sem tempo para análises longas",
-    solution: "Diagnóstico estratégico em minutos",
+    solution: "Diagnóstico completo do seu negócio em minutos, sem depender de consultoria cara",
   },
 ];
 
@@ -751,7 +751,7 @@ export default function LandingPage() {
             <Badge variant="outline" className="mb-4 text-sm px-4 py-1">Ferramentas incluídas</Badge>
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">Tudo que você precisa para gerir com estratégia</h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              Uma plataforma completa com os principais frameworks de gestão estratégica, todos potencializados por inteligência artificial.
+              Uma plataforma completa com os principais métodos de gestão estratégica, todos potencializados por inteligência artificial.
             </p>
           </div>
 

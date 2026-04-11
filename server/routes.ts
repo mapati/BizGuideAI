@@ -15,6 +15,7 @@ import {
   insertOportunidadeCrescimentoSchema,
   insertIniciativaSchema,
   insertRitualSchema,
+  insertEventoSchema,
   insertFaturaSchema,
   type ResultadoChave,
   type Fatura,
@@ -2617,11 +2618,12 @@ Responda em JSON:
 
   app.post("/api/eventos", async (req, res) => {
     try {
-      const data = req.body;
-      if (data.dataEvento && typeof data.dataEvento === 'string') {
-        data.dataEvento = new Date(data.dataEvento);
+      const body = { ...req.body };
+      if (body.dataEvento && typeof body.dataEvento === 'string') {
+        body.dataEvento = new Date(body.dataEvento);
       }
-      data.empresaId = req.session.empresaId;
+      body.empresaId = req.session.empresaId;
+      const data = insertEventoSchema.parse(body);
       const evento = await storage.createEvento(data);
       res.json(evento);
     } catch (error: any) {
@@ -2632,7 +2634,11 @@ Responda em JSON:
   app.patch("/api/eventos/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const data = req.body;
+      const body = { ...req.body };
+      if (body.dataEvento && typeof body.dataEvento === 'string') {
+        body.dataEvento = new Date(body.dataEvento);
+      }
+      const data = stripTenantFields(insertEventoSchema.partial().parse(body));
       const evento = await storage.updateEvento(id, req.session.empresaId!, data);
       res.json(evento);
     } catch (error: any) {

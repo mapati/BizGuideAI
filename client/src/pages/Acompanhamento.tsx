@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, type MouseEvent } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,13 +18,13 @@ import {
   ChevronDown,
   ChevronUp,
   Save,
-  Eye,
   Edit,
   Plus,
   Users,
   FileText,
   Sparkles,
-  Target
+  Target,
+  Trash2,
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -150,24 +150,118 @@ const TIPOS_EVENTO = [
   { value: "outro", label: "Outro", icon: Circle },
 ];
 
+const EMPTY_FORM = {
+  tipo: "",
+  titulo: "",
+  descricao: "",
+  participantes: "",
+  decisoes: "",
+  dataEvento: new Date().toISOString().split('T')[0],
+};
+
+type EventoFormType = typeof EMPTY_FORM;
+
+function EventoFormFields({
+  form,
+  setForm,
+}: {
+  form: EventoFormType;
+  setForm: (f: EventoFormType) => void;
+}) {
+  return (
+    <div className="space-y-4 py-4">
+      <div className="space-y-2">
+        <Label htmlFor="tipo">Tipo de Evento</Label>
+        <Select 
+          value={form.tipo} 
+          onValueChange={(value) => setForm({...form, tipo: value})}
+        >
+          <SelectTrigger id="tipo" data-testid="select-tipo-evento">
+            <SelectValue placeholder="Selecione o tipo" />
+          </SelectTrigger>
+          <SelectContent>
+            {TIPOS_EVENTO.map((tipo) => (
+              <SelectItem key={tipo.value} value={tipo.value}>
+                {tipo.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="titulo">Título</Label>
+        <Input
+          id="titulo"
+          value={form.titulo}
+          onChange={(e) => setForm({...form, titulo: e.target.value})}
+          placeholder="Ex: Reunião de Conselho - Q4 2025"
+          data-testid="input-titulo-evento"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="dataEvento">Data do Evento</Label>
+        <Input
+          id="dataEvento"
+          type="date"
+          value={form.dataEvento}
+          onChange={(e) => setForm({...form, dataEvento: e.target.value})}
+          data-testid="input-data-evento"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="descricao">Descrição</Label>
+        <Textarea
+          id="descricao"
+          value={form.descricao}
+          onChange={(e) => setForm({...form, descricao: e.target.value})}
+          placeholder="Descreva o evento..."
+          className="min-h-[100px]"
+          data-testid="textarea-descricao-evento"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="participantes">Participantes (opcional)</Label>
+        <Input
+          id="participantes"
+          value={form.participantes}
+          onChange={(e) => setForm({...form, participantes: e.target.value})}
+          placeholder="Ex: CEO, CFO, Conselho..."
+          data-testid="input-participantes-evento"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="decisoes-evento">Decisões Tomadas (opcional)</Label>
+        <Textarea
+          id="decisoes-evento"
+          value={form.decisoes}
+          onChange={(e) => setForm({...form, decisoes: e.target.value})}
+          placeholder="Registre as principais decisões..."
+          className="min-h-[80px]"
+          data-testid="textarea-decisoes-evento"
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function Acompanhamento() {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [eventoEditandoId, setEventoEditandoId] = useState<string | null>(null);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [editandoNotas, setEditandoNotas] = useState<string | null>(null);
   const [editandoDecisoes, setEditandoDecisoes] = useState<string | null>(null);
   const [notas, setNotas] = useState("");
   const [decisoes, setDecisoes] = useState("");
   
-  // Form de novo evento
-  const [eventoForm, setEventoForm] = useState({
-    tipo: "",
-    titulo: "",
-    descricao: "",
-    participantes: "",
-    decisoes: "",
-    dataEvento: new Date().toISOString().split('T')[0],
-  });
+  const [eventoForm, setEventoForm] = useState(EMPTY_FORM);
+  const [eventoEditForm, setEventoEditForm] = useState(EMPTY_FORM);
 
   const { data: empresa } = useQuery<Empresa>({
     queryKey: ["/api/empresa"],
@@ -197,17 +291,60 @@ export default function Acompanhamento() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/eventos", empresaId] });
       setDialogOpen(false);
-      setEventoForm({
-        tipo: "",
-        titulo: "",
-        descricao: "",
-        participantes: "",
-        decisoes: "",
-        dataEvento: new Date().toISOString().split('T')[0],
-      });
+      setEventoForm(EMPTY_FORM);
       toast({
         title: "Evento criado!",
         description: "O evento foi registrado com sucesso.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao criar evento",
+        description: error.message || "Tente novamente.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateEventoMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => {
+      return await apiRequest("PATCH", `/api/eventos/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/eventos", empresaId] });
+      setEditDialogOpen(false);
+      setEventoEditandoId(null);
+      setEventoEditForm(EMPTY_FORM);
+      toast({
+        title: "Evento atualizado!",
+        description: "As informações foram salvas com sucesso.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao atualizar evento",
+        description: error.message || "Tente novamente.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteEventoMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest("DELETE", `/api/eventos/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/eventos", empresaId] });
+      toast({
+        title: "Evento excluído",
+        description: "O evento foi removido da timeline.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao excluir evento",
+        description: error.message || "Tente novamente.",
+        variant: "destructive",
       });
     },
   });
@@ -218,10 +355,6 @@ export default function Acompanhamento() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/rituais", empresaId] });
-      toast({
-        title: "Checklist salvo!",
-        description: "O checklist foi atualizado com sucesso.",
-      });
     },
   });
 
@@ -231,11 +364,23 @@ export default function Acompanhamento() {
         completado: "true",
       });
     },
-    onSuccess: () => {
+    onSuccess: (_, ritualId) => {
       queryClient.invalidateQueries({ queryKey: ["/api/rituais", empresaId] });
+      setExpandedItems(prev => {
+        const next = new Set(prev);
+        next.add(`ritual-${ritualId}`);
+        return next;
+      });
       toast({
         title: "Ritual completado!",
-        description: "O ritual foi marcado como concluído.",
+        description: "O ritual foi marcado como concluído e aparece na timeline.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erro ao completar ritual",
+        description: "Tente novamente.",
+        variant: "destructive",
       });
     },
   });
@@ -269,24 +414,24 @@ export default function Acompanhamento() {
   });
 
   const toggleItem = (id: string) => {
-    const newExpanded = new Set(expandedItems);
-    if (newExpanded.has(id)) {
-      newExpanded.delete(id);
-    } else {
-      newExpanded.add(id);
-    }
-    setExpandedItems(newExpanded);
+    setExpandedItems(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
   };
 
   const getRitualConfig = (tipo: string) => {
     return RITUAIS_CONFIG.find(r => r.tipo === tipo);
   };
 
-  // Combinar rituais e eventos em um feed ordenado
   const feedItems: FeedItem[] = useMemo(() => {
     const items: FeedItem[] = [];
     
-    // Adicionar rituais completados
     rituais
       .filter(r => r.dataUltimo)
       .forEach(r => {
@@ -297,7 +442,6 @@ export default function Acompanhamento() {
         });
       });
     
-    // Adicionar eventos
     eventos.forEach(e => {
       items.push({
         type: 'evento',
@@ -306,21 +450,12 @@ export default function Acompanhamento() {
       });
     });
     
-    // Ordenar por data (mais recente primeiro)
     return items.sort((a, b) => b.date.getTime() - a.date.getTime());
   }, [rituais, eventos]);
 
-  const alertasCriticos = useMemo(() => {
-    return alertas.filter(a => a.severidade === "alta");
-  }, [alertas]);
-
-  const alertasAtencao = useMemo(() => {
-    return alertas.filter(a => a.severidade === "media");
-  }, [alertas]);
-
-  const rituaisPendentes = useMemo(() => {
-    return rituais.filter(r => r.pendente !== false);
-  }, [rituais]);
+  const alertasCriticos = useMemo(() => alertas.filter(a => a.severidade === "alta"), [alertas]);
+  const alertasAtencao = useMemo(() => alertas.filter(a => a.severidade === "media"), [alertas]);
+  const rituaisPendentes = useMemo(() => rituais.filter(r => r.pendente === true), [rituais]);
 
   const handleCreateEvento = () => {
     if (!eventoForm.tipo || !eventoForm.titulo || !eventoForm.descricao) {
@@ -331,12 +466,47 @@ export default function Acompanhamento() {
       });
       return;
     }
-
     createEventoMutation.mutate({
       ...eventoForm,
       empresaId,
-      dataEvento: eventoForm.dataEvento, // Envia como string ISO
     });
+  };
+
+  const handleUpdateEvento = () => {
+    if (!eventoEditForm.tipo || !eventoEditForm.titulo || !eventoEditForm.descricao) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Preencha tipo, título e descrição do evento.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!eventoEditandoId) return;
+    updateEventoMutation.mutate({
+      id: eventoEditandoId,
+      data: eventoEditForm,
+    });
+  };
+
+  const handleEditEvento = (evento: Evento, e: MouseEvent) => {
+    e.stopPropagation();
+    setEventoEditandoId(evento.id);
+    setEventoEditForm({
+      tipo: evento.tipo,
+      titulo: evento.titulo,
+      descricao: evento.descricao,
+      participantes: evento.participantes || "",
+      decisoes: evento.decisoes || "",
+      dataEvento: new Date(evento.dataEvento).toISOString().split('T')[0],
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleDeleteEvento = (id: string, e: MouseEvent) => {
+    e.stopPropagation();
+    if (window.confirm("Tem certeza que deseja excluir este evento? Esta ação não pode ser desfeita.")) {
+      deleteEventoMutation.mutate(id);
+    }
   };
 
   const handleChecklistChange = (ritual: RitualComStatus, index: number, checked: boolean) => {
@@ -368,7 +538,7 @@ export default function Acompanhamento() {
         tooltip="Esta timeline funciona como um feed de notícias da sua empresa, registrando rituais, reuniões, decisões estratégicas e fatos relevantes."
       />
 
-      {/* Seção de Alertas */}
+      {/* Alertas */}
       {(alertasCriticos.length > 0 || alertasAtencao.length > 0) && (
         <Card className="border-orange-200 dark:border-orange-900" data-testid="card-alertas">
           <CardHeader>
@@ -387,7 +557,7 @@ export default function Acompanhamento() {
                 className="flex items-start gap-3 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900"
                 data-testid={`alerta-critico-${idx}`}
               >
-                <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
+                <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
                 <div className="flex-1">
                   <p className="font-medium text-red-900 dark:text-red-100">
                     {alerta.mensagem}
@@ -398,7 +568,7 @@ export default function Acompanhamento() {
                         `${alerta.detalhes.perspectiva} • Meta: ${alerta.detalhes.meta} • Atual: ${alerta.detalhes.atual}`
                       }
                       {alerta.tipo === "iniciativa_atrasada" && 
-                        `Prazo: ${new Date(alerta.detalhes.prazo).toLocaleDateString()} • Responsável: ${alerta.detalhes.responsavel}`
+                        `Prazo: ${new Date(alerta.detalhes.prazo).toLocaleDateString('pt-BR')} • Responsável: ${alerta.detalhes.responsavel}`
                       }
                     </p>
                   )}
@@ -412,7 +582,7 @@ export default function Acompanhamento() {
                 className="flex items-start gap-3 p-3 rounded-lg bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900"
                 data-testid={`alerta-atencao-${idx}`}
               >
-                <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
+                <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5 shrink-0" />
                 <div className="flex-1">
                   <p className="font-medium text-yellow-900 dark:text-yellow-100">
                     {alerta.mensagem}
@@ -448,24 +618,26 @@ export default function Acompanhamento() {
               {rituaisPendentes.map((ritual) => {
                 const config = getRitualConfig(ritual.tipo);
                 if (!config) return null;
+                const isCompleting = completarRitualMutation.isPending && completarRitualMutation.variables === ritual.id;
 
                 return (
-                  <div key={ritual.id} className="flex items-center justify-between p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900">
+                  <div key={ritual.id} className="flex items-center justify-between gap-4 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900">
                     <div className="flex items-center gap-3">
-                      <div className={`h-8 w-8 rounded-full ${config.cor} flex items-center justify-center`}>
+                      <div className={`h-8 w-8 rounded-full ${config.cor} flex items-center justify-center shrink-0`}>
                         <Circle className="h-4 w-4 text-white" />
                       </div>
                       <div>
                         <p className="font-medium">{config.nome}</p>
-                        <p className="text-sm text-muted-foreground">{config.frequencia}</p>
+                        <p className="text-sm text-muted-foreground">{config.frequencia} • {config.duracao}</p>
                       </div>
                     </div>
                     <Button 
                       size="sm" 
-                      onClick={() => toggleItem(`ritual-${ritual.id}`)}
+                      onClick={() => completarRitualMutation.mutate(ritual.id)}
+                      disabled={completarRitualMutation.isPending}
                       data-testid={`button-abrir-ritual-${ritual.tipo}`}
                     >
-                      Realizar
+                      {isCompleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Realizar"}
                     </Button>
                   </div>
                 );
@@ -475,8 +647,8 @@ export default function Acompanhamento() {
         </Card>
       )}
 
-      {/* Botão Novo Evento */}
-      <div className="flex justify-between items-center">
+      {/* Cabeçalho da Timeline + Botão Novo Evento */}
+      <div className="flex justify-between items-center gap-4 flex-wrap">
         <h2 className="text-xl font-semibold">Timeline de Eventos</h2>
         
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -486,90 +658,14 @@ export default function Acompanhamento() {
               Novo Evento
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px]">
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Registrar Novo Evento</DialogTitle>
               <DialogDescription>
                 Registre reuniões, decisões estratégicas, fatos excepcionais ou outros eventos importantes.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="tipo">Tipo de Evento</Label>
-                <Select 
-                  value={eventoForm.tipo} 
-                  onValueChange={(value) => setEventoForm({...eventoForm, tipo: value})}
-                >
-                  <SelectTrigger id="tipo" data-testid="select-tipo-evento">
-                    <SelectValue placeholder="Selecione o tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TIPOS_EVENTO.map((tipo) => (
-                      <SelectItem key={tipo.value} value={tipo.value}>
-                        {tipo.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="titulo">Título</Label>
-                <Input
-                  id="titulo"
-                  value={eventoForm.titulo}
-                  onChange={(e) => setEventoForm({...eventoForm, titulo: e.target.value})}
-                  placeholder="Ex: Reunião de Conselho - Q4 2025"
-                  data-testid="input-titulo-evento"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="dataEvento">Data do Evento</Label>
-                <Input
-                  id="dataEvento"
-                  type="date"
-                  value={eventoForm.dataEvento}
-                  onChange={(e) => setEventoForm({...eventoForm, dataEvento: e.target.value})}
-                  data-testid="input-data-evento"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="descricao">Descrição</Label>
-                <Textarea
-                  id="descricao"
-                  value={eventoForm.descricao}
-                  onChange={(e) => setEventoForm({...eventoForm, descricao: e.target.value})}
-                  placeholder="Descreva o evento..."
-                  className="min-h-[100px]"
-                  data-testid="textarea-descricao-evento"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="participantes">Participantes (opcional)</Label>
-                <Input
-                  id="participantes"
-                  value={eventoForm.participantes}
-                  onChange={(e) => setEventoForm({...eventoForm, participantes: e.target.value})}
-                  placeholder="Ex: CEO, CFO, Conselho..."
-                  data-testid="input-participantes-evento"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="decisoes-evento">Decisões Tomadas (opcional)</Label>
-                <Textarea
-                  id="decisoes-evento"
-                  value={eventoForm.decisoes}
-                  onChange={(e) => setEventoForm({...eventoForm, decisoes: e.target.value})}
-                  placeholder="Registre as principais decisões..."
-                  className="min-h-[80px]"
-                  data-testid="textarea-decisoes-evento"
-                />
-              </div>
-            </div>
+            <EventoFormFields form={eventoForm} setForm={setEventoForm} />
             <DialogFooter>
               <Button 
                 variant="outline" 
@@ -591,7 +687,40 @@ export default function Acompanhamento() {
         </Dialog>
       </div>
 
-      {/* Feed/Timeline */}
+      {/* Dialog de Edição de Evento */}
+      <Dialog open={editDialogOpen} onOpenChange={(open) => {
+        setEditDialogOpen(open);
+        if (!open) setEventoEditandoId(null);
+      }}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Evento</DialogTitle>
+            <DialogDescription>
+              Atualize as informações do evento registrado.
+            </DialogDescription>
+          </DialogHeader>
+          <EventoFormFields form={eventoEditForm} setForm={setEventoEditForm} />
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setEditDialogOpen(false)}
+              data-testid="button-cancelar-edicao-evento"
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleUpdateEvento}
+              disabled={updateEventoMutation.isPending}
+              data-testid="button-salvar-edicao-evento"
+            >
+              {updateEventoMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Salvar Alterações
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Feed / Timeline */}
       <div className="space-y-4">
         {feedItems.length === 0 ? (
           <Card>
@@ -603,7 +732,7 @@ export default function Acompanhamento() {
             </CardContent>
           </Card>
         ) : (
-          feedItems.map((item, index) => {
+          feedItems.map((item) => {
             if (item.type === 'ritual') {
               const ritual = item.data;
               const config = getRitualConfig(ritual.tipo);
@@ -616,13 +745,13 @@ export default function Acompanhamento() {
                 <Card key={`ritual-${ritual.id}`} data-testid={`card-feed-ritual-${ritual.tipo}`}>
                   <Collapsible open={isExpanded} onOpenChange={() => toggleItem(`ritual-${ritual.id}`)}>
                     <CardHeader className="cursor-pointer" onClick={() => toggleItem(`ritual-${ritual.id}`)}>
-                      <div className="flex items-start justify-between">
+                      <div className="flex items-start justify-between gap-2">
                         <div className="flex items-start gap-4 flex-1">
                           <div className={`h-10 w-10 rounded-full ${config.cor} flex items-center justify-center shrink-0`}>
                             <CheckCircle2 className="h-5 w-5 text-white" />
                           </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-3 flex-wrap">
                               <CardTitle>{config.nome}</CardTitle>
                               <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-900">
                                 Realizado
@@ -683,7 +812,7 @@ export default function Acompanhamento() {
 
                         {/* Notas */}
                         <div>
-                          <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center justify-between gap-2 mb-2">
                             <h4 className="font-semibold">Notas & Observações</h4>
                             {editandoNotas === ritual.id ? (
                               <Button 
@@ -732,7 +861,7 @@ export default function Acompanhamento() {
 
                         {/* Decisões */}
                         <div>
-                          <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center justify-between gap-2 mb-2">
                             <h4 className="font-semibold">Decisões Tomadas</h4>
                             {editandoDecisoes === ritual.id ? (
                               <Button 
@@ -784,7 +913,6 @@ export default function Acompanhamento() {
                 </Card>
               );
             } else {
-              // Evento
               const evento = item.data;
               const tipoEvento = TIPOS_EVENTO.find(t => t.value === evento.tipo);
               const IconeEvento = tipoEvento?.icon || FileText;
@@ -794,13 +922,13 @@ export default function Acompanhamento() {
                 <Card key={`evento-${evento.id}`} data-testid={`card-feed-evento-${evento.id}`}>
                   <Collapsible open={isExpanded} onOpenChange={() => toggleItem(`evento-${evento.id}`)}>
                     <CardHeader className="cursor-pointer" onClick={() => toggleItem(`evento-${evento.id}`)}>
-                      <div className="flex items-start justify-between">
+                      <div className="flex items-start justify-between gap-2">
                         <div className="flex items-start gap-4 flex-1">
                           <div className="h-10 w-10 rounded-full bg-indigo-500 flex items-center justify-center shrink-0">
                             <IconeEvento className="h-5 w-5 text-white" />
                           </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-3 flex-wrap">
                               <CardTitle>{evento.titulo}</CardTitle>
                               <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950 dark:text-indigo-300 dark:border-indigo-900">
                                 {tipoEvento?.label || "Evento"}
@@ -815,11 +943,37 @@ export default function Acompanhamento() {
                             </CardDescription>
                           </div>
                         </div>
-                        <CollapsibleTrigger asChild>
-                          <Button variant="ghost" size="icon" data-testid={`button-toggle-evento-${evento.id}`}>
-                            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => handleEditEvento(evento, e)}
+                            disabled={deleteEventoMutation.isPending}
+                            data-testid={`button-editar-evento-${evento.id}`}
+                            title="Editar evento"
+                          >
+                            <Edit className="h-4 w-4" />
                           </Button>
-                        </CollapsibleTrigger>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => handleDeleteEvento(evento.id, e)}
+                            disabled={deleteEventoMutation.isPending && deleteEventoMutation.variables === evento.id}
+                            data-testid={`button-excluir-evento-${evento.id}`}
+                            title="Excluir evento"
+                            className="text-destructive"
+                          >
+                            {deleteEventoMutation.isPending && deleteEventoMutation.variables === evento.id
+                              ? <Loader2 className="h-4 w-4 animate-spin" />
+                              : <Trash2 className="h-4 w-4" />
+                            }
+                          </Button>
+                          <CollapsibleTrigger asChild>
+                            <Button variant="ghost" size="icon" data-testid={`button-toggle-evento-${evento.id}`}>
+                              {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                            </Button>
+                          </CollapsibleTrigger>
+                        </div>
                       </div>
                     </CardHeader>
 

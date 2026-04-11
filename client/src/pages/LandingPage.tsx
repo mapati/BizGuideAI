@@ -188,7 +188,7 @@ export default function LandingPage() {
             <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-slate-400 mt-2">
               <span className="flex items-center gap-1.5">
                 <CheckCircle2 className="h-4 w-4 text-primary" />
-                Sem cartão de crédito
+                Completo e fácil de usar
               </span>
               <span className="flex items-center gap-1.5">
                 <CheckCircle2 className="h-4 w-4 text-primary" />
@@ -206,9 +206,9 @@ export default function LandingPage() {
             >
               {[
                 { label: "Frameworks", value: "8+" },
-                { label: "Métricas BSC", value: "4 perspectivas" },
+                { label: "Metodologias", value: "Consagradas" },
                 { label: "IA integrada", value: "GPT-4o" },
-                { label: "Idioma", value: "Português" },
+                { label: "Suporte", value: "Remoto ou Presencial" },
               ].map((stat) => (
                 <div key={stat.label} className="text-center">
                   <div className="text-2xl font-bold text-white">
@@ -386,7 +386,7 @@ export default function LandingPage() {
           <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-primary-foreground/70">
             <span className="flex items-center gap-1.5">
               <CheckCircle2 className="h-4 w-4" />
-              Sem cartão de crédito
+              Completo e fácil de usar
             </span>
             <span className="flex items-center gap-1.5">
               <CheckCircle2 className="h-4 w-4" />

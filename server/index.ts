@@ -74,6 +74,7 @@ async function runStartupMigrations() {
 }
 
 const app = express();
+app.set("trust proxy", 1);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 

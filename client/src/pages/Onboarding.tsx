@@ -608,24 +608,19 @@ export default function Onboarding() {
               )}
               <div className="flex flex-wrap gap-2">
                 <input
+                  id="logo-file-input"
                   ref={logoInputRef}
                   type="file"
                   accept="image/jpeg,image/png"
-                  className="hidden"
+                  className="sr-only"
                   onChange={handleLogoChange}
                   data-testid="input-logo-file"
                 />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    if (logoInputRef.current) logoInputRef.current.value = "";
-                    logoInputRef.current?.click();
-                  }}
-                  data-testid="button-upload-logo"
-                >
-                  <ImagePlus className="h-4 w-4 mr-2" />
-                  {formData.logoUrl ? "Alterar logotipo" : "Enviar logotipo"}
+                <Button variant="outline" asChild data-testid="button-upload-logo">
+                  <label htmlFor="logo-file-input" className="cursor-pointer">
+                    <ImagePlus className="h-4 w-4 mr-2" />
+                    {formData.logoUrl ? "Alterar logotipo" : "Enviar logotipo"}
+                  </label>
                 </Button>
                 {formData.logoUrl && (
                   <Button

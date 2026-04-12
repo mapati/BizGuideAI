@@ -27,10 +27,7 @@ import { promises as dnsLookup } from "dns";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import multer from "multer";
-// pdf-parse tries to load test files when imported normally; use the internal lib path to avoid that
-import { createRequire } from "module";
-const _require = createRequire(import.meta.url);
-const pdfParse: (buffer: Buffer) => Promise<{ text: string; numpages: number }> = _require("pdf-parse/lib/pdf-parse.js");
+import { PDFParse } from "pdf-parse";
 import "./session.d";
 
 const upload = multer({
@@ -629,9 +626,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const MAX_TEXT_CHARS = 15000;
       let extractedText = "";
       try {
-        const pdfData = await pdfParse(req.file.buffer);
+        const parser = new PDFParse({ data: req.file.buffer });
+        const pdfData = await parser.getText();
+        await parser.destroy();
         extractedText = (pdfData.text || "").trim().slice(0, MAX_TEXT_CHARS);
-      } catch {
+      } catch (err) {
+        console.error("[PDF parse error]", err);
         return res.status(422).json({ error: "Não foi possível extrair texto do PDF. Verifique se o arquivo não está protegido ou corrompido." });
       }
 

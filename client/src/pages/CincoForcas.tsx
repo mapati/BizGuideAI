@@ -434,8 +434,8 @@ export default function CincoForcasPage() {
             </div>
             <p className="text-xs text-muted-foreground">
               {suggestPhase === "searching"
-                ? "A IA está pesquisando os principais concorrentes e dinâmicas do seu setor..."
-                : "Usando a pesquisa para criar uma análise fundamentada das forças competitivas..."}
+                ? "Pesquisando concorrentes e mercado..."
+                : "Gerando análise com base na pesquisa..."}
             </p>
           </div>
         </Card>

@@ -652,36 +652,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
           {
             role: "user",
-            content: `Leia o documento abaixo da empresa "${nomeEmpresa}" (setor: ${setor}) e produza um resumo estratégico do seu conteúdo real.
+            content: `Leia o documento abaixo da empresa "${nomeEmpresa}" (setor: ${setor}) e produza uma análise crítica detalhada do seu conteúdo.
 
 REGRAS OBRIGATÓRIAS:
-- Cite apenas o que está escrito no documento. Não interprete nem suponha nada além do que está explícito.
-- Use dados concretos: números, percentuais, nomes, datas, valores, metas e fatos mencionados no texto.
-- NÃO explique o que é um plano de negócios, relatório ou qualquer tipo de documento. Isso não interessa.
-- Seja direto. Sem introduções genéricas.
+- Baseie-se exclusivamente no que está escrito no documento. Não invente nem suponha informações.
+- Cite dados concretos: números, percentuais, nomes, datas, valores, metas e fatos presentes no texto.
+- NÃO explique o que é um plano de negócios, relatório ou qualquer tipo de documento.
+- Cada seção deve ser desenvolvida com profundidade — evite listas curtas e respostas superficiais.
+- Analise criticamente: aponte contradições, lacunas, pontos fortes e fragilidades evidentes no conteúdo.
 
 DOCUMENTO:
 ${extractedText}
 
-Estruture sua resposta nos seguintes tópicos:
+Produza uma análise crítica detalhada estruturada nos seguintes tópicos. Cada tópico deve ser desenvolvido em parágrafos completos, com profundidade analítica:
 
-**Contexto e situação atual**
-Descreva em 2-3 frases o que o documento revela sobre a situação atual da empresa: posição de mercado, estágio do negócio, principais desafios ou conquistas mencionados.
+**1. Contexto e situação atual da empresa**
+Com base no documento, descreva em detalhe a situação atual da empresa: posição no mercado, estágio do negócio, histórico relevante, principais conquistas e desafios enfrentados. Contextualize o momento em que o documento foi produzido.
 
-**Dados e métricas relevantes**
-Liste os principais números, indicadores, metas ou valores financeiros presentes no documento (faturamento, crescimento, market share, prazos, volumes, custos etc.). Se não houver dados numéricos, indique os fatos concretos mais relevantes.
+**2. Dados, métricas e indicadores**
+Analise todos os números, indicadores financeiros, metas quantitativas, volumes, prazos e percentuais presentes no documento. Para cada dado relevante, explique o que ele revela sobre o desempenho ou as aspirações da empresa. Avalie se as metas são realistas, ambiciosas ou conservadoras com base nos dados apresentados.
 
-**Decisões, iniciativas e direcionamentos**
-Quais ações, projetos, estratégias ou decisões o documento menciona? Liste de forma objetiva o que a empresa planeja fazer ou já fez segundo o documento.
+**3. Estratégias, iniciativas e planos de ação**
+Descreva em detalhe as estratégias, projetos, iniciativas e decisões mencionadas no documento. Explique a lógica por trás de cada direcionamento e avalie criticamente se os planos são coerentes com a situação da empresa e com os recursos disponíveis mencionados.
 
-**Pontos críticos identificados**
-Quais riscos, problemas, gargalos ou oportunidades o documento evidencia explicitamente?
+**4. Análise crítica: pontos fortes e fragilidades**
+Identifique os pontos fortes evidentes no documento (vantagens competitivas, diferenciais, capacidades). Em seguida, aponte as fragilidades, inconsistências, lacunas de informação ou riscos que o documento evidencia ou omite. Seja crítico e honesto.
 
-Limite: 500 palavras. Linguagem clara, sem jargão.`,
+**5. Oportunidades e ameaças sinalizadas**
+Com base no conteúdo do documento, identifique as oportunidades de crescimento e as ameaças ao negócio que são mencionadas ou podem ser inferidas diretamente a partir do que está escrito.
+
+**6. Considerações finais**
+Sintetize os principais aprendizados da análise. Quais são as questões mais urgentes que o documento levanta? Que decisões estratégicas este conteúdo deveria embasar?
+
+Escreva de forma clara, direta e aprofundada. Cada seção deve ter pelo menos 3-4 parágrafos ou itens bem desenvolvidos.`,
           },
         ],
-        temperature: 0.3,
-        max_tokens: 1000,
+        temperature: 0.4,
+        max_tokens: 3000,
       });
 
       const interpretacaoTexto = interpretacao.choices[0].message.content || "";

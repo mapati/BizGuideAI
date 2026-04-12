@@ -1006,9 +1006,93 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ==================== AI ROUTES ====================
 
-  app.post("/api/ai/sugerir-pestel", async (req, res) => {
+  // Research external scenario via web search for PESTEL analysis
+  app.post("/api/ai/pesquisar-cenario-externo", async (req, res) => {
     try {
       const { nomeEmpresa, setor, descricao } = req.body;
+      if (!setor) return res.status(400).json({ error: "Setor é obrigatório" });
+
+      const prompt = `Você é um analista estratégico especializado em cenário macroeconômico brasileiro. Pesquise notícias, relatórios e tendências RECENTES (últimos 6 a 12 meses) relevantes para uma empresa do setor de "${setor}" no Brasil.
+
+Empresa: ${nomeEmpresa || "não informado"}
+Setor: ${setor}
+${descricao ? `Descrição: ${descricao}` : ""}
+
+Pesquise e resuma o contexto externo atual para CADA uma das 6 dimensões PESTEL, com foco no impacto para este setor no Brasil:
+
+- POLÍTICO: Políticas governamentais, mudanças de governo, regulamentações em tramitação, instabilidade política
+- ECONÔMICO: Taxa Selic, inflação (IPCA), variação cambial, PIB, crédito, poder de compra do consumidor
+- SOCIAL: Mudanças de comportamento, tendências de consumo, dados demográficos, valores sociais emergentes
+- TECNOLÓGICO: Inovações disruptivas, automação, inteligência artificial, transformação digital no setor
+- AMBIENTAL: Legislação ambiental, metas ESG, mudanças climáticas, economia circular
+- LEGAL: Novas leis, regulamentações setoriais, normas técnicas, decisões judiciais relevantes
+
+Responda APENAS em JSON válido com exatamente este formato:
+{
+  "politico": { "resumo": "2-3 parágrafos com contexto atual e tendências", "fontes": ["site ou publicação 1", "site ou publicação 2"] },
+  "economico": { "resumo": "...", "fontes": ["...", "..."] },
+  "social": { "resumo": "...", "fontes": ["...", "..."] },
+  "tecnologico": { "resumo": "...", "fontes": ["...", "..."] },
+  "ambiental": { "resumo": "...", "fontes": ["...", "..."] },
+  "legal": { "resumo": "...", "fontes": ["...", "..."] }
+}`;
+
+      let cenario: any = null;
+
+      try {
+        // Use Responses API with web_search_preview for real-time internet search
+        const response = await (openai as any).responses.create({
+          model: "gpt-4o-mini-search-preview",
+          tools: [{ type: "web_search_preview" }],
+          input: prompt,
+        });
+
+        const text: string = response.output_text || "";
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("JSON não encontrado na resposta de pesquisa");
+        cenario = JSON.parse(jsonMatch[0]);
+      } catch (searchError: any) {
+        // Fallback: use regular chat completion with knowledge-based analysis
+        console.warn("[PESTEL] web_search_preview falhou, usando fallback:", searchError.message);
+        const fallback = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: "Você é um analista estratégico brasileiro especializado em cenário macroeconômico. Use seu conhecimento mais atualizado possível sobre o Brasil.",
+            },
+            { role: "user", content: prompt },
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0.5,
+        });
+        cenario = JSON.parse(fallback.choices[0].message.content || "{}");
+      }
+
+      // Validate structure — ensure all 6 keys are present
+      const dims = ["politico", "economico", "social", "tecnologico", "ambiental", "legal"];
+      for (const dim of dims) {
+        if (!cenario[dim]) cenario[dim] = { resumo: "Informação não disponível.", fontes: [] };
+        if (!Array.isArray(cenario[dim].fontes)) cenario[dim].fontes = [];
+      }
+
+      res.json(cenario);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/ai/sugerir-pestel", async (req, res) => {
+    try {
+      const { nomeEmpresa, setor, descricao, cenarioExterno } = req.body;
+
+      const cenarioContext = cenarioExterno
+        ? `\n\nCONTEXTO EXTERNO ATUAL (baseado em pesquisa de notícias e tendências recentes):\n${
+            Object.entries(cenarioExterno)
+              .map(([dim, data]: [string, any]) => `${dim.toUpperCase()}: ${data?.resumo || ""}`)
+              .join("\n\n")
+          }\n\nIMPORTANTE: Use estes dados reais e recentes para embasar os fatores. Os fatores devem mencionar eventos, dados ou tendências específicos do contexto acima. Seja concreto e atual.\n`
+        : "";
       
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
@@ -1019,7 +1103,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
           {
             role: "user",
-            content: `Empresa: ${nomeEmpresa}\nSetor: ${setor}\nDescrição: ${descricao}\n\nCrie EXATAMENTE 6 fatores externos (um para cada categoria PESTEL):\n1. Um fator POLÍTICO (tipo: "politico")\n2. Um fator ECONÔMICO (tipo: "economico")\n3. Um fator SOCIAL (tipo: "social")\n4. Um fator TECNOLÓGICO (tipo: "tecnologico")\n5. Um fator AMBIENTAL (tipo: "ambiental")\n6. Um fator LEGAL (tipo: "legal")\n\nPara cada fator, forneça:\n- tipo: exatamente como indicado acima (politico, economico, social, tecnologico, ambiental, legal)\n- descricao: uma descrição clara e objetiva do fator\n- impacto: "alto", "médio" ou "baixo"\n- evidencia: explicação de por que este fator é importante para esta empresa\n\nResponda OBRIGATORIAMENTE em JSON com este formato exato:\n{\n  "fatores": [\n    {"tipo": "politico", "descricao": "...", "impacto": "alto", "evidencia": "..."},\n    {"tipo": "economico", "descricao": "...", "impacto": "médio", "evidencia": "..."},\n    {"tipo": "social", "descricao": "...", "impacto": "...", "evidencia": "..."},\n    {"tipo": "tecnologico", "descricao": "...", "impacto": "...", "evidencia": "..."},\n    {"tipo": "ambiental", "descricao": "...", "impacto": "...", "evidencia": "..."},\n    {"tipo": "legal", "descricao": "...", "impacto": "...", "evidencia": "..."}\n  ]\n}`
+            content: `Empresa: ${nomeEmpresa}\nSetor: ${setor}\nDescrição: ${descricao}${cenarioContext}\n\nCrie EXATAMENTE 6 fatores externos (um para cada categoria PESTEL):\n1. Um fator POLÍTICO (tipo: "politico")\n2. Um fator ECONÔMICO (tipo: "economico")\n3. Um fator SOCIAL (tipo: "social")\n4. Um fator TECNOLÓGICO (tipo: "tecnologico")\n5. Um fator AMBIENTAL (tipo: "ambiental")\n6. Um fator LEGAL (tipo: "legal")\n\nPara cada fator, forneça:\n- tipo: exatamente como indicado acima (politico, economico, social, tecnologico, ambiental, legal)\n- descricao: uma descrição clara e objetiva do fator, mencionando dados ou tendências específicos quando disponíveis\n- impacto: "alto", "médio" ou "baixo"\n- evidencia: explicação de por que este fator é importante para esta empresa, com referência a dados concretos quando disponíveis\n\nResponda OBRIGATORIAMENTE em JSON com este formato exato:\n{\n  "fatores": [\n    {"tipo": "politico", "descricao": "...", "impacto": "alto", "evidencia": "..."},\n    {"tipo": "economico", "descricao": "...", "impacto": "médio", "evidencia": "..."},\n    {"tipo": "social", "descricao": "...", "impacto": "...", "evidencia": "..."},\n    {"tipo": "tecnologico", "descricao": "...", "impacto": "...", "evidencia": "..."},\n    {"tipo": "ambiental", "descricao": "...", "impacto": "...", "evidencia": "..."},\n    {"tipo": "legal", "descricao": "...", "impacto": "...", "evidencia": "..."}\n  ]\n}`
           }
         ],
         response_format: { type: "json_object" },

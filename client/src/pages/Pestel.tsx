@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,9 +9,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { EmptyState } from "@/components/EmptyState";
 import { ExampleCard } from "@/components/ExampleCard";
-import { Compass, Plus, Sparkles, Trash2, Pencil } from "lucide-react";
+import { Compass, Plus, Sparkles, Trash2, Pencil, Globe, ChevronDown, ChevronUp, ExternalLink, Loader2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -23,6 +24,22 @@ interface FatorPESTEL {
   impacto: "alto" | "médio" | "baixo";
   evidencia: string;
 }
+
+interface DimPesquisa {
+  resumo: string;
+  fontes: string[];
+}
+
+interface CenarioExterno {
+  politico: DimPesquisa;
+  economico: DimPesquisa;
+  social: DimPesquisa;
+  tecnologico: DimPesquisa;
+  ambiental: DimPesquisa;
+  legal: DimPesquisa;
+}
+
+type SuggestPhase = "idle" | "searching" | "generating";
 
 const ImpactBadge = ({ impact }: { impact: "alto" | "médio" | "baixo" }) => {
   const variants = {
@@ -38,11 +55,22 @@ const ImpactBadge = ({ impact }: { impact: "alto" | "médio" | "baixo" }) => {
   );
 };
 
+const dimLabels: Record<string, string> = {
+  politico: "Político",
+  economico: "Econômico",
+  social: "Social",
+  tecnologico: "Tecnológico",
+  ambiental: "Ambiental",
+  legal: "Legal",
+};
+
 export default function Pestel() {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
-  const [isSuggesting, setIsSuggesting] = useState(false);
+  const [suggestPhase, setSuggestPhase] = useState<SuggestPhase>("idle");
+  const [cenarioExterno, setCenarioExterno] = useState<CenarioExterno | null>(null);
+  const [sourcesOpen, setSourcesOpen] = useState(false);
   const [formData, setFormData] = useState({
     tipo: "",
     descricao: "",
@@ -171,16 +199,31 @@ export default function Pestel() {
       return;
     }
 
-    setIsSuggesting(true);
     try {
-      const response = await apiRequest("POST", "/api/ai/sugerir-pestel", {
+      // Phase 1: Search external scenario
+      setSuggestPhase("searching");
+      setCenarioExterno(null);
+
+      const cenario: CenarioExterno = await apiRequest("POST", "/api/ai/pesquisar-cenario-externo", {
         nomeEmpresa: empresa.nome,
         setor: empresa.setor,
         descricao: empresa.descricao,
       });
 
+      setCenarioExterno(cenario);
+
+      // Phase 2: Generate PESTEL factors using research context
+      setSuggestPhase("generating");
+
+      const response = await apiRequest("POST", "/api/ai/sugerir-pestel", {
+        nomeEmpresa: empresa.nome,
+        setor: empresa.setor,
+        descricao: empresa.descricao,
+        cenarioExterno: cenario,
+      });
+
       const sugestoes = response.fatores || [];
-      
+
       for (const sugestao of sugestoes) {
         await apiRequest("POST", "/api/fatores-pestel", {
           ...sugestao,
@@ -189,19 +232,34 @@ export default function Pestel() {
       }
 
       queryClient.invalidateQueries({ queryKey: ["/api/fatores-pestel", empresa.id] });
+      setSourcesOpen(false);
       toast({
-        title: "Sugestões adicionadas!",
-        description: `${sugestoes.length} fatores foram sugeridos pela IA.`,
+        title: "Análise concluída!",
+        description: `${sugestoes.length} fatores gerados com base em pesquisa atual.`,
       });
     } catch (error: any) {
       toast({
-        title: "Erro ao gerar sugestões",
+        title: "Erro ao gerar análise",
         description: error.message,
         variant: "destructive",
       });
     } finally {
-      setIsSuggesting(false);
+      setSuggestPhase("idle");
     }
+  };
+
+  const isSuggesting = suggestPhase !== "idle";
+
+  const suggestButtonLabel = () => {
+    if (suggestPhase === "searching") return "Pesquisando cenário...";
+    if (suggestPhase === "generating") return "Gerando fatores...";
+    return "Analisar com IA";
+  };
+
+  const suggestButtonIcon = () => {
+    if (suggestPhase === "searching") return <Globe className="h-4 w-4 mr-2 animate-pulse" />;
+    if (suggestPhase === "generating") return <Loader2 className="h-4 w-4 mr-2 animate-spin" />;
+    return <Sparkles className="h-4 w-4 mr-2" />;
   };
 
   if (!empresa) {
@@ -227,15 +285,15 @@ export default function Pestel() {
         description="Identifique os principais fatores externos que impactam seu negócio: mudanças políticas, econômicas, sociais, tecnológicas, ambientais e legais."
         tooltip="Esta análise ajuda você a entender o ambiente ao redor da sua empresa e se preparar para mudanças importantes que podem afetar seus resultados."
         action={
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button
               variant="outline"
               onClick={handleSuggest}
               disabled={isSuggesting || !empresa}
               data-testid="button-suggest-pestel"
             >
-              <Sparkles className="h-4 w-4 mr-2" />
-              {isSuggesting ? "Gerando..." : "Sugerir Fatores"}
+              {suggestButtonIcon()}
+              {suggestButtonLabel()}
             </Button>
             <Dialog open={isDialogOpen} onOpenChange={handleCloseDialog}>
               <DialogTrigger asChild>
@@ -323,6 +381,108 @@ export default function Pestel() {
         <strong>Econômico:</strong> O dólar subiu muito e isso está aumentando nosso custo de matéria-prima importada. Se não conseguirmos repassar esse aumento, nossa margem pode cair 3-5%. <strong>Impacto: Alto</strong>
       </ExampleCard>
 
+      {/* Progress indicator during AI analysis */}
+      {isSuggesting && (
+        <Card className="mt-6 p-6" data-testid="card-suggest-progress">
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className={`flex items-center gap-2 flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                suggestPhase === "searching"
+                  ? "bg-primary/10 text-primary"
+                  : "bg-muted/40 text-muted-foreground"
+              }`}>
+                <Globe className={`h-4 w-4 ${suggestPhase === "searching" ? "animate-pulse" : ""}`} />
+                <span>Pesquisando notícias e tendências</span>
+                {suggestPhase === "searching" && (
+                  <Loader2 className="h-3 w-3 ml-auto animate-spin" />
+                )}
+                {suggestPhase === "generating" && (
+                  <span className="ml-auto text-xs text-green-600 dark:text-green-400 font-semibold">Concluído</span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className={`flex items-center gap-2 flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                suggestPhase === "generating"
+                  ? "bg-primary/10 text-primary"
+                  : "bg-muted/40 text-muted-foreground"
+              }`}>
+                <Sparkles className={`h-4 w-4 ${suggestPhase === "generating" ? "animate-pulse" : ""}`} />
+                <span>Gerando fatores PESTEL com IA</span>
+                {suggestPhase === "generating" && (
+                  <Loader2 className="h-3 w-3 ml-auto animate-spin" />
+                )}
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {suggestPhase === "searching"
+                ? "A IA está pesquisando notícias recentes sobre o cenário macroeconômico e setorial..."
+                : "Usando a pesquisa para criar fatores relevantes e atualizados para sua empresa..."}
+            </p>
+          </div>
+        </Card>
+      )}
+
+      {/* Research sources panel (collapsible) */}
+      {cenarioExterno && !isSuggesting && (
+        <Collapsible open={sourcesOpen} onOpenChange={setSourcesOpen} className="mt-6">
+          <Card className="p-0 overflow-hidden">
+            <CollapsibleTrigger asChild>
+              <button
+                className="w-full flex items-center justify-between px-6 py-4 text-sm font-medium hover-elevate text-left"
+                data-testid="button-toggle-sources"
+              >
+                <div className="flex items-center gap-2">
+                  <Globe className="h-4 w-4 text-primary" />
+                  <span>Ver fontes pesquisadas pela IA</span>
+                  <Badge variant="secondary" className="text-xs">
+                    {Object.keys(cenarioExterno).length} dimensões
+                  </Badge>
+                </div>
+                {sourcesOpen ? (
+                  <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                )}
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="px-6 pb-6 pt-0 border-t">
+                <p className="text-xs text-muted-foreground mb-4 pt-4">
+                  Resumo do contexto externo pesquisado pela IA e usado como base para gerar os fatores PESTEL da sua empresa.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {Object.entries(cenarioExterno).map(([dim, data]) => (
+                    <div key={dim} className="rounded-md border bg-muted/20 p-4" data-testid={`source-dim-${dim}`}>
+                      <div className="text-xs font-semibold text-primary uppercase tracking-wide mb-2">
+                        {dimLabels[dim] || dim}
+                      </div>
+                      <p className="text-xs text-foreground/80 leading-relaxed mb-3 line-clamp-4">
+                        {data.resumo}
+                      </p>
+                      {data.fontes && data.fontes.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {data.fontes.map((fonte, i) => (
+                            <span
+                              key={i}
+                              className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-background/60 border rounded px-2 py-0.5"
+                              data-testid={`source-tag-${dim}-${i}`}
+                            >
+                              <ExternalLink className="h-2.5 w-2.5" />
+                              {fonte}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+      )}
+
       {isLoading ? (
         <Card className="mt-6 p-8">
           <div className="text-center text-muted-foreground">Carregando...</div>
@@ -332,7 +492,7 @@ export default function Pestel() {
           <EmptyState
             icon={<Compass className="h-16 w-16" />}
             title="Nenhum fator externo identificado ainda"
-            description="Adicione fatores externos que podem afetar seu negócio ou peça sugestões para a IA baseadas no perfil da sua empresa."
+            description='Clique em "Analisar com IA" para a IA pesquisar o cenário atual e gerar fatores relevantes para sua empresa.'
             actionLabel="Adicionar Primeiro Fator"
             onAction={() => setIsDialogOpen(true)}
           />
@@ -341,7 +501,7 @@ export default function Pestel() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
           {fatores.map((fator) => (
             <Card key={fator.id} className="p-6 hover-elevate" data-testid={`card-fator-${fator.id}`}>
-              <div className="flex items-start justify-between mb-3">
+              <div className="flex items-start justify-between mb-3 gap-1">
                 <div className="text-xs font-semibold text-primary uppercase tracking-wide">
                   {tipos.find((t) => t.value === fator.tipo)?.label}
                 </div>

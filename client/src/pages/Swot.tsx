@@ -703,11 +703,11 @@ export default function Swot() {
                       <div className="flex items-center justify-between mb-2 flex-wrap gap-1">
                         <div>
                           <p className="text-xs font-semibold text-foreground">Análise Interna</p>
-                          <p className="text-xs text-muted-foreground">Para Forças e Fraquezas</p>
+                          <p className="text-xs text-muted-foreground">Forças e Fraquezas (fatores internos)</p>
                         </div>
                         <div className="flex gap-1">
                           <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => toggleGrupo(FONTES_INTERNAS, false)} data-testid="button-limpar-internas">Limpar</Button>
-                          <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => toggleGrupo(FONTES_INTERNAS, true)} data-testid="button-selecionar-internas">Selecionar</Button>
+                          <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => toggleGrupo(FONTES_INTERNAS, true)} data-testid="button-selecionar-internas">Selecionar todas</Button>
                         </div>
                       </div>
                       <div className="flex items-center justify-between gap-2 py-1" data-testid="row-fonte-perfil">
@@ -726,11 +726,11 @@ export default function Swot() {
                       <div className="flex items-center justify-between mb-2 flex-wrap gap-1">
                         <div>
                           <p className="text-xs font-semibold text-foreground">Análise Externa</p>
-                          <p className="text-xs text-muted-foreground">Para Oportunidades e Ameaças</p>
+                          <p className="text-xs text-muted-foreground">Oportunidades e Ameaças (fatores externos)</p>
                         </div>
                         <div className="flex gap-1">
                           <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => toggleGrupo(FONTES_EXTERNAS, false)} data-testid="button-limpar-externas">Limpar</Button>
-                          <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => toggleGrupo(FONTES_EXTERNAS, true)} data-testid="button-selecionar-externas">Selecionar</Button>
+                          <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => toggleGrupo(FONTES_EXTERNAS, true)} data-testid="button-selecionar-externas">Selecionar todas</Button>
                         </div>
                       </div>
                       {FONTES_EXTERNAS.map(renderFonteRow)}

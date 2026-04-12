@@ -1691,7 +1691,9 @@ Responda EXCLUSIVAMENTE em JSON:
       else if (temDocumentoReal && pedidoExterno)       fontesExternas.push("Documento Estratégico");
       if (usePestel      && fatoresPestelResumo)        fontesExternas.push("Análise PESTEL");
       if (useCincoForcas && cincoForcasResumo)          fontesExternas.push("Cinco Forças / Mercado e Concorrência");
-      if (fontesExternas.length === 0)                  fontesExternas.push("Perfil da empresa");
+      // No fallback to "Perfil da empresa" for external sources — preserves strict internal/external separation.
+      // If no external source is selected, oportunidade/ameaca types will have empty fonte list
+      // which serves as a signal that the prompt should note limited external context.
 
       const tiposLabel: Record<string, { label: string; plural: string; fonte: string; proibicao: string }> = {
         forca:        { label: "FORÇA",        plural: "FORÇAS",        fonte: fontesInternas.join(", "),  proibicao: "PROIBIDO usar PESTEL/Cinco Forças. Forças são fatores INTERNOS." },

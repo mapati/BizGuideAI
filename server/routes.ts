@@ -1478,7 +1478,8 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
 
   app.post("/api/ai/sugerir-swot-completo", async (req, res) => {
     try {
-      const empresaId = req.session.empresaId!;
+      if (!req.session.empresaId) return res.status(401).json({ error: "Não autenticado" });
+      const empresaId = req.session.empresaId;
       const {
         tiposSelecionados = ["forca", "fraqueza", "oportunidade", "ameaca"],
         quantidadePorTipo = { forca: 1, fraqueza: 1, oportunidade: 1, ameaca: 1 },

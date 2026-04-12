@@ -637,7 +637,7 @@ export default function Swot() {
 
             <div>
               <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                <Label className="text-sm font-medium">Focos da análise</Label>
+                <Label className="text-sm font-medium">Focos da análise{!contextSummary && <span className="ml-2 text-xs font-normal text-muted-foreground">(carregando…)</span>}</Label>
                 <div className="flex gap-2">
                   <Button
                     variant="ghost"

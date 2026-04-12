@@ -17,7 +17,7 @@ export const empresas = pgTable("empresas", {
   cep: text("cep"),
   logoUrl: text("logo_url"),
   // Campos de contexto estratégico para IA
-  tipoNegocio: text("tipo_negocio"),
+  modeloNegocio: text("modelo_negocio"),
   areaAtuacao: text("area_atuacao"),
   publicoAlvo: text("publico_alvo"),
   principaisProdutos: text("principais_produtos"),

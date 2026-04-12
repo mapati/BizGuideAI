@@ -49,7 +49,7 @@ function buildEmpresaContextoIA(empresa: Empresa): string {
   linhas.push(`Setor: ${empresa.setor}`);
   if (empresa.tamanho) linhas.push(`Tamanho: ${empresa.tamanho}`);
   if (empresa.descricao) linhas.push(`Descrição: ${empresa.descricao}`);
-  if (empresa.tipoNegocio) linhas.push(`Modelo de negócio: ${empresa.tipoNegocio}`);
+  if (empresa.modeloNegocio) linhas.push(`Modelo de negócio: ${empresa.modeloNegocio}`);
   if (empresa.areaAtuacao) linhas.push(`Área de atuação geográfica: ${empresa.areaAtuacao}`);
   if (empresa.publicoAlvo) linhas.push(`Público-alvo / cliente ideal: ${empresa.publicoAlvo}`);
   if (empresa.principaisProdutos) linhas.push(`Principais produtos/serviços: ${empresa.principaisProdutos}`);
@@ -590,7 +590,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         estado: z.string().nullable().optional(),
         cep: z.string().nullable().optional(),
         logoUrl: z.string().nullable().optional(),
-        tipoNegocio: z.string().nullable().optional(),
+        modeloNegocio: z.string().nullable().optional(),
         areaAtuacao: z.string().nullable().optional(),
         publicoAlvo: z.string().nullable().optional(),
         principaisProdutos: z.string().nullable().optional(),
@@ -602,7 +602,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const safeData: Partial<InsertEmpresa> = {};
       const fields = [
         "nome","setor","tamanho","descricao","website","cnpj","endereco","cidade","estado","cep","logoUrl",
-        "tipoNegocio","areaAtuacao","publicoAlvo","principaisProdutos","concorrentesConhecidos","diferenciaisCompetitivos","anoFundacao",
+        "modeloNegocio","areaAtuacao","publicoAlvo","principaisProdutos","concorrentesConhecidos","diferenciaisCompetitivos","anoFundacao",
       ] as const;
       for (const field of fields) {
         if (parsed[field] !== undefined) (safeData as Record<string, unknown>)[field] = parsed[field];
@@ -1173,9 +1173,21 @@ Limite a resposta a no máximo 600 palavras. Seja direto e use linguagem clara s
         }
       }
 
+      // Build steering instructions based on empresa profile
+      const empresaParaPestel = req.session?.empresaId ? await storage.getEmpresa(req.session.empresaId) : null;
+      const steeringPestel: string[] = [];
+      if (empresaParaPestel?.areaAtuacao) {
+        steeringPestel.push(`FOCO GEOGRÁFICO: A empresa atua no recorte "${empresaParaPestel.areaAtuacao}". Priorize dados e tendências relevantes para este escopo geográfico.`);
+      }
+      if (empresaParaPestel?.modeloNegocio) {
+        steeringPestel.push(`MODELO DE NEGÓCIO: "${empresaParaPestel.modeloNegocio}". Considere como cada fator PESTEL impacta especificamente este tipo de operação.`);
+      }
+      const steeringPestelStr = steeringPestel.length > 0 ? `\n\n━━━ DIRECIONAMENTO DA ANÁLISE ━━━\n${steeringPestel.join("\n")}` : "";
+
       const prompt = `Você é um analista estratégico especializado em cenário macroeconômico brasileiro. Pesquise notícias, relatórios e tendências RECENTES (últimos 6 a 12 meses) relevantes para uma empresa do setor de "${setor}" no Brasil.
 
 ${contextoRico || `Empresa: ${nomeEmpresa || "não informado"}\nSetor: ${setor}${descricao ? `\nDescrição: ${descricao}` : ""}`}
+${steeringPestelStr}
 
 Pesquise e resuma o contexto externo atual para CADA uma das 6 dimensões PESTEL, com foco no impacto para este setor no Brasil:
 
@@ -1583,11 +1595,39 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
 
     // Prompt de pesquisa livre — sem exigir JSON para que o modelo de busca
     // possa focar em encontrar informações reais e específicas
+    // Extract empresa fields for targeted steering instructions
+    let empresaSteeringInfo = { areaAtuacao: "", modeloNegocio: "", concorrentesConhecidos: "" };
+    if (req.session?.empresaId) {
+      const empresaC = await storage.getEmpresa(req.session.empresaId);
+      if (empresaC) {
+        empresaSteeringInfo = {
+          areaAtuacao: empresaC.areaAtuacao || "",
+          modeloNegocio: empresaC.modeloNegocio || "",
+          concorrentesConhecidos: empresaC.concorrentesConhecidos || "",
+        };
+      }
+    }
+
+    const instrucoesDirecimento: string[] = [];
+    if (empresaSteeringInfo.areaAtuacao) {
+      instrucoesDirecimento.push(`FOCO GEOGRÁFICO: Esta empresa atua "${empresaSteeringInfo.areaAtuacao}". Priorize dados, players e tendências DESTE recorte geográfico específico ao descrever o mercado.`);
+    }
+    if (empresaSteeringInfo.modeloNegocio) {
+      instrucoesDirecimento.push(`TIPO DE CLIENTE: Esta empresa opera no modelo "${empresaSteeringInfo.modeloNegocio}". Foque a análise de poder dos clientes (seção 3) neste tipo de relação comercial — se B2B, descreva clientes empresariais; se B2C, clientes pessoas físicas; etc.`);
+    }
+    if (empresaSteeringInfo.concorrentesConhecidos) {
+      instrucoesDirecimento.push(`CONCORRENTES JÁ CONHECIDOS: O empresário já identificou estes concorrentes: "${empresaSteeringInfo.concorrentesConhecidos}". Obrigatoriamente inclua todos eles na seção de rivalidade entre concorrentes e EXPANDA a lista pesquisando outros concorrentes que o empresário pode ainda não conhecer.`);
+    }
+
+    const direcimentoStr = instrucoesDirecimento.length > 0
+      ? `\n\n━━━ INSTRUÇÕES DE DIRECIONAMENTO DA PESQUISA ━━━\n${instrucoesDirecimento.join("\n")}`
+      : "";
+
     const searchPrompt = `Você é um analista de inteligência competitiva especializado em mercado brasileiro.
 Pesquise na internet informações ATUAIS e ESPECÍFICAS sobre o mercado de "${setor}" no Brasil para a seguinte empresa:
 
 ${perfilEmpresaMercado}
-
+${direcimentoStr}
 
 Pesquise e descreva com profundidade os seguintes aspectos:
 
@@ -1596,6 +1636,7 @@ Pesquise e descreva com profundidade os seguintes aspectos:
    - Para cada concorrente, indique seu porte, diferencial e estratégia de preço
    - Qual é a intensidade da concorrência? Há guerras de preço? Diferenciação de produto?
    - Cite dados de participação de mercado se disponíveis
+   - SE foram fornecidos concorrentes conhecidos, OBRIGATORIAMENTE inclua todos eles e pesquise mais
 
 2. PODER DE NEGOCIAÇÃO DOS FORNECEDORES
    - Quais são os principais insumos, matérias-primas ou serviços que empresas deste setor precisam comprar?
@@ -1604,7 +1645,7 @@ Pesquise e descreva com profundidade os seguintes aspectos:
    - Qual é a facilidade de trocar de fornecedor?
 
 3. PODER DE NEGOCIAÇÃO DOS CLIENTES
-   - Quem são os principais clientes/segmentos? São consumidores finais, empresas, governo?
+   - Quem são os principais clientes/segmentos? (Considere o modelo de negócio: ${empresaSteeringInfo.modeloNegocio || "não especificado"})
    - Qual é o ticket médio e sensibilidade ao preço?
    - Os clientes têm facilidade de trocar de fornecedor? Há fidelização?
    - Há grandes clientes que concentram parte expressiva da receita?

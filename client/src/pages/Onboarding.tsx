@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ProgressBar } from "@/components/ProgressBar";
 import { ExampleCard } from "@/components/ExampleCard";
 import { ArrowRight, ArrowLeft, CheckCircle2, ChevronDown, ChevronUp, Lock, Globe, Sparkles, Loader2, ImagePlus, Trash2, FileText, Upload, X } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -40,7 +41,7 @@ export default function Onboarding() {
     estado: "",
     cep: "",
     logoUrl: "",
-    tipoNegocio: "",
+    modeloNegocio: "",
     areaAtuacao: "",
     publicoAlvo: "",
     principaisProdutos: "",
@@ -87,7 +88,7 @@ export default function Onboarding() {
         estado: empresaExistente.estado || "",
         cep: empresaExistente.cep || "",
         logoUrl: empresaExistente.logoUrl || "",
-        tipoNegocio: empresaExistente.tipoNegocio || "",
+        modeloNegocio: empresaExistente.modeloNegocio || "",
         areaAtuacao: empresaExistente.areaAtuacao || "",
         publicoAlvo: empresaExistente.publicoAlvo || "",
         principaisProdutos: empresaExistente.principaisProdutos || "",
@@ -576,14 +577,24 @@ export default function Onboarding() {
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
-                  <Label htmlFor="edit-tipoNegocio">Modelo de Negócio</Label>
-                  <Input
-                    id="edit-tipoNegocio"
-                    placeholder="Ex: B2B, B2C, SaaS, franquia..."
-                    value={formData.tipoNegocio}
-                    onChange={(e) => setFormData({ ...formData, tipoNegocio: e.target.value })}
-                    data-testid="input-tipo-negocio"
-                  />
+                  <Label htmlFor="edit-modeloNegocio">Modelo de Negócio</Label>
+                  <Select
+                    value={formData.modeloNegocio}
+                    onValueChange={(val) => setFormData({ ...formData, modeloNegocio: val })}
+                  >
+                    <SelectTrigger id="edit-modeloNegocio" data-testid="select-modelo-negocio">
+                      <SelectValue placeholder="Selecione o modelo..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="B2B">B2B (vende para empresas)</SelectItem>
+                      <SelectItem value="B2C">B2C (vende para pessoas físicas)</SelectItem>
+                      <SelectItem value="B2B2C">B2B2C (empresas e consumidores)</SelectItem>
+                      <SelectItem value="Marketplace">Marketplace</SelectItem>
+                      <SelectItem value="SaaS/Software">SaaS / Software</SelectItem>
+                      <SelectItem value="Franquia">Franquia</SelectItem>
+                      <SelectItem value="Outro">Outro</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label htmlFor="edit-anoFundacao">Ano de Fundação</Label>
@@ -606,13 +617,20 @@ export default function Onboarding() {
 
               <div>
                 <Label htmlFor="edit-areaAtuacao">Área de Atuação Geográfica</Label>
-                <Input
-                  id="edit-areaAtuacao"
-                  placeholder="Ex: Brasil inteiro, Sudeste, São Paulo capital..."
+                <Select
                   value={formData.areaAtuacao}
-                  onChange={(e) => setFormData({ ...formData, areaAtuacao: e.target.value })}
-                  data-testid="input-area-atuacao"
-                />
+                  onValueChange={(val) => setFormData({ ...formData, areaAtuacao: val })}
+                >
+                  <SelectTrigger id="edit-areaAtuacao" data-testid="select-area-atuacao">
+                    <SelectValue placeholder="Selecione a abrangência..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Local (cidade)">Local (cidade)</SelectItem>
+                    <SelectItem value="Regional (estado)">Regional (estado)</SelectItem>
+                    <SelectItem value="Nacional">Nacional</SelectItem>
+                    <SelectItem value="Internacional/Exportação">Internacional / Exportação</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div>

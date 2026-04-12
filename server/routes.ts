@@ -1527,12 +1527,29 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         storage.getAnaliseSwot(empresaId),
       ]);
 
+      // Fetch resultadosChave for each objective (OKRs)
+      let resultadosChaveMap: Record<string, any[]> = {};
+      if (useObjetivos && objetivosList.length > 0) {
+        const resultados = await Promise.all(
+          objetivosList.map((o: any) => storage.getResultadosChave(o.id, empresaId))
+        );
+        objetivosList.forEach((o: any, idx: number) => {
+          resultadosChaveMap[o.id] = resultados[idx] || [];
+        });
+      }
+
       // Build context strings
       const fatoresPestelResumo  = fatoresPestelList.map((f: any) => `${f.tipo}: ${f.descricao}`).join("\n");
       const cincoForcasResumo    = cincoForcasList.map((f: any) => `${f.forca}: ${f.descricao} (intensidade ${f.intensidade})`).join("\n");
       const modeloNegocioResumo  = modeloNegocioList.map((m: any) => `${m.bloco}: ${m.descricao}`).join("\n");
       const indicadoresResumo    = indicadoresList.map((i: any) => `[${i.perspectiva}] ${i.nome}: atual=${i.atual}, meta=${i.meta}, status=${i.status}`).join("\n");
-      const objetivosResumo      = objetivosList.map((o: any) => `[${o.perspectiva}] ${o.titulo}${o.descricao ? `: ${o.descricao}` : ""} (prazo: ${o.prazo})`).join("\n");
+      const objetivosResumo      = objetivosList.map((o: any) => {
+        const krs = resultadosChaveMap[o.id] || [];
+        const krsText = krs.length > 0
+          ? "\n" + krs.map((kr: any) => `    KR: ${kr.descricao} — atual: ${kr.atual}, meta: ${kr.meta}, status: ${kr.status}`).join("\n")
+          : "";
+        return `[${o.perspectiva}] ${o.titulo}${o.descricao ? `: ${o.descricao}` : ""} (prazo: ${o.prazo})${krsText}`;
+      }).join("\n");
       const estrategiasResumo    = [
         ...estrategiasList.map((e: any) => `[Estratégia | ${e.tipo} | ${e.prioridade}] ${e.titulo}: ${e.descricao}`),
         ...iniciativasList.map((i: any) => `[Iniciativa | ${i.prioridade} | ${i.status}] ${i.titulo}: ${i.descricao} (resp: ${i.responsavel})`),

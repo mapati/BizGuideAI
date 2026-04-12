@@ -1580,34 +1580,49 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
       };
 
       // ── TWO-STEP EXTRACTION ────────────────────────────────────────────────
+      // Always extract from the document when it is selected — using the user's custom
+      // instruction when provided, or a SWOT-focused guide when not. This guarantees
+      // the model receives concrete, document-grounded findings instead of a raw dump
+      // that it may ignore at high temperature.
       const temDocumentoReal = useDocumento && !!empresa.documentoInterpretacao;
       const temInstrucao     = !!instrucaoAdicional?.trim();
       let achadosDocumentoSection = "";
 
-      if (temDocumentoReal && temInstrucao) {
+      if (temDocumentoReal) {
+        const tiposLabel2: Record<string, string> = {
+          forca: "forças (pontos fortes internos)",
+          fraqueza: "fraquezas (pontos fracos internos)",
+          oportunidade: "oportunidades externas",
+          ameaca: "ameaças externas",
+        };
+        const tiposParaExtracao = tiposSelecionados.map((t: string) => tiposLabel2[t] || t).join(", ");
+        const guiaExtracao = temInstrucao
+          ? `Instrução específica do usuário: ${instrucaoAdicional.trim()}\n\nAlém disso, extraia achados relevantes para análise SWOT de: ${tiposParaExtracao}.`
+          : `Extraia do documento TODOS os dados, fatos, evidências e observações que sejam relevantes para identificar ${tiposParaExtracao}. Foque em informações concretas e específicas: números, percentuais, eventos, problemas, vantagens, riscos — exatamente como descritos no documento.`;
+
         const extraction = await openai.chat.completions.create({
           model: "gpt-4o",
           messages: [
             {
               role: "system",
-              content: `Você é um analista especializado em extrair informações específicas de documentos estratégicos. Sua tarefa é ler o documento e identificar dados, métricas, fatos e evidências relevantes para a instrução do usuário. Seja preciso: cite números, percentuais e observações reais — não faça suposições genéricas.`,
+              content: `Você é um analista especializado em extrair informações de documentos estratégicos para análise SWOT. Leia o documento e identifique TODOS os dados, fatos, métricas e evidências concretas. Seja fiel ao documento: cite situações reais, valores, eventos e problemas mencionados — nunca generalize ou invente.`,
             },
             {
               role: "user",
-              content: `## INSTRUÇÃO DO USUÁRIO (o que deve ser identificado no documento):
-${instrucaoAdicional.trim()}
+              content: `## GUIA DE EXTRAÇÃO:
+${guiaExtracao}
 
 ## DOCUMENTO ESTRATÉGICO:
 ${empresa.documentoInterpretacao}
 
 ## TAREFA:
-Leia o documento e extraia TODOS os achados, dados, métricas e evidências relacionados à instrução. Liste cada achado de forma concisa com os dados reais do documento. Se não encontrar informação relevante sobre algum aspecto, omita-o da lista.
+Leia o documento integralmente e extraia cada achado relevante de forma objetiva. Inclua fatos específicos (ex: dívidas, conflitos, percentuais, aquisições, dependências). Se o documento mencionar um problema específico, liste-o — não omita.
 
 Responda EXCLUSIVAMENTE em JSON:
 {
   "achados": [
-    "Achado específico 1 com dados/números reais do documento",
-    "Achado específico 2 com dados/números reais do documento"
+    "Achado específico 1 com dados/fatos reais do documento",
+    "Achado específico 2 com dados/fatos reais do documento"
   ]
 }`,
             },
@@ -1619,13 +1634,13 @@ Responda EXCLUSIVAMENTE em JSON:
         const extracted = JSON.parse(extraction.choices[0].message.content || "{}");
         const achados: string[] = (extracted.achados || []).filter((a: string) => a.trim().length > 10);
         if (achados.length > 0) {
-          achadosDocumentoSection = `\n## ACHADOS EXTRAÍDOS DO DOCUMENTO ESTRATÉGICO (FONTE PRIMÁRIA — PRIORIZE ESTES DADOS):\n${achados.map((a, i) => `${i + 1}. ${a}`).join("\n")}\n`;
+          achadosDocumentoSection = `\n## ACHADOS EXTRAÍDOS DO DOCUMENTO ESTRATÉGICO (FONTE PRIMÁRIA OBRIGATÓRIA):\n${achados.map((a, i) => `${i + 1}. ${a}`).join("\n")}\n\nATENÇÃO: Os achados acima são fatos REAIS extraídos do documento. Cada item SWOT deve ser fundamentado em pelo menos um desses achados. Não gere itens sem base nos achados acima.\n`;
         }
       }
 
       // ── BUILD CONTEXT ──────────────────────────────────────────────────────
-      // Include the full document in contextoPerfil only when: documento selected + no extraction step ran
-      const includeDocInPerfil = temDocumentoReal && !temInstrucao;
+      // Never include the raw document in the profile context — achados replace it entirely.
+      const includeDocInPerfil = false;
       const contextoPerfil = buildEmpresaContextoIA(empresa, { includeDocument: includeDocInPerfil });
 
       // Build ordered context sections for selected fontes
@@ -1684,12 +1699,18 @@ Responda EXCLUSIVAMENTE em JSON:
 
       // ── SYSTEM PROMPT ──────────────────────────────────────────────────────
       const todasFontesNomes = ["Perfil da empresa", ...new Set([...fontesInternas, ...fontesExternas])].join(", ");
-      const systemPrompt = `Você é um consultor estratégico sênior especializado em análise SWOT. Identifique forças, fraquezas, oportunidades e ameaças CONCRETAS e ESPECÍFICAS — nunca respostas genéricas.
+      const systemPrompt = `Você é um consultor estratégico sênior especializado em análise SWOT. Identifique forças, fraquezas, oportunidades e ameaças CONCRETAS e ESPECÍFICAS com base exclusivamente nos dados fornecidos.
 
-Fontes de dados disponíveis: ${todasFontesNomes}.
-Baseie suas respostas EXCLUSIVAMENTE nos dados dessas fontes. Não invente informações ausentes.
-NUNCA repita itens já identificados anteriormente.
-${achadosDocumentoSection ? "PRIORIDADE MÁXIMA: Os ACHADOS EXTRAÍDOS DO DOCUMENTO ESTRATÉGICO são dados reais — use-os como fonte principal para os itens solicitados." : temDocumentoReal ? "PRIORIDADE: O DOCUMENTO ESTRATÉGICO contém dados reais da empresa — priorize-o sobre suposições genéricas." : ""}`;
+REGRAS OBRIGATÓRIAS:
+1. Baseie CADA item SWOT em fatos, dados ou evidências presentes nas fontes fornecidas — nunca em suposições genéricas ou conhecimento geral.
+2. Se os ACHADOS DO DOCUMENTO ESTRATÉGICO estiverem disponíveis, CADA item gerado DEVE referenciar ou ser fundamentado em pelo menos um desses achados. Itens genéricos que não se conectem aos achados são PROIBIDOS.
+3. Nunca repita itens já existentes.
+4. Seja específico: mencione situações, valores, nomes ou eventos reais quando presentes nos dados.
+
+Fontes disponíveis: ${todasFontesNomes}.`;
+
+      // Lower temperature when document achados are the main source (need fidelity over creativity)
+      const generationTemperature = achadosDocumentoSection ? 0.4 : 0.7;
 
       // ── GENERATE SWOT ──────────────────────────────────────────────────────
       const completion = await openai.chat.completions.create({
@@ -1713,7 +1734,7 @@ ${tarefaLinhas}
 
 Para cada item:
 - tipo: "forca", "fraqueza", "oportunidade" ou "ameaca"
-- descricao: descrição objetiva e específica (baseada nos dados reais das fontes acima)
+- descricao: descrição objetiva e específica baseada nos dados reais acima (se houver achados do documento, mencione o fato concreto)
 - impacto: "alto", "médio" ou "baixo"
 
 Responda em JSON:
@@ -1726,7 +1747,7 @@ Responda em JSON:
           },
         ],
         response_format: { type: "json_object" },
-        temperature: 0.8,
+        temperature: generationTemperature,
       });
 
       const sugestoes = JSON.parse(completion.choices[0].message.content || "{}");

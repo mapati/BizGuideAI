@@ -648,26 +648,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
         messages: [
           {
             role: "system",
-            content: `Você é um consultor estratégico especializado em análise de documentos empresariais para pequenas e médias empresas brasileiras. Sua função é interpretar documentos e extrair os insights mais relevantes para o planejamento estratégico. Seja específico e prático. Responda sempre em português do Brasil.`,
+            content: `Você é um consultor estratégico sênior. Sua tarefa é ler documentos empresariais e extrair, de forma direta e objetiva, as informações concretas presentes neles. Você NUNCA explica o que é um tipo de documento nem para que ele serve em geral — você foca exclusivamente no conteúdo específico do documento fornecido: os dados reais, números, decisões, metas e fatos mencionados. Responda sempre em português do Brasil.`,
           },
           {
             role: "user",
-            content: `Analise o documento abaixo, que pertence à empresa "${nomeEmpresa}" do setor de "${setor}".
+            content: `Leia o documento abaixo da empresa "${nomeEmpresa}" (setor: ${setor}) e produza um resumo estratégico do seu conteúdo real.
+
+REGRAS OBRIGATÓRIAS:
+- Cite apenas o que está escrito no documento. Não interprete nem suponha nada além do que está explícito.
+- Use dados concretos: números, percentuais, nomes, datas, valores, metas e fatos mencionados no texto.
+- NÃO explique o que é um plano de negócios, relatório ou qualquer tipo de documento. Isso não interessa.
+- Seja direto. Sem introduções genéricas.
 
 DOCUMENTO:
 ${extractedText}
 
-Gere uma interpretação estratégica detalhada com os seguintes tópicos:
+Estruture sua resposta nos seguintes tópicos:
 
-1. **Do que se trata o documento** — Identifique o tipo e propósito do documento (ex: plano de negócios, relatório financeiro, diagnóstico de mercado, apresentação institucional).
+**Contexto e situação atual**
+Descreva em 2-3 frases o que o documento revela sobre a situação atual da empresa: posição de mercado, estágio do negócio, principais desafios ou conquistas mencionados.
 
-2. **Informações estratégicas mais relevantes** — Liste os dados, métricas, metas, posicionamentos ou informações que mais impactam a gestão e o planejamento desta empresa. Seja específico: cite números, nomes e fatos concretos presentes no documento.
+**Dados e métricas relevantes**
+Liste os principais números, indicadores, metas ou valores financeiros presentes no documento (faturamento, crescimento, market share, prazos, volumes, custos etc.). Se não houver dados numéricos, indique os fatos concretos mais relevantes.
 
-3. **Pontos de atenção e oportunidades identificadas** — Aponte os principais riscos, fraquezas, oportunidades ou iniciativas mencionadas no documento que são relevantes para o planejamento estratégico.
+**Decisões, iniciativas e direcionamentos**
+Quais ações, projetos, estratégias ou decisões o documento menciona? Liste de forma objetiva o que a empresa planeja fazer ou já fez segundo o documento.
 
-4. **Por que este documento é importante para o planejamento estratégico** — Explique como as informações do documento devem orientar as análises de mercado (PESTEL, Cinco Forças) e as estratégias da empresa.
+**Pontos críticos identificados**
+Quais riscos, problemas, gargalos ou oportunidades o documento evidencia explicitamente?
 
-Limite a resposta a no máximo 600 palavras. Seja direto e use linguagem clara sem jargões desnecessários.`,
+Limite: 500 palavras. Linguagem clara, sem jargão.`,
           },
         ],
         temperature: 0.3,

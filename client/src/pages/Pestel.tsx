@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -423,7 +423,58 @@ export default function Pestel() {
         </Card>
       )}
 
-      {/* Research sources panel (collapsible) */}
+      {isLoading ? (
+        <Card className="mt-6 p-8">
+          <div className="text-center text-muted-foreground">Carregando...</div>
+        </Card>
+      ) : fatores.length === 0 && !isSuggesting ? (
+        <Card className="mt-6">
+          <EmptyState
+            icon={<Compass className="h-16 w-16" />}
+            title="Nenhum fator externo identificado ainda"
+            description='Clique em "Analisar com IA" para a IA pesquisar o cenário atual e gerar fatores relevantes para sua empresa.'
+            actionLabel="Adicionar Primeiro Fator"
+            onAction={() => setIsDialogOpen(true)}
+          />
+        </Card>
+      ) : fatores.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+          {fatores.map((fator) => (
+            <Card key={fator.id} className="p-6 hover-elevate" data-testid={`card-fator-${fator.id}`}>
+              <div className="flex items-start justify-between mb-3 gap-1">
+                <div className="text-xs font-semibold text-primary uppercase tracking-wide">
+                  {tipos.find((t) => t.value === fator.tipo)?.label}
+                </div>
+                <div className="flex items-center gap-2">
+                  <ImpactBadge impact={fator.impacto} />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleEditFator(fator)}
+                    data-testid={`button-edit-fator-${fator.id}`}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => deletarFatorMutation.mutate(fator.id)}
+                    data-testid={`button-delete-fator-${fator.id}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <p className="text-sm mb-3">{fator.descricao}</p>
+              <div className="text-xs text-muted-foreground bg-muted/30 p-3 rounded-md">
+                <strong>Por que é importante:</strong> {fator.evidencia}
+              </div>
+            </Card>
+          ))}
+        </div>
+      ) : null}
+
+      {/* Research sources panel — rendered below the factors list */}
       {cenarioExterno && !isSuggesting && (
         <Collapsible open={sourcesOpen} onOpenChange={setSourcesOpen} className="mt-6">
           <Card className="p-0 overflow-hidden">
@@ -481,57 +532,6 @@ export default function Pestel() {
             </CollapsibleContent>
           </Card>
         </Collapsible>
-      )}
-
-      {isLoading ? (
-        <Card className="mt-6 p-8">
-          <div className="text-center text-muted-foreground">Carregando...</div>
-        </Card>
-      ) : fatores.length === 0 ? (
-        <Card className="mt-6">
-          <EmptyState
-            icon={<Compass className="h-16 w-16" />}
-            title="Nenhum fator externo identificado ainda"
-            description='Clique em "Analisar com IA" para a IA pesquisar o cenário atual e gerar fatores relevantes para sua empresa.'
-            actionLabel="Adicionar Primeiro Fator"
-            onAction={() => setIsDialogOpen(true)}
-          />
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-          {fatores.map((fator) => (
-            <Card key={fator.id} className="p-6 hover-elevate" data-testid={`card-fator-${fator.id}`}>
-              <div className="flex items-start justify-between mb-3 gap-1">
-                <div className="text-xs font-semibold text-primary uppercase tracking-wide">
-                  {tipos.find((t) => t.value === fator.tipo)?.label}
-                </div>
-                <div className="flex items-center gap-2">
-                  <ImpactBadge impact={fator.impacto} />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleEditFator(fator)}
-                    data-testid={`button-edit-fator-${fator.id}`}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => deletarFatorMutation.mutate(fator.id)}
-                    data-testid={`button-delete-fator-${fator.id}`}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-              <p className="text-sm mb-3">{fator.descricao}</p>
-              <div className="text-xs text-muted-foreground bg-muted/30 p-3 rounded-md">
-                <strong>Por que é importante:</strong> {fator.evidencia}
-              </div>
-            </Card>
-          ))}
-        </div>
       )}
     </div>
   );

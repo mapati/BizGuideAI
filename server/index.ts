@@ -35,17 +35,26 @@ async function runStartupMigrations() {
       WHERE plano_status = 'ativo' AND plano_ativado_em IS NULL
     `);
 
-    // Seed: create initial platform admin if none exists (idempotent, transactional)
+    // Seed: ensure the platform admin from env vars exists and has the correct password
     const adminEmail = process.env.ADMIN_EMAIL;
     const adminSenha = process.env.ADMIN_SENHA;
     if (adminEmail && adminSenha) {
-      const { rows: existingAdmins } = await client.query(
-        `SELECT id FROM usuarios WHERE is_admin = true LIMIT 1`
+      const { rows: existingUser } = await client.query(
+        `SELECT id, empresa_id FROM usuarios WHERE email = $1 LIMIT 1`,
+        [adminEmail]
       );
-      if (existingAdmins.length === 0) {
+      const senhaHash = await bcrypt.hash(adminSenha, 10);
+      if (existingUser.length > 0) {
+        // User with ADMIN_EMAIL already exists — ensure they are admin and update password
+        await client.query(
+          `UPDATE usuarios SET senha = $1, is_admin = true, role = 'admin' WHERE email = $2`,
+          [senhaHash, adminEmail]
+        );
+        log(`[SEED] Admin atualizado: ${adminEmail}`);
+      } else {
+        // No user with ADMIN_EMAIL — create fresh admin with its own empresa
         const adminNome = process.env.ADMIN_NOME || "Administrador";
         const adminEmpresaNome = process.env.ADMIN_EMPRESA_NOME || "BizGuideAI";
-        const senhaHash = await bcrypt.hash(adminSenha, 10);
         await client.query("BEGIN");
         try {
           const { rows: empresaRows } = await client.query(

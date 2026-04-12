@@ -699,7 +699,7 @@ export default function Onboarding() {
               <div>
                 <h3 className="text-xl font-semibold mb-1">Documento Estratégico</h3>
                 <p className="text-sm text-muted-foreground">
-                  Envie um documento PDF relevante (plano de negócios, diagnóstico, relatório) para que a IA extraia informações estratégicas e as use em todas as análises.
+                  Envie um documento PDF relevante (plano de negócios, diagnóstico, relatório). O texto será incorporado ao perfil da empresa e usado como contexto em todas as análises de IA.
                 </p>
               </div>
               <FileText className="h-6 w-6 text-muted-foreground flex-shrink-0 mt-1" />
@@ -712,22 +712,13 @@ export default function Onboarding() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate" data-testid="text-documento-nome">{documentoInfo.nome}</p>
                     <p className="text-xs text-muted-foreground">
-                      {documentoInfo.tamanhoKb} KB · Analisado em {new Date(documentoInfo.analisadoEm).toLocaleDateString("pt-BR")}
+                      {documentoInfo.tamanhoKb} KB · Enviado em {new Date(documentoInfo.analisadoEm).toLocaleDateString("pt-BR")}
                     </p>
                   </div>
                   <Button size="icon" variant="ghost" onClick={handleRemoverDocumento} data-testid="button-remover-documento">
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
-
-                {documentoInfo.interpretacao && (
-                  <div>
-                    <p className="text-sm font-medium mb-2">Interpretação da IA</p>
-                    <div className="rounded-md border bg-muted/30 p-4 text-sm text-muted-foreground leading-relaxed max-h-64 overflow-y-auto whitespace-pre-wrap" data-testid="text-documento-interpretacao">
-                      {documentoInfo.interpretacao}
-                    </div>
-                  </div>
-                )}
 
                 <div className="flex gap-2">
                   <input
@@ -768,7 +759,7 @@ export default function Onboarding() {
                     <>
                       <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                       <div>
-                        <p className="text-sm font-medium">Analisando documento...</p>
+                        <p className="text-sm font-medium">Processando documento...</p>
                         <p className="text-xs text-muted-foreground">Isso pode levar alguns segundos.</p>
                       </div>
                     </>
@@ -777,7 +768,7 @@ export default function Onboarding() {
                       <Upload className="h-8 w-8 text-muted-foreground" />
                       <div>
                         <p className="text-sm font-medium">Clique para enviar um PDF</p>
-                        <p className="text-xs text-muted-foreground">Máximo 5 MB. A IA irá extrair e interpretar as informações estratégicas do documento.</p>
+                        <p className="text-xs text-muted-foreground">Máximo 5 MB. O texto do documento será incorporado ao contexto da empresa.</p>
                       </div>
                     </>
                   )}
@@ -883,9 +874,9 @@ export default function Onboarding() {
           </Card>
 
           {/* Logo upload */}
-          <Card className="p-8">
+          <Card className="px-8 pt-8 pb-4">
             <h3 className="text-xl font-semibold mb-1">Logotipo da Empresa</h3>
-            <p className="text-sm text-muted-foreground mb-6">
+            <p className="text-sm text-muted-foreground mb-4">
               Faça upload do logotipo em JPG ou PNG (máx. 2 MB). Ele será exibido na página Início.
             </p>
             <div className="flex flex-wrap items-center gap-5">
@@ -937,7 +928,7 @@ export default function Onboarding() {
               </div>
             </div>
             {formData.logoUrl && (
-              <div className="flex justify-end mt-6">
+              <div className="flex justify-end mt-4">
                 <Button
                   type="button"
                   onClick={() => atualizarEmpresaMutation.mutate(formData)}

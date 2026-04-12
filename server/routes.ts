@@ -639,66 +639,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(422).json({ error: "O PDF não contém texto suficiente para análise. Certifique-se de que o documento não é composto apenas por imagens." });
       }
 
-      const empresa = await storage.getEmpresa(req.session.empresaId);
-      const nomeEmpresa = empresa?.nome || "não informado";
-      const setor = empresa?.setor || "não informado";
-
-      const interpretacao = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: `Você é um consultor estratégico sênior. Sua tarefa é ler documentos empresariais e extrair, de forma direta e objetiva, as informações concretas presentes neles. Você NUNCA explica o que é um tipo de documento nem para que ele serve em geral — você foca exclusivamente no conteúdo específico do documento fornecido: os dados reais, números, decisões, metas e fatos mencionados. Responda sempre em português do Brasil.`,
-          },
-          {
-            role: "user",
-            content: `Leia o documento abaixo da empresa "${nomeEmpresa}" (setor: ${setor}) e produza uma análise crítica detalhada do seu conteúdo.
-
-REGRAS OBRIGATÓRIAS:
-- Baseie-se exclusivamente no que está escrito no documento. Não invente nem suponha informações.
-- Cite dados concretos: números, percentuais, nomes, datas, valores, metas e fatos presentes no texto.
-- NÃO explique o que é um plano de negócios, relatório ou qualquer tipo de documento.
-- Cada seção deve ser desenvolvida com profundidade — evite listas curtas e respostas superficiais.
-- Analise criticamente: aponte contradições, lacunas, pontos fortes e fragilidades evidentes no conteúdo.
-
-DOCUMENTO:
-${extractedText}
-
-Produza uma análise crítica detalhada estruturada nos seguintes tópicos. Cada tópico deve ser desenvolvido em parágrafos completos, com profundidade analítica:
-
-**1. Contexto e situação atual da empresa**
-Com base no documento, descreva em detalhe a situação atual da empresa: posição no mercado, estágio do negócio, histórico relevante, principais conquistas e desafios enfrentados. Contextualize o momento em que o documento foi produzido.
-
-**2. Dados, métricas e indicadores**
-Analise todos os números, indicadores financeiros, metas quantitativas, volumes, prazos e percentuais presentes no documento. Para cada dado relevante, explique o que ele revela sobre o desempenho ou as aspirações da empresa. Avalie se as metas são realistas, ambiciosas ou conservadoras com base nos dados apresentados.
-
-**3. Estratégias, iniciativas e planos de ação**
-Descreva em detalhe as estratégias, projetos, iniciativas e decisões mencionadas no documento. Explique a lógica por trás de cada direcionamento e avalie criticamente se os planos são coerentes com a situação da empresa e com os recursos disponíveis mencionados.
-
-**4. Análise crítica: pontos fortes e fragilidades**
-Identifique os pontos fortes evidentes no documento (vantagens competitivas, diferenciais, capacidades). Em seguida, aponte as fragilidades, inconsistências, lacunas de informação ou riscos que o documento evidencia ou omite. Seja crítico e honesto.
-
-**5. Oportunidades e ameaças sinalizadas**
-Com base no conteúdo do documento, identifique as oportunidades de crescimento e as ameaças ao negócio que são mencionadas ou podem ser inferidas diretamente a partir do que está escrito.
-
-**6. Considerações finais**
-Sintetize os principais aprendizados da análise. Quais são as questões mais urgentes que o documento levanta? Que decisões estratégicas este conteúdo deveria embasar?
-
-Escreva de forma clara, direta e aprofundada. Cada seção deve ter pelo menos 3-4 parágrafos ou itens bem desenvolvidos.`,
-          },
-        ],
-        temperature: 0.4,
-        max_tokens: 3000,
-      });
-
-      const interpretacaoTexto = interpretacao.choices[0].message.content || "";
       const tamanhoKb = Math.round(req.file.size / 1024);
       const nomeArquivo = req.file.originalname;
 
       await storage.updateEmpresa(req.session.empresaId, {
         documentoNome: nomeArquivo,
         documentoTamanhoKb: tamanhoKb,
-        documentoInterpretacao: interpretacaoTexto,
+        documentoInterpretacao: extractedText,
         documentoAnalisadoEm: new Date(),
       });
 

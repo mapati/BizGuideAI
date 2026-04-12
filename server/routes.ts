@@ -1135,12 +1135,31 @@ Responda APENAS em JSON válido com exatamente este formato:
         cenarioExterno?: Record<string, { resumo?: string; fontes?: string[] }>;
       };
 
+      // Contexto rico com título por dimensão
       const cenarioContext = cenarioExterno
-        ? `\n\nCONTEXTO EXTERNO ATUAL (baseado em pesquisa de notícias e tendências recentes):\n${
-            Object.entries(cenarioExterno)
-              .map(([dim, data]) => `${dim.toUpperCase()}: ${data?.resumo ?? ""}`)
-              .join("\n\n")
-          }\n\nIMPORTANTE: Use estes dados reais e recentes para embasar os fatores. Os fatores devem mencionar eventos, dados ou tendências específicos do contexto acima. Seja concreto e atual.\n`
+        ? `\n\n━━━ CONTEXTO EXTERNO ATUAL (baseado em pesquisa de notícias e tendências recentes) ━━━\n` +
+          `(Use OBRIGATORIAMENTE estes dados para embasar os fatores. Cite percentuais, eventos e tendências específicos.)\n\n` +
+          Object.entries(cenarioExterno)
+            .map(([dim, data]) => {
+              const titulo = {
+                politico: "POLÍTICO",
+                economico: "ECONÔMICO",
+                social: "SOCIAL",
+                tecnologico: "TECNOLÓGICO",
+                ambiental: "AMBIENTAL",
+                legal: "LEGAL",
+              }[dim] ?? dim.toUpperCase();
+              return `${titulo}:\n${data?.resumo ?? ""}`;
+            })
+            .join("\n\n")
+        : "";
+
+      const regrasEspecificidadePestel = cenarioExterno
+        ? `\nREGRAS OBRIGATÓRIAS DE QUALIDADE:\n` +
+          `- Cada "descricao" deve mencionar dados ou tendências CONCRETOS do contexto pesquisado (percentuais, nomes de políticas, taxas, leis específicas).\n` +
+          `- Cada "evidencia" deve explicar com fatos REAIS por que este fator importa para esta empresa específica — nunca escreva frases genéricas como "este fator pode impactar o negócio".\n` +
+          `- PROIBIDO escrever análises vagas ou genéricas. Toda afirmação deve ser baseada nos dados do contexto acima.\n` +
+          `- As descrições devem ter pelo menos 2-3 frases com informações específicas e atuais.\n`
         : "";
       
       const completion = await openai.chat.completions.create({
@@ -1148,15 +1167,15 @@ Responda APENAS em JSON válido com exatamente este formato:
         messages: [
           {
             role: "system",
-            content: `Você é um consultor estratégico especializado em análise de cenário externo. Sua função é ajudar empresários a identificar fatores externos relevantes que impactam seus negócios. Use sempre linguagem simples e direta, sem jargões técnicos.`
+            content: `Você é um consultor estratégico especializado em análise de cenário externo para empresas brasileiras. Sua função é produzir análises CONCRETAS e ESPECÍFICAS com dados reais — nunca texto genérico. Use sempre linguagem simples e direta, sem jargões técnicos. Quando tiver contexto de pesquisa disponível, use-o obrigatoriamente: cite percentuais, nomes de leis, taxas e tendências reais.`,
           },
           {
             role: "user",
-            content: `Empresa: ${nomeEmpresa}\nSetor: ${setor}\nDescrição: ${descricao}${cenarioContext}\n\nCrie EXATAMENTE 6 fatores externos (um para cada categoria PESTEL):\n1. Um fator POLÍTICO (tipo: "politico")\n2. Um fator ECONÔMICO (tipo: "economico")\n3. Um fator SOCIAL (tipo: "social")\n4. Um fator TECNOLÓGICO (tipo: "tecnologico")\n5. Um fator AMBIENTAL (tipo: "ambiental")\n6. Um fator LEGAL (tipo: "legal")\n\nPara cada fator, forneça:\n- tipo: exatamente como indicado acima (politico, economico, social, tecnologico, ambiental, legal)\n- descricao: uma descrição clara e objetiva do fator, mencionando dados ou tendências específicos quando disponíveis\n- impacto: "alto", "médio" ou "baixo"\n- evidencia: explicação de por que este fator é importante para esta empresa, com referência a dados concretos quando disponíveis\n\nResponda OBRIGATORIAMENTE em JSON com este formato exato:\n{\n  "fatores": [\n    {"tipo": "politico", "descricao": "...", "impacto": "alto", "evidencia": "..."},\n    {"tipo": "economico", "descricao": "...", "impacto": "médio", "evidencia": "..."},\n    {"tipo": "social", "descricao": "...", "impacto": "...", "evidencia": "..."},\n    {"tipo": "tecnologico", "descricao": "...", "impacto": "...", "evidencia": "..."},\n    {"tipo": "ambiental", "descricao": "...", "impacto": "...", "evidencia": "..."},\n    {"tipo": "legal", "descricao": "...", "impacto": "...", "evidencia": "..."}\n  ]\n}`
-          }
+            content: `Empresa: ${nomeEmpresa}\nSetor: ${setor}\nDescrição: ${descricao}${cenarioContext}${regrasEspecificidadePestel}\n\nCrie EXATAMENTE 6 fatores externos (um para cada categoria PESTEL):\n1. Um fator POLÍTICO (tipo: "politico")\n2. Um fator ECONÔMICO (tipo: "economico")\n3. Um fator SOCIAL (tipo: "social")\n4. Um fator TECNOLÓGICO (tipo: "tecnologico")\n5. Um fator AMBIENTAL (tipo: "ambiental")\n6. Um fator LEGAL (tipo: "legal")\n\nPara cada fator, forneça:\n- tipo: exatamente como indicado acima (politico, economico, social, tecnologico, ambiental, legal)\n- descricao: descrição ESPECÍFICA com dados concretos do contexto pesquisado (percentuais, nomes, datas, leis)\n- impacto: "alto", "médio" ou "baixo"\n- evidencia: explicação ESPECÍFICA de por que este fator importa para esta empresa, com consequências práticas concretas\n\nResponda OBRIGATORIAMENTE em JSON com este formato exato:\n{\n  "fatores": [\n    {"tipo": "politico", "descricao": "...", "impacto": "alto", "evidencia": "..."},\n    {"tipo": "economico", "descricao": "...", "impacto": "médio", "evidencia": "..."},\n    {"tipo": "social", "descricao": "...", "impacto": "...", "evidencia": "..."},\n    {"tipo": "tecnologico", "descricao": "...", "impacto": "...", "evidencia": "..."},\n    {"tipo": "ambiental", "descricao": "...", "impacto": "...", "evidencia": "..."},\n    {"tipo": "legal", "descricao": "...", "impacto": "...", "evidencia": "..."}\n  ]\n}`,
+          },
         ],
         response_format: { type: "json_object" },
-        temperature: 0.7,
+        temperature: 0.4,
       });
 
       const sugestoes = JSON.parse(completion.choices[0].message.content || "{}");
@@ -1397,42 +1416,111 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
     const emptyMercado = (): MercadoPesquisado =>
       Object.fromEntries(forcaKeys.map((k) => [k, { resumo: "", fontes: [] }])) as MercadoPesquisado;
 
+    // Prompt de pesquisa livre — sem exigir JSON para que o modelo de busca
+    // possa focar em encontrar informações reais e específicas
+    const searchPrompt = `Você é um analista de inteligência competitiva especializado em mercado brasileiro.
+Pesquise na internet informações ATUAIS e ESPECÍFICAS sobre o mercado de "${setor}" no Brasil para a empresa "${nomeEmpresa}" (${descricao}).
+
+Pesquise e descreva com profundidade os seguintes aspectos:
+
+1. RIVALIDADE ENTRE CONCORRENTES
+   - Liste pelo menos 3 a 5 concorrentes REAIS pelo nome (empresas que atuam no mesmo mercado)
+   - Para cada concorrente, indique seu porte, diferencial e estratégia de preço
+   - Qual é a intensidade da concorrência? Há guerras de preço? Diferenciação de produto?
+   - Cite dados de participação de mercado se disponíveis
+
+2. PODER DE NEGOCIAÇÃO DOS FORNECEDORES
+   - Quais são os principais insumos, matérias-primas ou serviços que empresas deste setor precisam comprar?
+   - Quem são os principais fornecedores no Brasil? Há concentração (poucos fornecedores) ou pulverização?
+   - Existem gargalos na cadeia de suprimentos? Há dependência de importação?
+   - Qual é a facilidade de trocar de fornecedor?
+
+3. PODER DE NEGOCIAÇÃO DOS CLIENTES
+   - Quem são os principais clientes/segmentos? São consumidores finais, empresas, governo?
+   - Qual é o ticket médio e sensibilidade ao preço?
+   - Os clientes têm facilidade de trocar de fornecedor? Há fidelização?
+   - Há grandes clientes que concentram parte expressiva da receita?
+
+4. AMEAÇA DE NOVOS ENTRANTES
+   - Quais são as barreiras de entrada no setor (capital, regulação, tecnologia, marca)?
+   - Há startups ou grandes grupos nacionais/internacionais tentando entrar?
+   - O setor exige licenças, certificações ou investimentos pesados?
+
+5. AMEAÇA DE PRODUTOS/SERVIÇOS SUBSTITUTOS
+   - Quais produtos ou serviços alternativos poderiam substituir o que este setor oferece?
+   - Como está o crescimento desses substitutos no Brasil?
+   - Qual é o risco de os clientes migrarem para substitutos?
+
+Seja ESPECÍFICO. Use nomes reais de empresas, cite dados de mercado, percentuais e notícias recentes. Não generalize.`;
+
+    // Prompt para estruturar o texto de pesquisa em JSON
+    const structurePrompt = (researchText: string) =>
+      `Com base na pesquisa de mercado abaixo, estruture as informações em JSON válido sem markdown.
+Preserve TODOS os nomes de empresas, dados numéricos e detalhes específicos encontrados na pesquisa.
+
+PESQUISA:
+${researchText}
+
+Retorne EXATAMENTE este JSON (sem texto adicional):
+{
+  "rivalidade_concorrentes": {
+    "resumo": "Parágrafo detalhado citando os concorrentes reais pelo nome e suas características",
+    "fontes": ["domínio1.com", "domínio2.com"]
+  },
+  "poder_fornecedores": {
+    "resumo": "Parágrafo detalhado sobre insumos, fornecedores específicos e dinâmicas da cadeia",
+    "fontes": ["domínio1.com"]
+  },
+  "poder_clientes": {
+    "resumo": "Parágrafo detalhado sobre perfil dos clientes, sensibilidade e poder de barganha",
+    "fontes": ["domínio1.com"]
+  },
+  "ameaca_novos_entrantes": {
+    "resumo": "Parágrafo detalhado sobre barreiras e movimentos de potenciais entrantes",
+    "fontes": ["domínio1.com"]
+  },
+  "ameaca_substitutos": {
+    "resumo": "Parágrafo detalhado sobre substitutos reais e tendências de adoção",
+    "fontes": ["domínio1.com"]
+  }
+}`;
+
     try {
       let mercado: MercadoPesquisado;
 
       try {
-        // Fase 1 — busca real na web via Responses API
-        const searchPrompt =
-          `Você é um analista de mercado especializado em empresas brasileiras. ` +
-          `Pesquise na internet informações atuais e relevantes sobre o mercado de "${setor}" no Brasil, ` +
-          `focando na empresa "${nomeEmpresa}" (${descricao}). ` +
-          `Descubra: quem são os principais concorrentes diretos, como está a rivalidade no setor, ` +
-          `o poder de barganha dos fornecedores e clientes, ameaças de novos entrantes e de produtos substitutos. ` +
-          `Responda SOMENTE em JSON válido, sem markdown, com exatamente este formato:\n` +
-          `{\n` +
-          `  "rivalidade_concorrentes": {"resumo": "...", "fontes": ["site1.com", "site2.com"]},\n` +
-          `  "poder_fornecedores": {"resumo": "...", "fontes": ["..."]},\n` +
-          `  "poder_clientes": {"resumo": "...", "fontes": ["..."]},\n` +
-          `  "ameaca_novos_entrantes": {"resumo": "...", "fontes": ["..."]},\n` +
-          `  "ameaca_substitutos": {"resumo": "...", "fontes": ["..."]}\n` +
-          `}`;
-
+        // Passo 1 — pesquisa livre na web (modelo focado em buscar, não em formatar)
         const webResponse = await openai.responses.create({
           model: "gpt-4o-mini-search-preview",
           tools: [{ type: "web_search_preview" }],
           input: searchPrompt,
         });
 
-        const rawText =
-          webResponse.output
-            .filter((o) => o.type === "message")
-            .flatMap((o) => (o.type === "message" ? o.content : []))
-            .filter((c) => c.type === "output_text")
-            .map((c) => (c.type === "output_text" ? c.text : ""))
-            .join("") || "{}";
+        const researchText: string = webResponse.output_text || "";
+        if (!researchText || researchText.trim().length < 100) {
+          throw new Error("Pesquisa retornou resultado vazio ou muito curto");
+        }
 
-        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-        const parsed: Record<string, unknown> = JSON.parse(jsonMatch ? jsonMatch[0] : "{}");
+        // Passo 2 — estruturar o texto de pesquisa em JSON (modelo focado em formatar)
+        const structureResponse = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: "Você é um assistente que converte textos de pesquisa em JSON estruturado. Preserva todos os detalhes específicos, nomes de empresas e dados numéricos. Responde somente com JSON válido.",
+            },
+            {
+              role: "user",
+              content: structurePrompt(researchText),
+            },
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0.1,
+        });
+
+        const parsed: Record<string, unknown> = JSON.parse(
+          structureResponse.choices[0].message.content || "{}"
+        );
 
         mercado = emptyMercado();
         for (const key of forcaKeys) {
@@ -1441,36 +1529,42 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
             const obj = entry as Record<string, unknown>;
             mercado[key] = {
               resumo: typeof obj.resumo === "string" ? obj.resumo : "",
-              fontes: Array.isArray(obj.fontes) ? (obj.fontes as string[]).filter((f) => typeof f === "string") : [],
+              fontes: Array.isArray(obj.fontes)
+                ? (obj.fontes as string[]).filter((f) => typeof f === "string")
+                : [],
             };
           }
         }
-      } catch {
-        // Fallback — gpt-4o-mini sem web search
+      } catch (searchError: unknown) {
+        // Fallback — gpt-4o-mini sem web search, mas com o mesmo prompt estruturado
+        const errMsg = searchError instanceof Error ? searchError.message : String(searchError);
+        console.warn("[pesquisar-mercado] web search falhou, usando fallback:", errMsg);
+
+        const fallbackPrompt = `Você é um especialista em análise de mercado brasileiro com conhecimento profundo do setor de "${setor}".
+Com base no seu conhecimento, forneça uma análise detalhada e específica para a empresa "${nomeEmpresa}" (${descricao}).
+
+${searchPrompt}
+
+Retorne EXATAMENTE este JSON (sem texto adicional):
+{
+  "rivalidade_concorrentes": {"resumo": "...", "fontes": []},
+  "poder_fornecedores": {"resumo": "...", "fontes": []},
+  "poder_clientes": {"resumo": "...", "fontes": []},
+  "ameaca_novos_entrantes": {"resumo": "...", "fontes": []},
+  "ameaca_substitutos": {"resumo": "...", "fontes": []}
+}`;
+
         const fallback = await openai.chat.completions.create({
           model: "gpt-4o-mini",
           messages: [
             {
               role: "system",
-              content:
-                "Você é um analista de mercado especializado em empresas brasileiras. Responda sempre em JSON válido sem markdown.",
+              content: "Você é um especialista em mercado brasileiro. Seja ESPECÍFICO: cite nomes reais de empresas e dados concretos. Responda sempre em JSON válido sem markdown.",
             },
-            {
-              role: "user",
-              content:
-                `Empresa: ${nomeEmpresa}\nSetor: ${setor}\nDescrição: ${descricao}\n\n` +
-                `Faça uma análise das forças competitivas deste mercado e retorne JSON com este formato exato:\n` +
-                `{\n` +
-                `  "rivalidade_concorrentes": {"resumo": "...", "fontes": []},\n` +
-                `  "poder_fornecedores": {"resumo": "...", "fontes": []},\n` +
-                `  "poder_clientes": {"resumo": "...", "fontes": []},\n` +
-                `  "ameaca_novos_entrantes": {"resumo": "...", "fontes": []},\n` +
-                `  "ameaca_substitutos": {"resumo": "...", "fontes": []}\n` +
-                `}`,
-            },
+            { role: "user", content: fallbackPrompt },
           ],
           response_format: { type: "json_object" },
-          temperature: 0.5,
+          temperature: 0.4,
         });
 
         const parsed: Record<string, unknown> = JSON.parse(
@@ -1483,7 +1577,9 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
             const obj = entry as Record<string, unknown>;
             mercado[key] = {
               resumo: typeof obj.resumo === "string" ? obj.resumo : "",
-              fontes: Array.isArray(obj.fontes) ? (obj.fontes as string[]).filter((f) => typeof f === "string") : [],
+              fontes: Array.isArray(obj.fontes)
+                ? (obj.fontes as string[]).filter((f) => typeof f === "string")
+                : [],
             };
           }
         }
@@ -1506,11 +1602,31 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         mercadoPesquisado?: Record<string, { resumo?: string; fontes?: string[] }>;
       };
 
+      // Contexto rico: passa cada dimensão completa com título e resumo detalhado
       const contextoPesquisa = mercadoPesquisado
-        ? `\n\nCONTEXTO DE PESQUISA REAL (use como base para a análise):\n` +
+        ? `\n\n━━━ DADOS DE PESQUISA REAL DO MERCADO ━━━\n` +
+          `(Use OBRIGATORIAMENTE estas informações como base da análise. Cite nomes reais de empresas e dados específicos.)\n\n` +
           Object.entries(mercadoPesquisado)
-            .map(([forca, dados]) => `- ${forca}: ${dados.resumo ?? ""}`)
-            .join("\n")
+            .map(([forca, dados]) => {
+              const titulo = {
+                rivalidade_concorrentes: "RIVALIDADE ENTRE CONCORRENTES",
+                poder_fornecedores: "PODER DOS FORNECEDORES",
+                poder_clientes: "PODER DOS CLIENTES",
+                ameaca_novos_entrantes: "AMEAÇA DE NOVOS ENTRANTES",
+                ameaca_substitutos: "AMEAÇA DE SUBSTITUTOS",
+              }[forca] ?? forca.toUpperCase();
+              return `${titulo}:\n${dados.resumo ?? ""}`;
+            })
+            .join("\n\n")
+        : "";
+
+      const regrasEspecificidade = mercadoPesquisado
+        ? `\nREGRAS OBRIGATÓRIAS DE QUALIDADE:\n` +
+          `- RIVALIDADE: cite os concorrentes REAIS pelo nome (ex: "A empresa compete com X, Y e Z..."). Nunca escreva "empresas concorrentes" sem nomear.\n` +
+          `- FORNECEDORES: mencione os insumos ou serviços específicos e os fornecedores concretos identificados na pesquisa.\n` +
+          `- Cada "descricao" deve ter PELO MENOS 3 frases com informações concretas e específicas do mercado.\n` +
+          `- Cada "impacto" deve explicar COMO e POR QUÊ a força afeta este negócio específico, com detalhes concretos.\n` +
+          `- PROIBIDO escrever análises genéricas ou vagas. Toda afirmação deve ser baseada nos dados da pesquisa acima.\n`
         : "";
 
       const completion = await openai.chat.completions.create({
@@ -1518,15 +1634,15 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         messages: [
           {
             role: "system",
-            content: `Você é um consultor estratégico especializado em análise de mercado e concorrência. Sua função é ajudar empresários a entender as forças competitivas do seu mercado. Use sempre linguagem simples e direta, sem jargões técnicos.`
+            content: `Você é um consultor estratégico especializado em análise de mercado e concorrência para empresas brasileiras. Sua função é produzir análises CONCRETAS e ESPECÍFICAS, nunca genéricas. Use sempre linguagem simples e direta, sem jargões técnicos. Quando tiver dados de pesquisa disponíveis, use-os obrigatoriamente — cite nomes reais de empresas, dados de mercado e fatos específicos do setor.`,
           },
           {
             role: "user",
-            content: `Empresa: ${nomeEmpresa}\nSetor: ${setor}\nDescrição: ${descricao}${contextoPesquisa}\n\nAnalise o mercado desta empresa usando as Cinco Forças Competitivas e crie EXATAMENTE 5 análises (uma para cada força):\n1. Rivalidade entre Concorrentes (forca: "rivalidade_concorrentes")\n2. Poder de Negociação dos Fornecedores (forca: "poder_fornecedores")\n3. Poder de Negociação dos Clientes (forca: "poder_clientes")\n4. Ameaça de Novos Entrantes (forca: "ameaca_novos_entrantes")\n5. Ameaça de Produtos Substitutos (forca: "ameaca_substitutos")\n\nPara cada força, forneça:\n- forca: exatamente como indicado acima\n- descricao: uma descrição clara da situação desta força no mercado da empresa\n- intensidade: "alta", "média" ou "baixa"\n- impacto: explicação de como esta força afeta o negócio\n\nResponda OBRIGATORIAMENTE em JSON com este formato exato:\n{\n  "forcas": [\n    {"forca": "rivalidade_concorrentes", "descricao": "...", "intensidade": "alta", "impacto": "..."},\n    {"forca": "poder_fornecedores", "descricao": "...", "intensidade": "média", "impacto": "..."},\n    {"forca": "poder_clientes", "descricao": "...", "intensidade": "...", "impacto": "..."},\n    {"forca": "ameaca_novos_entrantes", "descricao": "...", "intensidade": "...", "impacto": "..."},\n    {"forca": "ameaca_substitutos", "descricao": "...", "intensidade": "...", "impacto": "..."}\n  ]\n}`
-          }
+            content: `Empresa: ${nomeEmpresa}\nSetor: ${setor}\nDescrição: ${descricao}${contextoPesquisa}${regrasEspecificidade}\n\nAnalise o mercado desta empresa usando as Cinco Forças Competitivas e crie EXATAMENTE 5 análises (uma para cada força):\n1. Rivalidade entre Concorrentes (forca: "rivalidade_concorrentes")\n2. Poder de Negociação dos Fornecedores (forca: "poder_fornecedores")\n3. Poder de Negociação dos Clientes (forca: "poder_clientes")\n4. Ameaça de Novos Entrantes (forca: "ameaca_novos_entrantes")\n5. Ameaça de Produtos Substitutos (forca: "ameaca_substitutos")\n\nPara cada força, forneça:\n- forca: exatamente como indicado acima\n- descricao: descrição ESPECÍFICA com pelo menos 3 frases concretas, citando nomes e dados reais quando disponíveis\n- intensidade: "alta", "média" ou "baixa"\n- impacto: explicação específica de como esta força afeta o negócio desta empresa, com consequências práticas concretas\n\nResponda OBRIGATORIAMENTE em JSON com este formato exato:\n{\n  "forcas": [\n    {"forca": "rivalidade_concorrentes", "descricao": "...", "intensidade": "alta", "impacto": "..."},\n    {"forca": "poder_fornecedores", "descricao": "...", "intensidade": "média", "impacto": "..."},\n    {"forca": "poder_clientes", "descricao": "...", "intensidade": "...", "impacto": "..."},\n    {"forca": "ameaca_novos_entrantes", "descricao": "...", "intensidade": "...", "impacto": "..."},\n    {"forca": "ameaca_substitutos", "descricao": "...", "intensidade": "...", "impacto": "..."}\n  ]\n}`,
+          },
         ],
         response_format: { type: "json_object" },
-        temperature: 0.7,
+        temperature: 0.4,
       });
 
       const sugestoes = JSON.parse(completion.choices[0].message.content || "{}");

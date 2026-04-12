@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { EmptyState } from "@/components/EmptyState";
 import { ExampleCard } from "@/components/ExampleCard";
-import { Target, Plus, Sparkles, Trash2, TrendingUp, TrendingDown, AlertTriangle, Zap, Pencil, FileText, Settings2 } from "lucide-react";
+import { Target, Plus, Sparkles, Trash2, TrendingUp, TrendingDown, AlertTriangle, Zap, Pencil, FileText, Settings2, Lock } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -57,6 +57,18 @@ const TIPOS_SWOT = [
 
 type TipoSwot = typeof TIPOS_SWOT[number]["value"];
 
+type FonteId = "documento" | "pestel" | "cincoForcas" | "modeloNegocio" | "indicadores" | "objetivos" | "estrategias";
+
+const FONTES_CONFIG: { id: FonteId; label: string; desc: string }[] = [
+  { id: "documento",      label: "Documento estratégico",     desc: "PDF carregado" },
+  { id: "pestel",         label: "Análise PESTEL",            desc: "Cenário externo" },
+  { id: "cincoForcas",    label: "Mercado e concorrência",    desc: "Cinco Forças" },
+  { id: "modeloNegocio",  label: "Modelo de Negócio",         desc: "Business Model Canvas" },
+  { id: "indicadores",    label: "Indicadores (KPIs)",        desc: "Métricas e metas" },
+  { id: "objetivos",      label: "Objetivos e OKRs",          desc: "Metas estratégicas" },
+  { id: "estrategias",    label: "Estratégias e Iniciativas", desc: "Plano de ação" },
+];
+
 export default function Swot() {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -85,6 +97,15 @@ export default function Swot() {
     ameaca: 1,
   });
   const [instrucaoAdicional, setInstrucaoAdicional] = useState("");
+  const [fontesContexto, setFontesContexto] = useState<Record<FonteId, boolean>>({
+    documento: true,
+    pestel: true,
+    cincoForcas: true,
+    modeloNegocio: true,
+    indicadores: true,
+    objetivos: true,
+    estrategias: true,
+  });
 
   const tipos = [
     { value: "forca", label: "Força", desc: "Algo que sua empresa faz bem" },
@@ -101,6 +122,33 @@ export default function Swot() {
     queryKey: ["/api/analise-swot", empresa?.id],
     enabled: !!empresa?.id,
   });
+
+  const { data: contextSummary } = useQuery<{
+    counts: Record<FonteId, number>;
+    temDocumento: boolean;
+    nomeDocumento: string | null;
+  }>({
+    queryKey: ["/api/ai/swot-context-summary"],
+    enabled: !!empresa?.id,
+  });
+
+  useEffect(() => {
+    if (contextSummary) {
+      setFontesContexto((prev) => {
+        const next = { ...prev };
+        FONTES_CONFIG.forEach((fonte) => {
+          if (fonte.id === "documento") {
+            if (!contextSummary.temDocumento) next[fonte.id] = false;
+          } else {
+            if ((contextSummary.counts?.[fonte.id] ?? 0) === 0) {
+              next[fonte.id] = false;
+            }
+          }
+        });
+        return next;
+      });
+    }
+  }, [contextSummary]);
 
   const criarAnaliseMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
@@ -318,11 +366,16 @@ export default function Swot() {
     setIsAiParamsOpen(false);
     setIsSuggestingComplete(true);
     try {
+      const fontesArray: string[] = [
+        "perfil",
+        ...(Object.keys(fontesContexto) as FonteId[]).filter((f) => fontesContexto[f]),
+      ];
       const response = await apiRequest("POST", "/api/ai/sugerir-swot-completo", {
         empresaId: empresa.id,
         tiposSelecionados: tiposSelecionadosArray,
         quantidadePorTipo,
         instrucaoAdicional: instrucaoAdicional.trim(),
+        fontesContexto: fontesArray,
       });
 
       const itens = response.itens || [];
@@ -417,7 +470,6 @@ export default function Swot() {
   }
 
   const grupos = agruparPorTipo();
-  const temDocumento = !!(empresa as any)?.documentoNome;
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -522,7 +574,7 @@ export default function Swot() {
       />
 
       <Dialog open={isAiParamsOpen} onOpenChange={setIsAiParamsOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Settings2 className="h-5 w-5" />
@@ -530,12 +582,12 @@ export default function Swot() {
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-5 py-2">
-            {temDocumento && (
+          <div className="space-y-5 py-2 overflow-y-auto max-h-[70vh] pr-1">
+            {contextSummary?.temDocumento && (
               <Alert data-testid="alert-documento-disponivel">
                 <FileText className="h-4 w-4" />
                 <AlertDescription>
-                  <span className="font-medium">Documento estratégico disponível:</span> {(empresa as any).documentoNome}. Use as instruções abaixo para direcionar a IA às seções mais relevantes.
+                  <span className="font-medium">Documento estratégico disponível:</span> {contextSummary.nomeDocumento}. Use as instruções abaixo para direcionar a IA às seções mais relevantes.
                 </AlertDescription>
               </Alert>
             )}
@@ -584,12 +636,105 @@ export default function Swot() {
             </div>
 
             <div>
+              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <Label className="text-sm font-medium">Focos da análise</Label>
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      setFontesContexto((prev) => {
+                        const next = { ...prev };
+                        FONTES_CONFIG.forEach((f) => {
+                          const isEmpty = f.id === "documento"
+                            ? !contextSummary?.temDocumento
+                            : (contextSummary?.counts?.[f.id] ?? 0) === 0;
+                          if (!isEmpty) next[f.id] = false;
+                        });
+                        return next;
+                      })
+                    }
+                    data-testid="button-limpar-fontes"
+                  >
+                    Limpar
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      setFontesContexto((prev) => {
+                        const next = { ...prev };
+                        FONTES_CONFIG.forEach((f) => {
+                          const isEmpty = f.id === "documento"
+                            ? !contextSummary?.temDocumento
+                            : (contextSummary?.counts?.[f.id] ?? 0) === 0;
+                          if (!isEmpty) next[f.id] = true;
+                        });
+                        return next;
+                      })
+                    }
+                    data-testid="button-selecionar-todas-fontes"
+                  >
+                    Selecionar todas
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2 py-1" data-testid="row-fonte-perfil">
+                  <div className="flex items-center gap-2">
+                    <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="text-sm font-medium">Perfil da empresa</span>
+                    <span className="text-xs text-muted-foreground">— sempre incluído</span>
+                  </div>
+                  <Badge variant="secondary" className="text-xs shrink-0">ativo</Badge>
+                </div>
+                {FONTES_CONFIG.map((fonte) => {
+                  const isDocumento = fonte.id === "documento";
+                  const isDisabled = isDocumento
+                    ? !contextSummary?.temDocumento
+                    : (contextSummary?.counts?.[fonte.id] ?? 0) === 0;
+                  const count = isDocumento ? null : (contextSummary?.counts?.[fonte.id] ?? 0);
+                  if (isDocumento && !contextSummary?.temDocumento) return null;
+                  return (
+                    <div
+                      key={fonte.id}
+                      className={`flex items-center justify-between gap-2 py-1 ${isDisabled ? "opacity-50" : ""}`}
+                      data-testid={`row-fonte-${fonte.id}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id={`fonte-${fonte.id}`}
+                          checked={fontesContexto[fonte.id] && !isDisabled}
+                          disabled={isDisabled}
+                          onCheckedChange={(checked) =>
+                            !isDisabled && setFontesContexto((prev) => ({ ...prev, [fonte.id]: !!checked }))
+                          }
+                          data-testid={`checkbox-fonte-${fonte.id}`}
+                        />
+                        <label
+                          htmlFor={`fonte-${fonte.id}`}
+                          className={`text-sm select-none ${isDisabled ? "cursor-default" : "cursor-pointer"}`}
+                        >
+                          <span className="font-medium">{fonte.label}</span>
+                          <span className="text-muted-foreground ml-1">— {fonte.desc}</span>
+                        </label>
+                      </div>
+                      <Badge variant="outline" className="text-xs shrink-0">
+                        {isDocumento ? "disponível" : `${count} ${count === 1 ? "item" : "itens"}`}
+                      </Badge>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
               <Label htmlFor="instrucao-adicional" className="text-sm font-medium mb-1 block">
                 Instruções adicionais <span className="text-muted-foreground font-normal">(opcional)</span>
               </Label>
               <Textarea
                 id="instrucao-adicional"
-                placeholder={temDocumento
+                placeholder={contextSummary?.temDocumento
                   ? "Ex: Identifique fraquezas mencionadas no documento estratégico, especialmente nas seções de riscos financeiros e operacionais."
                   : "Ex: Foque em riscos relacionados à dependência de poucos clientes e à falta de processos documentados."}
                 value={instrucaoAdicional}

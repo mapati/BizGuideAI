@@ -42,7 +42,8 @@ const upload = multer({
   },
 });
 
-function buildEmpresaContextoIA(empresa: Empresa): string {
+function buildEmpresaContextoIA(empresa: Empresa, options?: { includeDocument?: boolean }): string {
+  const includeDocument = options?.includeDocument ?? true;
   const linhas: string[] = [];
   linhas.push(`Empresa: ${empresa.nome}`);
   linhas.push(`Setor: ${empresa.setor}`);
@@ -56,7 +57,7 @@ function buildEmpresaContextoIA(empresa: Empresa): string {
   if (empresa.diferenciaisCompetitivos) linhas.push(`Diferenciais competitivos: ${empresa.diferenciaisCompetitivos}`);
   if (empresa.anoFundacao) linhas.push(`Ano de fundação: ${empresa.anoFundacao}`);
   if (empresa.cidade || empresa.estado) linhas.push(`Localização: ${[empresa.cidade, empresa.estado].filter(Boolean).join(", ")}`);
-  if (empresa.documentoInterpretacao) {
+  if (includeDocument && empresa.documentoInterpretacao) {
     linhas.push(`\n━━━ DOCUMENTO ESTRATÉGICO DA EMPRESA ━━━`);
     linhas.push(empresa.documentoInterpretacao);
   }
@@ -1435,6 +1436,38 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
     }
   });
 
+  // ── Resumo de contexto disponível para geração SWOT ─────────────────────────
+  app.get("/api/ai/swot-context-summary", async (req, res) => {
+    try {
+      if (!req.session.empresaId) return res.status(401).json({ error: "Não autenticado" });
+      const empresaId = req.session.empresaId;
+      const [empresa, pestelList, cincoForcasList, modeloList, indicadoresList, objetivosList, estrategiasList, iniciativasList] = await Promise.all([
+        storage.getEmpresa(empresaId),
+        storage.getFatoresPestel(empresaId),
+        storage.getCincoForcas(empresaId),
+        storage.getModeloNegocio(empresaId),
+        storage.getIndicadores(empresaId),
+        storage.getObjetivos(empresaId),
+        storage.getEstrategias(empresaId),
+        storage.getIniciativas(empresaId),
+      ]);
+      res.json({
+        counts: {
+          pestel: pestelList.length,
+          cincoForcas: cincoForcasList.length,
+          modeloNegocio: modeloList.length,
+          indicadores: indicadoresList.length,
+          objetivos: objetivosList.length,
+          estrategias: estrategiasList.length + iniciativasList.length,
+        },
+        temDocumento: !!empresa?.documentoNome,
+        nomeDocumento: empresa?.documentoNome || null,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/ai/sugerir-swot-completo", async (req, res) => {
     try {
       const empresaId = req.session.empresaId!;
@@ -1442,8 +1475,10 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         tiposSelecionados = ["forca", "fraqueza", "oportunidade", "ameaca"],
         quantidadePorTipo = { forca: 1, fraqueza: 1, oportunidade: 1, ameaca: 1 },
         instrucaoAdicional = "",
+        fontesContexto = ["perfil", "documento", "pestel", "cincoForcas", "modeloNegocio", "indicadores", "objetivos", "estrategias"],
       } = req.body;
 
+      // Validate tiposSelecionados
       const tiposPermitidos = ["forca", "fraqueza", "oportunidade", "ameaca"];
       if (!Array.isArray(tiposSelecionados) || tiposSelecionados.length === 0) {
         return res.status(400).json({ error: "tiposSelecionados deve ser um array não vazio" });
@@ -1458,48 +1493,147 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         }
       }
 
+      // Parse fontes flags (perfil always included)
+      const fontesValidas: string[] = Array.isArray(fontesContexto) ? fontesContexto : [];
+      const useDocumento    = fontesValidas.includes("documento");
+      const usePestel       = fontesValidas.includes("pestel");
+      const useCincoForcas  = fontesValidas.includes("cincoForcas");
+      const useModeloNeg    = fontesValidas.includes("modeloNegocio");
+      const useIndicadores  = fontesValidas.includes("indicadores");
+      const useObjetivos    = fontesValidas.includes("objetivos");
+      const useEstrategias  = fontesValidas.includes("estrategias");
+
       const empresa = await storage.getEmpresa(empresaId);
-      if (!empresa) {
-        return res.status(404).json({ error: "Empresa não encontrada" });
-      }
+      if (!empresa) return res.status(404).json({ error: "Empresa não encontrada" });
 
-      const contextoPerfil = buildEmpresaContextoIA(empresa);
+      // Conditional parallel DB queries
+      const [
+        fatoresPestelList,
+        cincoForcasList,
+        modeloNegocioList,
+        indicadoresList,
+        objetivosList,
+        estrategiasList,
+        iniciativasList,
+        swotExistente,
+      ] = await Promise.all([
+        usePestel       ? storage.getFatoresPestel(empresaId) : Promise.resolve([]),
+        useCincoForcas  ? storage.getCincoForcas(empresaId)   : Promise.resolve([]),
+        useModeloNeg    ? storage.getModeloNegocio(empresaId) : Promise.resolve([]),
+        useIndicadores  ? storage.getIndicadores(empresaId)   : Promise.resolve([]),
+        useObjetivos    ? storage.getObjetivos(empresaId)     : Promise.resolve([]),
+        useEstrategias  ? storage.getEstrategias(empresaId)   : Promise.resolve([]),
+        useEstrategias  ? storage.getIniciativas(empresaId)   : Promise.resolve([]),
+        storage.getAnaliseSwot(empresaId),
+      ]);
 
-      const fatoresPestelList = await storage.getFatoresPestel(empresaId);
-      const cincoForcasList = await storage.getCincoForcas(empresaId);
-      const modeloNegocioList = await storage.getModeloNegocio(empresaId);
-      const swotExistente = await storage.getAnaliseSwot(empresaId);
-
-      const fatoresPestelResumo = fatoresPestelList.map(f => `${f.tipo}: ${f.descricao}`).join("\n");
-      const cincoForcasResumo = cincoForcasList.map(f => `${f.forca}: ${f.descricao} (intensidade ${f.intensidade})`).join("\n");
-      const modeloNegocioResumo = modeloNegocioList.map(m => `${m.bloco}: ${m.descricao}`).join("\n");
-      
-      const swotExistenteResumo = {
-        forcas: swotExistente.filter(s => s.tipo === "forca").map(s => s.descricao),
-        fraquezas: swotExistente.filter(s => s.tipo === "fraqueza").map(s => s.descricao),
-        oportunidades: swotExistente.filter(s => s.tipo === "oportunidade").map(s => s.descricao),
-        ameacas: swotExistente.filter(s => s.tipo === "ameaca").map(s => s.descricao),
-      };
-
-      const tiposLabel: Record<string, { label: string; plural: string; fonte: string }> = {
-        forca:       { label: "FORÇA",        plural: "FORÇAS",        fonte: "MODELO DE NEGÓCIO" },
-        fraqueza:    { label: "FRAQUEZA",      plural: "FRAQUEZAS",     fonte: "MODELO DE NEGÓCIO" },
-        oportunidade:{ label: "OPORTUNIDADE",  plural: "OPORTUNIDADES", fonte: "CENÁRIO EXTERNO (PESTEL) e MERCADO E CONCORRÊNCIA" },
-        ameaca:      { label: "AMEAÇA",        plural: "AMEAÇAS",       fonte: "CENÁRIO EXTERNO (PESTEL) e MERCADO E CONCORRÊNCIA" },
-      };
+      // Build context strings
+      const fatoresPestelResumo  = fatoresPestelList.map((f: any) => `${f.tipo}: ${f.descricao}`).join("\n");
+      const cincoForcasResumo    = cincoForcasList.map((f: any) => `${f.forca}: ${f.descricao} (intensidade ${f.intensidade})`).join("\n");
+      const modeloNegocioResumo  = modeloNegocioList.map((m: any) => `${m.bloco}: ${m.descricao}`).join("\n");
+      const indicadoresResumo    = indicadoresList.map((i: any) => `[${i.perspectiva}] ${i.nome}: atual=${i.atual}, meta=${i.meta}, status=${i.status}`).join("\n");
+      const objetivosResumo      = objetivosList.map((o: any) => `[${o.perspectiva}] ${o.titulo}${o.descricao ? `: ${o.descricao}` : ""} (prazo: ${o.prazo})`).join("\n");
+      const estrategiasResumo    = [
+        ...estrategiasList.map((e: any) => `[Estratégia | ${e.tipo} | ${e.prioridade}] ${e.titulo}: ${e.descricao}`),
+        ...iniciativasList.map((i: any) => `[Iniciativa | ${i.prioridade} | ${i.status}] ${i.titulo}: ${i.descricao} (resp: ${i.responsavel})`),
+      ].join("\n");
 
       const swotExistentePorTipo: Record<string, string[]> = {
-        forca: swotExistenteResumo.forcas,
-        fraqueza: swotExistenteResumo.fraquezas,
-        oportunidade: swotExistenteResumo.oportunidades,
-        ameaca: swotExistenteResumo.ameacas,
+        forca:        swotExistente.filter((s: any) => s.tipo === "forca").map((s: any) => s.descricao),
+        fraqueza:     swotExistente.filter((s: any) => s.tipo === "fraqueza").map((s: any) => s.descricao),
+        oportunidade: swotExistente.filter((s: any) => s.tipo === "oportunidade").map((s: any) => s.descricao),
+        ameaca:       swotExistente.filter((s: any) => s.tipo === "ameaca").map((s: any) => s.descricao),
+      };
+
+      // ── TWO-STEP EXTRACTION ────────────────────────────────────────────────
+      const temDocumentoReal = useDocumento && !!empresa.documentoInterpretacao;
+      const temInstrucao     = !!instrucaoAdicional?.trim();
+      let achadosDocumentoSection = "";
+
+      if (temDocumentoReal && temInstrucao) {
+        const extraction = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [
+            {
+              role: "system",
+              content: `Você é um analista especializado em extrair informações específicas de documentos estratégicos. Sua tarefa é ler o documento e identificar dados, métricas, fatos e evidências relevantes para a instrução do usuário. Seja preciso: cite números, percentuais e observações reais — não faça suposições genéricas.`,
+            },
+            {
+              role: "user",
+              content: `## INSTRUÇÃO DO USUÁRIO (o que deve ser identificado no documento):
+${instrucaoAdicional.trim()}
+
+## DOCUMENTO ESTRATÉGICO:
+${empresa.documentoInterpretacao}
+
+## TAREFA:
+Leia o documento e extraia TODOS os achados, dados, métricas e evidências relacionados à instrução. Liste cada achado de forma concisa com os dados reais do documento. Se não encontrar informação relevante sobre algum aspecto, omita-o da lista.
+
+Responda EXCLUSIVAMENTE em JSON:
+{
+  "achados": [
+    "Achado específico 1 com dados/números reais do documento",
+    "Achado específico 2 com dados/números reais do documento"
+  ]
+}`,
+            },
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0.2,
+        });
+
+        const extracted = JSON.parse(extraction.choices[0].message.content || "{}");
+        const achados: string[] = (extracted.achados || []).filter((a: string) => a.trim().length > 10);
+        if (achados.length > 0) {
+          achadosDocumentoSection = `\n## ACHADOS EXTRAÍDOS DO DOCUMENTO ESTRATÉGICO (FONTE PRIMÁRIA — PRIORIZE ESTES DADOS):\n${achados.map((a, i) => `${i + 1}. ${a}`).join("\n")}\n`;
+        }
+      }
+
+      // ── BUILD CONTEXT ──────────────────────────────────────────────────────
+      // Include the full document in contextoPerfil only when: documento selected + no extraction step ran
+      const includeDocInPerfil = temDocumentoReal && !temInstrucao;
+      const contextoPerfil = buildEmpresaContextoIA(empresa, { includeDocument: includeDocInPerfil });
+
+      // Build ordered context sections for selected fontes
+      const contextSections: string[] = [];
+      if (useModeloNeg    && modeloNegocioResumo)  contextSections.push(`### Modelo de Negócio (Business Model Canvas):\n${modeloNegocioResumo}`);
+      if (usePestel       && fatoresPestelResumo)  contextSections.push(`### Cenário Externo (Análise PESTEL):\n${fatoresPestelResumo}`);
+      if (useCincoForcas  && cincoForcasResumo)    contextSections.push(`### Mercado e Concorrência (Cinco Forças):\n${cincoForcasResumo}`);
+      if (useIndicadores  && indicadoresResumo)    contextSections.push(`### Indicadores e KPIs:\n${indicadoresResumo}`);
+      if (useObjetivos    && objetivosResumo)      contextSections.push(`### Objetivos e OKRs:\n${objetivosResumo}`);
+      if (useEstrategias  && estrategiasResumo)    contextSections.push(`### Estratégias e Iniciativas:\n${estrategiasResumo}`);
+
+      // Compute fonte labels for TAREFA section
+      const fontesInternas: string[] = [];
+      if (achadosDocumentoSection)         fontesInternas.push("Achados do Documento Estratégico");
+      else if (temDocumentoReal)           fontesInternas.push("Documento Estratégico");
+      if (useModeloNeg   && modeloNegocioResumo)  fontesInternas.push("Modelo de Negócio");
+      if (useIndicadores && indicadoresResumo)    fontesInternas.push("Indicadores e KPIs");
+      if (useObjetivos   && objetivosResumo)      fontesInternas.push("Objetivos e OKRs");
+      if (useEstrategias && estrategiasResumo)    fontesInternas.push("Estratégias e Iniciativas");
+      if (fontesInternas.length === 0) fontesInternas.push("Perfil da empresa");
+
+      const fontesExternas: string[] = [];
+      if (achadosDocumentoSection)        fontesExternas.push("Achados do Documento Estratégico");
+      else if (temDocumentoReal)          fontesExternas.push("Documento Estratégico");
+      if (usePestel      && fatoresPestelResumo) fontesExternas.push("Análise PESTEL");
+      if (useCincoForcas && cincoForcasResumo)  fontesExternas.push("Cinco Forças / Mercado e Concorrência");
+      if (fontesExternas.length === 0) fontesExternas.push("Perfil da empresa");
+
+      const tiposLabel: Record<string, { label: string; plural: string; fonte: string }> = {
+        forca:        { label: "FORÇA",        plural: "FORÇAS",        fonte: fontesInternas.join(", ") },
+        fraqueza:     { label: "FRAQUEZA",     plural: "FRAQUEZAS",     fonte: fontesInternas.join(", ") },
+        oportunidade: { label: "OPORTUNIDADE", plural: "OPORTUNIDADES", fonte: fontesExternas.join(", ") },
+        ameaca:       { label: "AMEAÇA",       plural: "AMEAÇAS",       fonte: fontesExternas.join(", ") },
       };
 
       const tarefaLinhas = tiposSelecionados.map((tipo: string) => {
         const info = tiposLabel[tipo];
-        const qtd = quantidadePorTipo[tipo] || 1;
-        const qtdLabel = qtd === 1 ? `1 (uma) ${info.label}` : `${qtd} (${qtd === 2 ? "duas" : qtd === 3 ? "três" : qtd === 4 ? "quatro" : "cinco"}) ${info.plural}`;
-        return `- **${qtdLabel}** (tipo: "${tipo}"): baseada(s) no ${info.fonte}, que NÃO esteja(m) na lista de ${info.plural.toLowerCase()} existentes.`;
+        const qtd  = quantidadePorTipo[tipo] || 1;
+        const qtdLabel = qtd === 1
+          ? `1 (uma) ${info.label}`
+          : `${qtd} (${qtd === 2 ? "duas" : qtd === 3 ? "três" : qtd === 4 ? "quatro" : "cinco"}) ${info.plural}`;
+        return `- **${qtdLabel}** (tipo: "${tipo}"): use as fontes: ${info.fonte}. Não repita itens já existentes.`;
       }).join("\n");
 
       const existentesSecao = tiposSelecionados.map((tipo: string) => {
@@ -1510,57 +1644,52 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
 
       const totalEsperado = tiposSelecionados.reduce((sum: number, tipo: string) => sum + (quantidadePorTipo[tipo] || 1), 0);
 
-      const instrucaoSection = instrucaoAdicional?.trim()
-        ? `\n## INSTRUÇÃO PRIORITÁRIA DO USUÁRIO:\n${instrucaoAdicional.trim()}\nEsta instrução deve ser seguida com máxima prioridade na geração dos itens abaixo.\n`
+      const instrucaoSection = temInstrucao
+        ? `\n## INSTRUÇÃO PRIORITÁRIA DO USUÁRIO:\n${instrucaoAdicional.trim()}\n`
         : "";
 
+      // ── SYSTEM PROMPT ──────────────────────────────────────────────────────
+      const todasFontesNomes = ["Perfil da empresa", ...new Set([...fontesInternas, ...fontesExternas])].join(", ");
+      const systemPrompt = `Você é um consultor estratégico sênior especializado em análise SWOT. Identifique forças, fraquezas, oportunidades e ameaças CONCRETAS e ESPECÍFICAS — nunca respostas genéricas.
+
+Fontes de dados disponíveis: ${todasFontesNomes}.
+Baseie suas respostas EXCLUSIVAMENTE nos dados dessas fontes. Não invente informações ausentes.
+NUNCA repita itens já identificados anteriormente.
+${achadosDocumentoSection ? "PRIORIDADE MÁXIMA: Os ACHADOS EXTRAÍDOS DO DOCUMENTO ESTRATÉGICO são dados reais — use-os como fonte principal para os itens solicitados." : temDocumentoReal ? "PRIORIDADE: O DOCUMENTO ESTRATÉGICO contém dados reais da empresa — priorize-o sobre suposições genéricas." : ""}`;
+
+      // ── GENERATE SWOT ──────────────────────────────────────────────────────
       const completion = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
-          {
-            role: "system",
-            content: `Você é um consultor estratégico sênior especializado em análise SWOT. Sua missão é identificar com precisão forças, fraquezas, oportunidades e ameaças relevantes e específicas da empresa.
-Use sempre linguagem simples e direta, sem jargões técnicos.
-IMPORTANTE: Nunca repita itens que já foram identificados anteriormente.
-PRIORIDADE MÁXIMA: Se existir um DOCUMENTO ESTRATÉGICO DA EMPRESA nos dados fornecidos (marcado com ━━━ DOCUMENTO ESTRATÉGICO DA EMPRESA ━━━), leia-o com atenção total e priorize as informações nele contidas sobre riscos, fraquezas, vulnerabilidades, pontos críticos e oportunidades. Os dados do documento estratégico são reais e específicos e devem sobrepor qualquer suposição genérica.`
-          },
+          { role: "system", content: systemPrompt },
           {
             role: "user",
-            content: `## PERFIL DA EMPRESA
+            content: `## PERFIL DA EMPRESA:
 ${contextoPerfil}
-${instrucaoSection}
-## CONTEXTO COMPLETO DA EMPRESA:
+${achadosDocumentoSection}${instrucaoSection}
+${contextSections.length > 0 ? `## CONTEXTO COMPLEMENTAR:\n${contextSections.join("\n\n")}` : ""}
 
-### Modelo de Negócio (Business Model Canvas):
-${modeloNegocioResumo || "Ainda não definido"}
-
-### Cenário Externo (Análise PESTEL):
-${fatoresPestelResumo || "Ainda não definido"}
-
-### Mercado e Concorrência (Cinco Forças):
-${cincoForcasResumo || "Ainda não definido"}
-
-## ANÁLISE SWOT JÁ EXISTENTE (EVITE REPETIR ESTES ITENS):
+## ANÁLISE SWOT JÁ EXISTENTE (EVITE REPETIR):
 ${existentesSecao}
 
 ## TAREFA:
-Com base em TODO o contexto acima, gere EXATAMENTE ${totalEsperado} novo(s) item(ns) para a análise SWOT:
+Gere EXATAMENTE ${totalEsperado} novo(s) item(ns) SWOT:
 
 ${tarefaLinhas}
 
-Para cada item, forneça:
-- tipo: exatamente "forca", "fraqueza", "oportunidade" ou "ameaca"
-- descricao: uma descrição clara, objetiva e específica (diferente dos itens existentes)
+Para cada item:
+- tipo: "forca", "fraqueza", "oportunidade" ou "ameaca"
+- descricao: descrição objetiva e específica (baseada nos dados reais das fontes acima)
 - impacto: "alto", "médio" ou "baixo"
 
-Responda OBRIGATORIAMENTE em JSON com este formato exato:
+Responda em JSON:
 {
   "itens": [
     {"tipo": "forca", "descricao": "...", "impacto": "alto"},
     ...
   ]
-}`
-          }
+}`,
+          },
         ],
         response_format: { type: "json_object" },
         temperature: 0.8,

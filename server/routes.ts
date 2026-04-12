@@ -1321,6 +1321,12 @@ Responda APENAS em JSON válido com exatamente este formato:
     try {
       const { nomeEmpresa, setor, descricao, tipo } = req.body;
       
+      let contextoPerfil = `Empresa: ${nomeEmpresa}\nSetor: ${setor}\nDescrição: ${descricao || "Não informada"}`;
+      if (req.session?.empresaId) {
+        const empresaCompleta = await storage.getEmpresa(req.session.empresaId);
+        if (empresaCompleta) contextoPerfil = buildEmpresaContextoIA(empresaCompleta);
+      }
+
       const tipoLabel = tipo === "forca" ? "forças" : tipo === "fraqueza" ? "fraquezas" : tipo === "oportunidade" ? "oportunidades" : "ameaças";
       
       const completion = await openai.chat.completions.create({
@@ -1332,7 +1338,7 @@ Responda APENAS em JSON válido com exatamente este formato:
           },
           {
             role: "user",
-            content: `Empresa: ${nomeEmpresa}\nSetor: ${setor}\nDescrição: ${descricao}\n\nSugira 4-5 ${tipoLabel} relevantes para esta empresa. Para cada item, forneça uma descrição clara e o nível de impacto (alto/médio/baixo). Responda em JSON com formato: [{descricao, impacto}]`
+            content: `## PERFIL DA EMPRESA\n${contextoPerfil}\n\nSugira 4-5 ${tipoLabel} relevantes para esta empresa. Para cada item, forneça uma descrição clara e o nível de impacto (alto/médio/baixo). Responda em JSON com formato: [{descricao, impacto}]`
           }
         ],
         response_format: { type: "json_object" },
@@ -1360,6 +1366,8 @@ Responda APENAS em JSON válido com exatamente este formato:
         return res.status(404).json({ error: "Empresa não encontrada" });
       }
 
+      const contextoPerfil = buildEmpresaContextoIA(empresa);
+
       const fatoresPestelList = await storage.getFatoresPestel(empresaId);
       const cincoForcasList = await storage.getCincoForcas(empresaId);
       const modeloNegocioList = await storage.getModeloNegocio(empresaId);
@@ -1383,9 +1391,8 @@ Responda APENAS em JSON válido com exatamente este formato:
           },
           {
             role: "user",
-            content: `Empresa: ${empresa.nome}
-Setor: ${empresa.setor}
-Descrição: ${empresa.descricao || "Não informado"}
+            content: `## PERFIL DA EMPRESA
+${contextoPerfil}
 
 ## CONTEXTO COMPLETO DA EMPRESA:
 
@@ -1435,6 +1442,8 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         return res.status(404).json({ error: "Empresa não encontrada" });
       }
 
+      const contextoPerfil = buildEmpresaContextoIA(empresa);
+
       const fatoresPestelList = await storage.getFatoresPestel(empresaId);
       const cincoForcasList = await storage.getCincoForcas(empresaId);
       const modeloNegocioList = await storage.getModeloNegocio(empresaId);
@@ -1460,9 +1469,8 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
           },
           {
             role: "user",
-            content: `Empresa: ${empresa.nome}
-Setor: ${empresa.setor}
-Descrição: ${empresa.descricao || "Não informado"}
+            content: `## PERFIL DA EMPRESA
+${contextoPerfil}
 
 ## CONTEXTO COMPLETO DA EMPRESA:
 
@@ -1840,6 +1848,12 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
   app.post("/api/ai/sugerir-modelo-negocio", async (req, res) => {
     try {
       const { nomeEmpresa, setor, descricao } = req.body;
+
+      let contextoPerfil = `Empresa: ${nomeEmpresa}\nSetor: ${setor}\nDescrição: ${descricao || "Não informada"}`;
+      if (req.session?.empresaId) {
+        const empresaCompleta = await storage.getEmpresa(req.session.empresaId);
+        if (empresaCompleta) contextoPerfil = buildEmpresaContextoIA(empresaCompleta);
+      }
       
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
@@ -1850,7 +1864,7 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
           },
           {
             role: "user",
-            content: `Empresa: ${nomeEmpresa}\nSetor: ${setor}\nDescrição: ${descricao}\n\nCrie um modelo de negócio completo para esta empresa usando o Business Model Canvas. Forneça EXATAMENTE 9 blocos:\n1. Segmentos de Clientes (bloco: "segmentos_clientes")\n2. Proposta de Valor (bloco: "proposta_valor")\n3. Canais (bloco: "canais")\n4. Relacionamento com Clientes (bloco: "relacionamento_clientes")\n5. Fontes de Receita (bloco: "fontes_receita")\n6. Recursos Principais (bloco: "recursos_principais")\n7. Atividades Principais (bloco: "atividades_principais")\n8. Parcerias Principais (bloco: "parcerias_principais")\n9. Estrutura de Custos (bloco: "estrutura_custos")\n\nPara cada bloco, forneça:\n- bloco: exatamente como indicado acima\n- descricao: uma descrição clara e prática do bloco para esta empresa específica\n\nResponda OBRIGATORIAMENTE em JSON com este formato exato:\n{\n  "blocos": [\n    {"bloco": "segmentos_clientes", "descricao": "..."},\n    {"bloco": "proposta_valor", "descricao": "..."},\n    {"bloco": "canais", "descricao": "..."},\n    {"bloco": "relacionamento_clientes", "descricao": "..."},\n    {"bloco": "fontes_receita", "descricao": "..."},\n    {"bloco": "recursos_principais", "descricao": "..."},\n    {"bloco": "atividades_principais", "descricao": "..."},\n    {"bloco": "parcerias_principais", "descricao": "..."},\n    {"bloco": "estrutura_custos", "descricao": "..."}\n  ]\n}`
+            content: `## PERFIL DA EMPRESA\n${contextoPerfil}\n\nCrie um modelo de negócio completo para esta empresa usando o Business Model Canvas. Forneça EXATAMENTE 9 blocos:\n1. Segmentos de Clientes (bloco: "segmentos_clientes")\n2. Proposta de Valor (bloco: "proposta_valor")\n3. Canais (bloco: "canais")\n4. Relacionamento com Clientes (bloco: "relacionamento_clientes")\n5. Fontes de Receita (bloco: "fontes_receita")\n6. Recursos Principais (bloco: "recursos_principais")\n7. Atividades Principais (bloco: "atividades_principais")\n8. Parcerias Principais (bloco: "parcerias_principais")\n9. Estrutura de Custos (bloco: "estrutura_custos")\n\nPara cada bloco, forneça:\n- bloco: exatamente como indicado acima\n- descricao: uma descrição clara e prática do bloco para esta empresa específica\n\nResponda OBRIGATORIAMENTE em JSON com este formato exato:\n{\n  "blocos": [\n    {"bloco": "segmentos_clientes", "descricao": "..."},\n    {"bloco": "proposta_valor", "descricao": "..."},\n    {"bloco": "canais", "descricao": "..."},\n    {"bloco": "relacionamento_clientes", "descricao": "..."},\n    {"bloco": "fontes_receita", "descricao": "..."},\n    {"bloco": "recursos_principais", "descricao": "..."},\n    {"bloco": "atividades_principais", "descricao": "..."},\n    {"bloco": "parcerias_principais", "descricao": "..."},\n    {"bloco": "estrutura_custos", "descricao": "..."}\n  ]\n}`
           }
         ],
         response_format: { type: "json_object" },
@@ -1867,6 +1881,12 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
   app.post("/api/ai/sugerir-resultados", async (req, res) => {
     try {
       const { objetivo, nomeEmpresa, setor } = req.body;
+
+      let contextoPerfil = `Empresa: ${nomeEmpresa}\nSetor: ${setor}`;
+      if (req.session?.empresaId) {
+        const empresaCompleta = await storage.getEmpresa(req.session.empresaId);
+        if (empresaCompleta) contextoPerfil = buildEmpresaContextoIA(empresaCompleta);
+      }
       
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
@@ -1877,7 +1897,7 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
           },
           {
             role: "user",
-            content: `Empresa: ${nomeEmpresa} (${setor})\nObjetivo: ${objetivo}\n\nSugira 3-4 resultados mensuráveis que indicariam o sucesso deste objetivo. Para cada resultado, forneça: nome da métrica, valor inicial estimado, valor alvo ambicioso porém realista, e prazo. Responda em JSON com formato: [{metrica, valorInicial, valorAlvo, prazo}]`
+            content: `## PERFIL DA EMPRESA\n${contextoPerfil}\n\nObjetivo: ${objetivo}\n\nSugira 3-4 resultados mensuráveis que indicariam o sucesso deste objetivo. Para cada resultado, forneça: nome da métrica, valor inicial estimado, valor alvo ambicioso porém realista, e prazo. Responda em JSON com formato: [{metrica, valorInicial, valorAlvo, prazo}]`
           }
         ],
         response_format: { type: "json_object" },
@@ -2112,6 +2132,8 @@ ${ctx.join("\n\n")}`;
         return res.status(404).json({ error: "Empresa não encontrada" });
       }
 
+      const contextoPerfil = buildEmpresaContextoIA(empresa);
+
       const swotExistente = await storage.getAnaliseSwot(empresaId);
       const estrategiasExistentes = await storage.getEstrategias(empresaId);
 
@@ -2139,8 +2161,8 @@ REGRA CRÍTICA DE DUPLICAÇÃO:
           },
           {
             role: "user",
-            content: `Empresa: ${empresa.nome}
-Setor: ${empresa.setor}
+            content: `## PERFIL DA EMPRESA
+${contextoPerfil}
 
 ## ANÁLISE SWOT EXISTENTE:
 
@@ -2252,6 +2274,8 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         return res.status(404).json({ error: "Empresa não encontrada" });
       }
 
+      const contextoPerfil = buildEmpresaContextoIA(empresa);
+
       const oportunidadesExistentes = await storage.getOportunidadesCrescimento(empresaId);
       const swotExistente = await storage.getAnaliseSwot(empresaId);
 
@@ -2277,8 +2301,8 @@ REGRA CRÍTICA DE DUPLICAÇÃO:
           },
           {
             role: "user",
-            content: `Empresa: ${empresa.nome}
-Setor: ${empresa.setor}
+            content: `## PERFIL DA EMPRESA
+${contextoPerfil}
 
 ## CONTEXTO ESTRATÉGICO (SWOT):
 
@@ -2385,6 +2409,8 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         return res.status(404).json({ error: "Empresa não encontrada" });
       }
 
+      const contextoPerfil = buildEmpresaContextoIA(empresa);
+
       const iniciativasExistentes = await storage.getIniciativas(empresaId);
       const estrategiasLista = await storage.getEstrategias(empresaId);
       const oportunidades = await storage.getOportunidadesCrescimento(empresaId);
@@ -2411,8 +2437,8 @@ REGRA CRÍTICA DE DUPLICAÇÃO:
           },
           {
             role: "user",
-            content: `Empresa: ${empresa.nome}
-Setor: ${empresa.setor}
+            content: `## PERFIL DA EMPRESA
+${contextoPerfil}
 
 ## CONTEXTO ESTRATÉGICO:
 
@@ -2492,6 +2518,8 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         return res.status(404).json({ error: "Empresa não encontrada" });
       }
 
+      const contextoPerfil = buildEmpresaContextoIA(empresa);
+
       const objetivosExistentes = await storage.getObjetivos(empresaId);
       const estrategiasLista = await storage.getEstrategias(empresaId);
       const oportunidades = await storage.getOportunidadesCrescimento(empresaId);
@@ -2543,9 +2571,8 @@ REGRA DE DUPLICAÇÃO: Nunca repita objetivos já existentes listados pelo usuá
             },
             {
               role: "user",
-              content: `Empresa: ${empresa.nome}
-Setor: ${empresa.setor}
-Descrição: ${empresa.descricao || 'Não informada'}
+              content: `## PERFIL DA EMPRESA
+${contextoPerfil}
 
 ## CONTEXTO ESTRATÉGICO:
 ${estrategiasLista.length > 0 ? `Estratégias:\n${estrategiasResume}` : ""}
@@ -2629,6 +2656,8 @@ Responda em JSON:
         return res.status(404).json({ error: "Empresa não encontrada" });
       }
 
+      const contextoPerfil = buildEmpresaContextoIA(empresa);
+
       const objetivosList = await storage.getObjetivos(empresaId);
       const objetivo = objetivosList.find(o => o.id === objetivoId);
       
@@ -2664,8 +2693,8 @@ REGRA CRÍTICA DE DUPLICAÇÃO:
           },
           {
             role: "user",
-            content: `Empresa: ${empresa.nome}
-Setor: ${empresa.setor}
+            content: `## PERFIL DA EMPRESA
+${contextoPerfil}
 
 ## OBJETIVO ESTRATÉGICO:
 "${objetivo.titulo}"
@@ -3042,6 +3071,8 @@ Gere uma descrição completa e profissional desta empresa.`,
         return res.status(404).json({ error: "Empresa não encontrada" });
       }
 
+      const contextoPerfil = buildEmpresaContextoIA(empresa);
+
       const indicadoresExistentes = await storage.getIndicadores(empresaId);
       const estrategiasLista = await storage.getEstrategias(empresaId);
       const oportunidades = await storage.getOportunidadesCrescimento(empresaId);
@@ -3072,8 +3103,8 @@ REGRA CRÍTICA:
           },
           {
             role: "user",
-            content: `Empresa: ${empresa.nome}
-Setor: ${empresa.setor}
+            content: `## PERFIL DA EMPRESA
+${contextoPerfil}
 
 ## CONTEXTO ESTRATÉGICO:
 
@@ -3405,6 +3436,8 @@ Responda em JSON:
       const empresa = await storage.getEmpresa(empresaId);
       if (!empresa) return res.status(404).json({ error: "Empresa não encontrada" });
 
+      const contextoPerfil = buildEmpresaContextoIA(empresa);
+
       const [objetivosList, indicadores, eventos, iniciativas, rituais] = await Promise.all([
         storage.getObjetivos(empresaId),
         storage.getIndicadores(empresaId),
@@ -3543,8 +3576,9 @@ Responda em JSON:
           },
           {
             role: "user",
-            content: `# Empresa: ${empresa.nome}
-Setor: ${empresa.setor} | Tamanho: ${empresa.tamanho}
+            content: `## PERFIL DA EMPRESA
+${contextoPerfil}
+Tamanho: ${empresa.tamanho}
 
 ## OKRs — Objetivos e Resultados-Chave
 ${objetivosResume}

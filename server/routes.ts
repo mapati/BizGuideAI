@@ -27,8 +27,10 @@ import { promises as dnsLookup } from "dns";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import multer from "multer";
-import * as pdfParseModule from "pdf-parse";
-const pdfParse: (buffer: Buffer) => Promise<{ text: string }> = (pdfParseModule as unknown as { default: typeof pdfParseModule }).default ?? pdfParseModule;
+// pdf-parse tries to load test files when imported normally; use the internal lib path to avoid that
+import { createRequire } from "module";
+const _require = createRequire(import.meta.url);
+const pdfParse: (buffer: Buffer) => Promise<{ text: string; numpages: number }> = _require("pdf-parse/lib/pdf-parse.js");
 import "./session.d";
 
 const upload = multer({

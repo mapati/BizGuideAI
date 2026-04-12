@@ -1354,11 +1354,12 @@ Responda APENAS em JSON válido com exatamente este formato:
 
   app.post("/api/ai/sugerir-swot-individual", async (req, res) => {
     try {
-      const { tipo } = req.body;
+      const { tipo, instrucaoAdicional = "" } = req.body;
       const empresaId = req.session.empresaId!;
       
-      if (!tipo) {
-        return res.status(400).json({ error: "tipo é obrigatório" });
+      const tiposValidos = ["forca", "fraqueza", "oportunidade", "ameaca"];
+      if (!tipo || !tiposValidos.includes(tipo)) {
+        return res.status(400).json({ error: "tipo inválido. Use: forca, fraqueza, oportunidade ou ameaca" });
       }
 
       const empresa = await storage.getEmpresa(empresaId);
@@ -1394,7 +1395,7 @@ PRIORIDADE MÁXIMA: Se existir um DOCUMENTO ESTRATÉGICO DA EMPRESA nos dados fo
             role: "user",
             content: `## PERFIL DA EMPRESA
 ${contextoPerfil}
-
+${instrucaoAdicional?.trim() ? `\n## INSTRUÇÃO PRIORITÁRIA DO USUÁRIO:\n${instrucaoAdicional.trim()}\nEsta instrução deve ser seguida com máxima prioridade.\n` : ""}
 ## CONTEXTO COMPLETO DA EMPRESA:
 
 ### Modelo de Negócio (Business Model Canvas):
@@ -1442,6 +1443,20 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         quantidadePorTipo = { forca: 1, fraqueza: 1, oportunidade: 1, ameaca: 1 },
         instrucaoAdicional = "",
       } = req.body;
+
+      const tiposPermitidos = ["forca", "fraqueza", "oportunidade", "ameaca"];
+      if (!Array.isArray(tiposSelecionados) || tiposSelecionados.length === 0) {
+        return res.status(400).json({ error: "tiposSelecionados deve ser um array não vazio" });
+      }
+      for (const t of tiposSelecionados) {
+        if (!tiposPermitidos.includes(t)) {
+          return res.status(400).json({ error: `Tipo inválido: ${t}. Use: forca, fraqueza, oportunidade, ameaca` });
+        }
+        const qtd = quantidadePorTipo[t];
+        if (qtd !== undefined && (typeof qtd !== "number" || qtd < 1 || qtd > 5)) {
+          return res.status(400).json({ error: `quantidadePorTipo["${t}"] deve ser um número entre 1 e 5` });
+        }
+      }
 
       const empresa = await storage.getEmpresa(empresaId);
       if (!empresa) {

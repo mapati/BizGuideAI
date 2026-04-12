@@ -1579,33 +1579,28 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         ameaca:       swotExistente.filter((s: AnaliseSwot) => s.tipo === "ameaca").map((s: AnaliseSwot) => s.descricao),
       };
 
-      // ── TWO-STEP EXTRACTION ────────────────────────────────────────────────
-      // Always extract from the document when it is selected — using the user's custom
-      // instruction when provided, or a SWOT-focused guide when not. This guarantees
-      // the model receives concrete, document-grounded findings instead of a raw dump
-      // that it may ignore at high temperature.
+      // ── TWO-STEP EXTRACTION (split internal / external) ────────────────────
+      // Run two targeted extractions in parallel when both internal and external
+      // SWOT types are requested — each focused on the right domain. This prevents
+      // the model from classifying internal problems as external threats and vice-versa.
       const temDocumentoReal = useDocumento && !!empresa.documentoInterpretacao;
       const temInstrucao     = !!instrucaoAdicional?.trim();
-      let achadosDocumentoSection = "";
 
-      if (temDocumentoReal) {
-        const tiposLabel2: Record<string, string> = {
-          forca: "forças (pontos fortes internos)",
-          fraqueza: "fraquezas (pontos fracos internos)",
-          oportunidade: "oportunidades externas",
-          ameaca: "ameaças externas",
-        };
-        const tiposParaExtracao = tiposSelecionados.map((t: string) => tiposLabel2[t] || t).join(", ");
-        const guiaExtracao = temInstrucao
-          ? `Instrução específica do usuário: ${instrucaoAdicional.trim()}\n\nAlém disso, extraia achados relevantes para análise SWOT de: ${tiposParaExtracao}.`
-          : `Extraia do documento TODOS os dados, fatos, evidências e observações que sejam relevantes para identificar ${tiposParaExtracao}. Foque em informações concretas e específicas: números, percentuais, eventos, problemas, vantagens, riscos — exatamente como descritos no documento.`;
+      const tiposInternos = tiposSelecionados.filter((t: string) => t === "forca" || t === "fraqueza");
+      const tiposExternos = tiposSelecionados.filter((t: string) => t === "oportunidade" || t === "ameaca");
+      const pedidoInterno = tiposInternos.length > 0;
+      const pedidoExterno = tiposExternos.length > 0;
 
-        const extraction = await openai.chat.completions.create({
+      let achadosInternosSection = "";
+      let achadosExternosSection = "";
+
+      const makeExtracaoCall = async (guiaExtracao: string): Promise<string[]> => {
+        const result = await openai.chat.completions.create({
           model: "gpt-4o",
           messages: [
             {
               role: "system",
-              content: `Você é um analista especializado em extrair informações de documentos estratégicos para análise SWOT. Leia o documento e identifique TODOS os dados, fatos, métricas e evidências concretas. Seja fiel ao documento: cite situações reais, valores, eventos e problemas mencionados — nunca generalize ou invente.`,
+              content: `Você é um analista especializado em extrair informações de documentos estratégicos para análise SWOT. Seja fiel ao documento: cite situações reais, valores, eventos e problemas mencionados — nunca generalize ou invente.`,
             },
             {
               role: "user",
@@ -1616,7 +1611,7 @@ ${guiaExtracao}
 ${empresa.documentoInterpretacao}
 
 ## TAREFA:
-Leia o documento integralmente e extraia cada achado relevante de forma objetiva. Inclua fatos específicos (ex: dívidas, conflitos, percentuais, aquisições, dependências). Se o documento mencionar um problema específico, liste-o — não omita.
+Leia o documento integralmente e extraia cada achado relevante de forma objetiva, incluindo fatos específicos (ex: dívidas, conflitos, percentuais, aquisições, dependências). Se o documento mencionar um fato específico, liste-o — não omita.
 
 Responda EXCLUSIVAMENTE em JSON:
 {
@@ -1630,50 +1625,79 @@ Responda EXCLUSIVAMENTE em JSON:
           response_format: { type: "json_object" },
           temperature: 0.2,
         });
+        const parsed = JSON.parse(result.choices[0].message.content || "{}");
+        return (parsed.achados || []).filter((a: string) => a.trim().length > 10);
+      };
 
-        const extracted = JSON.parse(extraction.choices[0].message.content || "{}");
-        const achados: string[] = (extracted.achados || []).filter((a: string) => a.trim().length > 10);
-        if (achados.length > 0) {
-          achadosDocumentoSection = `\n## ACHADOS EXTRAÍDOS DO DOCUMENTO ESTRATÉGICO (FONTE PRIMÁRIA OBRIGATÓRIA):\n${achados.map((a, i) => `${i + 1}. ${a}`).join("\n")}\n\nATENÇÃO: Os achados acima são fatos REAIS extraídos do documento. Cada item SWOT deve ser fundamentado em pelo menos um desses achados. Não gere itens sem base nos achados acima.\n`;
+      if (temDocumentoReal) {
+        const extractionTasks: Promise<void>[] = [];
+
+        if (pedidoInterno) {
+          const guia = temInstrucao
+            ? `Instrução do usuário: ${instrucaoAdicional.trim()}\n\nFoque em aspectos INTERNOS da organização (estrutura, processos, recursos, competências, finanças internas, governança, operações, histórico) relevantes para identificar forças e fraquezas.`
+            : `Extraia EXCLUSIVAMENTE achados sobre aspectos INTERNOS da organização: estrutura, processos, recursos humanos, competências, situação financeira interna, governança, operações, cultura, histórico. NÃO inclua fatores externos de mercado ou macro-ambiente.`;
+          extractionTasks.push(
+            makeExtracaoCall(guia).then((achados) => {
+              if (achados.length > 0) {
+                achadosInternosSection = `\n## ACHADOS INTERNOS DO DOCUMENTO (use para Forças e Fraquezas):\n${achados.map((a, i) => `${i + 1}. ${a}`).join("\n")}\n\nATENÇÃO: Estes achados são fatos INTERNOS à organização. Use-os APENAS para identificar Forças e Fraquezas. Não use para Oportunidades/Ameaças.\n`;
+              }
+            })
+          );
         }
+
+        if (pedidoExterno) {
+          const guia = temInstrucao
+            ? `Instrução do usuário: ${instrucaoAdicional.trim()}\n\nFoque em aspectos EXTERNOS ao ambiente da empresa (mercado, concorrência, macro-ambiente, legislação, tendências setoriais) relevantes para identificar oportunidades e ameaças.`
+            : `Extraia EXCLUSIVAMENTE achados sobre fatores EXTERNOS ao controle da empresa: mercado, concorrência, economia, legislação, regulação, tecnologia de mercado, tendências setoriais, movimentos dos concorrentes. NÃO inclua problemas internos da organização.`;
+          extractionTasks.push(
+            makeExtracaoCall(guia).then((achados) => {
+              if (achados.length > 0) {
+                achadosExternosSection = `\n## ACHADOS EXTERNOS DO DOCUMENTO (use para Oportunidades e Ameaças):\n${achados.map((a, i) => `${i + 1}. ${a}`).join("\n")}\n\nATENÇÃO: Estes achados são fatores EXTERNOS ao controle da empresa. Use-os APENAS para identificar Oportunidades e Ameaças. Não os confunda com Fraquezas internas.\n`;
+              }
+            })
+          );
+        }
+
+        await Promise.all(extractionTasks);
       }
 
       // ── BUILD CONTEXT ──────────────────────────────────────────────────────
-      // Never include the raw document in the profile context — achados replace it entirely.
-      const includeDocInPerfil = false;
-      const contextoPerfil = buildEmpresaContextoIA(empresa, { includeDocument: includeDocInPerfil });
+      // Raw document never included — achados sections replace it entirely.
+      const contextoPerfil = buildEmpresaContextoIA(empresa, { includeDocument: false });
 
-      // Build ordered context sections for selected fontes
-      const contextSections: string[] = [];
-      if (useModeloNeg    && modeloNegocioResumo)  contextSections.push(`### Modelo de Negócio (Business Model Canvas):\n${modeloNegocioResumo}`);
-      if (usePestel       && fatoresPestelResumo)  contextSections.push(`### Cenário Externo (Análise PESTEL):\n${fatoresPestelResumo}`);
-      if (useCincoForcas  && cincoForcasResumo)    contextSections.push(`### Mercado e Concorrência (Cinco Forças):\n${cincoForcasResumo}`);
-      if (useIndicadores  && indicadoresResumo)    contextSections.push(`### Indicadores e KPIs:\n${indicadoresResumo}`);
-      if (useObjetivos    && objetivosResumo)      contextSections.push(`### Objetivos e OKRs:\n${objetivosResumo}`);
-      if (useEstrategias  && estrategiasResumo)    contextSections.push(`### Estratégias e Iniciativas:\n${estrategiasResumo}`);
+      // Internal context sections (for Forças and Fraquezas)
+      const contextSectionsInternas: string[] = [];
+      if (useModeloNeg   && modeloNegocioResumo) contextSectionsInternas.push(`### Modelo de Negócio (Business Model Canvas):\n${modeloNegocioResumo}`);
+      if (useIndicadores && indicadoresResumo)   contextSectionsInternas.push(`### Indicadores e KPIs:\n${indicadoresResumo}`);
+      if (useObjetivos   && objetivosResumo)     contextSectionsInternas.push(`### Objetivos e OKRs:\n${objetivosResumo}`);
+      if (useEstrategias && estrategiasResumo)   contextSectionsInternas.push(`### Estratégias e Iniciativas:\n${estrategiasResumo}`);
 
-      // Compute fonte labels for TAREFA section
-      const fontesInternas: string[] = [];
-      if (achadosDocumentoSection)         fontesInternas.push("Achados do Documento Estratégico");
-      else if (temDocumentoReal)           fontesInternas.push("Documento Estratégico");
-      if (useModeloNeg   && modeloNegocioResumo)  fontesInternas.push("Modelo de Negócio");
-      if (useIndicadores && indicadoresResumo)    fontesInternas.push("Indicadores e KPIs");
-      if (useObjetivos   && objetivosResumo)      fontesInternas.push("Objetivos e OKRs");
-      if (useEstrategias && estrategiasResumo)    fontesInternas.push("Estratégias e Iniciativas");
-      if (fontesInternas.length === 0) fontesInternas.push("Perfil da empresa");
+      // External context sections (for Oportunidades and Ameaças)
+      const contextSectionsExternas: string[] = [];
+      if (usePestel      && fatoresPestelResumo) contextSectionsExternas.push(`### Cenário Externo (Análise PESTEL):\n${fatoresPestelResumo}`);
+      if (useCincoForcas && cincoForcasResumo)   contextSectionsExternas.push(`### Mercado e Concorrência (Cinco Forças):\n${cincoForcasResumo}`);
+
+      // Compute fonte labels for TAREFA section per type
+      const fontesInternas: string[] = ["Perfil da empresa"];
+      if (achadosInternosSection)                       fontesInternas.push("Achados Internos do Documento");
+      else if (temDocumentoReal && pedidoInterno)       fontesInternas.push("Documento Estratégico");
+      if (useModeloNeg   && modeloNegocioResumo)        fontesInternas.push("Modelo de Negócio");
+      if (useIndicadores && indicadoresResumo)          fontesInternas.push("Indicadores e KPIs");
+      if (useObjetivos   && objetivosResumo)            fontesInternas.push("Objetivos e OKRs");
+      if (useEstrategias && estrategiasResumo)          fontesInternas.push("Estratégias e Iniciativas");
 
       const fontesExternas: string[] = [];
-      if (achadosDocumentoSection)        fontesExternas.push("Achados do Documento Estratégico");
-      else if (temDocumentoReal)          fontesExternas.push("Documento Estratégico");
-      if (usePestel      && fatoresPestelResumo) fontesExternas.push("Análise PESTEL");
-      if (useCincoForcas && cincoForcasResumo)  fontesExternas.push("Cinco Forças / Mercado e Concorrência");
-      if (fontesExternas.length === 0) fontesExternas.push("Perfil da empresa");
+      if (achadosExternosSection)                       fontesExternas.push("Achados Externos do Documento");
+      else if (temDocumentoReal && pedidoExterno)       fontesExternas.push("Documento Estratégico");
+      if (usePestel      && fatoresPestelResumo)        fontesExternas.push("Análise PESTEL");
+      if (useCincoForcas && cincoForcasResumo)          fontesExternas.push("Cinco Forças / Mercado e Concorrência");
+      if (fontesExternas.length === 0)                  fontesExternas.push("Perfil da empresa");
 
-      const tiposLabel: Record<string, { label: string; plural: string; fonte: string }> = {
-        forca:        { label: "FORÇA",        plural: "FORÇAS",        fonte: fontesInternas.join(", ") },
-        fraqueza:     { label: "FRAQUEZA",     plural: "FRAQUEZAS",     fonte: fontesInternas.join(", ") },
-        oportunidade: { label: "OPORTUNIDADE", plural: "OPORTUNIDADES", fonte: fontesExternas.join(", ") },
-        ameaca:       { label: "AMEAÇA",       plural: "AMEAÇAS",       fonte: fontesExternas.join(", ") },
+      const tiposLabel: Record<string, { label: string; plural: string; fonte: string; proibicao: string }> = {
+        forca:        { label: "FORÇA",        plural: "FORÇAS",        fonte: fontesInternas.join(", "),  proibicao: "PROIBIDO usar PESTEL/Cinco Forças. Forças são fatores INTERNOS." },
+        fraqueza:     { label: "FRAQUEZA",     plural: "FRAQUEZAS",     fonte: fontesInternas.join(", "),  proibicao: "PROIBIDO usar PESTEL/Cinco Forças. Fraquezas são fatores INTERNOS." },
+        oportunidade: { label: "OPORTUNIDADE", plural: "OPORTUNIDADES", fonte: fontesExternas.join(", "), proibicao: "PROIBIDO classificar problemas internos como Oportunidades. Oportunidades são fatores EXTERNOS favoráveis." },
+        ameaca:       { label: "AMEAÇA",       plural: "AMEAÇAS",       fonte: fontesExternas.join(", "), proibicao: "PROIBIDO classificar problemas internos como Ameaças — esses são Fraquezas. Ameaças são fatores EXTERNOS." },
       };
 
       const tarefaLinhas = tiposSelecionados.map((tipo: string) => {
@@ -1682,7 +1706,7 @@ Responda EXCLUSIVAMENTE em JSON:
         const qtdLabel = qtd === 1
           ? `1 (uma) ${info.label}`
           : `${qtd} (${qtd === 2 ? "duas" : qtd === 3 ? "três" : qtd === 4 ? "quatro" : "cinco"}) ${info.plural}`;
-        return `- **${qtdLabel}** (tipo: "${tipo}"): use as fontes: ${info.fonte}. Não repita itens já existentes.`;
+        return `- **${qtdLabel}** (tipo: "${tipo}"): fontes: ${info.fonte}. ${info.proibicao} Não repita itens já existentes.`;
       }).join("\n");
 
       const existentesSecao = tiposSelecionados.map((tipo: string) => {
@@ -1698,19 +1722,29 @@ Responda EXCLUSIVAMENTE em JSON:
         : "";
 
       // ── SYSTEM PROMPT ──────────────────────────────────────────────────────
-      const todasFontesNomes = ["Perfil da empresa", ...new Set([...fontesInternas, ...fontesExternas])].join(", ");
+      const todasFontesNomes = [...new Set([...fontesInternas, ...fontesExternas])].join(", ");
       const systemPrompt = `Você é um consultor estratégico sênior especializado em análise SWOT. Identifique forças, fraquezas, oportunidades e ameaças CONCRETAS e ESPECÍFICAS com base exclusivamente nos dados fornecidos.
 
-REGRAS OBRIGATÓRIAS:
-1. Baseie CADA item SWOT em fatos, dados ou evidências presentes nas fontes fornecidas — nunca em suposições genéricas ou conhecimento geral.
-2. Se os ACHADOS DO DOCUMENTO ESTRATÉGICO estiverem disponíveis, CADA item gerado DEVE referenciar ou ser fundamentado em pelo menos um desses achados. Itens genéricos que não se conectem aos achados são PROIBIDOS.
-3. Nunca repita itens já existentes.
-4. Seja específico: mencione situações, valores, nomes ou eventos reais quando presentes nos dados.
+REGRAS OBRIGATÓRIAS — CLASSIFICAÇÃO INTERNA vs. EXTERNA:
+1. FORÇAS e FRAQUEZAS = EXCLUSIVAMENTE fatores INTERNOS da organização: estrutura, processos, recursos, competências, finanças internas, governança, histórico operacional. É PROIBIDO classificar tendências de mercado, concorrência ou macro-ambiente como força ou fraqueza.
+2. OPORTUNIDADES e AMEAÇAS = EXCLUSIVAMENTE fatores EXTERNOS ao controle da empresa: mercado, concorrência, regulação, economia, tecnologia de mercado, tendências setoriais. É PROIBIDO classificar problemas internos (endividamento, conflitos de governança, falta de processos) como ameaças — esses são fraquezas.
+3. Baseie CADA item em fatos e evidências das fontes fornecidas — nunca em suposições genéricas ou conhecimento geral.
+4. Se houver ACHADOS DO DOCUMENTO, cada item deve se fundamentar em pelo menos um achado da seção correspondente (internos→Forças/Fraquezas; externos→Oportunidades/Ameaças).
+5. Nunca repita itens já existentes.
+6. Seja específico: mencione situações, valores e eventos reais quando presentes nos dados.
 
 Fontes disponíveis: ${todasFontesNomes}.`;
 
-      // Lower temperature when document achados are the main source (need fidelity over creativity)
-      const generationTemperature = achadosDocumentoSection ? 0.4 : 0.7;
+      // Lower temperature when achados are available (fidelity over creativity)
+      const temAchados = achadosInternosSection || achadosExternosSection;
+      const generationTemperature = temAchados ? 0.4 : 0.7;
+
+      const contextoInternoSection = contextSectionsInternas.length > 0
+        ? `\n## CONTEXTO INTERNO (para Forças e Fraquezas):\n${contextSectionsInternas.join("\n\n")}`
+        : "";
+      const contextoExternoSection = contextSectionsExternas.length > 0
+        ? `\n## CONTEXTO EXTERNO (para Oportunidades e Ameaças):\n${contextSectionsExternas.join("\n\n")}`
+        : "";
 
       // ── GENERATE SWOT ──────────────────────────────────────────────────────
       const completion = await openai.chat.completions.create({
@@ -1721,8 +1755,7 @@ Fontes disponíveis: ${todasFontesNomes}.`;
             role: "user",
             content: `## PERFIL DA EMPRESA:
 ${contextoPerfil}
-${achadosDocumentoSection}${instrucaoSection}
-${contextSections.length > 0 ? `## CONTEXTO COMPLEMENTAR:\n${contextSections.join("\n\n")}` : ""}
+${achadosInternosSection}${achadosExternosSection}${instrucaoSection}${contextoInternoSection}${contextoExternoSection}
 
 ## ANÁLISE SWOT JÁ EXISTENTE (EVITE REPETIR):
 ${existentesSecao}
@@ -1734,7 +1767,7 @@ ${tarefaLinhas}
 
 Para cada item:
 - tipo: "forca", "fraqueza", "oportunidade" ou "ameaca"
-- descricao: descrição objetiva e específica baseada nos dados reais acima (se houver achados do documento, mencione o fato concreto)
+- descricao: descrição objetiva e específica (se houver achados do documento, mencione o fato concreto)
 - impacto: "alto", "médio" ou "baixo"
 
 Responda em JSON:

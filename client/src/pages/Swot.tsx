@@ -59,15 +59,18 @@ type TipoSwot = typeof TIPOS_SWOT[number]["value"];
 
 type FonteId = "documento" | "pestel" | "cincoForcas" | "modeloNegocio" | "indicadores" | "objetivos" | "estrategias";
 
-const FONTES_CONFIG: { id: FonteId; label: string; desc: string }[] = [
-  { id: "documento",      label: "Documento estratégico",     desc: "PDF carregado" },
-  { id: "pestel",         label: "Análise PESTEL",            desc: "Cenário externo" },
-  { id: "cincoForcas",    label: "Mercado e concorrência",    desc: "Cinco Forças" },
-  { id: "modeloNegocio",  label: "Modelo de Negócio",         desc: "Business Model Canvas" },
-  { id: "indicadores",    label: "Indicadores (KPIs)",        desc: "Métricas e metas" },
-  { id: "objetivos",      label: "Objetivos e OKRs",          desc: "Metas estratégicas" },
-  { id: "estrategias",    label: "Estratégias e Iniciativas", desc: "Plano de ação" },
+const FONTES_CONFIG: { id: FonteId; label: string; desc: string; grupo: "interna" | "externa" }[] = [
+  { id: "documento",      label: "Documento estratégico",     desc: "PDF carregado",             grupo: "interna" },
+  { id: "modeloNegocio",  label: "Modelo de Negócio",         desc: "Business Model Canvas",     grupo: "interna" },
+  { id: "indicadores",    label: "Indicadores (KPIs)",        desc: "Métricas e metas",          grupo: "interna" },
+  { id: "objetivos",      label: "Objetivos e OKRs",          desc: "Metas estratégicas",        grupo: "interna" },
+  { id: "estrategias",    label: "Estratégias e Iniciativas", desc: "Plano de ação",             grupo: "interna" },
+  { id: "pestel",         label: "Análise PESTEL",            desc: "Cenário externo",           grupo: "externa" },
+  { id: "cincoForcas",    label: "Mercado e concorrência",    desc: "Cinco Forças",              grupo: "externa" },
 ];
+
+const FONTES_INTERNAS = FONTES_CONFIG.filter((f) => f.grupo === "interna");
+const FONTES_EXTERNAS = FONTES_CONFIG.filter((f) => f.grupo === "externa");
 
 export default function Swot() {
   const { toast } = useToast();
@@ -636,59 +639,14 @@ export default function Swot() {
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                <Label className="text-sm font-medium">Focos da análise{!contextSummary && <span className="ml-2 text-xs font-normal text-muted-foreground">(carregando…)</span>}</Label>
-                <div className="flex gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      setFontesContexto((prev) => {
-                        const next = { ...prev };
-                        FONTES_CONFIG.forEach((f) => {
-                          const isEmpty = f.id === "documento"
-                            ? !contextSummary?.temDocumento
-                            : (contextSummary?.counts?.[f.id] ?? 0) === 0;
-                          if (!isEmpty) next[f.id] = false;
-                        });
-                        return next;
-                      })
-                    }
-                    data-testid="button-limpar-fontes"
-                  >
-                    Limpar
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      setFontesContexto((prev) => {
-                        const next = { ...prev };
-                        FONTES_CONFIG.forEach((f) => {
-                          const isEmpty = f.id === "documento"
-                            ? !contextSummary?.temDocumento
-                            : (contextSummary?.counts?.[f.id] ?? 0) === 0;
-                          if (!isEmpty) next[f.id] = true;
-                        });
-                        return next;
-                      })
-                    }
-                    data-testid="button-selecionar-todas-fontes"
-                  >
-                    Selecionar todas
-                  </Button>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2 py-1" data-testid="row-fonte-perfil">
-                  <div className="flex items-center gap-2">
-                    <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <span className="text-sm font-medium">Perfil da empresa</span>
-                    <span className="text-xs text-muted-foreground">— sempre incluído</span>
-                  </div>
-                  <Badge variant="secondary" className="text-xs shrink-0">ativo</Badge>
-                </div>
-                {FONTES_CONFIG.map((fonte) => {
+              <Label className="text-sm font-medium block mb-3">
+                Focos da análise
+                {!contextSummary && <span className="ml-2 text-xs font-normal text-muted-foreground">(carregando…)</span>}
+              </Label>
+
+              {/* Helper to render a fonte row */}
+              {(() => {
+                const renderFonteRow = (fonte: typeof FONTES_CONFIG[number]) => {
                   const isDocumento = fonte.id === "documento";
                   const isDisabled = isDocumento
                     ? !contextSummary?.temDocumento
@@ -724,8 +682,62 @@ export default function Swot() {
                       </Badge>
                     </div>
                   );
-                })}
-              </div>
+                };
+
+                const toggleGrupo = (fontes: typeof FONTES_CONFIG, value: boolean) =>
+                  setFontesContexto((prev) => {
+                    const next = { ...prev };
+                    fontes.forEach((f) => {
+                      const isEmpty = f.id === "documento"
+                        ? !contextSummary?.temDocumento
+                        : (contextSummary?.counts?.[f.id] ?? 0) === 0;
+                      if (!isEmpty) next[f.id] = value;
+                    });
+                    return next;
+                  });
+
+                return (
+                  <div className="space-y-4">
+                    {/* ── GRUPO INTERNO ── */}
+                    <div className="rounded-md border p-3 space-y-1">
+                      <div className="flex items-center justify-between mb-2 flex-wrap gap-1">
+                        <div>
+                          <p className="text-xs font-semibold text-foreground">Análise Interna</p>
+                          <p className="text-xs text-muted-foreground">Para Forças e Fraquezas</p>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => toggleGrupo(FONTES_INTERNAS, false)} data-testid="button-limpar-internas">Limpar</Button>
+                          <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => toggleGrupo(FONTES_INTERNAS, true)} data-testid="button-selecionar-internas">Selecionar</Button>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 py-1" data-testid="row-fonte-perfil">
+                        <div className="flex items-center gap-2">
+                          <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <span className="text-sm font-medium">Perfil da empresa</span>
+                          <span className="text-xs text-muted-foreground">— sempre incluído</span>
+                        </div>
+                        <Badge variant="secondary" className="text-xs shrink-0">ativo</Badge>
+                      </div>
+                      {FONTES_INTERNAS.map(renderFonteRow)}
+                    </div>
+
+                    {/* ── GRUPO EXTERNO ── */}
+                    <div className="rounded-md border p-3 space-y-1">
+                      <div className="flex items-center justify-between mb-2 flex-wrap gap-1">
+                        <div>
+                          <p className="text-xs font-semibold text-foreground">Análise Externa</p>
+                          <p className="text-xs text-muted-foreground">Para Oportunidades e Ameaças</p>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => toggleGrupo(FONTES_EXTERNAS, false)} data-testid="button-limpar-externas">Limpar</Button>
+                          <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => toggleGrupo(FONTES_EXTERNAS, true)} data-testid="button-selecionar-externas">Selecionar</Button>
+                        </div>
+                      </div>
+                      {FONTES_EXTERNAS.map(renderFonteRow)}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
 
             <div>

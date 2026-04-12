@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { 
   insertEmpresaSchema,
   type InsertEmpresa,
+  type Empresa,
   insertFatorPestelSchema, 
   insertAnaliseSwotSchema,
   insertObjetivoSchema,
@@ -25,7 +26,43 @@ import * as cheerio from "cheerio";
 import { promises as dnsLookup } from "dns";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import multer from "multer";
+import * as pdfParseModule from "pdf-parse";
+const pdfParse: (buffer: Buffer) => Promise<{ text: string }> = (pdfParseModule as unknown as { default: typeof pdfParseModule }).default ?? pdfParseModule;
 import "./session.d";
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype === "application/pdf") {
+      cb(null, true);
+    } else {
+      cb(new Error("Apenas arquivos PDF são aceitos."));
+    }
+  },
+});
+
+function buildEmpresaContextoIA(empresa: Empresa): string {
+  const linhas: string[] = [];
+  linhas.push(`Empresa: ${empresa.nome}`);
+  linhas.push(`Setor: ${empresa.setor}`);
+  if (empresa.tamanho) linhas.push(`Tamanho: ${empresa.tamanho}`);
+  if (empresa.descricao) linhas.push(`Descrição: ${empresa.descricao}`);
+  if (empresa.tipoNegocio) linhas.push(`Modelo de negócio: ${empresa.tipoNegocio}`);
+  if (empresa.areaAtuacao) linhas.push(`Área de atuação geográfica: ${empresa.areaAtuacao}`);
+  if (empresa.publicoAlvo) linhas.push(`Público-alvo / cliente ideal: ${empresa.publicoAlvo}`);
+  if (empresa.principaisProdutos) linhas.push(`Principais produtos/serviços: ${empresa.principaisProdutos}`);
+  if (empresa.concorrentesConhecidos) linhas.push(`Concorrentes conhecidos: ${empresa.concorrentesConhecidos}`);
+  if (empresa.diferenciaisCompetitivos) linhas.push(`Diferenciais competitivos: ${empresa.diferenciaisCompetitivos}`);
+  if (empresa.anoFundacao) linhas.push(`Ano de fundação: ${empresa.anoFundacao}`);
+  if (empresa.cidade || empresa.estado) linhas.push(`Localização: ${[empresa.cidade, empresa.estado].filter(Boolean).join(", ")}`);
+  if (empresa.documentoInterpretacao) {
+    linhas.push(`\n━━━ DOCUMENTO ESTRATÉGICO DA EMPRESA ━━━`);
+    linhas.push(empresa.documentoInterpretacao);
+  }
+  return linhas.join("\n");
+}
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -553,25 +590,126 @@ export async function registerRoutes(app: Express): Promise<Server> {
         estado: z.string().nullable().optional(),
         cep: z.string().nullable().optional(),
         logoUrl: z.string().nullable().optional(),
+        tipoNegocio: z.string().nullable().optional(),
+        areaAtuacao: z.string().nullable().optional(),
+        publicoAlvo: z.string().nullable().optional(),
+        principaisProdutos: z.string().nullable().optional(),
+        concorrentesConhecidos: z.string().nullable().optional(),
+        diferenciaisCompetitivos: z.string().nullable().optional(),
+        anoFundacao: z.number().int().nullable().optional(),
       });
       const parsed = profileSchema.parse(req.body);
-      const { nome, setor, tamanho, descricao, website, cnpj, endereco, cidade, estado, cep, logoUrl } = parsed;
-      const safeData: Partial<Pick<InsertEmpresa, "nome" | "setor" | "tamanho" | "descricao" | "website" | "cnpj" | "endereco" | "cidade" | "estado" | "cep" | "logoUrl">> = {};
-      if (nome !== undefined) safeData.nome = nome;
-      if (setor !== undefined) safeData.setor = setor;
-      if (tamanho !== undefined) safeData.tamanho = tamanho;
-      if (descricao !== undefined) safeData.descricao = descricao;
-      if (website !== undefined) safeData.website = website;
-      if (cnpj !== undefined) safeData.cnpj = cnpj;
-      if (endereco !== undefined) safeData.endereco = endereco;
-      if (cidade !== undefined) safeData.cidade = cidade;
-      if (estado !== undefined) safeData.estado = estado;
-      if (cep !== undefined) safeData.cep = cep;
-      if (logoUrl !== undefined) safeData.logoUrl = logoUrl;
+      const safeData: Partial<InsertEmpresa> = {};
+      const fields = [
+        "nome","setor","tamanho","descricao","website","cnpj","endereco","cidade","estado","cep","logoUrl",
+        "tipoNegocio","areaAtuacao","publicoAlvo","principaisProdutos","concorrentesConhecidos","diferenciaisCompetitivos","anoFundacao",
+      ] as const;
+      for (const field of fields) {
+        if (parsed[field] !== undefined) (safeData as Record<string, unknown>)[field] = parsed[field];
+      }
       const empresa = await storage.updateEmpresa(req.session.empresaId!, safeData);
       res.json(empresa);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
+    }
+  });
+
+  // ── Upload e análise de documento PDF ──────────────────────────────────────
+  app.post("/api/empresa/documento", upload.single("pdf"), async (req, res) => {
+    try {
+      if (!req.session?.userId || !req.session?.empresaId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+      if (!req.file) {
+        return res.status(400).json({ error: "Nenhum arquivo PDF enviado." });
+      }
+
+      const MAX_TEXT_CHARS = 15000;
+      let extractedText = "";
+      try {
+        const pdfData = await pdfParse(req.file.buffer);
+        extractedText = (pdfData.text || "").trim().slice(0, MAX_TEXT_CHARS);
+      } catch {
+        return res.status(422).json({ error: "Não foi possível extrair texto do PDF. Verifique se o arquivo não está protegido ou corrompido." });
+      }
+
+      if (extractedText.length < 100) {
+        return res.status(422).json({ error: "O PDF não contém texto suficiente para análise. Certifique-se de que o documento não é composto apenas por imagens." });
+      }
+
+      const empresa = await storage.getEmpresa(req.session.empresaId);
+      const nomeEmpresa = empresa?.nome || "não informado";
+      const setor = empresa?.setor || "não informado";
+
+      const interpretacao = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `Você é um consultor estratégico especializado em análise de documentos empresariais para pequenas e médias empresas brasileiras. Sua função é interpretar documentos e extrair os insights mais relevantes para o planejamento estratégico. Seja específico e prático. Responda sempre em português do Brasil.`,
+          },
+          {
+            role: "user",
+            content: `Analise o documento abaixo, que pertence à empresa "${nomeEmpresa}" do setor de "${setor}".
+
+DOCUMENTO:
+${extractedText}
+
+Gere uma interpretação estratégica detalhada com os seguintes tópicos:
+
+1. **Do que se trata o documento** — Identifique o tipo e propósito do documento (ex: plano de negócios, relatório financeiro, diagnóstico de mercado, apresentação institucional).
+
+2. **Informações estratégicas mais relevantes** — Liste os dados, métricas, metas, posicionamentos ou informações que mais impactam a gestão e o planejamento desta empresa. Seja específico: cite números, nomes e fatos concretos presentes no documento.
+
+3. **Pontos de atenção e oportunidades identificadas** — Aponte os principais riscos, fraquezas, oportunidades ou iniciativas mencionadas no documento que são relevantes para o planejamento estratégico.
+
+4. **Por que este documento é importante para o planejamento estratégico** — Explique como as informações do documento devem orientar as análises de mercado (PESTEL, Cinco Forças) e as estratégias da empresa.
+
+Limite a resposta a no máximo 600 palavras. Seja direto e use linguagem clara sem jargões desnecessários.`,
+          },
+        ],
+        temperature: 0.3,
+        max_tokens: 1000,
+      });
+
+      const interpretacaoTexto = interpretacao.choices[0].message.content || "";
+      const tamanhoKb = Math.round(req.file.size / 1024);
+      const nomeArquivo = req.file.originalname;
+
+      await storage.updateEmpresa(req.session.empresaId, {
+        documentoNome: nomeArquivo,
+        documentoTamanhoKb: tamanhoKb,
+        documentoInterpretacao: interpretacaoTexto,
+        documentoAnalisadoEm: new Date(),
+      });
+
+      res.json({
+        documentoNome: nomeArquivo,
+        documentoTamanhoKb: tamanhoKb,
+        documentoInterpretacao: interpretacaoTexto,
+        documentoAnalisadoEm: new Date().toISOString(),
+      });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Erro desconhecido";
+      res.status(500).json({ error: msg });
+    }
+  });
+
+  app.delete("/api/empresa/documento", async (req, res) => {
+    try {
+      if (!req.session?.userId || !req.session?.empresaId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+      await storage.updateEmpresa(req.session.empresaId, {
+        documentoNome: null,
+        documentoTamanhoKb: null,
+        documentoInterpretacao: null,
+        documentoAnalisadoEm: null,
+      });
+      res.json({ success: true });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Erro desconhecido";
+      res.status(500).json({ error: msg });
     }
   });
 
@@ -1026,11 +1164,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { nomeEmpresa, setor, descricao } = req.body;
       if (!setor) return res.status(400).json({ error: "Setor é obrigatório" });
 
+      // Enriquecer contexto com campos adicionais do perfil
+      let contextoRico = "";
+      if (req.session?.empresaId) {
+        const empresaCompleta = await storage.getEmpresa(req.session.empresaId);
+        if (empresaCompleta) {
+          contextoRico = buildEmpresaContextoIA(empresaCompleta);
+        }
+      }
+
       const prompt = `Você é um analista estratégico especializado em cenário macroeconômico brasileiro. Pesquise notícias, relatórios e tendências RECENTES (últimos 6 a 12 meses) relevantes para uma empresa do setor de "${setor}" no Brasil.
 
-Empresa: ${nomeEmpresa || "não informado"}
-Setor: ${setor}
-${descricao ? `Descrição: ${descricao}` : ""}
+${contextoRico || `Empresa: ${nomeEmpresa || "não informado"}\nSetor: ${setor}${descricao ? `\nDescrição: ${descricao}` : ""}`}
 
 Pesquise e resuma o contexto externo atual para CADA uma das 6 dimensões PESTEL, com foco no impacto para este setor no Brasil:
 
@@ -1135,6 +1280,16 @@ Responda APENAS em JSON válido com exatamente este formato:
         cenarioExterno?: Record<string, { resumo?: string; fontes?: string[] }>;
       };
 
+      // Enriquecer contexto com campos adicionais do perfil
+      let contextoRico = "";
+      if (req.session?.empresaId) {
+        const empresaCompleta = await storage.getEmpresa(req.session.empresaId);
+        if (empresaCompleta) {
+          contextoRico = buildEmpresaContextoIA(empresaCompleta);
+        }
+      }
+      const perfilEmpresa = contextoRico || `Empresa: ${nomeEmpresa}\nSetor: ${setor}\nDescrição: ${descricao}`;
+
       // Contexto rico com título por dimensão
       const cenarioContext = cenarioExterno
         ? `\n\n━━━ CONTEXTO EXTERNO ATUAL (baseado em pesquisa de notícias e tendências recentes) ━━━\n` +
@@ -1171,7 +1326,7 @@ Responda APENAS em JSON válido com exatamente este formato:
           },
           {
             role: "user",
-            content: `Empresa: ${nomeEmpresa}\nSetor: ${setor}\nDescrição: ${descricao}${cenarioContext}${regrasEspecificidadePestel}\n\nCrie EXATAMENTE 6 fatores externos (um para cada categoria PESTEL):\n1. Um fator POLÍTICO (tipo: "politico")\n2. Um fator ECONÔMICO (tipo: "economico")\n3. Um fator SOCIAL (tipo: "social")\n4. Um fator TECNOLÓGICO (tipo: "tecnologico")\n5. Um fator AMBIENTAL (tipo: "ambiental")\n6. Um fator LEGAL (tipo: "legal")\n\nPara cada fator, forneça:\n- tipo: exatamente como indicado acima (politico, economico, social, tecnologico, ambiental, legal)\n- descricao: descrição ESPECÍFICA com dados concretos do contexto pesquisado (percentuais, nomes, datas, leis)\n- impacto: "alto", "médio" ou "baixo"\n- evidencia: explicação ESPECÍFICA de por que este fator importa para esta empresa, com consequências práticas concretas\n\nResponda OBRIGATORIAMENTE em JSON com este formato exato:\n{\n  "fatores": [\n    {"tipo": "politico", "descricao": "...", "impacto": "alto", "evidencia": "..."},\n    {"tipo": "economico", "descricao": "...", "impacto": "médio", "evidencia": "..."},\n    {"tipo": "social", "descricao": "...", "impacto": "...", "evidencia": "..."},\n    {"tipo": "tecnologico", "descricao": "...", "impacto": "...", "evidencia": "..."},\n    {"tipo": "ambiental", "descricao": "...", "impacto": "...", "evidencia": "..."},\n    {"tipo": "legal", "descricao": "...", "impacto": "...", "evidencia": "..."}\n  ]\n}`,
+            content: `${perfilEmpresa}${cenarioContext}${regrasEspecificidadePestel}\n\nCrie EXATAMENTE 6 fatores externos (um para cada categoria PESTEL):\n1. Um fator POLÍTICO (tipo: "politico")\n2. Um fator ECONÔMICO (tipo: "economico")\n3. Um fator SOCIAL (tipo: "social")\n4. Um fator TECNOLÓGICO (tipo: "tecnologico")\n5. Um fator AMBIENTAL (tipo: "ambiental")\n6. Um fator LEGAL (tipo: "legal")\n\nPara cada fator, forneça:\n- tipo: exatamente como indicado acima (politico, economico, social, tecnologico, ambiental, legal)\n- descricao: descrição ESPECÍFICA com dados concretos do contexto pesquisado (percentuais, nomes, datas, leis)\n- impacto: "alto", "médio" ou "baixo"\n- evidencia: explicação ESPECÍFICA de por que este fator importa para esta empresa, com consequências práticas concretas\n\nResponda OBRIGATORIAMENTE em JSON com este formato exato:\n{\n  "fatores": [\n    {"tipo": "politico", "descricao": "...", "impacto": "alto", "evidencia": "..."},\n    {"tipo": "economico", "descricao": "...", "impacto": "médio", "evidencia": "..."},\n    {"tipo": "social", "descricao": "...", "impacto": "...", "evidencia": "..."},\n    {"tipo": "tecnologico", "descricao": "...", "impacto": "...", "evidencia": "..."},\n    {"tipo": "ambiental", "descricao": "...", "impacto": "...", "evidencia": "..."},\n    {"tipo": "legal", "descricao": "...", "impacto": "...", "evidencia": "..."}\n  ]\n}`,
           },
         ],
         response_format: { type: "json_object" },
@@ -1402,6 +1557,16 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
       descricao: string;
     };
 
+    // Enriquecer contexto com campos adicionais do perfil
+    let contextoRico = "";
+    if (req.session?.empresaId) {
+      const empresaCompleta = await storage.getEmpresa(req.session.empresaId);
+      if (empresaCompleta) {
+        contextoRico = buildEmpresaContextoIA(empresaCompleta);
+      }
+    }
+    const perfilEmpresaMercado = contextoRico || `Empresa: ${nomeEmpresa}\nSetor: ${setor}\nDescrição: ${descricao}`;
+
     const forcaKeys = [
       "rivalidade_concorrentes",
       "poder_fornecedores",
@@ -1419,7 +1584,10 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
     // Prompt de pesquisa livre — sem exigir JSON para que o modelo de busca
     // possa focar em encontrar informações reais e específicas
     const searchPrompt = `Você é um analista de inteligência competitiva especializado em mercado brasileiro.
-Pesquise na internet informações ATUAIS e ESPECÍFICAS sobre o mercado de "${setor}" no Brasil para a empresa "${nomeEmpresa}" (${descricao}).
+Pesquise na internet informações ATUAIS e ESPECÍFICAS sobre o mercado de "${setor}" no Brasil para a seguinte empresa:
+
+${perfilEmpresaMercado}
+
 
 Pesquise e descreva com profundidade os seguintes aspectos:
 
@@ -1602,6 +1770,16 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
         mercadoPesquisado?: Record<string, { resumo?: string; fontes?: string[] }>;
       };
 
+      // Enriquecer contexto com campos adicionais do perfil
+      let contextoRico = "";
+      if (req.session?.empresaId) {
+        const empresaCompleta = await storage.getEmpresa(req.session.empresaId);
+        if (empresaCompleta) {
+          contextoRico = buildEmpresaContextoIA(empresaCompleta);
+        }
+      }
+      const perfilEmpresa = contextoRico || `Empresa: ${nomeEmpresa}\nSetor: ${setor}\nDescrição: ${descricao}`;
+
       // Contexto rico: passa cada dimensão completa com título e resumo detalhado
       const contextoPesquisa = mercadoPesquisado
         ? `\n\n━━━ DADOS DE PESQUISA REAL DO MERCADO ━━━\n` +
@@ -1638,7 +1816,7 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
           },
           {
             role: "user",
-            content: `Empresa: ${nomeEmpresa}\nSetor: ${setor}\nDescrição: ${descricao}${contextoPesquisa}${regrasEspecificidade}\n\nAnalise o mercado desta empresa usando as Cinco Forças Competitivas e crie EXATAMENTE 5 análises (uma para cada força):\n1. Rivalidade entre Concorrentes (forca: "rivalidade_concorrentes")\n2. Poder de Negociação dos Fornecedores (forca: "poder_fornecedores")\n3. Poder de Negociação dos Clientes (forca: "poder_clientes")\n4. Ameaça de Novos Entrantes (forca: "ameaca_novos_entrantes")\n5. Ameaça de Produtos Substitutos (forca: "ameaca_substitutos")\n\nPara cada força, forneça:\n- forca: exatamente como indicado acima\n- descricao: descrição ESPECÍFICA com pelo menos 3 frases concretas, citando nomes e dados reais quando disponíveis\n- intensidade: "alta", "média" ou "baixa"\n- impacto: explicação específica de como esta força afeta o negócio desta empresa, com consequências práticas concretas\n\nResponda OBRIGATORIAMENTE em JSON com este formato exato:\n{\n  "forcas": [\n    {"forca": "rivalidade_concorrentes", "descricao": "...", "intensidade": "alta", "impacto": "..."},\n    {"forca": "poder_fornecedores", "descricao": "...", "intensidade": "média", "impacto": "..."},\n    {"forca": "poder_clientes", "descricao": "...", "intensidade": "...", "impacto": "..."},\n    {"forca": "ameaca_novos_entrantes", "descricao": "...", "intensidade": "...", "impacto": "..."},\n    {"forca": "ameaca_substitutos", "descricao": "...", "intensidade": "...", "impacto": "..."}\n  ]\n}`,
+            content: `${perfilEmpresa}${contextoPesquisa}${regrasEspecificidade}\n\nAnalise o mercado desta empresa usando as Cinco Forças Competitivas e crie EXATAMENTE 5 análises (uma para cada força):\n1. Rivalidade entre Concorrentes (forca: "rivalidade_concorrentes")\n2. Poder de Negociação dos Fornecedores (forca: "poder_fornecedores")\n3. Poder de Negociação dos Clientes (forca: "poder_clientes")\n4. Ameaça de Novos Entrantes (forca: "ameaca_novos_entrantes")\n5. Ameaça de Produtos Substitutos (forca: "ameaca_substitutos")\n\nPara cada força, forneça:\n- forca: exatamente como indicado acima\n- descricao: descrição ESPECÍFICA com pelo menos 3 frases concretas, citando nomes e dados reais quando disponíveis\n- intensidade: "alta", "média" ou "baixa"\n- impacto: explicação específica de como esta força afeta o negócio desta empresa, com consequências práticas concretas\n\nResponda OBRIGATORIAMENTE em JSON com este formato exato:\n{\n  "forcas": [\n    {"forca": "rivalidade_concorrentes", "descricao": "...", "intensidade": "alta", "impacto": "..."},\n    {"forca": "poder_fornecedores", "descricao": "...", "intensidade": "média", "impacto": "..."},\n    {"forca": "poder_clientes", "descricao": "...", "intensidade": "...", "impacto": "..."},\n    {"forca": "ameaca_novos_entrantes", "descricao": "...", "intensidade": "...", "impacto": "..."},\n    {"forca": "ameaca_substitutos", "descricao": "...", "intensidade": "...", "impacto": "..."}\n  ]\n}`,
           },
         ],
         response_format: { type: "json_object" },
@@ -1750,13 +1928,7 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
       const ctx: string[] = [];
 
       if (empresa) {
-        ctx.push(`## PERFIL DA EMPRESA
-Nome: ${empresa.nome}
-Setor: ${empresa.setor || "Não informado"}
-Tamanho: ${empresa.tamanho || "Não informado"}
-Descrição: ${empresa.descricao || "Não informada"}
-Website: ${empresa.website || "Não informado"}
-Cidade/Estado: ${[empresa.cidade, empresa.estado].filter(Boolean).join(" / ") || "Não informado"}`);
+        ctx.push(`## PERFIL DA EMPRESA\n${buildEmpresaContextoIA(empresa)}`);
       }
 
       if (pestel.length > 0) {

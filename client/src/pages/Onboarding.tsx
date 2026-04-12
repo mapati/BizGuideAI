@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ProgressBar } from "@/components/ProgressBar";
 import { ExampleCard } from "@/components/ExampleCard";
-import { ArrowRight, ArrowLeft, CheckCircle2, ChevronDown, ChevronUp, Lock, Globe, Sparkles, Loader2, ImagePlus, Trash2 } from "lucide-react";
+import { ArrowRight, ArrowLeft, CheckCircle2, ChevronDown, ChevronUp, Lock, Globe, Sparkles, Loader2, ImagePlus, Trash2, FileText, Upload, X } from "lucide-react";
 import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -40,7 +40,23 @@ export default function Onboarding() {
     estado: "",
     cep: "",
     logoUrl: "",
+    tipoNegocio: "",
+    areaAtuacao: "",
+    publicoAlvo: "",
+    principaisProdutos: "",
+    concorrentesConhecidos: "",
+    diferenciaisCompetitivos: "",
+    anoFundacao: "",
   });
+
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+  const [pdfUploading, setPdfUploading] = useState(false);
+  const [documentoInfo, setDocumentoInfo] = useState<{
+    nome: string;
+    tamanhoKb: number;
+    analisadoEm: string;
+    interpretacao: string;
+  } | null>(null);
 
   const [senhaData, setSenhaData] = useState({
     senhaAtual: "",
@@ -71,7 +87,22 @@ export default function Onboarding() {
         estado: empresaExistente.estado || "",
         cep: empresaExistente.cep || "",
         logoUrl: empresaExistente.logoUrl || "",
+        tipoNegocio: empresaExistente.tipoNegocio || "",
+        areaAtuacao: empresaExistente.areaAtuacao || "",
+        publicoAlvo: empresaExistente.publicoAlvo || "",
+        principaisProdutos: empresaExistente.principaisProdutos || "",
+        concorrentesConhecidos: empresaExistente.concorrentesConhecidos || "",
+        diferenciaisCompetitivos: empresaExistente.diferenciaisCompetitivos || "",
+        anoFundacao: empresaExistente.anoFundacao ? String(empresaExistente.anoFundacao) : "",
       });
+      if (empresaExistente.documentoNome) {
+        setDocumentoInfo({
+          nome: empresaExistente.documentoNome,
+          tamanhoKb: empresaExistente.documentoTamanhoKb || 0,
+          analisadoEm: empresaExistente.documentoAnalisadoEm ? String(empresaExistente.documentoAnalisadoEm) : "",
+          interpretacao: empresaExistente.documentoInterpretacao || "",
+        });
+      }
     }
   }, [empresaExistente]);
 
@@ -115,7 +146,7 @@ export default function Onboarding() {
   });
 
   const atualizarEmpresaMutation = useMutation({
-    mutationFn: async (data: typeof formData) => {
+    mutationFn: async (data: Record<string, unknown>) => {
       return await apiRequest("PATCH", "/api/empresa", data);
     },
     onSuccess: () => {
@@ -241,9 +272,68 @@ export default function Onboarding() {
     if (formData.website && !validateWebsiteUrl(formData.website)) {
       errors.website = "Endereço de website inválido. Ex: https://www.empresa.com.br";
     }
+    if (formData.anoFundacao && (!/^\d{4}$/.test(formData.anoFundacao) || parseInt(formData.anoFundacao) < 1800 || parseInt(formData.anoFundacao) > new Date().getFullYear())) {
+      errors.anoFundacao = "Informe um ano válido (ex: 2005)";
+    }
     setPerfilErrors(errors);
     if (Object.keys(errors).length > 0) return;
-    atualizarEmpresaMutation.mutate(formData);
+    const payload = {
+      ...formData,
+      anoFundacao: formData.anoFundacao ? parseInt(formData.anoFundacao) : null,
+    };
+    atualizarEmpresaMutation.mutate(payload);
+  };
+
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type !== "application/pdf") {
+      toast({ title: "Formato inválido", description: "Selecione um arquivo PDF.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: "Arquivo muito grande", description: "O PDF deve ter no máximo 5 MB.", variant: "destructive" });
+      return;
+    }
+    setPdfUploading(true);
+    try {
+      const formDataPdf = new FormData();
+      formDataPdf.append("pdf", file);
+      const res = await fetch("/api/empresa/documento", {
+        method: "POST",
+        body: formDataPdf,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Erro ao enviar PDF");
+      }
+      const data = await res.json();
+      setDocumentoInfo({
+        nome: data.documentoNome,
+        tamanhoKb: data.documentoTamanhoKb,
+        analisadoEm: data.documentoAnalisadoEm,
+        interpretacao: data.documentoInterpretacao,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/empresa"] });
+      toast({ title: "Documento analisado com sucesso!", description: "A IA já pode usar as informações deste documento nas análises." });
+    } catch (err: unknown) {
+      toast({ title: "Erro ao processar documento", description: err instanceof Error ? err.message : "Tente novamente.", variant: "destructive" });
+    } finally {
+      setPdfUploading(false);
+      if (pdfInputRef.current) pdfInputRef.current.value = "";
+    }
+  };
+
+  const handleRemoverDocumento = async () => {
+    try {
+      await apiRequest("DELETE", "/api/empresa/documento");
+      setDocumentoInfo(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/empresa"] });
+      toast({ title: "Documento removido" });
+    } catch {
+      toast({ title: "Erro ao remover documento", variant: "destructive" });
+    }
   };
 
   const handleAlterarSenha = () => {
@@ -477,6 +567,103 @@ export default function Onboarding() {
               </div>
             </div>
 
+            {/* ── Contexto Estratégico ── */}
+            <div className="border-t pt-6 mt-2 space-y-5">
+              <div>
+                <h4 className="font-semibold text-base mb-0.5">Contexto Estratégico</h4>
+                <p className="text-sm text-muted-foreground">Estas informações enriquecem significativamente as análises de IA. Quanto mais detalhes, mais precisas serão as sugestões.</p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="edit-tipoNegocio">Modelo de Negócio</Label>
+                  <Input
+                    id="edit-tipoNegocio"
+                    placeholder="Ex: B2B, B2C, SaaS, franquia..."
+                    value={formData.tipoNegocio}
+                    onChange={(e) => setFormData({ ...formData, tipoNegocio: e.target.value })}
+                    data-testid="input-tipo-negocio"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="edit-anoFundacao">Ano de Fundação</Label>
+                  <Input
+                    id="edit-anoFundacao"
+                    placeholder="Ex: 2010"
+                    value={formData.anoFundacao}
+                    onChange={(e) => {
+                      setFormData({ ...formData, anoFundacao: e.target.value });
+                      if (perfilErrors.anoFundacao) setPerfilErrors({ ...perfilErrors, anoFundacao: "" });
+                    }}
+                    data-testid="input-ano-fundacao"
+                    maxLength={4}
+                  />
+                  {perfilErrors.anoFundacao && (
+                    <p className="text-sm text-destructive mt-1" data-testid="error-ano-fundacao">{perfilErrors.anoFundacao}</p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="edit-areaAtuacao">Área de Atuação Geográfica</Label>
+                <Input
+                  id="edit-areaAtuacao"
+                  placeholder="Ex: Brasil inteiro, Sudeste, São Paulo capital..."
+                  value={formData.areaAtuacao}
+                  onChange={(e) => setFormData({ ...formData, areaAtuacao: e.target.value })}
+                  data-testid="input-area-atuacao"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-publicoAlvo">Público-Alvo / Cliente Ideal</Label>
+                <Textarea
+                  id="edit-publicoAlvo"
+                  placeholder="Ex: Pequenas indústrias do setor metal-mecânico com faturamento entre R$2M e R$20M..."
+                  value={formData.publicoAlvo}
+                  onChange={(e) => setFormData({ ...formData, publicoAlvo: e.target.value })}
+                  className="min-h-[80px]"
+                  data-testid="textarea-publico-alvo"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-principaisProdutos">Principais Produtos / Serviços</Label>
+                <Textarea
+                  id="edit-principaisProdutos"
+                  placeholder="Ex: Usinagem CNC de alta precisão, injeção plástica, montagem de subconjuntos..."
+                  value={formData.principaisProdutos}
+                  onChange={(e) => setFormData({ ...formData, principaisProdutos: e.target.value })}
+                  className="min-h-[80px]"
+                  data-testid="textarea-principais-produtos"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-concorrentesConhecidos">Concorrentes Conhecidos</Label>
+                <Textarea
+                  id="edit-concorrentesConhecidos"
+                  placeholder="Ex: Empresa X, Grupo Y, startup Z — cite nomes reais se souber"
+                  value={formData.concorrentesConhecidos}
+                  onChange={(e) => setFormData({ ...formData, concorrentesConhecidos: e.target.value })}
+                  className="min-h-[72px]"
+                  data-testid="textarea-concorrentes-conhecidos"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-diferenciaisCompetitivos">Diferenciais Competitivos</Label>
+                <Textarea
+                  id="edit-diferenciaisCompetitivos"
+                  placeholder="Ex: Certificação ISO 9001, prazo de entrega 30% menor que o mercado, atendimento customizado..."
+                  value={formData.diferenciaisCompetitivos}
+                  onChange={(e) => setFormData({ ...formData, diferenciaisCompetitivos: e.target.value })}
+                  className="min-h-[80px]"
+                  data-testid="textarea-diferenciais-competitivos"
+                />
+              </div>
+            </div>
+
             <div className="flex justify-end mt-8">
               <Button
                 onClick={handleSalvarPerfil}
@@ -486,6 +673,99 @@ export default function Onboarding() {
                 {atualizarEmpresaMutation.isPending ? "Salvando..." : "Salvar Perfil"}
               </Button>
             </div>
+          </Card>
+
+          {/* ── Documento Estratégico ── */}
+          <Card className="p-8">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <h3 className="text-xl font-semibold mb-1">Documento Estratégico</h3>
+                <p className="text-sm text-muted-foreground">
+                  Envie um documento PDF relevante (plano de negócios, diagnóstico, relatório) para que a IA extraia informações estratégicas e as use em todas as análises.
+                </p>
+              </div>
+              <FileText className="h-6 w-6 text-muted-foreground flex-shrink-0 mt-1" />
+            </div>
+
+            {documentoInfo ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-4 rounded-md bg-muted/50">
+                  <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate" data-testid="text-documento-nome">{documentoInfo.nome}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {documentoInfo.tamanhoKb} KB · Analisado em {new Date(documentoInfo.analisadoEm).toLocaleDateString("pt-BR")}
+                    </p>
+                  </div>
+                  <Button size="icon" variant="ghost" onClick={handleRemoverDocumento} data-testid="button-remover-documento">
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                {documentoInfo.interpretacao && (
+                  <div>
+                    <p className="text-sm font-medium mb-2">Interpretação da IA</p>
+                    <div className="rounded-md border bg-muted/30 p-4 text-sm text-muted-foreground leading-relaxed max-h-64 overflow-y-auto whitespace-pre-wrap" data-testid="text-documento-interpretacao">
+                      {documentoInfo.interpretacao}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <input
+                    ref={pdfInputRef}
+                    type="file"
+                    accept="application/pdf"
+                    className="hidden"
+                    onChange={handlePdfUpload}
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => pdfInputRef.current?.click()}
+                    disabled={pdfUploading}
+                    data-testid="button-substituir-pdf"
+                  >
+                    {pdfUploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+                    Substituir documento
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <input
+                  ref={pdfInputRef}
+                  type="file"
+                  accept="application/pdf"
+                  className="hidden"
+                  onChange={handlePdfUpload}
+                />
+                <button
+                  type="button"
+                  onClick={() => pdfInputRef.current?.click()}
+                  disabled={pdfUploading}
+                  className="w-full border-2 border-dashed rounded-md p-8 flex flex-col items-center gap-3 text-center hover-elevate disabled:opacity-50"
+                  data-testid="button-upload-pdf"
+                >
+                  {pdfUploading ? (
+                    <>
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium">Analisando documento...</p>
+                        <p className="text-xs text-muted-foreground">Isso pode levar alguns segundos.</p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-8 w-8 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium">Clique para enviar um PDF</p>
+                        <p className="text-xs text-muted-foreground">Máximo 5 MB. A IA irá extrair e interpretar as informações estratégicas do documento.</p>
+                      </div>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </Card>
 
           <Card className="overflow-hidden">

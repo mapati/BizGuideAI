@@ -1383,11 +1383,12 @@ Responda APENAS em JSON válido com exatamente este formato:
       const contextoBase = tipo === "forca" || tipo === "fraqueza" ? "MODELO DE NEGÓCIO" : "CENÁRIO EXTERNO (PESTEL) e MERCADO E CONCORRÊNCIA";
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4o",
         messages: [
           {
             role: "system",
-            content: `Você é um consultor estratégico sênior especializado em análise SWOT. Sua missão é identificar com precisão forças, fraquezas, oportunidades e ameaças relevantes. Use sempre linguagem simples e direta, sem jargões técnicos. IMPORTANTE: Nunca repita itens que já foram identificados anteriormente.`
+            content: `Você é um consultor estratégico sênior especializado em análise SWOT. Sua missão é identificar com precisão forças, fraquezas, oportunidades e ameaças relevantes e específicas da empresa. Use sempre linguagem simples e direta, sem jargões técnicos. IMPORTANTE: Nunca repita itens que já foram identificados anteriormente.
+PRIORIDADE MÁXIMA: Se existir um DOCUMENTO ESTRATÉGICO DA EMPRESA nos dados fornecidos (marcado com ━━━ DOCUMENTO ESTRATÉGICO DA EMPRESA ━━━), leia-o com atenção total e priorize as informações nele contidas sobre riscos, fraquezas, vulnerabilidades, pontos críticos e oportunidades. Os dados do documento estratégico são reais e específicos e devem sobrepor qualquer suposição genérica.`
           },
           {
             role: "user",
@@ -1436,6 +1437,11 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
   app.post("/api/ai/sugerir-swot-completo", async (req, res) => {
     try {
       const empresaId = req.session.empresaId!;
+      const {
+        tiposSelecionados = ["forca", "fraqueza", "oportunidade", "ameaca"],
+        quantidadePorTipo = { forca: 1, fraqueza: 1, oportunidade: 1, ameaca: 1 },
+        instrucaoAdicional = "",
+      } = req.body;
 
       const empresa = await storage.getEmpresa(empresaId);
       if (!empresa) {
@@ -1460,18 +1466,54 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         ameacas: swotExistente.filter(s => s.tipo === "ameaca").map(s => s.descricao),
       };
 
+      const tiposLabel: Record<string, { label: string; plural: string; fonte: string }> = {
+        forca:       { label: "FORÇA",        plural: "FORÇAS",        fonte: "MODELO DE NEGÓCIO" },
+        fraqueza:    { label: "FRAQUEZA",      plural: "FRAQUEZAS",     fonte: "MODELO DE NEGÓCIO" },
+        oportunidade:{ label: "OPORTUNIDADE",  plural: "OPORTUNIDADES", fonte: "CENÁRIO EXTERNO (PESTEL) e MERCADO E CONCORRÊNCIA" },
+        ameaca:      { label: "AMEAÇA",        plural: "AMEAÇAS",       fonte: "CENÁRIO EXTERNO (PESTEL) e MERCADO E CONCORRÊNCIA" },
+      };
+
+      const swotExistentePorTipo: Record<string, string[]> = {
+        forca: swotExistenteResumo.forcas,
+        fraqueza: swotExistenteResumo.fraquezas,
+        oportunidade: swotExistenteResumo.oportunidades,
+        ameaca: swotExistenteResumo.ameacas,
+      };
+
+      const tarefaLinhas = tiposSelecionados.map((tipo: string) => {
+        const info = tiposLabel[tipo];
+        const qtd = quantidadePorTipo[tipo] || 1;
+        const qtdLabel = qtd === 1 ? `1 (uma) ${info.label}` : `${qtd} (${qtd === 2 ? "duas" : qtd === 3 ? "três" : qtd === 4 ? "quatro" : "cinco"}) ${info.plural}`;
+        return `- **${qtdLabel}** (tipo: "${tipo}"): baseada(s) no ${info.fonte}, que NÃO esteja(m) na lista de ${info.plural.toLowerCase()} existentes.`;
+      }).join("\n");
+
+      const existentesSecao = tiposSelecionados.map((tipo: string) => {
+        const info = tiposLabel[tipo];
+        const lista = swotExistentePorTipo[tipo];
+        return `${info.plural} existentes:\n${lista.length > 0 ? lista.map((f, i) => `${i + 1}. ${f}`).join("\n") : `Nenhuma ${info.label.toLowerCase()} identificada ainda`}`;
+      }).join("\n\n");
+
+      const totalEsperado = tiposSelecionados.reduce((sum: number, tipo: string) => sum + (quantidadePorTipo[tipo] || 1), 0);
+
+      const instrucaoSection = instrucaoAdicional?.trim()
+        ? `\n## INSTRUÇÃO PRIORITÁRIA DO USUÁRIO:\n${instrucaoAdicional.trim()}\nEsta instrução deve ser seguida com máxima prioridade na geração dos itens abaixo.\n`
+        : "";
+
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-4o",
         messages: [
           {
             role: "system",
-            content: `Você é um consultor estratégico sênior especializado em análise SWOT. Sua missão é identificar com precisão forças, fraquezas, oportunidades e ameaças relevantes. Use sempre linguagem simples e direta, sem jargões técnicos. IMPORTANTE: Nunca repita itens que já foram identificados anteriormente.`
+            content: `Você é um consultor estratégico sênior especializado em análise SWOT. Sua missão é identificar com precisão forças, fraquezas, oportunidades e ameaças relevantes e específicas da empresa.
+Use sempre linguagem simples e direta, sem jargões técnicos.
+IMPORTANTE: Nunca repita itens que já foram identificados anteriormente.
+PRIORIDADE MÁXIMA: Se existir um DOCUMENTO ESTRATÉGICO DA EMPRESA nos dados fornecidos (marcado com ━━━ DOCUMENTO ESTRATÉGICO DA EMPRESA ━━━), leia-o com atenção total e priorize as informações nele contidas sobre riscos, fraquezas, vulnerabilidades, pontos críticos e oportunidades. Os dados do documento estratégico são reais e específicos e devem sobrepor qualquer suposição genérica.`
           },
           {
             role: "user",
             content: `## PERFIL DA EMPRESA
 ${contextoPerfil}
-
+${instrucaoSection}
 ## CONTEXTO COMPLETO DA EMPRESA:
 
 ### Modelo de Negócio (Business Model Canvas):
@@ -1484,28 +1526,12 @@ ${fatoresPestelResumo || "Ainda não definido"}
 ${cincoForcasResumo || "Ainda não definido"}
 
 ## ANÁLISE SWOT JÁ EXISTENTE (EVITE REPETIR ESTES ITENS):
-Forças existentes:
-${swotExistenteResumo.forcas.length > 0 ? swotExistenteResumo.forcas.map((f, i) => `${i + 1}. ${f}`).join("\n") : "Nenhuma força identificada ainda"}
-
-Fraquezas existentes:
-${swotExistenteResumo.fraquezas.length > 0 ? swotExistenteResumo.fraquezas.map((f, i) => `${i + 1}. ${f}`).join("\n") : "Nenhuma fraqueza identificada ainda"}
-
-Oportunidades existentes:
-${swotExistenteResumo.oportunidades.length > 0 ? swotExistenteResumo.oportunidades.map((o, i) => `${i + 1}. ${o}`).join("\n") : "Nenhuma oportunidade identificada ainda"}
-
-Ameaças existentes:
-${swotExistenteResumo.ameacas.length > 0 ? swotExistenteResumo.ameacas.map((a, i) => `${i + 1}. ${a}`).join("\n") : "Nenhuma ameaça identificada ainda"}
+${existentesSecao}
 
 ## TAREFA:
-Com base em TODO o contexto acima, gere EXATAMENTE 4 novos itens para a análise SWOT (um de cada tipo):
+Com base em TODO o contexto acima, gere EXATAMENTE ${totalEsperado} novo(s) item(ns) para a análise SWOT:
 
-1. **UMA FORÇA** (tipo: "forca"): Com base no MODELO DE NEGÓCIO, identifique uma força interna da empresa que NÃO esteja na lista de forças existentes.
-
-2. **UMA FRAQUEZA** (tipo: "fraqueza"): Com base no MODELO DE NEGÓCIO, identifique uma fraqueza interna da empresa que NÃO esteja na lista de fraquezas existentes.
-
-3. **UMA OPORTUNIDADE** (tipo: "oportunidade"): Com base no CENÁRIO EXTERNO (PESTEL) e MERCADO E CONCORRÊNCIA, identifique uma oportunidade externa que NÃO esteja na lista de oportunidades existentes.
-
-4. **UMA AMEAÇA** (tipo: "ameaca"): Com base no CENÁRIO EXTERNO (PESTEL) e MERCADO E CONCORRÊNCIA, identifique uma ameaça externa que NÃO esteja na lista de ameaças existentes.
+${tarefaLinhas}
 
 Para cada item, forneça:
 - tipo: exatamente "forca", "fraqueza", "oportunidade" ou "ameaca"
@@ -1516,9 +1542,7 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
 {
   "itens": [
     {"tipo": "forca", "descricao": "...", "impacto": "alto"},
-    {"tipo": "fraqueza", "descricao": "...", "impacto": "médio"},
-    {"tipo": "oportunidade", "descricao": "...", "impacto": "alto"},
-    {"tipo": "ameaca", "descricao": "...", "impacto": "médio"}
+    ...
   ]
 }`
           }

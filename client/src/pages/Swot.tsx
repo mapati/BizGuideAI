@@ -5,12 +5,14 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { EmptyState } from "@/components/EmptyState";
 import { ExampleCard } from "@/components/ExampleCard";
-import { Target, Plus, Sparkles, Trash2, TrendingUp, TrendingDown, AlertTriangle, Zap, Pencil } from "lucide-react";
+import { Target, Plus, Sparkles, Trash2, TrendingUp, TrendingDown, AlertTriangle, Zap, Pencil, FileText, Settings2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -46,6 +48,15 @@ const SwotIcon = ({ tipo }: { tipo: string }) => {
   return icons[tipo as keyof typeof icons] || null;
 };
 
+const TIPOS_SWOT = [
+  { value: "forca",        label: "Forças",        desc: "Pontos fortes internos" },
+  { value: "fraqueza",     label: "Fraquezas",     desc: "Pontos fracos internos" },
+  { value: "oportunidade", label: "Oportunidades", desc: "Oportunidades externas" },
+  { value: "ameaca",       label: "Ameaças",       desc: "Riscos externos" },
+] as const;
+
+type TipoSwot = typeof TIPOS_SWOT[number]["value"];
+
 export default function Swot() {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -53,12 +64,27 @@ export default function Swot() {
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [isSuggestingComplete, setIsSuggestingComplete] = useState(false);
   const [isSuggestingModal, setIsSuggestingModal] = useState(false);
-  const [tipoSugestao, setTipoSugestao] = useState<"forca" | "fraqueza" | "oportunidade" | "ameaca" | null>(null);
+  const [tipoSugestao, setTipoSugestao] = useState<TipoSwot | null>(null);
   const [formData, setFormData] = useState({
     tipo: "",
     descricao: "",
     impacto: "médio" as const,
   });
+
+  const [isAiParamsOpen, setIsAiParamsOpen] = useState(false);
+  const [tiposSelecionados, setTiposSelecionados] = useState<Record<TipoSwot, boolean>>({
+    forca: true,
+    fraqueza: true,
+    oportunidade: true,
+    ameaca: true,
+  });
+  const [quantidadePorTipo, setQuantidadePorTipo] = useState<Record<TipoSwot, number>>({
+    forca: 1,
+    fraqueza: 1,
+    oportunidade: 1,
+    ameaca: 1,
+  });
+  const [instrucaoAdicional, setInstrucaoAdicional] = useState("");
 
   const tipos = [
     { value: "forca", label: "Força", desc: "Algo que sua empresa faz bem" },
@@ -170,7 +196,7 @@ export default function Swot() {
     }
   };
 
-  const handleSuggest = async (tipo: "forca" | "fraqueza" | "oportunidade" | "ameaca") => {
+  const handleSuggest = async (tipo: TipoSwot) => {
     if (!empresa) {
       toast({
         title: "Perfil não encontrado",
@@ -276,28 +302,37 @@ export default function Swot() {
       return;
     }
 
+    const tiposSelecionadosArray = (Object.keys(tiposSelecionados) as TipoSwot[]).filter(
+      (t) => tiposSelecionados[t]
+    );
+
+    if (tiposSelecionadosArray.length === 0) {
+      toast({
+        title: "Nenhum quadrante selecionado",
+        description: "Selecione pelo menos um tipo de análise para gerar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsAiParamsOpen(false);
     setIsSuggestingComplete(true);
     try {
       const response = await apiRequest("POST", "/api/ai/sugerir-swot-completo", {
         empresaId: empresa.id,
+        tiposSelecionados: tiposSelecionadosArray,
+        quantidadePorTipo,
+        instrucaoAdicional: instrucaoAdicional.trim(),
       });
 
       const itens = response.itens || [];
-      
-      if (itens.length !== 4) {
-        throw new Error("A IA deve gerar exatamente 4 itens (1 de cada tipo)");
-      }
 
-      const tiposEsperados = ["forca", "fraqueza", "oportunidade", "ameaca"];
-      const tiposRecebidos = itens.map((i: any) => i.tipo);
-      const tiposValidos = tiposEsperados.every(tipo => tiposRecebidos.includes(tipo));
-      
-      if (!tiposValidos) {
-        throw new Error("A IA deve gerar 1 item de cada tipo (força, fraqueza, oportunidade, ameaça)");
+      if (itens.length === 0) {
+        throw new Error("A IA não retornou nenhum item.");
       }
 
       const analiseExistente = analises.map(a => a.descricao.toLowerCase().trim());
-      const itensNaoduplicados = itens.filter((item: any) => 
+      const itensNaoduplicados = itens.filter((item: any) =>
         !analiseExistente.includes(item.descricao.toLowerCase().trim())
       );
 
@@ -311,6 +346,7 @@ export default function Swot() {
       }
 
       let adicionados = 0;
+      const adicionadosPorTipo: Record<string, number> = {};
       for (const item of itensNaoduplicados) {
         try {
           await apiRequest("POST", "/api/analise-swot", {
@@ -318,17 +354,24 @@ export default function Swot() {
             empresaId: empresa.id,
           });
           adicionados++;
+          adicionadosPorTipo[item.tipo] = (adicionadosPorTipo[item.tipo] || 0) + 1;
         } catch (err: any) {
           console.error(`Erro ao salvar item ${item.tipo}:`, err);
         }
       }
 
       queryClient.invalidateQueries({ queryKey: ["/api/analise-swot", empresa.id] });
-      
+
       if (adicionados > 0) {
+        const resumoTipos = Object.entries(adicionadosPorTipo)
+          .map(([tipo, n]) => {
+            const label = { forca: "força", fraqueza: "fraqueza", oportunidade: "oportunidade", ameaca: "ameaça" }[tipo];
+            return `${n} ${label}`;
+          })
+          .join(", ");
         toast({
           title: "Análise gerada com sucesso!",
-          description: `${adicionados} ${adicionados === 1 ? 'novo item foi adicionado' : 'novos itens foram adicionados'}.`,
+          description: `Adicionados: ${resumoTipos}.`,
         });
       } else {
         toast({
@@ -374,6 +417,7 @@ export default function Swot() {
   }
 
   const grupos = agruparPorTipo();
+  const temDocumento = !!(empresa as any)?.documentoNome;
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -382,10 +426,10 @@ export default function Swot() {
         description="Identifique o que sua empresa faz bem (forças), o que precisa melhorar (fraquezas), oportunidades externas e ameaças que você enfrenta."
         tooltip="Esta análise ajuda a entender seus pontos fortes internos e fracos, além das oportunidades e riscos do mercado."
         action={
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button
               variant="outline"
-              onClick={handleSuggestComplete}
+              onClick={() => setIsAiParamsOpen(true)}
               disabled={isSuggestingComplete || isSuggesting}
               data-testid="button-suggest-complete"
             >
@@ -477,6 +521,101 @@ export default function Swot() {
         }
       />
 
+      <Dialog open={isAiParamsOpen} onOpenChange={setIsAiParamsOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings2 className="h-5 w-5" />
+              Gerar SWOT com IA
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-5 py-2">
+            {temDocumento && (
+              <Alert data-testid="alert-documento-disponivel">
+                <FileText className="h-4 w-4" />
+                <AlertDescription>
+                  <span className="font-medium">Documento estratégico disponível:</span> {(empresa as any).documentoNome}. Use as instruções abaixo para direcionar a IA às seções mais relevantes.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <div>
+              <Label className="text-sm font-medium mb-3 block">Quadrantes a gerar</Label>
+              <div className="space-y-3">
+                {TIPOS_SWOT.map((tipo) => (
+                  <div key={tipo.value} className="flex items-center justify-between gap-4" data-testid={`row-tipo-${tipo.value}`}>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id={`check-${tipo.value}`}
+                        checked={tiposSelecionados[tipo.value]}
+                        onCheckedChange={(checked) =>
+                          setTiposSelecionados((prev) => ({ ...prev, [tipo.value]: !!checked }))
+                        }
+                        data-testid={`checkbox-tipo-${tipo.value}`}
+                      />
+                      <label htmlFor={`check-${tipo.value}`} className="text-sm cursor-pointer select-none">
+                        <span className="font-medium">{tipo.label}</span>
+                        <span className="text-muted-foreground ml-1">— {tipo.desc}</span>
+                      </label>
+                    </div>
+                    {tiposSelecionados[tipo.value] && (
+                      <Select
+                        value={String(quantidadePorTipo[tipo.value])}
+                        onValueChange={(val) =>
+                          setQuantidadePorTipo((prev) => ({ ...prev, [tipo.value]: Number(val) }))
+                        }
+                      >
+                        <SelectTrigger className="w-20 shrink-0" data-testid={`select-qtd-${tipo.value}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <SelectItem key={n} value={String(n)}>
+                              {n} {n === 1 ? "item" : "itens"}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="instrucao-adicional" className="text-sm font-medium mb-1 block">
+                Instruções adicionais <span className="text-muted-foreground font-normal">(opcional)</span>
+              </Label>
+              <Textarea
+                id="instrucao-adicional"
+                placeholder={temDocumento
+                  ? "Ex: Identifique fraquezas mencionadas no documento estratégico, especialmente nas seções de riscos financeiros e operacionais."
+                  : "Ex: Foque em riscos relacionados à dependência de poucos clientes e à falta de processos documentados."}
+                value={instrucaoAdicional}
+                onChange={(e) => setInstrucaoAdicional(e.target.value)}
+                className="min-h-[90px] resize-none text-sm"
+                data-testid="textarea-instrucao-adicional"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsAiParamsOpen(false)} data-testid="button-cancelar-ai-params">
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSuggestComplete}
+              disabled={isSuggestingComplete || !Object.values(tiposSelecionados).some(Boolean)}
+              data-testid="button-confirmar-gerar-ia"
+            >
+              <Sparkles className="h-4 w-4 mr-2" />
+              {isSuggestingComplete ? "Gerando..." : "Gerar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <ExampleCard>
         <strong>Força:</strong> Temos uma equipe técnica altamente qualificada com 15 anos de experiência média. <strong>Impacto: Alto</strong>
       </ExampleCard>
@@ -513,7 +652,7 @@ export default function Swot() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => handleSuggest(grupo.tipo as any)}
+                  onClick={() => handleSuggest(grupo.tipo as TipoSwot)}
                   disabled={isSuggesting}
                   data-testid={`button-suggest-${grupo.tipo}`}
                 >

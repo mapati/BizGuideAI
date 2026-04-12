@@ -1008,6 +1008,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Research external scenario via web search for PESTEL analysis
   app.post("/api/ai/pesquisar-cenario-externo", async (req, res) => {
+    interface CenarioDim {
+      resumo: string;
+      fontes: string[];
+    }
+    interface CenarioPESTEL {
+      politico: CenarioDim;
+      economico: CenarioDim;
+      social: CenarioDim;
+      tecnologico: CenarioDim;
+      ambiental: CenarioDim;
+      legal: CenarioDim;
+      [key: string]: CenarioDim;
+    }
+
     try {
       const { nomeEmpresa, setor, descricao } = req.body;
       if (!setor) return res.status(400).json({ error: "Setor é obrigatório" });
@@ -1037,11 +1051,20 @@ Responda APENAS em JSON válido com exatamente este formato:
   "legal": { "resumo": "...", "fontes": ["...", "..."] }
 }`;
 
-      let cenario: any = null;
+      const dims = ["politico", "economico", "social", "tecnologico", "ambiental", "legal"] as const;
+      const emptyDim = (): CenarioDim => ({ resumo: "Informação não disponível.", fontes: [] });
+      let cenario: CenarioPESTEL = {
+        politico: emptyDim(),
+        economico: emptyDim(),
+        social: emptyDim(),
+        tecnologico: emptyDim(),
+        ambiental: emptyDim(),
+        legal: emptyDim(),
+      };
 
       try {
         // Use Responses API with web_search_preview for real-time internet search
-        const response = await (openai as any).responses.create({
+        const response = await openai.responses.create({
           model: "gpt-4o-mini-search-preview",
           tools: [{ type: "web_search_preview" }],
           input: prompt,
@@ -1050,10 +1073,24 @@ Responda APENAS em JSON válido com exatamente este formato:
         const text: string = response.output_text || "";
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (!jsonMatch) throw new Error("JSON não encontrado na resposta de pesquisa");
-        cenario = JSON.parse(jsonMatch[0]);
-      } catch (searchError: any) {
+        const parsed: Record<string, unknown> = JSON.parse(jsonMatch[0]);
+
+        for (const dim of dims) {
+          const raw = parsed[dim];
+          if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+            const entry = raw as Record<string, unknown>;
+            cenario[dim] = {
+              resumo: typeof entry.resumo === "string" ? entry.resumo : emptyDim().resumo,
+              fontes: Array.isArray(entry.fontes)
+                ? (entry.fontes as unknown[]).filter((f): f is string => typeof f === "string")
+                : [],
+            };
+          }
+        }
+      } catch (searchError: unknown) {
         // Fallback: use regular chat completion with knowledge-based analysis
-        console.warn("[PESTEL] web_search_preview falhou, usando fallback:", searchError.message);
+        const msg = searchError instanceof Error ? searchError.message : String(searchError);
+        console.warn("[PESTEL] web_search_preview falhou, usando fallback:", msg);
         const fallback = await openai.chat.completions.create({
           model: "gpt-4o-mini",
           messages: [
@@ -1066,30 +1103,42 @@ Responda APENAS em JSON válido com exatamente este formato:
           response_format: { type: "json_object" },
           temperature: 0.5,
         });
-        cenario = JSON.parse(fallback.choices[0].message.content || "{}");
-      }
+        const parsed: Record<string, unknown> = JSON.parse(fallback.choices[0].message.content || "{}");
 
-      // Validate structure — ensure all 6 keys are present
-      const dims = ["politico", "economico", "social", "tecnologico", "ambiental", "legal"];
-      for (const dim of dims) {
-        if (!cenario[dim]) cenario[dim] = { resumo: "Informação não disponível.", fontes: [] };
-        if (!Array.isArray(cenario[dim].fontes)) cenario[dim].fontes = [];
+        for (const dim of dims) {
+          const raw = parsed[dim];
+          if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+            const entry = raw as Record<string, unknown>;
+            cenario[dim] = {
+              resumo: typeof entry.resumo === "string" ? entry.resumo : emptyDim().resumo,
+              fontes: Array.isArray(entry.fontes)
+                ? (entry.fontes as unknown[]).filter((f): f is string => typeof f === "string")
+                : [],
+            };
+          }
+        }
       }
 
       res.json(cenario);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ error: msg });
     }
   });
 
   app.post("/api/ai/sugerir-pestel", async (req, res) => {
     try {
-      const { nomeEmpresa, setor, descricao, cenarioExterno } = req.body;
+      const { nomeEmpresa, setor, descricao, cenarioExterno } = req.body as {
+        nomeEmpresa: string;
+        setor: string;
+        descricao: string;
+        cenarioExterno?: Record<string, { resumo?: string; fontes?: string[] }>;
+      };
 
       const cenarioContext = cenarioExterno
         ? `\n\nCONTEXTO EXTERNO ATUAL (baseado em pesquisa de notícias e tendências recentes):\n${
             Object.entries(cenarioExterno)
-              .map(([dim, data]: [string, any]) => `${dim.toUpperCase()}: ${data?.resumo || ""}`)
+              .map(([dim, data]) => `${dim.toUpperCase()}: ${data?.resumo ?? ""}`)
               .join("\n\n")
           }\n\nIMPORTANTE: Use estes dados reais e recentes para embasar os fatores. Os fatores devem mencionar eventos, dados ou tendências específicos do contexto acima. Seja concreto e atual.\n`
         : "";

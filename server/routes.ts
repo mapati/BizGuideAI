@@ -18,7 +18,15 @@ import {
   insertRitualSchema,
   insertEventoSchema,
   insertFaturaSchema,
+  type FatorPestel,
+  type AnaliseSwot,
+  type Objetivo,
   type ResultadoChave,
+  type Indicador,
+  type CincoForcas,
+  type ModeloNegocio,
+  type Estrategia,
+  type Iniciativa,
   type Fatura,
 } from "@shared/schema";
 import OpenAI from "openai";
@@ -1493,8 +1501,16 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         }
       }
 
+      // Validate fontesContexto values
+      const fontesPermitidas = ["perfil", "documento", "pestel", "cincoForcas", "modeloNegocio", "indicadores", "objetivos", "estrategias"] as const;
+      const fontesInput: string[] = Array.isArray(fontesContexto) ? fontesContexto : [];
+      const fontesInvalidas = fontesInput.filter((f) => !fontesPermitidas.includes(f as typeof fontesPermitidas[number]));
+      if (fontesInvalidas.length > 0) {
+        return res.status(400).json({ error: `Fontes inválidas: ${fontesInvalidas.join(", ")}. Permitidas: ${fontesPermitidas.join(", ")}` });
+      }
+      const fontesValidas = fontesInput as (typeof fontesPermitidas[number])[];
+
       // Parse fontes flags (perfil always included)
-      const fontesValidas: string[] = Array.isArray(fontesContexto) ? fontesContexto : [];
       const useDocumento    = fontesValidas.includes("documento");
       const usePestel       = fontesValidas.includes("pestel");
       const useCincoForcas  = fontesValidas.includes("cincoForcas");
@@ -1506,7 +1522,7 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
       const empresa = await storage.getEmpresa(empresaId);
       if (!empresa) return res.status(404).json({ error: "Empresa não encontrada" });
 
-      // Conditional parallel DB queries
+      // Conditional parallel DB queries (typed)
       const [
         fatoresPestelList,
         cincoForcasList,
@@ -1517,49 +1533,49 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         iniciativasList,
         swotExistente,
       ] = await Promise.all([
-        usePestel       ? storage.getFatoresPestel(empresaId) : Promise.resolve([]),
-        useCincoForcas  ? storage.getCincoForcas(empresaId)   : Promise.resolve([]),
-        useModeloNeg    ? storage.getModeloNegocio(empresaId) : Promise.resolve([]),
-        useIndicadores  ? storage.getIndicadores(empresaId)   : Promise.resolve([]),
-        useObjetivos    ? storage.getObjetivos(empresaId)     : Promise.resolve([]),
-        useEstrategias  ? storage.getEstrategias(empresaId)   : Promise.resolve([]),
-        useEstrategias  ? storage.getIniciativas(empresaId)   : Promise.resolve([]),
+        usePestel      ? storage.getFatoresPestel(empresaId) : Promise.resolve<FatorPestel[]>([]),
+        useCincoForcas ? storage.getCincoForcas(empresaId)   : Promise.resolve<CincoForcas[]>([]),
+        useModeloNeg   ? storage.getModeloNegocio(empresaId) : Promise.resolve<ModeloNegocio[]>([]),
+        useIndicadores ? storage.getIndicadores(empresaId)   : Promise.resolve<Indicador[]>([]),
+        useObjetivos   ? storage.getObjetivos(empresaId)     : Promise.resolve<Objetivo[]>([]),
+        useEstrategias ? storage.getEstrategias(empresaId)   : Promise.resolve<Estrategia[]>([]),
+        useEstrategias ? storage.getIniciativas(empresaId)   : Promise.resolve<Iniciativa[]>([]),
         storage.getAnaliseSwot(empresaId),
       ]);
 
       // Fetch resultadosChave for each objective (OKRs)
-      let resultadosChaveMap: Record<string, any[]> = {};
+      const resultadosChaveMap: Record<string, ResultadoChave[]> = {};
       if (useObjetivos && objetivosList.length > 0) {
         const resultados = await Promise.all(
-          objetivosList.map((o: any) => storage.getResultadosChave(o.id, empresaId))
+          objetivosList.map((o) => storage.getResultadosChave(o.id, empresaId))
         );
-        objetivosList.forEach((o: any, idx: number) => {
-          resultadosChaveMap[o.id] = resultados[idx] || [];
+        objetivosList.forEach((o, idx) => {
+          resultadosChaveMap[o.id] = resultados[idx] ?? [];
         });
       }
 
-      // Build context strings
-      const fatoresPestelResumo  = fatoresPestelList.map((f: any) => `${f.tipo}: ${f.descricao}`).join("\n");
-      const cincoForcasResumo    = cincoForcasList.map((f: any) => `${f.forca}: ${f.descricao} (intensidade ${f.intensidade})`).join("\n");
-      const modeloNegocioResumo  = modeloNegocioList.map((m: any) => `${m.bloco}: ${m.descricao}`).join("\n");
-      const indicadoresResumo    = indicadoresList.map((i: any) => `[${i.perspectiva}] ${i.nome}: atual=${i.atual}, meta=${i.meta}, status=${i.status}`).join("\n");
-      const objetivosResumo      = objetivosList.map((o: any) => {
-        const krs = resultadosChaveMap[o.id] || [];
+      // Build context strings (fully typed, no any)
+      const fatoresPestelResumo  = fatoresPestelList.map((f) => `${f.tipo}: ${f.descricao}`).join("\n");
+      const cincoForcasResumo    = cincoForcasList.map((f) => `${f.forca}: ${f.descricao} (intensidade ${f.intensidade})`).join("\n");
+      const modeloNegocioResumo  = modeloNegocioList.map((m) => `${m.bloco}: ${m.descricao}`).join("\n");
+      const indicadoresResumo    = indicadoresList.map((i) => `[${i.perspectiva}] ${i.nome}: atual=${i.atual}, meta=${i.meta}, status=${i.status}`).join("\n");
+      const objetivosResumo      = objetivosList.map((o) => {
+        const krs = resultadosChaveMap[o.id] ?? [];
         const krsText = krs.length > 0
-          ? "\n" + krs.map((kr: any) => `    KR: ${kr.descricao} — atual: ${kr.atual}, meta: ${kr.meta}, status: ${kr.status}`).join("\n")
+          ? "\n" + krs.map((kr) => `    KR: ${kr.descricao} — atual: ${kr.atual}, meta: ${kr.meta}, status: ${kr.status}`).join("\n")
           : "";
         return `[${o.perspectiva}] ${o.titulo}${o.descricao ? `: ${o.descricao}` : ""} (prazo: ${o.prazo})${krsText}`;
       }).join("\n");
       const estrategiasResumo    = [
-        ...estrategiasList.map((e: any) => `[Estratégia | ${e.tipo} | ${e.prioridade}] ${e.titulo}: ${e.descricao}`),
-        ...iniciativasList.map((i: any) => `[Iniciativa | ${i.prioridade} | ${i.status}] ${i.titulo}: ${i.descricao} (resp: ${i.responsavel})`),
+        ...estrategiasList.map((e) => `[Estratégia | ${e.tipo} | ${e.prioridade}] ${e.titulo}: ${e.descricao}`),
+        ...iniciativasList.map((i) => `[Iniciativa | ${i.prioridade} | ${i.status}] ${i.titulo}: ${i.descricao} (resp: ${i.responsavel})`),
       ].join("\n");
 
       const swotExistentePorTipo: Record<string, string[]> = {
-        forca:        swotExistente.filter((s: any) => s.tipo === "forca").map((s: any) => s.descricao),
-        fraqueza:     swotExistente.filter((s: any) => s.tipo === "fraqueza").map((s: any) => s.descricao),
-        oportunidade: swotExistente.filter((s: any) => s.tipo === "oportunidade").map((s: any) => s.descricao),
-        ameaca:       swotExistente.filter((s: any) => s.tipo === "ameaca").map((s: any) => s.descricao),
+        forca:        swotExistente.filter((s: AnaliseSwot) => s.tipo === "forca").map((s: AnaliseSwot) => s.descricao),
+        fraqueza:     swotExistente.filter((s: AnaliseSwot) => s.tipo === "fraqueza").map((s: AnaliseSwot) => s.descricao),
+        oportunidade: swotExistente.filter((s: AnaliseSwot) => s.tipo === "oportunidade").map((s: AnaliseSwot) => s.descricao),
+        ameaca:       swotExistente.filter((s: AnaliseSwot) => s.tipo === "ameaca").map((s: AnaliseSwot) => s.descricao),
       };
 
       // ── TWO-STEP EXTRACTION ────────────────────────────────────────────────

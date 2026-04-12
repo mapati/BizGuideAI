@@ -652,7 +652,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         documentoNome: nomeArquivo,
         documentoTamanhoKb: tamanhoKb,
-        documentoInterpretacao: interpretacaoTexto,
         documentoAnalisadoEm: new Date().toISOString(),
       });
     } catch (error: unknown) {

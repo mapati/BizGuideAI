@@ -73,7 +73,7 @@ async function ssrfSafeFetch(rawUrl: string): Promise<string> {
   // returns opaque responses for redirect:"manual", so we use "follow" and
   // validate the final destination URL afterwards to catch redirect-based SSRF)
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10000);
+  const timer = setTimeout(() => controller.abort(), 15000);
 
   let response: Response;
   try {
@@ -83,9 +83,13 @@ async function ssrfSafeFetch(rawUrl: string): Promise<string> {
       redirect: "follow",
       headers: {
         "User-Agent":
-          "Mozilla/5.0 (compatible; BizGuideAI/1.0; +https://bizguideai.com)",
-        "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+        "Upgrade-Insecure-Requests": "1",
       },
     });
   } finally {
@@ -2242,15 +2246,70 @@ Responda em JSON:
           // Retry with plain http
           html = await ssrfSafeFetch(websiteHttp);
         }
+        // Follow meta http-equiv="refresh" redirects (not handled by native fetch)
+        // Check raw HTML for the redirect before loading cheerio
+        const metaRefreshMatch = html.match(/<meta[^>]+http-equiv\s*=\s*["']refresh["'][^>]*content\s*=\s*["']([^"']+)["']/i)
+          || html.match(/<meta[^>]+content\s*=\s*["']([^"']+)["'][^>]+http-equiv\s*=\s*["']refresh["']/i);
+        if (metaRefreshMatch) {
+          const urlMatch = metaRefreshMatch[1].match(/url\s*=\s*['"]?([^'";\s]+)/i);
+          if (urlMatch) {
+            let refreshUrl = urlMatch[1].trim();
+            if (!refreshUrl.startsWith("http://") && !refreshUrl.startsWith("https://")) {
+              const base = new URL(websiteHttps);
+              refreshUrl = refreshUrl.startsWith("/") ? base.origin + refreshUrl : base.origin + "/" + refreshUrl;
+            }
+            try {
+              html = await ssrfSafeFetch(refreshUrl);
+            } catch {
+              // If refresh URL fails, continue with original content
+            }
+          }
+        }
+
         const $ = cheerio.load(html);
 
-        $("script, style, nav, footer, header, [aria-hidden='true']").remove();
+        $("script, style, noscript, nav, footer, [aria-hidden='true'], .cookie-banner, #cookie-consent, .popup, .modal").remove();
+
+        // Extract JSON-LD structured data (Organization, LocalBusiness, WebSite, etc.)
+        let jsonLdText = "";
+        $('script[type="application/ld+json"]').each((_, el) => {
+          try {
+            const raw = $(el).html() || "";
+            const data = JSON.parse(raw);
+            const graphs: any[] = Array.isArray(data["@graph"]) ? data["@graph"] : [data];
+            for (const node of graphs) {
+              const type = node["@type"] || "";
+              if (/organization|localbusiness|company|corporation|store/i.test(type)) {
+                const parts = [
+                  node.name ? `Nome: ${node.name}` : "",
+                  node.description ? `Descrição: ${node.description}` : "",
+                  node.slogan ? `Slogan: ${node.slogan}` : "",
+                  node.foundingDate ? `Fundação: ${node.foundingDate}` : "",
+                  node.numberOfEmployees?.value ? `Funcionários: ${node.numberOfEmployees.value}` : "",
+                  node.address?.addressLocality ? `Cidade: ${node.address.addressLocality}` : "",
+                  node.address?.addressRegion ? `Estado: ${node.address.addressRegion}` : "",
+                  node.areaServed ? `Área de atuação: ${typeof node.areaServed === "string" ? node.areaServed : JSON.stringify(node.areaServed)}` : "",
+                ].filter(Boolean).join(" | ");
+                if (parts) jsonLdText += parts + "\n";
+              }
+              if (/webpage|website/i.test(type) && node.name) {
+                jsonLdText += `Página: ${node.name}\n`;
+              }
+            }
+          } catch {
+            // Ignore malformed JSON-LD
+          }
+        });
 
         const title = $("title").text().trim();
         const metaDesc =
           $('meta[name="description"]').attr("content") ||
           $('meta[property="og:description"]').attr("content") ||
+          $('meta[name="og:description"]').attr("content") ||
           "";
+        const metaKeywords = $('meta[name="keywords"]').attr("content") || "";
+        const ogTitle = $('meta[property="og:title"]').attr("content") || "";
+
         const h1s = $("h1")
           .map((_, el) => $(el).text().trim())
           .get()
@@ -2261,32 +2320,86 @@ Responda em JSON:
           .map((_, el) => $(el).text().trim())
           .get()
           .filter(Boolean)
-          .slice(0, 8)
+          .slice(0, 10)
           .join(" | ");
         const h3s = $("h3")
           .map((_, el) => $(el).text().trim())
           .get()
           .filter(Boolean)
-          .slice(0, 10)
+          .slice(0, 12)
           .join(" | ");
+
+        // Extract text from paragraphs (lowered threshold for short but useful content)
         const paragrafos = $("p")
           .map((_, el) => $(el).text().trim())
           .get()
-          .filter((t) => t.length > 40)
-          .slice(0, 20)
+          .filter((t) => t.length > 20)
+          .slice(0, 30)
+          .join("\n");
+
+        // Extract text from list items (products, services, features)
+        const liItems = $("li")
+          .map((_, el) => $(el).text().trim())
+          .get()
+          .filter((t) => t.length > 10 && t.length < 300)
+          .slice(0, 30)
+          .join(" | ");
+
+        // Extract text from article/main/section semantic elements not already covered
+        const semanticText = $("article, main, section, .about, .sobre, #about, #sobre, [class*='about'], [class*='sobre'], [class*='company'], [class*='empresa']")
+          .map((_, el) => {
+            // Get direct text without child headings (already captured) or scripts
+            const clone = $(el).clone();
+            clone.find("script, style, h1, h2, h3").remove();
+            return clone.text().replace(/\s+/g, " ").trim();
+          })
+          .get()
+          .filter((t) => t.length > 30)
+          .slice(0, 10)
           .join("\n");
 
         conteudoSite = [
           title ? `Título: ${title}` : "",
-          metaDesc ? `Descrição do site: ${metaDesc}` : "",
-          h1s ? `Títulos principais (H1): ${h1s}` : "",
-          h2s ? `Subtítulos (H2): ${h2s}` : "",
-          h3s ? `Subtítulos (H3): ${h3s}` : "",
-          paragrafos ? `Conteúdo:\n${paragrafos}` : "",
+          ogTitle && ogTitle !== title ? `Título OG: ${ogTitle}` : "",
+          metaDesc ? `Descrição: ${metaDesc}` : "",
+          metaKeywords ? `Palavras-chave: ${metaKeywords}` : "",
+          jsonLdText ? `Dados estruturados:\n${jsonLdText}` : "",
+          h1s ? `H1: ${h1s}` : "",
+          h2s ? `H2: ${h2s}` : "",
+          h3s ? `H3: ${h3s}` : "",
+          paragrafos ? `Parágrafos:\n${paragrafos}` : "",
+          liItems ? `Itens de lista: ${liItems}` : "",
+          semanticText ? `Conteúdo semântico:\n${semanticText}` : "",
         ]
           .filter(Boolean)
           .join("\n\n")
-          .slice(0, 8000);
+          .slice(0, 10000);
+
+        // If main page doesn't have enough text, try known subpages
+        if (conteudoSite.length < 500) {
+          const baseOrigin = new URL(websiteHttps).origin;
+          const subpages = ["/sobre", "/sobre-nos", "/quem-somos", "/empresa", "/about", "/about-us", "/a-empresa", "/institucional"];
+          for (const path of subpages) {
+            try {
+              const subUrl = baseOrigin + path;
+              const subHtml = await ssrfSafeFetch(subUrl);
+              const $2 = cheerio.load(subHtml);
+              $2("script, style, noscript, nav, footer").remove();
+              const subText = $2("p, li, article, section, main")
+                .map((_, el) => $2(el).text().trim())
+                .get()
+                .filter((t) => t.length > 20)
+                .slice(0, 30)
+                .join("\n");
+              if (subText.length > 200) {
+                conteudoSite += `\n\n--- Página: ${path} ---\n${subText}`.slice(0, 10000);
+                break;
+              }
+            } catch {
+              // Subpage not found or inaccessible, continue
+            }
+          }
+        }
       } catch (fetchErr: any) {
         if (fetchErr.code === "SSRF_BLOCKED") {
           return res.status(400).json({
@@ -2306,7 +2419,7 @@ Responda em JSON:
       if (!conteudoSite.trim()) {
         return res.status(422).json({
           error:
-            "O site não retornou conteúdo suficiente para gerar a descrição. Tente preencher manualmente.",
+            "O site não retornou conteúdo legível suficiente. Isso pode ocorrer quando o site usa JavaScript para renderizar o conteúdo (React/Vue/Angular). Tente preencher manualmente ou use a URL de uma página com conteúdo estático (ex: /sobre ou /quem-somos).",
         });
       }
 

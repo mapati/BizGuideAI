@@ -8,9 +8,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { EmptyState } from "@/components/EmptyState";
 import { ExampleCard } from "@/components/ExampleCard";
-import { Layers, Plus, Sparkles, Trash2, Pencil } from "lucide-react";
+import {
+  Layers, Plus, Sparkles, Trash2, Pencil,
+  Globe, ChevronDown, ChevronUp, ExternalLink, Loader2,
+} from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -22,6 +26,22 @@ interface CincoForcas {
   intensidade: "alta" | "média" | "baixa";
   impacto: string;
 }
+
+interface ForcaPesquisa {
+  resumo: string;
+  fontes: string[];
+}
+
+type ForcaKey =
+  | "rivalidade_concorrentes"
+  | "poder_fornecedores"
+  | "poder_clientes"
+  | "ameaca_novos_entrantes"
+  | "ameaca_substitutos";
+
+type MercadoPesquisado = Record<ForcaKey, ForcaPesquisa>;
+
+type SuggestPhase = "idle" | "searching" | "generating";
 
 const IntensidadeBadge = ({ intensidade }: { intensidade: "alta" | "média" | "baixa" }) => {
   const variants = {
@@ -37,15 +57,25 @@ const IntensidadeBadge = ({ intensidade }: { intensidade: "alta" | "média" | "b
   );
 };
 
-export default function CincoForcas() {
+const forcaLabels: Record<ForcaKey, string> = {
+  rivalidade_concorrentes: "Rivalidade entre Concorrentes",
+  poder_fornecedores: "Poder dos Fornecedores",
+  poder_clientes: "Poder dos Clientes",
+  ameaca_novos_entrantes: "Ameaça de Novos Entrantes",
+  ameaca_substitutos: "Ameaça de Substitutos",
+};
+
+export default function CincoForcasPage() {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
-  const [isSuggesting, setIsSuggesting] = useState(false);
+  const [suggestPhase, setSuggestPhase] = useState<SuggestPhase>("idle");
+  const [mercadoPesquisado, setMercadoPesquisado] = useState<MercadoPesquisado | null>(null);
+  const [sourcesOpen, setSourcesOpen] = useState(false);
   const [formData, setFormData] = useState({
     forca: "",
     descricao: "",
-    intensidade: "média" as const,
+    intensidade: "média" as "alta" | "média" | "baixa",
     impacto: "",
   });
 
@@ -134,7 +164,7 @@ export default function CincoForcas() {
       });
       return;
     }
-    
+
     if (editandoId) {
       editarForcaMutation.mutate({ id: editandoId, data: formData });
     } else {
@@ -169,16 +199,36 @@ export default function CincoForcas() {
       return;
     }
 
-    setIsSuggesting(true);
     try {
-      const response = await apiRequest("POST", "/api/ai/sugerir-cinco-forcas", {
+      // Fase 1 — pesquisar mercado e concorrentes em tempo real
+      setSuggestPhase("searching");
+      setMercadoPesquisado(null);
+
+      const mercado: MercadoPesquisado = await apiRequest("POST", "/api/ai/pesquisar-mercado", {
         nomeEmpresa: empresa.nome,
         setor: empresa.setor,
         descricao: empresa.descricao,
       });
 
-      const sugestoes = response.forcas || [];
-      
+      setMercadoPesquisado(mercado);
+
+      // Fase 2 — gerar as cinco forças usando o contexto pesquisado
+      setSuggestPhase("generating");
+
+      const response = await apiRequest("POST", "/api/ai/sugerir-cinco-forcas", {
+        nomeEmpresa: empresa.nome,
+        setor: empresa.setor,
+        descricao: empresa.descricao,
+        mercadoPesquisado: mercado,
+      });
+
+      const sugestoes: Array<{
+        forca: string;
+        descricao: string;
+        intensidade: "alta" | "média" | "baixa";
+        impacto: string;
+      }> = response.forcas || [];
+
       for (const sugestao of sugestoes) {
         await apiRequest("POST", "/api/cinco-forcas", {
           ...sugestao,
@@ -187,19 +237,35 @@ export default function CincoForcas() {
       }
 
       queryClient.invalidateQueries({ queryKey: ["/api/cinco-forcas", empresa.id] });
+      setSourcesOpen(false);
       toast({
-        title: "Sugestões adicionadas!",
-        description: `${sugestoes.length} análises foram sugeridas pela IA.`,
+        title: "Análise concluída!",
+        description: `${sugestoes.length} forças geradas com base em pesquisa atual do mercado.`,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Erro ao gerar análise";
       toast({
-        title: "Erro ao gerar sugestões",
-        description: error.message,
+        title: "Erro ao gerar análise",
+        description: msg,
         variant: "destructive",
       });
     } finally {
-      setIsSuggesting(false);
+      setSuggestPhase("idle");
     }
+  };
+
+  const isSuggesting = suggestPhase !== "idle";
+
+  const suggestButtonLabel = () => {
+    if (suggestPhase === "searching") return "Pesquisando mercado...";
+    if (suggestPhase === "generating") return "Gerando análise...";
+    return "Analisar com IA";
+  };
+
+  const suggestButtonIcon = () => {
+    if (suggestPhase === "searching") return <Globe className="h-4 w-4 mr-2 animate-pulse" />;
+    if (suggestPhase === "generating") return <Loader2 className="h-4 w-4 mr-2 animate-spin" />;
+    return <Sparkles className="h-4 w-4 mr-2" />;
   };
 
   if (!empresa) {
@@ -230,15 +296,15 @@ export default function CincoForcas() {
         description="Entenda as forças que moldam a competição no seu mercado: concorrentes, fornecedores, clientes, novos entrantes e substitutos."
         tooltip="Esta análise ajuda você a identificar as principais pressões competitivas que afetam seu negócio e onde você tem mais ou menos poder de negociação."
         action={
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button
               variant="outline"
               onClick={handleSuggest}
               disabled={isSuggesting}
               data-testid="button-suggest-forcas"
             >
-              <Sparkles className="h-4 w-4 mr-2" />
-              {isSuggesting ? "Analisando..." : "Sugerir com IA"}
+              {suggestButtonIcon()}
+              {suggestButtonLabel()}
             </Button>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
@@ -333,23 +399,65 @@ export default function CincoForcas() {
         <strong>Rivalidade:</strong> Alta - Muitos concorrentes locais | <strong>Fornecedores:</strong> Média - Poucos fornecedores de matéria-prima | <strong>Clientes:</strong> Alta - Clientes exigentes e bem informados
       </ExampleCard>
 
+      {/* Progress indicator during AI analysis */}
+      {isSuggesting && (
+        <Card className="mt-6 p-6" data-testid="card-suggest-progress">
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className={`flex items-center gap-2 flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                suggestPhase === "searching"
+                  ? "bg-primary/10 text-primary"
+                  : "bg-muted/40 text-muted-foreground"
+              }`}>
+                <Globe className={`h-4 w-4 ${suggestPhase === "searching" ? "animate-pulse" : ""}`} />
+                <span>Pesquisando concorrentes e mercado</span>
+                {suggestPhase === "searching" && (
+                  <Loader2 className="h-3 w-3 ml-auto animate-spin" />
+                )}
+                {suggestPhase === "generating" && (
+                  <span className="ml-auto text-xs text-green-600 dark:text-green-400 font-semibold">Concluído</span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className={`flex items-center gap-2 flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                suggestPhase === "generating"
+                  ? "bg-primary/10 text-primary"
+                  : "bg-muted/40 text-muted-foreground"
+              }`}>
+                <Sparkles className={`h-4 w-4 ${suggestPhase === "generating" ? "animate-pulse" : ""}`} />
+                <span>Gerando análise das Cinco Forças com IA</span>
+                {suggestPhase === "generating" && (
+                  <Loader2 className="h-3 w-3 ml-auto animate-spin" />
+                )}
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {suggestPhase === "searching"
+                ? "A IA está pesquisando os principais concorrentes e dinâmicas do seu setor..."
+                : "Usando a pesquisa para criar uma análise fundamentada das forças competitivas..."}
+            </p>
+          </div>
+        </Card>
+      )}
+
       {isLoading ? (
         <div className="text-center py-12">
           <p className="text-muted-foreground">Carregando análises...</p>
         </div>
-      ) : forcasData.length === 0 ? (
+      ) : forcasData.length === 0 && !isSuggesting ? (
         <EmptyState
           icon={<Layers className="h-16 w-16" />}
           title="Nenhuma análise ainda"
-          description="Comece analisando as forças competitivas do seu mercado. A IA pode sugerir análises baseadas no perfil da sua empresa."
+          description='Clique em "Analisar com IA" para a IA pesquisar os concorrentes e gerar uma análise fundamentada das forças do seu mercado.'
         />
-      ) : (
+      ) : forcasData.length > 0 ? (
         <div className="grid grid-cols-1 gap-4 mt-6">
           {forcasData.map((forca) => (
-            <Card key={forca.id} className="p-6" data-testid={`card-forca-${forca.id}`}>
+            <Card key={forca.id} className="p-6 hover-elevate" data-testid={`card-forca-${forca.id}`}>
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
                     <h3 className="text-lg font-semibold" data-testid={`text-forca-titulo-${forca.id}`}>
                       {getForcaLabel(forca.forca)}
                     </h3>
@@ -384,6 +492,66 @@ export default function CincoForcas() {
             </Card>
           ))}
         </div>
+      ) : null}
+
+      {/* Research sources panel — rendered below the forces list */}
+      {mercadoPesquisado && !isSuggesting && (
+        <Collapsible open={sourcesOpen} onOpenChange={setSourcesOpen} className="mt-6">
+          <Card className="p-0 overflow-hidden">
+            <CollapsibleTrigger asChild>
+              <button
+                className="w-full flex items-center justify-between px-6 py-4 text-sm font-medium hover-elevate text-left"
+                data-testid="button-toggle-sources"
+              >
+                <div className="flex items-center gap-2">
+                  <Globe className="h-4 w-4 text-primary" />
+                  <span>Ver fontes pesquisadas pela IA</span>
+                  <Badge variant="secondary" className="text-xs">
+                    {Object.keys(mercadoPesquisado).length} forças
+                  </Badge>
+                </div>
+                {sourcesOpen ? (
+                  <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                )}
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="px-6 pb-6 pt-0 border-t">
+                <p className="text-xs text-muted-foreground mb-4 pt-4">
+                  Resumo do contexto de mercado e concorrência pesquisado pela IA e usado como base para gerar as Cinco Forças da sua empresa.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {(Object.entries(mercadoPesquisado) as Array<[ForcaKey, ForcaPesquisa]>).map(([forca, dados]) => (
+                    <div key={forca} className="rounded-md border bg-muted/20 p-4" data-testid={`source-forca-${forca}`}>
+                      <div className="text-xs font-semibold text-primary uppercase tracking-wide mb-2">
+                        {forcaLabels[forca] || forca}
+                      </div>
+                      <p className="text-xs text-foreground/80 leading-relaxed mb-3 line-clamp-4">
+                        {dados.resumo}
+                      </p>
+                      {dados.fontes && dados.fontes.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {dados.fontes.map((fonte, i) => (
+                            <span
+                              key={i}
+                              className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-background/60 border rounded px-2 py-0.5"
+                              data-testid={`source-tag-${forca}-${i}`}
+                            >
+                              <ExternalLink className="h-2.5 w-2.5" />
+                              {fonte}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
       )}
     </div>
   );

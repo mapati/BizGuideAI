@@ -1375,10 +1375,144 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
     }
   });
 
+  // ── Nova rota: pesquisa de mercado e concorrência em tempo real ──────────────
+  app.post("/api/ai/pesquisar-mercado", async (req, res) => {
+    const { nomeEmpresa, setor, descricao } = req.body as {
+      nomeEmpresa: string;
+      setor: string;
+      descricao: string;
+    };
+
+    const forcaKeys = [
+      "rivalidade_concorrentes",
+      "poder_fornecedores",
+      "poder_clientes",
+      "ameaca_novos_entrantes",
+      "ameaca_substitutos",
+    ] as const;
+
+    type ForcaKey = (typeof forcaKeys)[number];
+    type MercadoPesquisado = Record<ForcaKey, { resumo: string; fontes: string[] }>;
+
+    const emptyMercado = (): MercadoPesquisado =>
+      Object.fromEntries(forcaKeys.map((k) => [k, { resumo: "", fontes: [] }])) as MercadoPesquisado;
+
+    try {
+      let mercado: MercadoPesquisado;
+
+      try {
+        // Fase 1 — busca real na web via Responses API
+        const searchPrompt =
+          `Você é um analista de mercado especializado em empresas brasileiras. ` +
+          `Pesquise na internet informações atuais e relevantes sobre o mercado de "${setor}" no Brasil, ` +
+          `focando na empresa "${nomeEmpresa}" (${descricao}). ` +
+          `Descubra: quem são os principais concorrentes diretos, como está a rivalidade no setor, ` +
+          `o poder de barganha dos fornecedores e clientes, ameaças de novos entrantes e de produtos substitutos. ` +
+          `Responda SOMENTE em JSON válido, sem markdown, com exatamente este formato:\n` +
+          `{\n` +
+          `  "rivalidade_concorrentes": {"resumo": "...", "fontes": ["site1.com", "site2.com"]},\n` +
+          `  "poder_fornecedores": {"resumo": "...", "fontes": ["..."]},\n` +
+          `  "poder_clientes": {"resumo": "...", "fontes": ["..."]},\n` +
+          `  "ameaca_novos_entrantes": {"resumo": "...", "fontes": ["..."]},\n` +
+          `  "ameaca_substitutos": {"resumo": "...", "fontes": ["..."]}\n` +
+          `}`;
+
+        const webResponse = await openai.responses.create({
+          model: "gpt-4o-mini-search-preview",
+          tools: [{ type: "web_search_preview" }],
+          input: searchPrompt,
+        });
+
+        const rawText =
+          webResponse.output
+            .filter((o) => o.type === "message")
+            .flatMap((o) => (o.type === "message" ? o.content : []))
+            .filter((c) => c.type === "output_text")
+            .map((c) => (c.type === "output_text" ? c.text : ""))
+            .join("") || "{}";
+
+        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+        const parsed: Record<string, unknown> = JSON.parse(jsonMatch ? jsonMatch[0] : "{}");
+
+        mercado = emptyMercado();
+        for (const key of forcaKeys) {
+          const entry = parsed[key];
+          if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+            const obj = entry as Record<string, unknown>;
+            mercado[key] = {
+              resumo: typeof obj.resumo === "string" ? obj.resumo : "",
+              fontes: Array.isArray(obj.fontes) ? (obj.fontes as string[]).filter((f) => typeof f === "string") : [],
+            };
+          }
+        }
+      } catch {
+        // Fallback — gpt-4o-mini sem web search
+        const fallback = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content:
+                "Você é um analista de mercado especializado em empresas brasileiras. Responda sempre em JSON válido sem markdown.",
+            },
+            {
+              role: "user",
+              content:
+                `Empresa: ${nomeEmpresa}\nSetor: ${setor}\nDescrição: ${descricao}\n\n` +
+                `Faça uma análise das forças competitivas deste mercado e retorne JSON com este formato exato:\n` +
+                `{\n` +
+                `  "rivalidade_concorrentes": {"resumo": "...", "fontes": []},\n` +
+                `  "poder_fornecedores": {"resumo": "...", "fontes": []},\n` +
+                `  "poder_clientes": {"resumo": "...", "fontes": []},\n` +
+                `  "ameaca_novos_entrantes": {"resumo": "...", "fontes": []},\n` +
+                `  "ameaca_substitutos": {"resumo": "...", "fontes": []}\n` +
+                `}`,
+            },
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0.5,
+        });
+
+        const parsed: Record<string, unknown> = JSON.parse(
+          fallback.choices[0].message.content || "{}"
+        );
+        mercado = emptyMercado();
+        for (const key of forcaKeys) {
+          const entry = parsed[key];
+          if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+            const obj = entry as Record<string, unknown>;
+            mercado[key] = {
+              resumo: typeof obj.resumo === "string" ? obj.resumo : "",
+              fontes: Array.isArray(obj.fontes) ? (obj.fontes as string[]).filter((f) => typeof f === "string") : [],
+            };
+          }
+        }
+      }
+
+      res.json(mercado);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Erro desconhecido";
+      res.status(500).json({ error: msg });
+    }
+  });
+
+  // ── Sugestão de Cinco Forças (agora aceita mercadoPesquisado opcional) ────────
   app.post("/api/ai/sugerir-cinco-forcas", async (req, res) => {
     try {
-      const { nomeEmpresa, setor, descricao } = req.body;
-      
+      const { nomeEmpresa, setor, descricao, mercadoPesquisado } = req.body as {
+        nomeEmpresa: string;
+        setor: string;
+        descricao: string;
+        mercadoPesquisado?: Record<string, { resumo?: string; fontes?: string[] }>;
+      };
+
+      const contextoPesquisa = mercadoPesquisado
+        ? `\n\nCONTEXTO DE PESQUISA REAL (use como base para a análise):\n` +
+          Object.entries(mercadoPesquisado)
+            .map(([forca, dados]) => `- ${forca}: ${dados.resumo ?? ""}`)
+            .join("\n")
+        : "";
+
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
@@ -1388,7 +1522,7 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
           },
           {
             role: "user",
-            content: `Empresa: ${nomeEmpresa}\nSetor: ${setor}\nDescrição: ${descricao}\n\nAnalise o mercado desta empresa usando as Cinco Forças Competitivas e crie EXATAMENTE 5 análises (uma para cada força):\n1. Rivalidade entre Concorrentes (forca: "rivalidade_concorrentes")\n2. Poder de Negociação dos Fornecedores (forca: "poder_fornecedores")\n3. Poder de Negociação dos Clientes (forca: "poder_clientes")\n4. Ameaça de Novos Entrantes (forca: "ameaca_novos_entrantes")\n5. Ameaça de Produtos Substitutos (forca: "ameaca_substitutos")\n\nPara cada força, forneça:\n- forca: exatamente como indicado acima\n- descricao: uma descrição clara da situação desta força no mercado da empresa\n- intensidade: "alta", "média" ou "baixa"\n- impacto: explicação de como esta força afeta o negócio\n\nResponda OBRIGATORIAMENTE em JSON com este formato exato:\n{\n  "forcas": [\n    {"forca": "rivalidade_concorrentes", "descricao": "...", "intensidade": "alta", "impacto": "..."},\n    {"forca": "poder_fornecedores", "descricao": "...", "intensidade": "média", "impacto": "..."},\n    {"forca": "poder_clientes", "descricao": "...", "intensidade": "...", "impacto": "..."},\n    {"forca": "ameaca_novos_entrantes", "descricao": "...", "intensidade": "...", "impacto": "..."},\n    {"forca": "ameaca_substitutos", "descricao": "...", "intensidade": "...", "impacto": "..."}\n  ]\n}`
+            content: `Empresa: ${nomeEmpresa}\nSetor: ${setor}\nDescrição: ${descricao}${contextoPesquisa}\n\nAnalise o mercado desta empresa usando as Cinco Forças Competitivas e crie EXATAMENTE 5 análises (uma para cada força):\n1. Rivalidade entre Concorrentes (forca: "rivalidade_concorrentes")\n2. Poder de Negociação dos Fornecedores (forca: "poder_fornecedores")\n3. Poder de Negociação dos Clientes (forca: "poder_clientes")\n4. Ameaça de Novos Entrantes (forca: "ameaca_novos_entrantes")\n5. Ameaça de Produtos Substitutos (forca: "ameaca_substitutos")\n\nPara cada força, forneça:\n- forca: exatamente como indicado acima\n- descricao: uma descrição clara da situação desta força no mercado da empresa\n- intensidade: "alta", "média" ou "baixa"\n- impacto: explicação de como esta força afeta o negócio\n\nResponda OBRIGATORIAMENTE em JSON com este formato exato:\n{\n  "forcas": [\n    {"forca": "rivalidade_concorrentes", "descricao": "...", "intensidade": "alta", "impacto": "..."},\n    {"forca": "poder_fornecedores", "descricao": "...", "intensidade": "média", "impacto": "..."},\n    {"forca": "poder_clientes", "descricao": "...", "intensidade": "...", "impacto": "..."},\n    {"forca": "ameaca_novos_entrantes", "descricao": "...", "intensidade": "...", "impacto": "..."},\n    {"forca": "ameaca_substitutos", "descricao": "...", "intensidade": "...", "impacto": "..."}\n  ]\n}`
           }
         ],
         response_format: { type: "json_object" },
@@ -1397,8 +1531,9 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
 
       const sugestoes = JSON.parse(completion.choices[0].message.content || "{}");
       res.json(sugestoes);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Erro desconhecido";
+      res.status(500).json({ error: msg });
     }
   });
 

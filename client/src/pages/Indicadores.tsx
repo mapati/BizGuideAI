@@ -365,7 +365,7 @@ function KpiCard({ ind, onEditar, onDeletar, deletandoId }: KpiCardProps) {
               <div className="flex-1 min-w-0">
                 <span className="font-semibold">{l.valor}</span>
                 <span className="text-muted-foreground ml-2">
-                  {format(new Date(l.registradoEm), "dd MMM yyyy", { locale: ptBR })}
+                  {(() => { try { const d = new Date(l.registradoEm); return isNaN(d.getTime()) ? "—" : format(d, "dd MMM yyyy", { locale: ptBR }); } catch { return "—"; } })()}
                 </span>
                 {l.nota && (
                   <p className="text-muted-foreground mt-0.5 leading-relaxed">{l.nota}</p>

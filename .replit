@@ -44,3 +44,8 @@ integrations = ["javascript_mem_db:1.0.0", "javascript_openai:1.0.0", "javascrip
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
+
+[userenv]
+
+[userenv.shared]
+RESEND_API_KEY = "re_LhuNMtXw_2mQALXkM4f27wN1j9PQeLtuc"

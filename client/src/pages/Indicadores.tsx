@@ -273,8 +273,7 @@ interface KpiCardProps {
 
 function KpiCard({ ind, onEditar, onDeletar, deletandoId, onOpenDrilldown }: KpiCardProps) {
   const { data: leituras = [] } = useQuery<KpiLeitura[]>({
-    queryKey: ["/api/indicadores", ind.id, "leituras"],
-    enabled: true,
+    queryKey: [`/api/indicadores/${ind.id}/leituras`],
   });
 
   const ultimaLeitura = leituras[0];
@@ -419,7 +418,7 @@ function DrilldownSheet({
   const [leituraForm, setLeituraForm] = useState({ valor: "", nota: "" });
 
   const { data: allLeituras = [] } = useQuery<KpiLeitura[]>({
-    queryKey: ["/api/indicadores", ind?.id, "leituras"],
+    queryKey: [`/api/indicadores/${ind?.id}/leituras`],
     enabled: !!ind,
   });
 
@@ -427,7 +426,7 @@ function DrilldownSheet({
     mutationFn: (data: { valor: string; nota: string }) =>
       apiRequest("POST", `/api/indicadores/${ind?.id}/leituras`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/indicadores", ind?.id, "leituras"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/indicadores/${ind?.id}/leituras`] });
       queryClient.invalidateQueries({ queryKey: ["/api/indicadores"] });
       setLeituraForm({ valor: "", nota: "" });
       toast({ title: "Leitura registrada!" });
@@ -438,7 +437,7 @@ function DrilldownSheet({
   const deletarLeituraMutation = useMutation({
     mutationFn: (id: string) => apiRequest("DELETE", `/api/indicadores/leituras/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/indicadores", ind?.id, "leituras"] });
+      queryClient.invalidateQueries({ queryKey: [`/api/indicadores/${ind?.id}/leituras`] });
       queryClient.invalidateQueries({ queryKey: ["/api/indicadores"] });
     },
   });

@@ -3611,6 +3611,92 @@ Responda em JSON:
     }
   });
 
+  app.post("/api/ai/gerar-diagnostico", async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+
+      const empresa = await storage.getEmpresa(empresaId);
+      if (!empresa) {
+        return res.status(404).json({ error: "Empresa não encontrada" });
+      }
+
+      const contextoPerfil = buildEmpresaContextoIA(empresa);
+
+      const indicadoresExistentes = await storage.getIndicadores(empresaId);
+      const diagnosticoExistente = indicadoresExistentes
+        .filter((i) => i.perspectiva === "diagnostico")
+        .map((i) => i.nome.toLowerCase().trim());
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `Você é um consultor de gestão especializado em diagnóstico empresarial. Sua missão é identificar as 5 métricas de saúde mais relevantes para o estado ATUAL de uma empresa, antes de qualquer análise estratégica.
+
+Essas métricas devem:
+- Ser simples, mensuráveis e imediatamente disponíveis (não precisam de implantação)
+- Refletir a realidade operacional do negócio HOJE, não metas futuras
+- Ser específicas para o setor e porte da empresa
+- Cobrir as dimensões mais críticas: financeira, operacional e de clientes
+
+NÃO use perspectivas BSC. Pense como um médico fazendo o diagnóstico inicial de um paciente.`,
+          },
+          {
+            role: "user",
+            content: `## PERFIL DA EMPRESA
+${contextoPerfil}
+
+## MÉTRICAS JÁ REGISTRADAS (NÃO REPITA):
+${diagnosticoExistente.length > 0 ? diagnosticoExistente.join(", ") : "Nenhuma ainda"}
+
+## TAREFA:
+Sugira exatamente 5 métricas de diagnóstico baseline mais relevantes para ESTA empresa específica.
+
+Para cada métrica:
+- nome: Nome claro e direto (ex: "Receita Mensal Recorrente", "Taxa de Cancelamento de Clientes")
+- meta: Referência de mercado ou benchmark setorial em formato texto (ex: "R$ 100k/mês", "> 90%", "< 5% ao mês")
+- razao: Uma frase explicando por que essa métrica é crítica para este tipo de negócio (máx. 20 palavras)
+
+Priorize métricas que:
+1. Revelam a saúde financeira imediata
+2. Mostram a satisfação e retenção de clientes
+3. Indicam eficiência operacional chave para o setor
+
+Responda em JSON:
+{
+  "sugestoes": [
+    {"nome": "...", "meta": "...", "razao": "..."},
+    {"nome": "...", "meta": "...", "razao": "..."},
+    {"nome": "...", "meta": "...", "razao": "..."},
+    {"nome": "...", "meta": "...", "razao": "..."},
+    {"nome": "...", "meta": "...", "razao": "..."}
+  ]
+}`,
+          },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.7,
+      });
+
+      const resultado = JSON.parse(completion.choices[0].message.content || "{}");
+
+      if (resultado.sugestoes && Array.isArray(resultado.sugestoes)) {
+        const seenNomes = new Set(diagnosticoExistente);
+        resultado.sugestoes = resultado.sugestoes.filter((s: any) => {
+          const nome = s.nome?.toLowerCase().trim();
+          if (!nome || seenNomes.has(nome)) return false;
+          seenNomes.add(nome);
+          return true;
+        });
+      }
+
+      res.json(resultado);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ==================== RITUAIS ====================
   
   function isRitualPendente(ritual: any, tipo: string): boolean {

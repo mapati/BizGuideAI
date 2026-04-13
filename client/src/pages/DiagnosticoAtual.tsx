@@ -5,11 +5,13 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   TrendingUp,
@@ -20,6 +22,8 @@ import {
   BarChart2,
   ArrowRight,
   Lightbulb,
+  Sparkles,
+  Info,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -41,12 +45,22 @@ const EMPTY_FORM = {
   meta: "",
 };
 
+interface SugestaoIA {
+  nome: string;
+  meta: string;
+  razao: string;
+}
+
 export default function DiagnosticoAtual() {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editando, setEditando] = useState<Indicador | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [nomeSugestao, setNomeSugestao] = useState<string | null>(null);
+
+  const [sugestoesIA, setSugestoesIA] = useState<SugestaoIA[]>([]);
+  const [selecionadas, setSelecionadas] = useState<Set<number>>(new Set());
+  const [dialogIAOpen, setDialogIAOpen] = useState(false);
 
   const { data: empresa } = useQuery<{ id: string; nome: string }>({
     queryKey: ["/api/empresa"],
@@ -109,6 +123,65 @@ export default function DiagnosticoAtual() {
       toast({ title: "Erro ao remover", variant: "destructive" }),
   });
 
+  const gerarDiagnosticoMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/ai/gerar-diagnostico", {}),
+    onSuccess: (data) => {
+      if (!data?.sugestoes?.length) {
+        toast({
+          title: "Nenhuma sugestão nova",
+          description: "Todas as métricas relevantes já foram registradas.",
+        });
+        return;
+      }
+      setSugestoesIA(data.sugestoes);
+      setSelecionadas(new Set(data.sugestoes.map((_: any, i: number) => i)));
+      setDialogIAOpen(true);
+    },
+    onError: () =>
+      toast({ title: "Erro ao gerar sugestões", variant: "destructive" }),
+  });
+
+  const [adicionandoIA, setAdicionandoIA] = useState(false);
+
+  const adicionarSelecionadas = async () => {
+    setAdicionandoIA(true);
+    let criadas = 0;
+    for (const idx of Array.from(selecionadas)) {
+      const s = sugestoesIA[idx];
+      if (!s) continue;
+      try {
+        await apiRequest("POST", "/api/indicadores", {
+          nome: s.nome,
+          meta: s.meta,
+          atual: "A definir",
+          perspectiva: PERSPECTIVA_DIAGNOSTICO,
+          status: "verde",
+          owner: "diagnostico",
+          empresaId: empresa?.id,
+        });
+        criadas++;
+      } catch {}
+    }
+    await invalidate();
+    setAdicionandoIA(false);
+    setDialogIAOpen(false);
+    setSugestoesIA([]);
+    setSelecionadas(new Set());
+    toast({
+      title: `${criadas} métrica${criadas !== 1 ? "s" : ""} adicionada${criadas !== 1 ? "s" : ""}!`,
+      description: 'Atualize o campo "Valor Atual" com os dados reais do seu negócio.',
+    });
+  };
+
+  const toggleSelecionada = (idx: number) => {
+    setSelecionadas((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
+
   const abrirCriar = (sugestao?: string) => {
     setEditando(null);
     setForm({ ...EMPTY_FORM, nome: sugestao ?? "" });
@@ -168,10 +241,25 @@ export default function DiagnosticoAtual() {
         description="Registre 3 a 5 métricas que representam a situação real do negócio hoje, antes de construir a estratégia."
         tooltip="O Diagnóstico Atual cria um baseline pré-estratégico. Diferente dos KPIs BSC (que derivam da estratégia), essas métricas capturam o estado de partida — permitindo medir o impacto das decisões estratégicas ao longo do tempo."
         action={
-          <Button onClick={() => abrirCriar()} data-testid="button-add-metrica">
-            <Plus className="h-4 w-4 mr-2" />
-            Nova Métrica
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => gerarDiagnosticoMutation.mutate()}
+              disabled={gerarDiagnosticoMutation.isPending}
+              data-testid="button-gerar-diagnostico-ia"
+            >
+              {gerarDiagnosticoMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4 mr-2" />
+              )}
+              Gerar com IA
+            </Button>
+            <Button onClick={() => abrirCriar()} data-testid="button-add-metrica">
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Métrica
+            </Button>
+          </div>
         }
       />
 
@@ -191,9 +279,9 @@ export default function DiagnosticoAtual() {
         </div>
       </Card>
 
-      {metricas.length === 0 && sugestoesDisponiveis.length > 0 && (
+      {metricas.length === 0 && (
         <div>
-          <p className="text-sm font-medium mb-3 text-muted-foreground">Sugestões de métricas para começar:</p>
+          <p className="text-sm font-medium mb-3 text-muted-foreground">Sugestões para começar:</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {METRICAS_SUGERIDAS.map((s) => (
               <button
@@ -222,65 +310,80 @@ export default function DiagnosticoAtual() {
             <p className="text-sm font-medium text-muted-foreground">
               {metricas.length} métrica{metricas.length !== 1 ? "s" : ""} registrada{metricas.length !== 1 ? "s" : ""}
             </p>
-            {metricas.length < 5 && (
+            {metricas.length < 3 && (
               <p className="text-xs text-muted-foreground">
                 Recomendado: de 3 a 5 métricas
               </p>
             )}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {metricas.map((m) => (
-              <Card
-                key={m.id}
-                className="p-4 flex flex-col gap-3"
-                data-testid={`card-metrica-${m.id}`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <TrendingUp className="h-3.5 w-3.5 text-primary" />
-                    </div>
-                    <p className="text-sm font-semibold truncate" data-testid={`text-metrica-nome-${m.id}`}>
-                      {m.nome}
-                    </p>
-                  </div>
-                  <div className="flex gap-1 flex-shrink-0">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => abrirEditar(m)}
-                      data-testid={`button-editar-metrica-${m.id}`}
-                    >
-                      <Edit2 className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => deletarMutation.mutate(m.id)}
-                      disabled={deletarMutation.isPending}
-                      data-testid={`button-deletar-metrica-${m.id}`}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4 text-sm">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Valor atual</p>
-                    <p className="font-semibold" data-testid={`text-metrica-atual-${m.id}`}>{m.atual}</p>
-                  </div>
-                  {m.meta && (
-                    <>
-                      <ArrowRight className="h-3 w-3 text-muted-foreground/40 flex-shrink-0" />
-                      <div>
-                        <p className="text-xs text-muted-foreground">Referência</p>
-                        <p className="text-sm text-muted-foreground" data-testid={`text-metrica-meta-${m.id}`}>{m.meta}</p>
+            {metricas.map((m) => {
+              const isIndefinido = m.atual === "A definir";
+              return (
+                <Card
+                  key={m.id}
+                  className={`p-4 flex flex-col gap-3 ${isIndefinido ? "border-dashed" : ""}`}
+                  data-testid={`card-metrica-${m.id}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <div className={`h-7 w-7 rounded-full flex items-center justify-center flex-shrink-0 ${isIndefinido ? "bg-muted" : "bg-primary/10"}`}>
+                        <TrendingUp className={`h-3.5 w-3.5 ${isIndefinido ? "text-muted-foreground" : "text-primary"}`} />
                       </div>
-                    </>
+                      <p className="text-sm font-semibold truncate" data-testid={`text-metrica-nome-${m.id}`}>
+                        {m.nome}
+                      </p>
+                    </div>
+                    <div className="flex gap-1 flex-shrink-0">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => abrirEditar(m)}
+                        data-testid={`button-editar-metrica-${m.id}`}
+                      >
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => deletarMutation.mutate(m.id)}
+                        disabled={deletarMutation.isPending}
+                        data-testid={`button-deletar-metrica-${m.id}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Valor atual</p>
+                      <p className={`font-semibold ${isIndefinido ? "text-muted-foreground italic" : ""}`} data-testid={`text-metrica-atual-${m.id}`}>
+                        {m.atual}
+                      </p>
+                    </div>
+                    {m.meta && (
+                      <>
+                        <ArrowRight className="h-3 w-3 text-muted-foreground/40 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs text-muted-foreground">Referência</p>
+                          <p className="text-sm text-muted-foreground" data-testid={`text-metrica-meta-${m.id}`}>{m.meta}</p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  {isIndefinido && (
+                    <button
+                      onClick={() => abrirEditar(m)}
+                      className="text-xs text-primary/80 flex items-center gap-1 hover:text-primary transition-colors"
+                      data-testid={`button-preencher-metrica-${m.id}`}
+                    >
+                      <Edit2 className="h-3 w-3" />
+                      Preencher valor real
+                    </button>
                   )}
-                </div>
-              </Card>
-            ))}
+                </Card>
+              );
+            })}
           </div>
         </div>
       )}
@@ -305,6 +408,7 @@ export default function DiagnosticoAtual() {
         </div>
       )}
 
+      {/* Manual create/edit dialog */}
       <Dialog
         open={dialogOpen}
         onOpenChange={(open) => {
@@ -366,6 +470,95 @@ export default function DiagnosticoAtual() {
               {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
               {editando ? "Salvar alterações" : "Registrar Métrica"}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI suggestions dialog */}
+      <Dialog
+        open={dialogIAOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDialogIAOpen(false);
+            setSugestoesIA([]);
+            setSelecionadas(new Set());
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Métricas sugeridas pela IA
+            </DialogTitle>
+            <DialogDescription>
+              Métricas selecionadas com base no perfil da sua empresa. Escolha as mais relevantes para o seu diagnóstico.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            {sugestoesIA.map((s, idx) => {
+              const checked = selecionadas.has(idx);
+              return (
+                <div
+                  key={idx}
+                  className={`flex items-start gap-3 p-3 rounded-md border cursor-pointer transition-colors ${checked ? "border-primary/30 bg-primary/5" : "border-border"}`}
+                  onClick={() => toggleSelecionada(idx)}
+                  data-testid={`card-sugestao-ia-${idx}`}
+                >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={() => toggleSelecionada(idx)}
+                    className="mt-0.5 flex-shrink-0"
+                    data-testid={`checkbox-sugestao-${idx}`}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-semibold">{s.nome}</p>
+                      {s.meta && (
+                        <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded whitespace-nowrap">
+                          ref: {s.meta}
+                        </span>
+                      )}
+                    </div>
+                    {s.razao && (
+                      <div className="flex items-start gap-1 mt-1">
+                        <Info className="h-3 w-3 text-muted-foreground/60 flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-muted-foreground leading-relaxed">{s.razao}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex items-center justify-between pt-2 gap-2 flex-wrap">
+            <p className="text-xs text-muted-foreground">
+              {selecionadas.size} de {sugestoesIA.length} selecionada{selecionadas.size !== 1 ? "s" : ""}
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setDialogIAOpen(false);
+                  setSugestoesIA([]);
+                  setSelecionadas(new Set());
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                onClick={adicionarSelecionadas}
+                disabled={selecionadas.size === 0 || adicionandoIA}
+                data-testid="button-adicionar-sugestoes-ia"
+              >
+                {adicionandoIA ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : null}
+                Adicionar {selecionadas.size > 0 ? `(${selecionadas.size})` : ""}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

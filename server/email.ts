@@ -1,7 +1,7 @@
 import { Resend } from "resend";
 
-const FROM_EMAIL = process.env.EMAIL_FROM || "noreply@bizguideai.com.br";
-const APP_URL = process.env.APP_URL || "https://bizguideai.com.br";
+const FROM_EMAIL = process.env.EMAIL_FROM || "noreply@bizguideai.org";
+const APP_URL = process.env.APP_URL || "https://bizguideai.org";
 
 function getResend(): Resend | null {
   const key = process.env.RESEND_API_KEY;

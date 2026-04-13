@@ -13,6 +13,7 @@ import { ExampleCard } from "@/components/ExampleCard";
 import { Briefcase, Plus, Sparkles, Trash2, Pencil, Clock, User, TrendingUp } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { PrerequisiteWarning } from "@/components/PrerequisiteWarning";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertIniciativaSchema, type Iniciativa, type InsertIniciativa } from "@shared/schema";
@@ -73,6 +74,11 @@ export default function Iniciativas() {
 
   const { data: iniciativas = [], isLoading } = useQuery<Iniciativa[]>({
     queryKey: ["/api/iniciativas", empresa?.id],
+    enabled: !!empresa?.id,
+  });
+
+  const { data: estrategias = [] } = useQuery<any[]>({
+    queryKey: ["/api/estrategias", empresa?.id],
     enabled: !!empresa?.id,
   });
 
@@ -270,8 +276,19 @@ export default function Iniciativas() {
     );
   }
 
+  const semEstategias = empresa && estrategias.length === 0;
+
   return (
     <div className="container mx-auto p-6 max-w-7xl">
+      {semEstategias && (
+        <PrerequisiteWarning
+          titulo="Recomendado: crie estratégias antes de definir iniciativas"
+          descricao="As iniciativas devem derivar das estratégias definidas na Matriz TOWS. Definir as estratégias primeiro garante que as iniciativas estejam alinhadas com os objetivos estratégicos."
+          linkLabel="Ir para Estratégias"
+          linkHref="/estrategias"
+          variante="info"
+        />
+      )}
       <div className="mb-6">
         <h1 className="text-3xl font-bold mb-2">Iniciativas Prioritárias</h1>
         <p className="text-muted-foreground">

@@ -14,6 +14,7 @@ import { ExampleCard } from "@/components/ExampleCard";
 import { TrendingUp, Plus, Sparkles, Trash2, Pencil, Target, Users, Package, Rocket } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { PrerequisiteWarning } from "@/components/PrerequisiteWarning";
 
 interface OportunidadeCrescimento {
   id: string;
@@ -109,6 +110,11 @@ export default function OportunidadesCrescimento() {
 
   const { data: oportunidades = [], isLoading } = useQuery<OportunidadeCrescimento[]>({
     queryKey: ["/api/oportunidades-crescimento", empresa?.id],
+    enabled: !!empresa?.id,
+  });
+
+  const { data: estrategias = [] } = useQuery<any[]>({
+    queryKey: ["/api/estrategias", empresa?.id],
     enabled: !!empresa?.id,
   });
 
@@ -283,8 +289,19 @@ export default function OportunidadesCrescimento() {
     );
   }
 
+  const semEstategias = empresa && estrategias.length === 0;
+
   return (
     <div className="container mx-auto p-6">
+      {semEstategias && (
+        <PrerequisiteWarning
+          titulo="Recomendado: defina estratégias antes de mapear oportunidades"
+          descricao="As oportunidades de crescimento ficam mais claras quando derivam das estratégias da Matriz TOWS. Crie as estratégias primeiro para uma análise mais coerente."
+          linkLabel="Ir para Estratégias"
+          linkHref="/estrategias"
+          variante="info"
+        />
+      )}
       <PageHeader
         icon={TrendingUp}
         title="Oportunidades de Crescimento"

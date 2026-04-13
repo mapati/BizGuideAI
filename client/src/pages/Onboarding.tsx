@@ -135,7 +135,7 @@ export default function Onboarding() {
         title: "Perfil criado com sucesso!",
         description: "Agora vamos começar a análise estratégica.",
       });
-      setLocation("/pestel");
+      setLocation("/dashboard");
     },
     onError: (error: any) => {
       toast({

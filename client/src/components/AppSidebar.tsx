@@ -1,4 +1,4 @@
-import { Home, Map, Target, TrendingUp, CheckCircle, FileText, Compass, Layers, Grid3x3, ListChecks, Briefcase, LogOut, BarChart3, ShieldCheck, Users } from "lucide-react";
+import { Home, Map, Target, TrendingUp, CheckCircle, FileText, Compass, Layers, Grid3x3, ListChecks, Briefcase, LogOut, BarChart3, ShieldCheck, Users, CheckCircle2, Circle } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -15,30 +15,41 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
 
 const mapItems = [
-  { title: "Cenário Externo", url: "/pestel", icon: Compass },
-  { title: "Mercado e Concorrência", url: "/cinco-forcas", icon: Layers },
-  { title: "Modelo de Negócio", url: "/bmc", icon: Grid3x3 },
-  { title: "Forças e Fraquezas", url: "/swot", icon: Target },
+  { title: "Cenário Externo", url: "/pestel", icon: Compass, jornadaId: "pestel" },
+  { title: "Mercado e Concorrência", url: "/cinco-forcas", icon: Layers, jornadaId: "cinco-forcas" },
+  { title: "Modelo de Negócio", url: "/bmc", icon: Grid3x3, jornadaId: "bmc" },
+  { title: "Forças e Fraquezas", url: "/swot", icon: Target, jornadaId: "swot" },
 ];
 
 const apostasItems = [
-  { title: "Estratégias", url: "/estrategias", icon: TrendingUp },
-  { title: "Oportunidades de Crescimento", url: "/oportunidades-crescimento", icon: Map },
-  { title: "Iniciativas Prioritárias", url: "/iniciativas", icon: Briefcase },
+  { title: "Estratégias", url: "/estrategias", icon: TrendingUp, jornadaId: "estrategias" },
+  { title: "Oportunidades de Crescimento", url: "/oportunidades-crescimento", icon: Map, jornadaId: "oportunidades" },
+  { title: "Iniciativas Prioritárias", url: "/iniciativas", icon: Briefcase, jornadaId: "iniciativas" },
 ];
 
 const marchaItems = [
-  { title: "OKRs — Objetivos", url: "/okrs", icon: Target },
-  { title: "KPIs — Indicadores", url: "/indicadores", icon: BarChart3 },
-  { title: "Performance dos OKRs", url: "/bsc", icon: ListChecks },
-  { title: "Acompanhamento", url: "/ritos", icon: CheckCircle },
+  { title: "OKRs — Objetivos", url: "/okrs", icon: Target, jornadaId: "okrs" },
+  { title: "Performance dos OKRs", url: "/bsc", icon: ListChecks, jornadaId: null },
+  { title: "Acompanhamento", url: "/ritos", icon: CheckCircle, jornadaId: "acompanhamento" },
 ];
+
+function StepIndicator({ jornadaId, steps }: { jornadaId: string | null; steps: ReturnType<typeof useJornadaProgresso>["steps"] }) {
+  if (!jornadaId) return null;
+  const step = steps.find((s) => s.id === jornadaId);
+  if (!step) return null;
+  if (step.concluido) {
+    return <CheckCircle2 className="h-3.5 w-3.5 text-green-500 ml-auto flex-shrink-0" />;
+  }
+  return <Circle className="h-3.5 w-3.5 text-muted-foreground/40 ml-auto flex-shrink-0" />;
+}
 
 export function AppSidebar() {
   const [location] = useLocation();
   const { user, empresa, logout } = useAuth();
+  const { steps, isLoading: jornadaLoading } = useJornadaProgresso();
 
   const initials = user?.nome
     ? user.nome
@@ -48,6 +59,9 @@ export function AppSidebar() {
         .join("")
         .toUpperCase()
     : "?";
+
+  const perfilStep = steps.find((s) => s.id === "perfil");
+  const indicadoresStep = steps.find((s) => s.id === "indicadores");
 
   return (
     <Sidebar>
@@ -68,7 +82,7 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   asChild
-                  isActive={location === "/"}
+                  isActive={location === "/" || location === "/dashboard"}
                   data-testid="link-home-sidebar"
                 >
                   <Link href="/">
@@ -86,6 +100,28 @@ export function AppSidebar() {
                   <Link href="/onboarding">
                     <FileText />
                     <span>Perfil da Empresa</span>
+                    {!jornadaLoading && perfilStep && (
+                      perfilStep.concluido
+                        ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 ml-auto flex-shrink-0" />
+                        : <Circle className="h-3.5 w-3.5 text-muted-foreground/40 ml-auto flex-shrink-0" />
+                    )}
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={location === "/indicadores"}
+                  data-testid="link-indicadores"
+                >
+                  <Link href="/indicadores">
+                    <BarChart3 />
+                    <span>KPIs — Indicadores</span>
+                    {!jornadaLoading && indicadoresStep && (
+                      indicadoresStep.concluido
+                        ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 ml-auto flex-shrink-0" />
+                        : <Circle className="h-3.5 w-3.5 text-muted-foreground/40 ml-auto flex-shrink-0" />
+                    )}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -135,6 +171,9 @@ export function AppSidebar() {
                     <Link href={item.url}>
                       <item.icon />
                       <span>{item.title}</span>
+                      {!jornadaLoading && (
+                        <StepIndicator jornadaId={item.jornadaId} steps={steps} />
+                      )}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -157,6 +196,9 @@ export function AppSidebar() {
                     <Link href={item.url}>
                       <item.icon />
                       <span>{item.title}</span>
+                      {!jornadaLoading && (
+                        <StepIndicator jornadaId={item.jornadaId} steps={steps} />
+                      )}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -179,6 +221,9 @@ export function AppSidebar() {
                     <Link href={item.url}>
                       <item.icon />
                       <span>{item.title}</span>
+                      {!jornadaLoading && (
+                        <StepIndicator jornadaId={item.jornadaId} steps={steps} />
+                      )}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

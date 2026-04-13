@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueries, useMutation } from "@tanstack/react-query";
+import { JornadaEstrategica } from "@/components/JornadaEstrategica";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -188,6 +189,7 @@ export default function Home() {
 
   return (
     <div className="space-y-6">
+      <JornadaEstrategica />
       {/* Header */}
       <div className="flex flex-wrap items-center gap-5">
         {empresa?.logoUrl && (

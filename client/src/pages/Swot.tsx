@@ -15,6 +15,7 @@ import { ExampleCard } from "@/components/ExampleCard";
 import { Target, Plus, Sparkles, Trash2, TrendingUp, TrendingDown, AlertTriangle, Zap, Pencil, FileText, Settings2, Lock } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { PrerequisiteWarning } from "@/components/PrerequisiteWarning";
 
 interface AnaliseSwot {
   id: string;
@@ -123,6 +124,16 @@ export default function Swot() {
 
   const { data: analises = [], isLoading } = useQuery<AnaliseSwot[]>({
     queryKey: ["/api/analise-swot", empresa?.id],
+    enabled: !!empresa?.id,
+  });
+
+  const { data: fatoresPestel = [] } = useQuery<any[]>({
+    queryKey: ["/api/fatores-pestel", empresa?.id],
+    enabled: !!empresa?.id,
+  });
+
+  const { data: cincoForcasData = [] } = useQuery<any[]>({
+    queryKey: ["/api/cinco-forcas", empresa?.id],
     enabled: !!empresa?.id,
   });
 
@@ -474,8 +485,19 @@ export default function Swot() {
 
   const grupos = agruparPorTipo();
 
+  const semExternos = empresa && fatoresPestel.length === 0 && cincoForcasData.length === 0;
+
   return (
     <div className="max-w-6xl mx-auto">
+      {semExternos && (
+        <PrerequisiteWarning
+          titulo="Enriqueça sua análise SWOT com dados do ambiente externo"
+          descricao="Você ainda não tem fatores PESTEL nem análise de mercado. Preencher essas seções antes ajuda a identificar oportunidades e ameaças com mais precisão."
+          linkLabel="Analisar cenário externo"
+          linkHref="/pestel"
+          variante="info"
+        />
+      )}
       <PageHeader
         title="Forças e Fraquezas"
         description="Identifique o que sua empresa faz bem (forças), o que precisa melhorar (fraquezas), oportunidades externas e ameaças que você enfrenta."

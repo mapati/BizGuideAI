@@ -14,6 +14,7 @@ import { ExampleCard } from "@/components/ExampleCard";
 import { Target, Plus, Sparkles, Trash2, Pencil, ArrowUpRight, Shield, TrendingUp, AlertCircle } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { PrerequisiteWarning } from "@/components/PrerequisiteWarning";
 
 interface Estrategia {
   id: string;
@@ -93,6 +94,11 @@ export default function Estrategias() {
 
   const { data: estrategias = [], isLoading } = useQuery<Estrategia[]>({
     queryKey: ["/api/estrategias", empresa?.id],
+    enabled: !!empresa?.id,
+  });
+
+  const { data: swotItens = [] } = useQuery<any[]>({
+    queryKey: ["/api/analise-swot", empresa?.id],
     enabled: !!empresa?.id,
   });
 
@@ -273,9 +279,19 @@ export default function Estrategias() {
   }
 
   const grupos = agruparPorTipo();
+  const semSwot = empresa && swotItens.length < 4;
 
   return (
     <div className="max-w-6xl mx-auto">
+      {semSwot && (
+        <PrerequisiteWarning
+          titulo="Recomendado: complete a análise SWOT antes de criar estratégias"
+          descricao="A Matriz TOWS combina forças, fraquezas, oportunidades e ameaças. Ter pelo menos 4 itens no SWOT enriquece muito as estratégias geradas pela IA."
+          linkLabel="Ir para SWOT"
+          linkHref="/swot"
+          variante="info"
+        />
+      )}
       <PageHeader
         title="Estratégias (Matriz TOWS)"
         description="Combine forças, fraquezas, oportunidades e ameaças para criar estratégias práticas e acionáveis."

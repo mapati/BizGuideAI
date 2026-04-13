@@ -91,6 +91,16 @@ Preferred communication style: Simple, everyday language.
 - Users with `planoStatus = 'ativo'` have unrestricted access (no banner)
 - `isAdmin` flag on users for future admin panel
 
+### Onboarding: Jornada Estratégica Guiada
+
+A guided onboarding journey implemented across the app:
+
+- **`useJornadaProgresso` hook** (`client/src/hooks/useJornadaProgresso.ts`): Computes real-time completion state for all 11 jornada steps by querying existing API endpoints (no DB changes). Steps: Perfil → KPIs → PESTEL → Cinco Forças → BMC → SWOT → Estratégias → Oportunidades → Iniciativas → OKRs → Acompanhamento.
+- **`JornadaEstrategica` component** (`client/src/components/JornadaEstrategica.tsx`): Collapsible card shown at the top of the dashboard (Home.tsx). Shows per-step status (complete/incomplete/blocked), progress bar, and CTA button for next pending step. Disappears when all 11 steps are complete.
+- **`PrerequisiteWarning` component** (`client/src/components/PrerequisiteWarning.tsx`): Non-blocking info banner shown on pages with missing prerequisites. Used on SWOT (when no PESTEL/CincoForcas data), Estratégias (when SWOT < 4 items), OKRs (when no Iniciativas), Oportunidades (when no Estratégias), and Iniciativas (when no Estratégias).
+- **Sidebar completion indicators**: Each sidebar item in the jornada shows a CheckCircle2 (green) or Circle (gray) indicator. KPIs — Indicadores moved from "Marcha" group to above "Mapa" group (step 2 of jornada).
+- **Redirect on first access**: New users without empresa are redirected to `/onboarding`. On completing the profile form, redirect goes to `/dashboard` (was `/pestel`).
+
 ### Key Features Implemented:
 
 - **Priority Initiatives Portfolio:** Full CRUD for initiatives (title, description, status, priority, deadline, responsible, impact) with AI generation and anti-duplication.

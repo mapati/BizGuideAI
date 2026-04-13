@@ -101,6 +101,15 @@ function AppLayout() {
     return <Redirect to="/dashboard" />;
   }
 
+  const empresaData = queryClient.getQueryData<any>(["/api/empresa"]);
+  const empresaCarregada = queryClient.getQueryState(["/api/empresa"])?.status === "success";
+  const semEmpresa = empresaCarregada && !empresaData;
+  const rotasPublicasApp = ["/onboarding", "/trial-expirado", "/admin"];
+  const naRotaRestrita = !rotasPublicasApp.some((r) => location.startsWith(r));
+  if (user && semEmpresa && naRotaRestrita) {
+    return <Redirect to="/onboarding" />;
+  }
+
   if (!user) {
     return (
       <Switch>

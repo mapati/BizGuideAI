@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 
 import { Plus, Sparkles, Target as TargetIcon, Loader2, Trash2, Edit2, TrendingUp, Users, Cog, GraduationCap, DollarSign } from "lucide-react";
+import { PrerequisiteWarning } from "@/components/PrerequisiteWarning";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Objetivo, ResultadoChave } from "@shared/schema";
@@ -58,6 +59,11 @@ export default function OKRs() {
   });
 
   const empresaId = empresa?.id;
+
+  const { data: iniciativas = [] } = useQuery<any[]>({
+    queryKey: ["/api/iniciativas", empresaId],
+    enabled: !!empresaId,
+  });
 
   const { data: objetivos = [], isLoading } = useQuery<Objetivo[]>({
     queryKey: ["/api/objetivos", empresaId],
@@ -344,8 +350,19 @@ export default function OKRs() {
     );
   }
 
+  const semIniciativas = empresa && iniciativas.length === 0;
+
   return (
     <div>
+      {semIniciativas && (
+        <PrerequisiteWarning
+          titulo="Recomendado: defina iniciativas antes de criar OKRs"
+          descricao="OKRs são mais eficazes quando derivam das iniciativas e estratégias que você já priorizou. Complete as Iniciativas Prioritárias primeiro."
+          linkLabel="Ir para Iniciativas"
+          linkHref="/iniciativas"
+          variante="info"
+        />
+      )}
       <PageHeader
         title="OKRs — Objetivos e Resultados-Chave"
         description="Defina onde quer chegar e como vai medir o progresso. Cada objetivo tem resultados-chave com meta de 0–100% dentro de um prazo."

@@ -255,7 +255,7 @@ export function useJornadaProgresso(): JornadaProgresso {
         "Defina Objetivos inspiradores com Resultados-Chave mensuráveis para guiar a execução da estratégia com foco e clareza.",
       valorIA:
         "A IA cria OKRs conectados às suas iniciativas e estratégias, garantindo alinhamento de cima a baixo.",
-      bloqueadaPor: iniciativas.length > 0 ? [] : ["iniciativas"],
+      bloqueadaPor: estrategias.length > 0 ? [] : ["estrategias"],
     },
     {
       id: "acompanhamento",

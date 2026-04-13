@@ -79,11 +79,10 @@ function getSaudeCor(saude: number): { label: string; className: string } {
 }
 
 function JornadaEstrategicaCondicional() {
-  const { totalConcluidas, jornadaConcluida, isLoading } = useJornadaProgresso();
-  if (isLoading) return null;
-  if (jornadaConcluida) return <JornadaEstrategica />;
-  if (totalConcluidas < 6) return <JornadaEstrategica />;
-  return <JornadaEstrategica />;
+  const progresso = useJornadaProgresso();
+  if (progresso.isLoading) return null;
+  const defaultOpen = progresso.totalConcluidas < 6 || progresso.jornadaConcluida;
+  return <JornadaEstrategica progresso={progresso} defaultOpen={defaultOpen} />;
 }
 
 export default function Home() {

@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Sparkles, Save, Edit } from "lucide-react";
+import { Sparkles, Save, Edit, LayoutGrid } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -327,6 +327,29 @@ export default function ModeloNegocio() {
           </div>
         </CardContent>
       </Card>
+
+      {blocosPreenchidos === 0 && (
+        <Card className="mb-6 p-6 border-primary/20 bg-primary/5" data-testid="card-bmc-empty-state">
+          <div className="flex items-start gap-4">
+            <LayoutGrid className="h-10 w-10 text-primary flex-shrink-0 mt-1" />
+            <div className="flex-1">
+              <h3 className="font-semibold text-base mb-1">Mapeie seu modelo de negócio</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                O Business Model Canvas organiza os 9 elementos essenciais do seu negócio em um único quadro: proposta de valor, clientes, canais, receitas, custos, parceiros e mais. Clique em qualquer bloco para começar a preencher, ou use a IA para gerar um modelo completo baseado no perfil da sua empresa.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={handleSuggest}
+              disabled={isSuggesting}
+              data-testid="button-suggest-bmc-empty"
+            >
+              <Sparkles className="h-4 w-4 mr-2" />
+              {isSuggesting ? "Gerando..." : "Gerar com IA"}
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {/* Layout responsivo: vertical em mobile/tablet, grid clássico do Canvas em desktop */}
       <div className="space-y-4 lg:hidden mb-6">

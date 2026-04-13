@@ -15,8 +15,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Link } from "wouter";
-import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
-import type { JornadaEtapa } from "@/hooks/useJornadaProgresso";
+import type { JornadaEtapa, JornadaProgresso } from "@/hooks/useJornadaProgresso";
 
 function getCtaLabel(etapa: JornadaEtapa): string {
   if (etapa.status === "concluido") return "Revisar";
@@ -54,6 +53,20 @@ function getStatusBadge(etapa: JornadaEtapa) {
   );
 }
 
+const ETAPA_INDEX: Record<string, string> = {
+  perfil: "1",
+  indicadores: "2",
+  pestel: "3",
+  "cinco-forcas": "4",
+  bmc: "5",
+  swot: "6",
+  estrategias: "7",
+  oportunidades: "8",
+  iniciativas: "9",
+  okrs: "10",
+  acompanhamento: "11",
+};
+
 function EtapaCard({ etapa }: { etapa: JornadaEtapa }) {
   const bloqueada = etapa.bloqueadaPor && etapa.bloqueadaPor.length > 0;
   const Icone = etapa.icone;
@@ -82,7 +95,7 @@ function EtapaCard({ etapa }: { etapa: JornadaEtapa }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap mb-1">
           <span className="text-xs font-semibold text-muted-foreground">
-            {etapa.id === "perfil" ? "1" : etapa.id === "indicadores" ? "2" : etapa.id === "pestel" ? "3" : etapa.id === "cinco-forcas" ? "4" : etapa.id === "bmc" ? "5" : etapa.id === "swot" ? "6" : etapa.id === "estrategias" ? "7" : etapa.id === "oportunidades" ? "8" : etapa.id === "iniciativas" ? "9" : etapa.id === "okrs" ? "10" : "11"}.
+            {ETAPA_INDEX[etapa.id] ?? "?"}.
           </span>
           <span
             className={`text-sm font-medium ${
@@ -121,14 +134,15 @@ function EtapaCard({ etapa }: { etapa: JornadaEtapa }) {
   );
 }
 
-export function JornadaEstrategica() {
-  const { etapas, totalConcluidas, total, percentual, jornadaConcluida, isLoading } =
-    useJornadaProgresso();
-  const emAndamento = totalConcluidas < 6;
-  const [open, setOpen] = useState(emAndamento);
-  const [celebrationDismissed, setCelebrationDismissed] = useState(false);
+interface JornadaEstrategicaProps {
+  progresso: JornadaProgresso;
+  defaultOpen?: boolean;
+}
 
-  if (isLoading) return null;
+export function JornadaEstrategica({ progresso, defaultOpen }: JornadaEstrategicaProps) {
+  const { etapas, totalConcluidas, total, percentual, jornadaConcluida } = progresso;
+  const [open, setOpen] = useState(defaultOpen ?? true);
+  const [celebrationDismissed, setCelebrationDismissed] = useState(false);
 
   if (jornadaConcluida && !celebrationDismissed) {
     return (

@@ -19,6 +19,7 @@ import {
   Users,
   LineChart,
   Globe,
+  Globe2,
   Crosshair,
   Network,
   ChevronRight,
@@ -34,6 +35,16 @@ import {
   XCircle,
   AlertTriangle,
   Home,
+  Swords,
+  LayoutGrid,
+  GitBranch,
+  Flag,
+  Rocket,
+  Activity,
+  Briefcase,
+  Map,
+  Circle,
+  CircleDot,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -102,17 +113,17 @@ const steps = [
   {
     number: "01",
     title: "Cadastre sua empresa",
-    desc: "Crie sua conta e informe o site da empresa. Nossa IA gera automaticamente o perfil estratégico inicial.",
+    desc: "Crie sua conta e informe o site da empresa. A IA lê o seu site e gera automaticamente o perfil estratégico inicial.",
   },
   {
     number: "02",
-    title: "Configure com IA",
-    desc: "Responda perguntas simples e deixe a inteligência artificial estruturar seu planejamento completo.",
+    title: "Siga a Jornada Estratégica",
+    desc: "Um roteiro guiado de 11 etapas conduz você do diagnóstico à execução — PESTEL, SWOT, OKRs e muito mais. Passo a passo, sem perder nada.",
   },
   {
     number: "03",
-    title: "Gerencie e acompanhe",
-    desc: "Monitore OKRs, indicadores e iniciativas em um dashboard unificado. Execute ritos de gestão com método.",
+    title: "Execute e acompanhe",
+    desc: "Monitore OKRs, KPIs e iniciativas em tempo real. Realize ritos de gestão com checklists automáticos e mantenha a estratégia viva.",
   },
 ];
 
@@ -521,14 +532,140 @@ function MockupIndicadores() {
   );
 }
 
+function MockupJornada() {
+  const grupos = [
+    {
+      label: "DIAGNÓSTICO",
+      etapas: [
+        { nome: "Perfil da Empresa", icone: Target, status: "concluido" as const },
+        { nome: "KPIs — Indicadores", icone: BarChart3, status: "concluido" as const },
+        { nome: "Cenário Externo — PESTEL", icone: Globe2, status: "concluido" as const },
+        { nome: "Mercado e Concorrência", icone: Swords, status: "iniciado" as const },
+        { nome: "Modelo de Negócio — Canvas", icone: LayoutGrid, status: "pendente" as const },
+        { nome: "Forças e Fraquezas — SWOT", icone: GitBranch, status: "pendente" as const },
+      ],
+    },
+    {
+      label: "APOSTAS",
+      etapas: [
+        { nome: "Estratégias — Matriz TOWS", icone: Flag, status: "pendente" as const },
+        { nome: "Oportunidades de Crescimento", icone: TrendingUp, status: "pendente" as const },
+        { nome: "Iniciativas Prioritárias", icone: Briefcase, status: "pendente" as const },
+      ],
+    },
+    {
+      label: "MARCHA",
+      etapas: [
+        { nome: "OKRs — Objetivos e Resultados-Chave", icone: Rocket, status: "pendente" as const },
+        { nome: "Acompanhamento — Ritos Estratégicos", icone: Activity, status: "pendente" as const },
+      ],
+    },
+  ];
+
+  const totalConcluidas = 3;
+  const total = 11;
+  const pct = Math.round((totalConcluidas / total) * 100);
+  const circumference = 2 * Math.PI * 22;
+  const offset = circumference - (pct / 100) * circumference;
+
+  return (
+    <BrowserChrome title="bizguideai.app — Jornada Estratégica">
+      <div className="flex bg-gray-50" style={{ minHeight: 400 }}>
+        <MockupSidebar active="inicio" />
+        <div className="flex-1 p-3 flex flex-col gap-3 overflow-hidden min-w-0">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h1 className="text-[11px] font-bold text-gray-900">Jornada Estratégica</h1>
+              <p className="text-[9px] text-gray-400">Seu roteiro guiado passo a passo — do diagnóstico à execução</p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0 bg-white border border-gray-100 rounded-lg px-2.5 py-1.5">
+              <div className="relative inline-flex items-center justify-center flex-shrink-0">
+                <svg width={48} height={48} className="-rotate-90">
+                  <circle cx={24} cy={24} r={22} stroke="#e5e7eb" strokeWidth={5} fill="none" />
+                  <circle cx={24} cy={24} r={22} stroke="#2563eb" strokeWidth={5} fill="none"
+                    strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-[9px] font-bold text-blue-600">{pct}%</span>
+                </div>
+              </div>
+              <div>
+                <p className="text-[9px] font-semibold text-gray-800">{totalConcluidas}/{total} etapas</p>
+                <p className="text-[8px] text-gray-400">concluídas</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-100 rounded-lg px-2.5 py-2 flex items-center gap-2">
+            <ArrowRight className="h-3 w-3 text-blue-600 flex-shrink-0" />
+            <div>
+              <p className="text-[8.5px] font-semibold text-blue-800">Próxima etapa</p>
+              <p className="text-[8px] text-blue-600">Mercado e Concorrência — Cinco Forças de Porter</p>
+            </div>
+            <div className="ml-auto flex-shrink-0 bg-blue-600 text-white text-[7.5px] font-medium rounded px-1.5 py-0.5">
+              Continuar
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 overflow-y-auto" style={{ maxHeight: 260 }}>
+            {grupos.map((grupo) => (
+              <div key={grupo.label}>
+                <p className="text-[7.5px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">{grupo.label}</p>
+                <div className="flex flex-col gap-1">
+                  {grupo.etapas.map((etapa) => {
+                    const Icon = etapa.icone;
+                    const isConcluido = etapa.status === "concluido";
+                    const isIniciado = etapa.status === "iniciado";
+                    return (
+                      <div
+                        key={etapa.nome}
+                        className={`flex items-center gap-2 rounded-md px-2 py-1.5 border ${
+                          isIniciado
+                            ? "bg-blue-50 border-blue-100"
+                            : isConcluido
+                            ? "bg-white border-gray-100"
+                            : "bg-white border-gray-100 opacity-60"
+                        }`}
+                      >
+                        {isConcluido ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-green-500 flex-shrink-0" />
+                        ) : isIniciado ? (
+                          <CircleDot className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
+                        ) : (
+                          <Circle className="h-3.5 w-3.5 text-gray-300 flex-shrink-0" />
+                        )}
+                        <Icon className={`h-3 w-3 flex-shrink-0 ${isConcluido ? "text-green-500" : isIniciado ? "text-blue-500" : "text-gray-300"}`} />
+                        <span className={`text-[8.5px] font-medium truncate ${isConcluido ? "text-gray-500 line-through" : isIniciado ? "text-blue-700" : "text-gray-400"}`}>
+                          {etapa.nome}
+                        </span>
+                        {isConcluido && (
+                          <span className="ml-auto text-[7px] text-green-600 font-semibold flex-shrink-0">Concluído</span>
+                        )}
+                        {isIniciado && (
+                          <span className="ml-auto text-[7px] text-blue-600 font-semibold flex-shrink-0">Em progresso</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </BrowserChrome>
+  );
+}
+
 const showcaseTabs = [
+  { id: "jornada", label: "Jornada Guiada", icon: Map, component: MockupJornada },
   { id: "home", label: "Início", icon: Home, component: MockupHome },
   { id: "okrs", label: "OKRs", icon: Target, component: MockupOKRs },
   { id: "indicadores", label: "Indicadores", icon: BarChart3, component: MockupIndicadores },
 ];
 
 export default function LandingPage() {
-  const [activeTab, setActiveTab] = useState("home");
+  const [activeTab, setActiveTab] = useState("jornada");
   const ActiveMockup = showcaseTabs.find(t => t.id === activeTab)?.component ?? MockupHome;
 
   return (
@@ -599,7 +736,7 @@ export default function LandingPage() {
               </h1>
 
               <p className="text-lg text-slate-300 leading-relaxed" data-testid="text-hero-subtitle">
-                Responda perguntas simples sobre o seu negócio e receba um plano estratégico completo — com metas, indicadores de desempenho e as ações mais importantes para crescer. Tudo gerado em minutos pela inteligência artificial.
+                Um roteiro guiado de 11 etapas conduz você do diagnóstico à execução — PESTEL, SWOT, Canvas, OKRs e muito mais. Sofisticado o suficiente para grandes decisões, simples o suficiente para qualquer empresário.
               </p>
 
               <div className="flex flex-wrap gap-3">
@@ -670,10 +807,10 @@ export default function LandingPage() {
               Veja o produto em ação
             </Badge>
             <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-              Um sistema completo, guiado por IA
+              Veja a Jornada Estratégica em ação
             </h2>
             <p className="text-slate-400 text-lg max-w-2xl mx-auto">
-              Cada tela foi projetada para tornar o planejamento estratégico simples, visual e accionável.
+              Um roteiro guiado que conduz passo a passo — da análise ao plano — com dashboards intuitivos e IA integrada em cada etapa.
             </p>
           </div>
 
@@ -710,8 +847,102 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* JORNADA ESTRATÉGICA */}
+      <section className="py-20 bg-background" data-testid="section-jornada">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-14">
+            <Badge variant="outline" className="mb-4 text-sm px-4 py-1">
+              <Map className="h-3.5 w-3.5 mr-1.5" />
+              Jornada Estratégica Guiada
+            </Badge>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+              Do diagnóstico à execução — passo a passo
+            </h2>
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+              O BizGuideAI guia você por uma jornada estruturada de 11 etapas. Sofisticado o suficiente para grandes decisões, simples o suficiente para qualquer empresário.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {[
+              {
+                fase: "01 — Diagnóstico",
+                cor: "border-blue-200 bg-blue-50/50",
+                corLabel: "text-blue-700 bg-blue-100",
+                corIcone: "text-blue-600 bg-blue-100",
+                etapas: [
+                  { nome: "Perfil da Empresa", icone: Target, desc: "Dados da empresa e contexto para personalizar toda a análise" },
+                  { nome: "KPIs — Indicadores", icone: BarChart3, desc: "Métricas de saúde operacional antes de construir a estratégia" },
+                  { nome: "Cenário Externo — PESTEL", icone: Globe2, desc: "Forças políticas, econômicas e sociais que afetam o negócio" },
+                  { nome: "Mercado e Concorrência", icone: Swords, desc: "Análise das cinco forças de Porter e posicionamento competitivo" },
+                  { nome: "Modelo de Negócio", icone: LayoutGrid, desc: "Os 9 blocos do Business Model Canvas" },
+                  { nome: "Forças e Fraquezas — SWOT", icone: GitBranch, desc: "Visão interna e externa consolidada para tomada de decisão" },
+                ],
+              },
+              {
+                fase: "02 — Apostas",
+                cor: "border-purple-200 bg-purple-50/50",
+                corLabel: "text-purple-700 bg-purple-100",
+                corIcone: "text-purple-600 bg-purple-100",
+                etapas: [
+                  { nome: "Estratégias — Matriz TOWS", icone: Flag, desc: "Estratégias práticas derivadas do cruzamento do SWOT" },
+                  { nome: "Oportunidades de Crescimento", icone: TrendingUp, desc: "Caminhos de expansão com a Matriz de Ansoff" },
+                  { nome: "Iniciativas Prioritárias", icone: Briefcase, desc: "Projetos concretos com responsáveis, prazos e impacto" },
+                ],
+              },
+              {
+                fase: "03 — Marcha",
+                cor: "border-green-200 bg-green-50/50",
+                corLabel: "text-green-700 bg-green-100",
+                corIcone: "text-green-600 bg-green-100",
+                etapas: [
+                  { nome: "OKRs — Objetivos e Resultados-Chave", icone: Rocket, desc: "Metas inspiradoras com indicadores mensuráveis de progresso" },
+                  { nome: "Acompanhamento — Ritos Estratégicos", icone: Activity, desc: "Cadências de revisão semanal, mensal e trimestral" },
+                ],
+              },
+            ].map((grupo) => (
+              <Card key={grupo.fase} className={`border ${grupo.cor}`} data-testid={`card-fase-${grupo.fase.replace(/\s/g, "-").toLowerCase()}`}>
+                <CardContent className="p-6 flex flex-col gap-4">
+                  <span className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold w-fit ${grupo.corLabel}`}>
+                    {grupo.fase}
+                  </span>
+                  <div className="flex flex-col gap-3">
+                    {grupo.etapas.map((etapa) => {
+                      const Icon = etapa.icone;
+                      return (
+                        <div key={etapa.nome} className="flex items-start gap-3">
+                          <div className={`h-7 w-7 rounded-md flex items-center justify-center flex-shrink-0 ${grupo.corIcone}`}>
+                            <Icon className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">{etapa.nome}</p>
+                            <p className="text-xs text-muted-foreground leading-relaxed">{etapa.desc}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <div className="mt-10 text-center">
+            <p className="text-muted-foreground text-sm mb-4">
+              A IA guia cada etapa com sugestões contextualizadas para o seu negócio — nenhum conhecimento técnico necessário.
+            </p>
+            <Link href="/register">
+              <Button size="lg" className="gap-2" data-testid="button-jornada-cta">
+                Começar minha Jornada Estratégica
+                <ArrowRight className="h-5 w-5" />
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* PROBLEMA / SOLUÇÃO */}
-      <section className="py-20 bg-background" data-testid="section-pains">
+      <section className="py-20 bg-muted/30" data-testid="section-pains">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">O problema que resolvemos</h2>
@@ -885,14 +1116,14 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
               {
-                icon: Target,
-                title: "Frameworks de classe mundial",
-                desc: "PESTEL, SWOT, BSC, OKR, Cinco Forças e Modelo de Negócio Canvas — metodologias usadas pelas maiores empresas do mundo, agora acessíveis a qualquer negócio.",
+                icon: Map,
+                title: "Jornada guiada — passo a passo",
+                desc: "Nenhuma etapa esquecida. O sistema conduz você por um roteiro de 11 passos — do diagnóstico à execução — com foco no que importa e na ordem certa.",
               },
               {
                 icon: Zap,
-                title: "Velocidade com IA",
-                desc: "O que antes levava semanas de consultoria agora leva minutos. A IA estrutura, sugere e valida tudo com base nos dados reais da sua empresa.",
+                title: "Sofisticado e simples ao mesmo tempo",
+                desc: "Metodologias de classe mundial (PESTEL, SWOT, OKR, BSC, Porter) entregues de forma guiada, visual e com assistência da IA em cada etapa.",
               },
               {
                 icon: Shield,

@@ -78,6 +78,8 @@ function NovoMembroDialog({
   const [role, setRole] = useState<"admin" | "membro">("membro");
   const [showSenha, setShowSenha] = useState(false);
 
+  const senhaValida = senha.length >= 8 && /\d/.test(senha);
+
   const criar = useMutation({
     mutationFn: () =>
       apiRequest("POST", "/api/empresa/usuarios", { nome, email, senha, role }),
@@ -132,7 +134,7 @@ function NovoMembroDialog({
               <Input
                 id="novo-senha"
                 type={showSenha ? "text" : "password"}
-                placeholder="Mínimo 6 caracteres"
+                placeholder="Mínimo 8 caracteres e 1 número"
                 value={senha}
                 onChange={e => setSenha(e.target.value)}
                 data-testid="input-novo-senha"
@@ -148,6 +150,11 @@ function NovoMembroDialog({
                 <Key className="h-3.5 w-3.5" />
               </Button>
             </div>
+            {senha && !senhaValida && (
+              <p className="text-xs text-muted-foreground" data-testid="text-senha-hint">
+                Mínimo 8 caracteres e pelo menos 1 número
+              </p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label>Papel</Label>
@@ -168,7 +175,7 @@ function NovoMembroDialog({
           </Button>
           <Button
             onClick={() => criar.mutate()}
-            disabled={!nome || !email || !senha || criar.isPending}
+            disabled={!nome || !email || !senhaValida || criar.isPending}
             data-testid="button-salvar-novo"
           >
             {criar.isPending ? "Criando..." : "Criar Usuário"}

@@ -23,6 +23,7 @@ import Iniciativas from "@/pages/Iniciativas";
 import OKRs from "@/pages/OKRs";
 import BSC from "@/pages/BSC";
 import Indicadores from "@/pages/Indicadores";
+import DiagnosticoAtual from "@/pages/DiagnosticoAtual";
 import Acompanhamento from "@/pages/Acompanhamento";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
@@ -179,6 +180,7 @@ function AppLayout() {
                 <Route path="/iniciativas" component={Iniciativas} />
                 <Route path="/okrs" component={OKRs} />
                 <Route path="/bsc" component={BSC} />
+                <Route path="/diagnostico" component={DiagnosticoAtual} />
                 <Route path="/indicadores" component={Indicadores} />
                 <Route path="/ritos" component={Acompanhamento} />
                 <Route path="/trial-expirado" component={TrialExpirado} />

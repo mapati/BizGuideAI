@@ -11,6 +11,7 @@ import {
   Briefcase,
   Flag,
   Activity,
+  ClipboardList,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Empresa } from "@shared/schema";
@@ -121,6 +122,9 @@ export function useJornadaProgresso(): JornadaProgresso {
   const perfilCompleto = !!(empresa?.nome && empresa?.setor && empresa?.tamanho && empresa?.descricao);
   const perfilIniciado = !!(empresa?.nome && empresa?.setor && empresa?.tamanho);
 
+  const indicadoresDiagnostico = indicadores.filter((i: any) => i.perspectiva === "diagnostico");
+  const indicadoresBsc = indicadores.filter((i: any) => i.perspectiva !== "diagnostico");
+
   const acompanhamentoConcluido = (() => {
     const ritualConcluido = rituais.some((r: any) => {
       if (r.completado === true || r.completado === "true") return true;
@@ -156,16 +160,19 @@ export function useJornadaProgresso(): JornadaProgresso {
         "A IA usa o perfil como contexto para gerar análises, sugestões e relatórios específicos para o seu negócio.",
     },
     {
-      id: "indicadores",
-      nome: "KPIs — Indicadores",
-      rota: "/indicadores",
-      concluida: indicadores.length > 0,
-      status: derivarStatus(indicadores.length > 0, false),
-      icone: BarChart3,
+      id: "diagnostico",
+      nome: "Diagnóstico Atual",
+      rota: "/diagnostico",
+      concluida: indicadoresDiagnostico.length >= 3,
+      status: derivarStatus(
+        indicadoresDiagnostico.length >= 3,
+        indicadoresDiagnostico.length > 0
+      ),
+      icone: ClipboardList,
       descricao:
-        "Configure os KPIs (Key Performance Indicators) para monitorar a saúde operacional da empresa antes de construir a estratégia.",
+        "Registre 3 a 5 métricas que descrevem o estado atual do negócio — receita, crescimento, margem e satisfação de clientes. Esse baseline será o ponto de partida para medir o impacto da estratégia.",
       valorIA:
-        "A IA monitora seus indicadores e gera alertas automáticos quando métricas saem do esperado.",
+        "A IA identifica quais métricas são mais relevantes para o seu setor e sugere valores de referência do mercado.",
       bloqueadaPor: perfilCompleto ? [] : ["perfil"],
     },
     {
@@ -271,6 +278,19 @@ export function useJornadaProgresso(): JornadaProgresso {
       valorIA:
         "A IA cria OKRs conectados às suas iniciativas e estratégias, garantindo alinhamento de cima a baixo.",
       bloqueadaPor: estrategias.length > 0 ? [] : ["estrategias"],
+    },
+    {
+      id: "indicadores",
+      nome: "KPIs — Painel BSC",
+      rota: "/indicadores",
+      concluida: indicadoresBsc.length > 0,
+      status: derivarStatus(indicadoresBsc.length > 0, false),
+      icone: BarChart3,
+      descricao:
+        "Com a estratégia definida, construa o Painel BSC nas 4 perspectivas — Finanças, Clientes, Processos e Pessoas — para monitorar a execução continuamente.",
+      valorIA:
+        "A IA gera KPIs estratégicos derivados das suas estratégias e OKRs, com metas alinhadas ao plano.",
+      bloqueadaPor: objetivos.length > 0 ? [] : ["okrs"],
     },
     {
       id: "acompanhamento",

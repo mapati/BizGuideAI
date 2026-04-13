@@ -55,7 +55,7 @@ function getStatusBadge(etapa: JornadaEtapa) {
 
 const ETAPA_INDEX: Record<string, string> = {
   perfil: "1",
-  indicadores: "2",
+  diagnostico: "2",
   pestel: "3",
   "cinco-forcas": "4",
   bmc: "5",
@@ -64,7 +64,8 @@ const ETAPA_INDEX: Record<string, string> = {
   oportunidades: "8",
   iniciativas: "9",
   okrs: "10",
-  acompanhamento: "11",
+  indicadores: "11",
+  acompanhamento: "12",
 };
 
 function EtapaCard({ etapa }: { etapa: JornadaEtapa }) {

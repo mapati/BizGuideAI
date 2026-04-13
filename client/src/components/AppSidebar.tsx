@@ -1,4 +1,4 @@
-import { Home, Map, Target, TrendingUp, CheckCircle, FileText, Compass, Layers, Grid3x3, ListChecks, Briefcase, LogOut, BarChart3, ShieldCheck, Users, CheckCircle2, Circle, ArrowRight } from "lucide-react";
+import { Home, Map, Target, TrendingUp, CheckCircle, FileText, Compass, Layers, Grid3x3, ListChecks, Briefcase, LogOut, BarChart3, ShieldCheck, Users, CheckCircle2, Circle, ArrowRight, ClipboardList } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -33,6 +33,7 @@ const apostasItems = [
 const marchaItems = [
   { title: "OKRs — Objetivos", url: "/okrs", icon: Target, jornadaId: "okrs" },
   { title: "Performance dos OKRs", url: "/bsc", icon: ListChecks, jornadaId: null },
+  { title: "KPIs — Painel BSC", url: "/indicadores", icon: BarChart3, jornadaId: "indicadores" },
   { title: "Acompanhamento", url: "/ritos", icon: CheckCircle, jornadaId: "acompanhamento" },
 ];
 
@@ -114,14 +115,14 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   asChild
-                  isActive={location === "/indicadores"}
-                  data-testid="link-indicadores"
+                  isActive={location === "/diagnostico"}
+                  data-testid="link-diagnostico"
                 >
-                  <Link href="/indicadores">
-                    <BarChart3 />
-                    <span>KPIs — Indicadores</span>
+                  <Link href="/diagnostico">
+                    <ClipboardList />
+                    <span>Diagnóstico Atual</span>
                     {!jornadaLoading && (
-                      <EtapaIndicador jornadaId="indicadores" etapas={etapas} proximaEtapaId={proximaEtapa?.id} />
+                      <EtapaIndicador jornadaId="diagnostico" etapas={etapas} proximaEtapaId={proximaEtapa?.id} />
                     )}
                   </Link>
                 </SidebarMenuButton>

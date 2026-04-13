@@ -113,10 +113,12 @@ export default function Indicadores() {
     queryKey: ["/api/empresa"],
   });
 
-  const { data: indicadores = [], isLoading } = useQuery<Indicador[]>({
+  const { data: todosIndicadores = [], isLoading } = useQuery<Indicador[]>({
     queryKey: ["/api/indicadores"],
     enabled: !!empresa?.id,
   });
+
+  const indicadores = todosIndicadores.filter((i) => i.perspectiva !== "diagnostico");
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["/api/indicadores"] });
@@ -236,9 +238,9 @@ export default function Indicadores() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="KPIs — Indicadores de Saúde"
-        description="Monitore continuamente a saúde do negócio com indicadores de desempenho nas 4 perspectivas BSC."
-        tooltip="KPIs (Key Performance Indicators) medem a saúde contínua do negócio com status verde/amarelo/vermelho. Diferente dos OKRs, não têm prazo de encerramento — são monitorados permanentemente."
+        title="KPIs — Painel BSC"
+        description="Com a estratégia definida, monitore a execução nas 4 perspectivas do Balanced Scorecard: Finanças, Clientes, Processos e Pessoas."
+        tooltip="Os KPIs do Painel BSC derivam da estratégia já construída. Diferente do Diagnóstico Atual (baseline pré-estratégico), esses indicadores medem se a estratégia está sendo executada e gerando os resultados esperados."
         action={
           <div className="flex gap-2">
             <Button
@@ -312,7 +314,7 @@ export default function Indicadores() {
             </div>
             <h3 className="text-lg font-semibold">Nenhum KPI cadastrado</h3>
             <p className="text-sm text-muted-foreground">
-              Crie indicadores de desempenho para monitorar a saúde do seu negócio, ou deixe a IA gerar KPIs relevantes com base no seu contexto estratégico.
+              Crie KPIs estratégicos nas 4 perspectivas BSC para monitorar se a estratégia está sendo executada, ou deixe a IA gerar indicadores alinhados aos seus OKRs e estratégias.
             </p>
             <div className="flex gap-2 justify-center flex-wrap">
               <Button

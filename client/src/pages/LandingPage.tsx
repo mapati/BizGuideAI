@@ -863,67 +863,111 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Phase connector strip — desktop only */}
+          <div className="hidden lg:flex items-center justify-center mb-8 gap-0">
+            {[
+              { label: "Diagnóstico", num: "01", bg: "bg-blue-600", count: "6 etapas" },
+              { label: "Apostas", num: "02", bg: "bg-purple-600", count: "3 etapas" },
+              { label: "Marcha", num: "03", bg: "bg-green-600", count: "2 etapas" },
+            ].map((fase, i) => (
+              <div key={fase.label} className="flex items-center">
+                <div className={`flex items-center gap-3 px-5 py-3 rounded-xl ${fase.bg} text-white`}>
+                  <span className="text-xs font-bold opacity-70">{fase.num}</span>
+                  <span className="font-semibold text-sm">{fase.label}</span>
+                  <span className="text-xs opacity-70 bg-white/20 rounded-full px-2 py-0.5">{fase.count}</span>
+                </div>
+                {i < 2 && (
+                  <div className="flex items-center">
+                    <div className="h-px w-8 bg-border" />
+                    <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <div className="h-px w-8 bg-border" />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" data-testid="jornada-stepper">
             {[
               {
-                fase: "01 — Diagnóstico",
-                cor: "border-blue-200 bg-blue-50/50",
-                corLabel: "text-blue-700 bg-blue-100",
+                faseNum: "01",
+                faseLabel: "Diagnóstico",
+                bg: "bg-blue-600",
+                corBorda: "border-blue-100",
+                corFundo: "bg-blue-50/40 dark:bg-blue-950/20",
                 corIcone: "text-blue-600 bg-blue-100",
+                corLinha: "bg-blue-200",
                 etapas: [
-                  { nome: "Perfil da Empresa", icone: Target, desc: "Dados da empresa e contexto para personalizar toda a análise" },
-                  { nome: "KPIs — Indicadores", icone: BarChart3, desc: "Métricas de saúde operacional antes de construir a estratégia" },
-                  { nome: "Cenário Externo — PESTEL", icone: Globe2, desc: "Forças políticas, econômicas e sociais que afetam o negócio" },
-                  { nome: "Mercado e Concorrência", icone: Swords, desc: "Análise das cinco forças de Porter e posicionamento competitivo" },
-                  { nome: "Modelo de Negócio", icone: LayoutGrid, desc: "Os 9 blocos do Business Model Canvas" },
-                  { nome: "Forças e Fraquezas — SWOT", icone: GitBranch, desc: "Visão interna e externa consolidada para tomada de decisão" },
+                  { num: 1, nome: "Perfil da Empresa", icone: Target, desc: "Dados da empresa e contexto para personalizar toda a análise" },
+                  { num: 2, nome: "KPIs — Indicadores", icone: BarChart3, desc: "Métricas de saúde operacional antes de construir a estratégia" },
+                  { num: 3, nome: "Cenário Externo — PESTEL", icone: Globe2, desc: "Forças políticas, econômicas e sociais que afetam o negócio" },
+                  { num: 4, nome: "Mercado e Concorrência", icone: Swords, desc: "Análise das cinco forças de Porter e posicionamento competitivo" },
+                  { num: 5, nome: "Modelo de Negócio", icone: LayoutGrid, desc: "Os 9 blocos do Business Model Canvas" },
+                  { num: 6, nome: "Forças e Fraquezas — SWOT", icone: GitBranch, desc: "Visão interna e externa consolidada para tomada de decisão" },
                 ],
               },
               {
-                fase: "02 — Apostas",
-                cor: "border-purple-200 bg-purple-50/50",
-                corLabel: "text-purple-700 bg-purple-100",
+                faseNum: "02",
+                faseLabel: "Apostas",
+                bg: "bg-purple-600",
+                corBorda: "border-purple-100",
+                corFundo: "bg-purple-50/40 dark:bg-purple-950/20",
                 corIcone: "text-purple-600 bg-purple-100",
+                corLinha: "bg-purple-200",
                 etapas: [
-                  { nome: "Estratégias — Matriz TOWS", icone: Flag, desc: "Estratégias práticas derivadas do cruzamento do SWOT" },
-                  { nome: "Oportunidades de Crescimento", icone: TrendingUp, desc: "Caminhos de expansão com a Matriz de Ansoff" },
-                  { nome: "Iniciativas Prioritárias", icone: Briefcase, desc: "Projetos concretos com responsáveis, prazos e impacto" },
+                  { num: 7, nome: "Estratégias — Matriz TOWS", icone: Flag, desc: "Estratégias práticas derivadas do cruzamento do SWOT" },
+                  { num: 8, nome: "Oportunidades de Crescimento", icone: TrendingUp, desc: "Caminhos de expansão com a Matriz de Ansoff" },
+                  { num: 9, nome: "Iniciativas Prioritárias", icone: Briefcase, desc: "Projetos concretos com responsáveis, prazos e impacto" },
                 ],
               },
               {
-                fase: "03 — Marcha",
-                cor: "border-green-200 bg-green-50/50",
-                corLabel: "text-green-700 bg-green-100",
+                faseNum: "03",
+                faseLabel: "Marcha",
+                bg: "bg-green-600",
+                corBorda: "border-green-100",
+                corFundo: "bg-green-50/40 dark:bg-green-950/20",
                 corIcone: "text-green-600 bg-green-100",
+                corLinha: "bg-green-200",
                 etapas: [
-                  { nome: "OKRs — Objetivos e Resultados-Chave", icone: Rocket, desc: "Metas inspiradoras com indicadores mensuráveis de progresso" },
-                  { nome: "Acompanhamento — Ritos Estratégicos", icone: Activity, desc: "Cadências de revisão semanal, mensal e trimestral" },
+                  { num: 10, nome: "OKRs — Objetivos e Resultados-Chave", icone: Rocket, desc: "Metas inspiradoras com indicadores mensuráveis de progresso" },
+                  { num: 11, nome: "Acompanhamento — Ritos Estratégicos", icone: Activity, desc: "Cadências de revisão semanal, mensal e trimestral" },
                 ],
               },
             ].map((grupo) => (
-              <Card key={grupo.fase} className={`border ${grupo.cor}`} data-testid={`card-fase-${grupo.fase.replace(/\s/g, "-").toLowerCase()}`}>
-                <CardContent className="p-6 flex flex-col gap-4">
-                  <span className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold w-fit ${grupo.corLabel}`}>
-                    {grupo.fase}
-                  </span>
-                  <div className="flex flex-col gap-3">
-                    {grupo.etapas.map((etapa) => {
-                      const Icon = etapa.icone;
-                      return (
-                        <div key={etapa.nome} className="flex items-start gap-3">
-                          <div className={`h-7 w-7 rounded-md flex items-center justify-center flex-shrink-0 ${grupo.corIcone}`}>
-                            <Icon className="h-4 w-4" />
+              <div key={grupo.faseLabel} className={`rounded-xl border ${grupo.corBorda} ${grupo.corFundo} p-5 flex flex-col gap-0`} data-testid={`stepper-fase-${grupo.faseNum}`}>
+                {/* Mobile phase header */}
+                <div className={`lg:hidden flex items-center gap-2 mb-4 ${grupo.bg} text-white rounded-lg px-3 py-2`}>
+                  <span className="text-xs font-bold opacity-70">{grupo.faseNum}</span>
+                  <span className="font-semibold text-sm">{grupo.faseLabel}</span>
+                </div>
+
+                {/* Steps with connecting vertical line */}
+                <div className="flex flex-col">
+                  {grupo.etapas.map((etapa, idx) => {
+                    const Icon = etapa.icone;
+                    const isLast = idx === grupo.etapas.length - 1;
+                    return (
+                      <div key={etapa.num} className="flex items-start gap-3">
+                        {/* Connector column: step bullet + vertical line */}
+                        <div className="flex flex-col items-center flex-shrink-0">
+                          <div className={`h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${grupo.corIcone}`}>
+                            {etapa.num}
                           </div>
+                          {!isLast && <div className={`w-px flex-1 min-h-[20px] mt-1 mb-1 ${grupo.corLinha}`} />}
+                        </div>
+                        {/* Step content */}
+                        <div className={`flex items-start gap-2 ${isLast ? "pb-0" : "pb-4"}`}>
+                          <Icon className={`h-4 w-4 flex-shrink-0 mt-0.5 ${grupo.corIcone.split(" ")[0]}`} />
                           <div>
-                            <p className="text-sm font-medium">{etapa.nome}</p>
-                            <p className="text-xs text-muted-foreground leading-relaxed">{etapa.desc}</p>
+                            <p className="text-sm font-medium leading-tight">{etapa.nome}</p>
+                            <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">{etapa.desc}</p>
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             ))}
           </div>
 

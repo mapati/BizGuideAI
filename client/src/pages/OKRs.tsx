@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 
-import { Plus, Sparkles, Target as TargetIcon, Loader2, Trash2, Edit2, TrendingUp, Users, Cog, GraduationCap, DollarSign } from "lucide-react";
+import { Plus, Sparkles, Target as TargetIcon, Loader2, Trash2, Edit2, TrendingUp, Users, Cog, GraduationCap, DollarSign, BookOpen, UserCheck } from "lucide-react";
 import { PrerequisiteWarning } from "@/components/PrerequisiteWarning";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -35,10 +35,12 @@ const perspectivas = [
   { valor: "Aprendizado e Crescimento", label: "Aprendizado e Crescimento", icon: GraduationCap, cor: "bg-purple-500" },
 ];
 
+type Membro = { id: string; nome: string; email: string };
+
 export default function OKRs() {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [novoObjetivo, setNovoObjetivo] = useState({ titulo: "", descricao: "", prazo: "", perspectiva: "Financeira" });
+  const [novoObjetivo, setNovoObjetivo] = useState({ titulo: "", descricao: "", prazo: "", perspectiva: "Financeira", responsavelId: "" });
   const [objetivoSelecionado, setObjetivoSelecionado] = useState<Objetivo | null>(null);
   const [dialogResultadosOpen, setDialogResultadosOpen] = useState(false);
   const [editandoResultado, setEditandoResultado] = useState<ResultadoChave | null>(null);
@@ -53,6 +55,10 @@ export default function OKRs() {
   const [dialogNovoResultadoOpen, setDialogNovoResultadoOpen] = useState(false);
   const [editandoObjetivo, setEditandoObjetivo] = useState(false);
   const [objetivoEditado, setObjetivoEditado] = useState({ titulo: "", descricao: "", prazo: "", perspectiva: "Financeira" });
+
+  const [retroDialogOpen, setRetroDialogOpen] = useState(false);
+  const [retroObjetivo, setRetroObjetivo] = useState<Objetivo | null>(null);
+  const [retroForm, setRetroForm] = useState({ conquistas: "", falhas: "", aprendizados: "", ajustes: "", periodoInicio: "", periodoFim: "" });
 
   const { data: empresa } = useQuery<any>({
     queryKey: ["/api/empresa"],
@@ -74,6 +80,8 @@ export default function OKRs() {
     queryKey: [`/api/resultados-chave/${objetivoSelecionado?.id}`],
     enabled: !!objetivoSelecionado?.id,
   });
+
+  const { data: membros = [] } = useQuery<Membro[]>({ queryKey: ["/api/membros"] });
 
   const [gerandoPerspectiva, setGerandoPerspectiva] = useState<string | null>(null);
 
@@ -158,6 +166,16 @@ export default function OKRs() {
         variant: "destructive",
       });
     },
+  });
+
+  const criarRetroMutation = useMutation({
+    mutationFn: (data: any) => apiRequest("POST", "/api/retrospectivas", data),
+    onSuccess: () => {
+      setRetroDialogOpen(false);
+      setRetroForm({ conquistas: "", falhas: "", aprendizados: "", ajustes: "", periodoInicio: "", periodoFim: "" });
+      toast({ title: "Retrospectiva registrada!", description: "O aprendizado deste ciclo foi salvo." });
+    },
+    onError: () => toast({ title: "Erro ao salvar retrospectiva", variant: "destructive" }),
   });
 
   const criarObjetivoMutation = useMutation({
@@ -247,7 +265,7 @@ export default function OKRs() {
       ...novoObjetivo,
     });
 
-    setNovoObjetivo({ titulo: "", descricao: "", prazo: "", perspectiva: "Financeira" });
+    setNovoObjetivo({ titulo: "", descricao: "", prazo: "", perspectiva: "Financeira", responsavelId: "" });
     setIsDialogOpen(false);
     toast({
       title: "Objetivo criado!",
@@ -443,6 +461,25 @@ export default function OKRs() {
                       </SelectContent>
                     </Select>
                   </div>
+                  {membros.length > 0 && (
+                    <div>
+                      <Label>Responsável</Label>
+                      <Select
+                        value={novoObjetivo.responsavelId || "__none__"}
+                        onValueChange={(v) => setNovoObjetivo({ ...novoObjetivo, responsavelId: v === "__none__" ? "" : v })}
+                      >
+                        <SelectTrigger data-testid="select-responsavel-objetivo">
+                          <SelectValue placeholder="Sem responsável" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Sem responsável</SelectItem>
+                          {membros.map(m => (
+                            <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <Button
                     onClick={handleCriarObjetivo}
                     className="w-full"
@@ -573,20 +610,46 @@ export default function OKRs() {
                             {objetivo.descricao && (
                               <p className="text-xs text-muted-foreground mb-2">{objetivo.descricao}</p>
                             )}
-                            <p className="text-xs text-muted-foreground">Prazo: {objetivo.prazo}</p>
+                            <div className="flex items-center flex-wrap gap-2">
+                              <p className="text-xs text-muted-foreground">Prazo: {objetivo.prazo}</p>
+                              {objetivo.responsavelId && (() => {
+                                const m = membros.find(m => m.id === objetivo.responsavelId);
+                                return m ? (
+                                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                                    <UserCheck className="h-3 w-3" />
+                                    {m.nome}
+                                  </span>
+                                ) : null;
+                              })()}
+                            </div>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deletarObjetivoMutation.mutate(objetivo.id);
-                            }}
-                            data-testid={`button-delete-objetivo-${objetivo.id}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          <div className="flex gap-0.5" onClick={e => e.stopPropagation()}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Registrar Retrospectiva"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRetroObjetivo(objetivo);
+                                setRetroDialogOpen(true);
+                              }}
+                              data-testid={`button-retro-objetivo-${objetivo.id}`}
+                            >
+                              <BookOpen className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-9 w-9"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deletarObjetivoMutation.mutate(objetivo.id);
+                              }}
+                              data-testid={`button-delete-objetivo-${objetivo.id}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       </Card>
                     ))
@@ -597,6 +660,60 @@ export default function OKRs() {
           })}
         </div>
       )}
+
+      {/* Retrospectiva Dialog */}
+      <Dialog open={retroDialogOpen} onOpenChange={setRetroDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5" />
+              Retrospectiva do Ciclo
+            </DialogTitle>
+          </DialogHeader>
+          {retroObjetivo && (
+            <div className="space-y-4 pt-2">
+              <p className="text-sm text-muted-foreground">Objetivo: <span className="font-medium text-foreground">{retroObjetivo.titulo}</span></p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Início do Ciclo</Label>
+                  <Input type="date" value={retroForm.periodoInicio} onChange={e => setRetroForm(f => ({ ...f, periodoInicio: e.target.value }))} data-testid="input-retro-inicio" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Fim do Ciclo</Label>
+                  <Input type="date" value={retroForm.periodoFim} onChange={e => setRetroForm(f => ({ ...f, periodoFim: e.target.value }))} data-testid="input-retro-fim" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-green-700 dark:text-green-400">O que conquistamos?</Label>
+                <Textarea value={retroForm.conquistas} onChange={e => setRetroForm(f => ({ ...f, conquistas: e.target.value }))} placeholder="Principais vitórias e resultados alcançados..." rows={2} data-testid="textarea-retro-conquistas" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-red-700 dark:text-red-400">O que não funcionou?</Label>
+                <Textarea value={retroForm.falhas} onChange={e => setRetroForm(f => ({ ...f, falhas: e.target.value }))} placeholder="Obstáculos, erros e o que ficou para trás..." rows={2} data-testid="textarea-retro-falhas" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-blue-700 dark:text-blue-400">O que aprendemos?</Label>
+                <Textarea value={retroForm.aprendizados} onChange={e => setRetroForm(f => ({ ...f, aprendizados: e.target.value }))} placeholder="Insights e lições para os próximos ciclos..." rows={2} data-testid="textarea-retro-aprendizados" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Ajustes para o próximo ciclo</Label>
+                <Textarea value={retroForm.ajustes} onChange={e => setRetroForm(f => ({ ...f, ajustes: e.target.value }))} placeholder="O que mudamos na estratégia ou nas metas?" rows={2} data-testid="textarea-retro-ajustes" />
+              </div>
+              <div className="flex gap-2 justify-end pt-2">
+                <Button variant="outline" onClick={() => setRetroDialogOpen(false)}>Cancelar</Button>
+                <Button
+                  onClick={() => criarRetroMutation.mutate({ objetivoId: retroObjetivo.id, ...retroForm })}
+                  disabled={criarRetroMutation.isPending || (!retroForm.conquistas && !retroForm.falhas && !retroForm.aprendizados)}
+                  data-testid="button-salvar-retro"
+                >
+                  {criarRetroMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  Registrar Retrospectiva
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={dialogResultadosOpen} onOpenChange={(open) => {
         setDialogResultadosOpen(open);

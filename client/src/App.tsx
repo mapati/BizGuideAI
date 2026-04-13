@@ -25,6 +25,13 @@ import BSC from "@/pages/BSC";
 import Indicadores from "@/pages/Indicadores";
 import DiagnosticoAtual from "@/pages/DiagnosticoAtual";
 import Acompanhamento from "@/pages/Acompanhamento";
+import Rastreabilidade from "@/pages/Rastreabilidade";
+import Alertas from "@/pages/Alertas";
+import Cenarios from "@/pages/Cenarios";
+import Riscos from "@/pages/Riscos";
+import MapaBSC from "@/pages/MapaBSC";
+import Exportacao from "@/pages/Exportacao";
+import PlanoPublico from "@/pages/PlanoPublico";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import LandingPage from "@/pages/LandingPage";
@@ -129,6 +136,7 @@ function AppLayout() {
         <Route path="/forgot-password" component={ForgotPassword} />
         <Route path="/reset-password" component={ResetPassword} />
         <Route path="/trial-expirado" component={TrialExpirado} />
+        <Route path="/plano-publico/:token" component={PlanoPublico} />
       </Switch>
     );
   }
@@ -183,6 +191,13 @@ function AppLayout() {
                 <Route path="/diagnostico" component={DiagnosticoAtual} />
                 <Route path="/indicadores" component={Indicadores} />
                 <Route path="/ritos" component={Acompanhamento} />
+                <Route path="/rastreabilidade" component={Rastreabilidade} />
+                <Route path="/alertas" component={Alertas} />
+                <Route path="/cenarios" component={Cenarios} />
+                <Route path="/riscos" component={Riscos} />
+                <Route path="/mapa-bsc" component={MapaBSC} />
+                <Route path="/exportacao" component={Exportacao} />
+                <Route path="/plano-publico/:token" component={PlanoPublico} />
                 <Route path="/trial-expirado" component={TrialExpirado} />
                 <Route path="/admin" component={Admin} />
                 <Route path="/equipe" component={Equipe} />

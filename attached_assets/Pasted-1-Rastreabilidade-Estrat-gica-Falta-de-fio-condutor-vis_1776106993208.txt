@@ -1,0 +1,54 @@
+1. Rastreabilidade Estratégica (Falta de "fio condutor" visual)
+Problema atual: Os frameworks estão conectados sequencialmente na Jornada, mas o usuário não vê de forma explícita como um elemento de PESTEL gerou um item de SWOT, que gerou uma Estratégia, que gerou um OKR. Cada módulo é uma "ilha".
+
+Melhoria: Criar uma Matriz de Coerência Estratégica — uma visão que mostra a trilha de cada decisão estratégica: Fator PESTEL → Ameaça no SWOT → Estratégia → Iniciativa → OKR. Isso seria o diferencial mais poderoso do produto, pois a maioria dos frameworks de PME não conecta os pontos.
+
+2. Ciclo Fechado de Aprendizado (A estratégia não "aprende")
+Problema atual: Os rituais registram o que foi discutido, mas não há um mecanismo formal para que os aprendizados retroalimentem a estratégia. O ciclo está aberto.
+
+Melhorias:
+
+Retrospectiva de Ciclo OKR: ao encerrar um período, uma tela estruturada pergunta "O que funcionou? O que não funcionou? O que muda na próxima estratégia?" — e as respostas alimentam automaticamente o próximo ciclo de planejamento
+Indicador de Evolução do Plano: mostrar como a estratégia evoluiu ao longo do tempo, com versões e histórico de mudanças
+3. Cascata de OKRs (OKRs só existem no nível da empresa)
+Problema atual: OKRs são definidos para a empresa, mas não chegam aos times ou indivíduos. Sem cascata, os colaboradores não entendem como seu trabalho diário conecta com os objetivos maiores.
+
+Melhoria: Permitir que cada Iniciativa e cada OKR seja atribuído a um responsável e que membros da equipe vejam "meus OKRs" — os objetivos pelos quais são pessoalmente responsáveis. Isso transforma o plano em ferramenta de gestão de pessoas, não só de sócios.
+
+4. Planejamento de Cenários (Estratégia só reflete o presente)
+Problema atual: O PESTEL captura o ambiente atual, mas nenhuma ferramenta ajuda o empresário a pensar em futuros possíveis e construir estratégias robustas para cada um.
+
+Melhoria: Um módulo de Cenários Estratégicos com 3 versões do futuro (otimista, base e pessimista), onde a IA ajuda a construir cada cenário baseado nos fatores PESTEL já cadastrados, e o usuário define como a estratégia se adapta em cada caso.
+
+5. Gestão de Riscos (Riscos são identificados mas não gerenciados)
+Problema atual: Ameaças aparecem no SWOT e fatores críticos aparecem no PESTEL, mas não existe um Registro de Riscos com probabilidade, impacto, plano de mitigação e responsável.
+
+Melhoria: Um módulo leve de Risk Register — derivado automaticamente das ameaças do SWOT e fatores críticos do PESTEL, com matriz de calor (probabilidade × impacto) e status de mitigação. A IA poderia sugerir planos de contingência.
+
+6. Mapa Estratégico do BSC (BSC sem o "Strategy Map")
+Problema atual: O app tem os indicadores nas 4 perspectivas do BSC, mas não tem o Mapa Estratégico — o diagrama de causa-e-efeito que é o coração visual do Balanced Scorecard. Sem o mapa, os indicadores são uma lista, não um sistema.
+
+Melhoria: Um canvas visual mostrando as relações de causa-efeito entre os objetivos nas 4 perspectivas: "Treinar equipe (Aprendizado) → Melhorar processos (Processos) → Aumentar satisfação (Clientes) → Crescer receita (Financeiro)".
+
+7. Análise de Gap / Distância para a Meta
+Problema atual: O app mostra onde a empresa está (KPIs) e onde quer chegar (OKRs), mas não calcula explicitamente nem visualiza o gap entre os dois.
+
+Melhoria: Um painel de "Distância para a Meta" que mostra, para cada OKR e KPI crítico, qual é o resultado atual, qual é a meta, qual é a distância e qual o ritmo necessário para chegar lá. A IA poderia projetar se o ritmo atual é suficiente para atingir a meta.
+
+8. Exportação e Compartilhamento (Plano vive só dentro do app)
+Problema atual: O plano estratégico existe dentro da plataforma, mas o empresário frequentemente precisa compartilhá-lo com investidores, banco, conselho ou novos sócios.
+
+Melhorias:
+
+Exportação PDF do plano estratégico completo em formato executivo
+Link de visualização read-only para compartilhar com stakeholders externos sem precisar criar conta
+"Estratégia em Uma Página" — síntese visual de 1 página com os elementos mais importantes do plano
+9. Alertas Proativos por E-mail (Alertas só existem dentro do app)
+Problema atual: Os alertas inteligentes funcionam bem, mas só aparecem quando o usuário abre o app. Um empresário ocupado pode ficar semanas sem abrir.
+
+Melhoria: Notificações por e-mail para situações críticas: KPI entrou em zona vermelha, ritual está atrasado, OKR vai vencer em 2 semanas sem progresso registrado. A frequência seria configurável pelo usuário.
+
+10. Benchmarking Setorial (KPIs sem contexto de mercado)
+Problema atual: O empresário sabe que sua margem é 18%, mas não sabe se isso é bom ou ruim para o seu setor.
+
+Melhoria: Integrar benchmarks setoriais (com IA ou base de dados) para contextualizar os KPIs. "Sua margem líquida de 18% está acima da média do setor de serviços no Brasil (14%)." Isso transforma dados em inteligência real.

@@ -12,6 +12,12 @@ import {
   insertObjetivoSchema,
   insertResultadoChaveSchema,
   insertIndicadorSchema,
+  insertRetrospectivaSchema,
+  insertCenarioSchema,
+  insertRiscoSchema,
+  insertBscRelacaoSchema,
+  insertCompartilhamentoSchema,
+  insertConfiguracaoNotificacaoSchema,
   insertCincoForcasSchema,
   insertModeloNegocioSchema,
   insertEstrategiaSchema,
@@ -748,6 +754,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ==================== EMPRESA ====================
 
 
+  app.get("/api/membros", requireAuth, async (req, res) => {
+    try {
+      const membros = await storage.getUsuariosByEmpresaId(req.session.empresaId!);
+      res.json(membros.map(m => ({ id: m.id, nome: m.nome, email: m.email })));
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get("/api/empresa", async (req, res) => {
     try {
       const empresa = await storage.getEmpresa(req.session.empresaId!);
@@ -1199,6 +1214,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       await storage.deleteIndicador(id, req.session.empresaId!);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/indicadores/:id/leituras", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const leituras = await storage.getLeituras(id);
+      res.json(leituras);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/indicadores/:id/leituras", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { valor, nota, registradoPor } = req.body;
+      if (!valor) return res.status(400).json({ error: "valor é obrigatório" });
+      const leitura = await storage.createLeitura({
+        indicadorId: id,
+        valor,
+        nota: nota || null,
+        registradoPor: registradoPor || null,
+      });
+      res.json(leitura);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/indicadores/leituras/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteLeitura(id);
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -3697,6 +3749,53 @@ Responda em JSON:
     }
   });
 
+  app.post("/api/ai/gerar-benchmarks", async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const empresa = await storage.getEmpresa(empresaId);
+      if (!empresa) return res.status(404).json({ error: "Empresa não encontrada" });
+
+      const todosIndicadores = await storage.getIndicadores(empresaId);
+      const indicadoresBsc = todosIndicadores.filter((i) => i.perspectiva !== "diagnostico");
+
+      if (indicadoresBsc.length === 0) {
+        return res.json({ updated: 0 });
+      }
+
+      const contextoPerfil = buildEmpresaContextoIA(empresa);
+      let updated = 0;
+
+      for (const ind of indicadoresBsc) {
+        try {
+          const completion = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+              {
+                role: "system",
+                content: "Você é especialista em benchmarking setorial para PMEs brasileiras. Responda SEMPRE em JSON com uma única chave 'benchmark'.",
+              },
+              {
+                role: "user",
+                content: `## PERFIL DA EMPRESA:\n${contextoPerfil}\n\n## KPI: ${ind.nome}\n## Valor atual: ${ind.atual}\n## Meta: ${ind.meta}\n\nGere UMA frase de benchmark setorial para este KPI específico desta empresa. Use dados de mercado do setor brasileiro. Formato: "Sua [métrica] de [valor] está [acima/na/abaixo d] média do setor de [setor] ([benchmark de referência])."`,
+              },
+            ],
+            response_format: { type: "json_object" },
+            temperature: 0.5,
+          });
+          const r = JSON.parse(completion.choices[0].message.content || "{}");
+          if (r.benchmark) {
+            await storage.updateIndicadorBenchmark(ind.id, r.benchmark);
+            updated++;
+          }
+        } catch {}
+      }
+
+      res.json({ updated });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ==================== RITUAIS ====================
   
   function isRitualPendente(ritual: any, tipo: string): boolean {
@@ -4150,6 +4249,222 @@ Inclua 3-5 itens em cada lista. Seja específico e cite os dados reais fornecido
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
+  });
+
+  // ── Retrospectivas (Ciclo Aprendizado) ──────────────────────────────────
+  app.get("/api/retrospectivas", requireAuth, async (req, res) => {
+    const retros = await storage.getRetrospectivas(req.session.empresaId!);
+    res.json(retros);
+  });
+  app.get("/api/objetivos/:objetivoId/retrospectivas", requireAuth, async (req, res) => {
+    const retros = await storage.getRetrospectivasByObjetivo(req.params.objetivoId);
+    res.json(retros);
+  });
+  app.post("/api/retrospectivas", requireAuth, async (req, res) => {
+    try {
+      const data = insertRetrospectivaSchema.parse({ ...req.body, empresaId: req.session.empresaId, registradoPor: req.session.userEmail });
+      const retro = await storage.createRetrospectiva(data);
+      res.status(201).json(retro);
+    } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+  app.delete("/api/retrospectivas/:id", requireAuth, async (req, res) => {
+    await storage.deleteRetrospectiva(req.params.id, req.session.empresaId!);
+    res.json({ ok: true });
+  });
+
+  // ── Cenários Estratégicos ────────────────────────────────────────────────
+  app.get("/api/cenarios", requireAuth, async (req, res) => {
+    const cens = await storage.getCenarios(req.session.empresaId!);
+    res.json(cens);
+  });
+  app.post("/api/cenarios", requireAuth, async (req, res) => {
+    try {
+      const data = insertCenarioSchema.parse({ ...req.body, empresaId: req.session.empresaId });
+      const c = await storage.createCenario(data);
+      res.status(201).json(c);
+    } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+  app.patch("/api/cenarios/:id", requireAuth, async (req, res) => {
+    try {
+      const c = await storage.updateCenario(req.params.id, req.session.empresaId!, req.body);
+      res.json(c);
+    } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+  app.delete("/api/cenarios/:id", requireAuth, async (req, res) => {
+    await storage.deleteCenario(req.params.id, req.session.empresaId!);
+    res.json({ ok: true });
+  });
+  app.post("/api/ai/gerar-cenarios", requireAuth, async (req, res) => {
+    try {
+      const empresa = await storage.getEmpresa(req.session.empresaId!);
+      if (!empresa) return res.status(404).json({ error: "Empresa não encontrada" });
+      const swots = await storage.getAnaliseSwot(req.session.empresaId!);
+      const pestels = await storage.getFatoresPestel(req.session.empresaId!);
+      const swotResume = swots.map(s => `${s.tipo.toUpperCase()}: ${s.descricao}`).join("\n");
+      const pestelResume = pestels.map(p => `${p.categoria}: ${p.descricao} (impacto: ${p.impacto})`).join("\n");
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{
+          role: "user",
+          content: `Você é consultor estratégico especializado em planejamento de cenários para PMEs brasileiras.
+Empresa: ${empresa.nome} | Setor: ${empresa.setor} | Porte: ${empresa.tamanho}
+
+SWOT:\n${swotResume}
+PESTEL:\n${pestelResume}
+
+Gere 3 cenários estratégicos (pessimista, base e otimista) em JSON:
+{
+  "cenarios": [
+    { "tipo": "pessimista", "titulo": "...", "descricao": "...", "premissas": ["...", "..."], "resposta_estrategica": "..." },
+    { "tipo": "base", "titulo": "...", "descricao": "...", "premissas": ["...", "..."], "resposta_estrategica": "..." },
+    { "tipo": "otimista", "titulo": "...", "descricao": "...", "premissas": ["...", "..."], "resposta_estrategica": "..." }
+  ]
+}
+Seja específico com dados do setor ${empresa.setor}. premissas deve ter 3-4 itens.`,
+        }],
+        response_format: { type: "json_object" },
+        temperature: 0.7,
+      });
+      const parsed = JSON.parse(completion.choices[0].message.content || "{}");
+      const cenariosCriados = [];
+      for (const c of parsed.cenarios || []) {
+        const criado = await storage.createCenario({
+          empresaId: req.session.empresaId!,
+          tipo: c.tipo,
+          titulo: c.titulo,
+          descricao: c.descricao,
+          premissas: JSON.stringify(c.premissas || []),
+          respostaEstrategica: c.resposta_estrategica,
+        });
+        cenariosCriados.push(criado);
+      }
+      res.json({ cenarios: cenariosCriados });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ── Gestão de Riscos ─────────────────────────────────────────────────────
+  app.get("/api/riscos", requireAuth, async (req, res) => {
+    res.json(await storage.getRiscos(req.session.empresaId!));
+  });
+  app.post("/api/riscos", requireAuth, async (req, res) => {
+    try {
+      const data = insertRiscoSchema.parse({ ...req.body, empresaId: req.session.empresaId });
+      res.status(201).json(await storage.createRisco(data));
+    } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+  app.patch("/api/riscos/:id", requireAuth, async (req, res) => {
+    try {
+      res.json(await storage.updateRisco(req.params.id, req.session.empresaId!, req.body));
+    } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+  app.delete("/api/riscos/:id", requireAuth, async (req, res) => {
+    await storage.deleteRisco(req.params.id, req.session.empresaId!);
+    res.json({ ok: true });
+  });
+  app.post("/api/ai/gerar-riscos", requireAuth, async (req, res) => {
+    try {
+      const empresa = await storage.getEmpresa(req.session.empresaId!);
+      if (!empresa) return res.status(404).json({ error: "Empresa não encontrada" });
+      const swots = await storage.getAnaliseSwot(req.session.empresaId!);
+      const pestels = await storage.getFatoresPestel(req.session.empresaId!);
+      const fraquezas = swots.filter(s => s.tipo === "fraqueza").map(s => s.descricao).join("; ");
+      const ameacas = swots.filter(s => s.tipo === "ameaca").map(s => s.descricao).join("; ");
+      const pestelNeg = pestels.filter(p => p.impacto === "negativo").map(p => `${p.categoria}: ${p.descricao}`).join("; ");
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{
+          role: "user",
+          content: `Você é especialista em gestão de riscos para PMEs brasileiras.
+Empresa: ${empresa.nome} | Setor: ${empresa.setor}
+Fraquezas: ${fraquezas || "N/A"}
+Ameaças: ${ameacas || "N/A"}
+Fatores negativos PESTEL: ${pestelNeg || "N/A"}
+
+Gere 5-7 riscos estratégicos em JSON:
+{
+  "riscos": [
+    { "descricao": "...", "categoria": "estrategico|operacional|financeiro|regulatorio|tecnologico", "probabilidade": 1-5, "impacto": 1-5, "plano_mitigacao": "..." }
+  ]
+}
+Seja específico para o setor ${empresa.setor}.`,
+        }],
+        response_format: { type: "json_object" },
+        temperature: 0.7,
+      });
+      const parsed = JSON.parse(completion.choices[0].message.content || "{}");
+      const riscosCriados = [];
+      for (const r of parsed.riscos || []) {
+        const criado = await storage.createRisco({
+          empresaId: req.session.empresaId!,
+          descricao: r.descricao,
+          categoria: r.categoria,
+          probabilidade: Math.min(5, Math.max(1, Number(r.probabilidade) || 3)),
+          impacto: Math.min(5, Math.max(1, Number(r.impacto) || 3)),
+          status: "identificado",
+          planoMitigacao: r.plano_mitigacao,
+        });
+        riscosCriados.push(criado);
+      }
+      res.json({ riscos: riscosCriados });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ── Mapa BSC (relações causa-efeito) ────────────────────────────────────
+  app.get("/api/bsc-relacoes", requireAuth, async (req, res) => {
+    res.json(await storage.getBscRelacoes(req.session.empresaId!));
+  });
+  app.post("/api/bsc-relacoes", requireAuth, async (req, res) => {
+    try {
+      const data = insertBscRelacaoSchema.parse({ ...req.body, empresaId: req.session.empresaId });
+      res.status(201).json(await storage.createBscRelacao(data));
+    } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+  app.delete("/api/bsc-relacoes/:id", requireAuth, async (req, res) => {
+    await storage.deleteBscRelacao(req.params.id, req.session.empresaId!);
+    res.json({ ok: true });
+  });
+
+  // ── Compartilhamentos (links read-only) ──────────────────────────────────
+  app.get("/api/compartilhamentos", requireAuth, async (req, res) => {
+    res.json(await storage.getCompartilhamentos(req.session.empresaId!));
+  });
+  app.post("/api/compartilhamentos", requireAuth, async (req, res) => {
+    try {
+      const data = insertCompartilhamentoSchema.parse({ ...req.body, empresaId: req.session.empresaId, criadoPor: req.session.userEmail });
+      res.status(201).json(await storage.createCompartilhamento(data));
+    } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+  app.delete("/api/compartilhamentos/:id", requireAuth, async (req, res) => {
+    await storage.deleteCompartilhamento(req.params.id, req.session.empresaId!);
+    res.json({ ok: true });
+  });
+  // Public read-only endpoint (no auth required)
+  app.get("/api/plano-publico/:token", async (req, res) => {
+    try {
+      const comp = await storage.getCompartilhamentoByToken(req.params.token);
+      if (!comp) return res.status(404).json({ error: "Link não encontrado ou expirado" });
+      const [empresa, objetivos, indicadores, estrategias, iniciativas, riscos, cenarios] = await Promise.all([
+        storage.getEmpresa(comp.empresaId),
+        storage.getObjetivos(comp.empresaId),
+        storage.getIndicadores(comp.empresaId),
+        storage.getEstrategias(comp.empresaId),
+        storage.getIniciativas(comp.empresaId),
+        storage.getRiscos(comp.empresaId),
+        storage.getCenarios(comp.empresaId),
+      ]);
+      res.json({ empresa, objetivos, indicadores, estrategias, iniciativas, riscos, cenarios });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ── Configurações de Notificação (Alertas E-mail) ────────────────────────
+  app.get("/api/notificacoes/configuracoes", requireAuth, async (req, res) => {
+    res.json(await storage.getConfiguracoesNotificacao(req.session.usuarioId!));
+  });
+  app.post("/api/notificacoes/configuracoes", requireAuth, async (req, res) => {
+    try {
+      const data = insertConfiguracaoNotificacaoSchema.parse({ ...req.body, usuarioId: req.session.usuarioId });
+      res.json(await storage.upsertConfiguracaoNotificacao(data));
+    } catch (e: any) { res.status(400).json({ error: e.message }); }
   });
 
   const httpServer = createServer(app);

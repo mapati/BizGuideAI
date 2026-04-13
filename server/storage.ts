@@ -9,6 +9,13 @@ import {
   objetivos, 
   resultadosChave, 
   indicadores,
+  kpiLeituras,
+  retrospectivas,
+  cenarios,
+  riscos,
+  bscRelacoes,
+  compartilhamentos,
+  configuracoesNotificacao,
   cincoForcas,
   modeloNegocio,
   estrategias,
@@ -33,6 +40,20 @@ import {
   type InsertResultadoChave,
   type Indicador,
   type InsertIndicador,
+  type KpiLeitura,
+  type InsertKpiLeitura,
+  type Retrospectiva,
+  type InsertRetrospectiva,
+  type Cenario,
+  type InsertCenario,
+  type Risco,
+  type InsertRisco,
+  type BscRelacao,
+  type InsertBscRelacao,
+  type Compartilhamento,
+  type InsertCompartilhamento,
+  type ConfiguracaoNotificacao,
+  type InsertConfiguracaoNotificacao,
   type CincoForcas,
   type InsertCincoForcas,
   type ModeloNegocio,
@@ -89,8 +110,42 @@ export interface IStorage {
   getIndicadores(empresaId: string): Promise<Indicador[]>;
   createIndicador(indicador: InsertIndicador): Promise<Indicador>;
   updateIndicador(id: string, empresaId: string, indicador: Partial<InsertIndicador>): Promise<Indicador>;
+  updateIndicadorBenchmark(id: string, benchmark: string): Promise<void>;
   deleteIndicador(id: string, empresaId: string): Promise<void>;
-  
+
+  getLeituras(indicadorId: string): Promise<KpiLeitura[]>;
+  createLeitura(leitura: InsertKpiLeitura): Promise<KpiLeitura>;
+  deleteLeitura(id: string): Promise<void>;
+
+  getRetrospectivas(empresaId: string): Promise<Retrospectiva[]>;
+  getRetrospectivasByObjetivo(objetivoId: string): Promise<Retrospectiva[]>;
+  createRetrospectiva(retro: InsertRetrospectiva): Promise<Retrospectiva>;
+  deleteRetrospectiva(id: string, empresaId: string): Promise<void>;
+
+  getCenarios(empresaId: string): Promise<Cenario[]>;
+  createCenario(cenario: InsertCenario): Promise<Cenario>;
+  updateCenario(id: string, empresaId: string, cenario: Partial<InsertCenario>): Promise<Cenario>;
+  deleteCenario(id: string, empresaId: string): Promise<void>;
+
+  getRiscos(empresaId: string): Promise<Risco[]>;
+  createRisco(risco: InsertRisco): Promise<Risco>;
+  updateRisco(id: string, empresaId: string, risco: Partial<InsertRisco>): Promise<Risco>;
+  deleteRisco(id: string, empresaId: string): Promise<void>;
+
+  getBscRelacoes(empresaId: string): Promise<BscRelacao[]>;
+  createBscRelacao(relacao: InsertBscRelacao): Promise<BscRelacao>;
+  deleteBscRelacao(id: string, empresaId: string): Promise<void>;
+
+  getCompartilhamentos(empresaId: string): Promise<Compartilhamento[]>;
+  createCompartilhamento(comp: InsertCompartilhamento): Promise<Compartilhamento>;
+  getCompartilhamentoByToken(token: string): Promise<Compartilhamento | undefined>;
+  deleteCompartilhamento(id: string, empresaId: string): Promise<void>;
+
+  getConfiguracoesNotificacao(usuarioId: string): Promise<ConfiguracaoNotificacao[]>;
+  upsertConfiguracaoNotificacao(conf: InsertConfiguracaoNotificacao): Promise<ConfiguracaoNotificacao>;
+  getAllConfiguracoesNotificacaoAtivas(): Promise<ConfiguracaoNotificacao[]>;
+  updateUltimoEnvio(id: string): Promise<void>;
+
   getCincoForcas(empresaId: string): Promise<CincoForcas[]>;
   createCincoForcas(forca: InsertCincoForcas): Promise<CincoForcas>;
   updateCincoForcas(id: string, empresaId: string, forca: Partial<InsertCincoForcas>): Promise<CincoForcas>;
@@ -340,11 +395,122 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
+  async updateIndicadorBenchmark(id: string, benchmark: string): Promise<void> {
+    await db.update(indicadores).set({ benchmarkSetorial: benchmark, benchmarkAtualizadoEm: new Date() }).where(eq(indicadores.id, id));
+  }
+
   async deleteIndicador(id: string, empresaId: string): Promise<void> {
     const result = await db.delete(indicadores)
       .where(and(eq(indicadores.id, id), eq(indicadores.empresaId, empresaId)))
       .returning();
     if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
+  }
+
+  async getLeituras(indicadorId: string): Promise<KpiLeitura[]> {
+    return db.select().from(kpiLeituras)
+      .where(eq(kpiLeituras.indicadorId, indicadorId))
+      .orderBy(desc(kpiLeituras.registradoEm));
+  }
+
+  async createLeitura(leitura: InsertKpiLeitura): Promise<KpiLeitura> {
+    const result = await db.insert(kpiLeituras).values(leitura).returning();
+    return result[0];
+  }
+
+  async deleteLeitura(id: string): Promise<void> {
+    await db.delete(kpiLeituras).where(eq(kpiLeituras.id, id));
+  }
+
+  async getRetrospectivas(empresaId: string): Promise<Retrospectiva[]> {
+    return db.select().from(retrospectivas).where(eq(retrospectivas.empresaId, empresaId)).orderBy(desc(retrospectivas.criadaEm));
+  }
+  async getRetrospectivasByObjetivo(objetivoId: string): Promise<Retrospectiva[]> {
+    return db.select().from(retrospectivas).where(eq(retrospectivas.objetivoId, objetivoId)).orderBy(desc(retrospectivas.criadaEm));
+  }
+  async createRetrospectiva(retro: InsertRetrospectiva): Promise<Retrospectiva> {
+    const result = await db.insert(retrospectivas).values(retro).returning();
+    return result[0];
+  }
+  async deleteRetrospectiva(id: string, empresaId: string): Promise<void> {
+    await db.delete(retrospectivas).where(and(eq(retrospectivas.id, id), eq(retrospectivas.empresaId, empresaId)));
+  }
+
+  async getCenarios(empresaId: string): Promise<Cenario[]> {
+    return db.select().from(cenarios).where(eq(cenarios.empresaId, empresaId)).orderBy(cenarios.tipo);
+  }
+  async createCenario(cenario: InsertCenario): Promise<Cenario> {
+    const result = await db.insert(cenarios).values(cenario).returning();
+    return result[0];
+  }
+  async updateCenario(id: string, empresaId: string, cenario: Partial<InsertCenario>): Promise<Cenario> {
+    const result = await db.update(cenarios).set(omitTenantFields(cenario))
+      .where(and(eq(cenarios.id, id), eq(cenarios.empresaId, empresaId))).returning();
+    if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
+    return result[0];
+  }
+  async deleteCenario(id: string, empresaId: string): Promise<void> {
+    await db.delete(cenarios).where(and(eq(cenarios.id, id), eq(cenarios.empresaId, empresaId)));
+  }
+
+  async getRiscos(empresaId: string): Promise<Risco[]> {
+    return db.select().from(riscos).where(eq(riscos.empresaId, empresaId)).orderBy(desc(riscos.criadoEm));
+  }
+  async createRisco(risco: InsertRisco): Promise<Risco> {
+    const result = await db.insert(riscos).values(risco).returning();
+    return result[0];
+  }
+  async updateRisco(id: string, empresaId: string, risco: Partial<InsertRisco>): Promise<Risco> {
+    const result = await db.update(riscos).set(omitTenantFields(risco))
+      .where(and(eq(riscos.id, id), eq(riscos.empresaId, empresaId))).returning();
+    if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
+    return result[0];
+  }
+  async deleteRisco(id: string, empresaId: string): Promise<void> {
+    await db.delete(riscos).where(and(eq(riscos.id, id), eq(riscos.empresaId, empresaId)));
+  }
+
+  async getBscRelacoes(empresaId: string): Promise<BscRelacao[]> {
+    return db.select().from(bscRelacoes).where(eq(bscRelacoes.empresaId, empresaId));
+  }
+  async createBscRelacao(relacao: InsertBscRelacao): Promise<BscRelacao> {
+    const result = await db.insert(bscRelacoes).values(relacao).returning();
+    return result[0];
+  }
+  async deleteBscRelacao(id: string, empresaId: string): Promise<void> {
+    await db.delete(bscRelacoes).where(and(eq(bscRelacoes.id, id), eq(bscRelacoes.empresaId, empresaId)));
+  }
+
+  async getCompartilhamentos(empresaId: string): Promise<Compartilhamento[]> {
+    return db.select().from(compartilhamentos).where(eq(compartilhamentos.empresaId, empresaId)).orderBy(desc(compartilhamentos.criadoEm));
+  }
+  async createCompartilhamento(comp: InsertCompartilhamento): Promise<Compartilhamento> {
+    const crypto = await import("crypto");
+    const token = crypto.randomBytes(16).toString("hex");
+    const result = await db.insert(compartilhamentos).values({ ...comp, token }).returning();
+    return result[0];
+  }
+  async getCompartilhamentoByToken(token: string): Promise<Compartilhamento | undefined> {
+    const result = await db.select().from(compartilhamentos).where(and(eq(compartilhamentos.token, token), eq(compartilhamentos.ativo, true)));
+    return result[0];
+  }
+  async deleteCompartilhamento(id: string, empresaId: string): Promise<void> {
+    await db.delete(compartilhamentos).where(and(eq(compartilhamentos.id, id), eq(compartilhamentos.empresaId, empresaId)));
+  }
+
+  async getConfiguracoesNotificacao(usuarioId: string): Promise<ConfiguracaoNotificacao[]> {
+    return db.select().from(configuracoesNotificacao).where(eq(configuracoesNotificacao.usuarioId, usuarioId));
+  }
+  async upsertConfiguracaoNotificacao(conf: InsertConfiguracaoNotificacao): Promise<ConfiguracaoNotificacao> {
+    const result = await db.insert(configuracoesNotificacao).values(conf)
+      .onConflictDoUpdate({ target: [configuracoesNotificacao.usuarioId, configuracoesNotificacao.tipoAlerta], set: { ativo: conf.ativo, frequencia: conf.frequencia } })
+      .returning();
+    return result[0];
+  }
+  async getAllConfiguracoesNotificacaoAtivas(): Promise<ConfiguracaoNotificacao[]> {
+    return db.select().from(configuracoesNotificacao).where(eq(configuracoesNotificacao.ativo, true));
+  }
+  async updateUltimoEnvio(id: string): Promise<void> {
+    await db.update(configuracoesNotificacao).set({ ultimoEnvio: new Date() }).where(eq(configuracoesNotificacao.id, id));
   }
 
   async getCincoForcas(empresaId: string): Promise<CincoForcas[]> {

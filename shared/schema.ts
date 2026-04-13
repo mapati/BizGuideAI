@@ -125,6 +125,8 @@ export const objetivos = pgTable("objetivos", {
   descricao: text("descricao"),
   prazo: text("prazo").notNull(),
   perspectiva: text("perspectiva").notNull().default("Financeira"),
+  responsavelId: varchar("responsavel_id").references(() => usuarios.id, { onDelete: "set null" }),
+  encerrado: boolean("encerrado").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -144,6 +146,7 @@ export const resultadosChave = pgTable("resultados_chave", {
   valorAtual: decimal("valor_atual", { precision: 10, scale: 2 }).notNull(),
   owner: text("owner").notNull(),
   prazo: text("prazo").notNull(),
+  responsavelId: varchar("responsavel_id").references(() => usuarios.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -163,6 +166,8 @@ export const indicadores = pgTable("indicadores", {
   atual: text("atual").notNull(),
   status: text("status").notNull(),
   owner: text("owner").notNull(),
+  benchmarkSetorial: text("benchmark_setorial"),
+  benchmarkAtualizadoEm: timestamp("benchmark_atualizado_em"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -299,6 +304,107 @@ export const insertEventoSchema = createInsertSchema(eventos).omit({
 });
 export type InsertEvento = z.infer<typeof insertEventoSchema>;
 export type Evento = typeof eventos.$inferSelect;
+
+export const retrospectivas = pgTable("retrospectivas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  objetivoId: varchar("objetivo_id").notNull().references(() => objetivos.id, { onDelete: "cascade" }),
+  empresaId: varchar("empresa_id").notNull().references(() => empresas.id, { onDelete: "cascade" }),
+  conquistas: text("conquistas").notNull().default(""),
+  falhas: text("falhas").notNull().default(""),
+  aprendizados: text("aprendizados").notNull().default(""),
+  ajustes: text("ajustes").notNull().default(""),
+  periodoInicio: text("periodo_inicio"),
+  periodoFim: text("periodo_fim"),
+  registradoPor: text("registrado_por"),
+  criadaEm: timestamp("criada_em").defaultNow().notNull(),
+});
+export const insertRetrospectivaSchema = createInsertSchema(retrospectivas).omit({ id: true, criadaEm: true });
+export type InsertRetrospectiva = z.infer<typeof insertRetrospectivaSchema>;
+export type Retrospectiva = typeof retrospectivas.$inferSelect;
+
+export const cenarios = pgTable("cenarios", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  empresaId: varchar("empresa_id").notNull().references(() => empresas.id, { onDelete: "cascade" }),
+  tipo: text("tipo").notNull(),
+  titulo: text("titulo").notNull().default(""),
+  descricao: text("descricao").notNull().default(""),
+  premissas: text("premissas").notNull().default("[]"),
+  respostaEstrategica: text("resposta_estrategica").notNull().default(""),
+  criadoEm: timestamp("criado_em").defaultNow().notNull(),
+});
+export const insertCenarioSchema = createInsertSchema(cenarios).omit({ id: true, criadoEm: true });
+export type InsertCenario = z.infer<typeof insertCenarioSchema>;
+export type Cenario = typeof cenarios.$inferSelect;
+
+export const riscos = pgTable("riscos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  empresaId: varchar("empresa_id").notNull().references(() => empresas.id, { onDelete: "cascade" }),
+  descricao: text("descricao").notNull(),
+  categoria: text("categoria").notNull().default("estrategico"),
+  probabilidade: integer("probabilidade").notNull().default(3),
+  impacto: integer("impacto").notNull().default(3),
+  status: text("status").notNull().default("identificado"),
+  planoMitigacao: text("plano_mitigacao").notNull().default(""),
+  responsavelId: varchar("responsavel_id").references(() => usuarios.id, { onDelete: "set null" }),
+  origemSwotId: varchar("origem_swot_id").references(() => analiseSwot.id, { onDelete: "set null" }),
+  origemPestelId: varchar("origem_pestel_id").references(() => fatoresPestel.id, { onDelete: "set null" }),
+  criadoEm: timestamp("criado_em").defaultNow().notNull(),
+});
+export const insertRiscoSchema = createInsertSchema(riscos).omit({ id: true, criadoEm: true });
+export type InsertRisco = z.infer<typeof insertRiscoSchema>;
+export type Risco = typeof riscos.$inferSelect;
+
+export const bscRelacoes = pgTable("bsc_relacoes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  empresaId: varchar("empresa_id").notNull().references(() => empresas.id, { onDelete: "cascade" }),
+  origemId: varchar("origem_id").notNull().references(() => objetivos.id, { onDelete: "cascade" }),
+  destinoId: varchar("destino_id").notNull().references(() => objetivos.id, { onDelete: "cascade" }),
+  criadoEm: timestamp("criado_em").defaultNow().notNull(),
+});
+export const insertBscRelacaoSchema = createInsertSchema(bscRelacoes).omit({ id: true, criadoEm: true });
+export type InsertBscRelacao = z.infer<typeof insertBscRelacaoSchema>;
+export type BscRelacao = typeof bscRelacoes.$inferSelect;
+
+export const compartilhamentos = pgTable("compartilhamentos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  empresaId: varchar("empresa_id").notNull().references(() => empresas.id, { onDelete: "cascade" }),
+  token: varchar("token").notNull().unique(),
+  tipo: text("tipo").notNull().default("completo"),
+  criadoPor: text("criado_por"),
+  criadoEm: timestamp("criado_em").defaultNow().notNull(),
+  ativo: boolean("ativo").notNull().default(true),
+});
+export const insertCompartilhamentoSchema = createInsertSchema(compartilhamentos).omit({ id: true, criadoEm: true });
+export type InsertCompartilhamento = z.infer<typeof insertCompartilhamentoSchema>;
+export type Compartilhamento = typeof compartilhamentos.$inferSelect;
+
+export const configuracoesNotificacao = pgTable("configuracoes_notificacao", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  usuarioId: varchar("usuario_id").notNull().references(() => usuarios.id, { onDelete: "cascade" }),
+  tipoAlerta: text("tipo_alerta").notNull(),
+  ativo: boolean("ativo").notNull().default(true),
+  frequencia: text("frequencia").notNull().default("imediato"),
+  ultimoEnvio: timestamp("ultimo_envio"),
+});
+export const insertConfiguracaoNotificacaoSchema = createInsertSchema(configuracoesNotificacao).omit({ id: true });
+export type InsertConfiguracaoNotificacao = z.infer<typeof insertConfiguracaoNotificacaoSchema>;
+export type ConfiguracaoNotificacao = typeof configuracoesNotificacao.$inferSelect;
+
+export const kpiLeituras = pgTable("kpi_leituras", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  indicadorId: varchar("indicador_id").notNull().references(() => indicadores.id, { onDelete: "cascade" }),
+  valor: text("valor").notNull(),
+  nota: text("nota"),
+  registradoEm: timestamp("registrado_em").defaultNow().notNull(),
+  registradoPor: text("registrado_por"),
+});
+
+export const insertKpiLeituraSchema = createInsertSchema(kpiLeituras).omit({
+  id: true,
+  registradoEm: true,
+});
+export type InsertKpiLeitura = z.infer<typeof insertKpiLeituraSchema>;
+export type KpiLeitura = typeof kpiLeituras.$inferSelect;
 
 export const faturas = pgTable("faturas", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

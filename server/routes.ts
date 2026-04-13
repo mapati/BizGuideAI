@@ -2,7 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { sendVerificationEmail, sendPasswordResetEmail } from "./email";
-import { randomBytes } from "crypto";
+import { randomBytes, createHash } from "crypto";
 import { 
   insertEmpresaSchema,
   type InsertEmpresa,
@@ -255,6 +255,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return randomBytes(32).toString("hex");
   }
 
+  function hashToken(rawToken: string): string {
+    return createHash("sha256").update(rawToken).digest("hex");
+  }
+
   const MAX_LOGIN_ATTEMPTS = 5;
   const LOCKOUT_MINUTES = 15;
 
@@ -296,7 +300,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const token = generateSecureToken();
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-      await storage.createEmailVerificationToken(usuario.id, token, expiresAt);
+      await storage.createEmailVerificationToken(usuario.id, hashToken(token), expiresAt);
 
       try {
         await sendVerificationEmail(usuario.email, usuario.nome, token);
@@ -315,7 +319,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const token = req.query.token as string;
       if (!token) return res.redirect("/verify-email?error=token_invalido");
 
-      const record = await storage.getEmailVerificationToken(token);
+      const record = await storage.getEmailVerificationToken(hashToken(token));
       if (!record) return res.redirect("/verify-email?error=token_invalido");
       if (record.usedAt) return res.redirect("/login?verified=1");
       if (new Date() > record.expiresAt) return res.redirect("/verify-email?error=token_expirado");
@@ -353,7 +357,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const token = generateSecureToken();
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-      await storage.createEmailVerificationToken(usuario.id, token, expiresAt);
+      await storage.createEmailVerificationToken(usuario.id, hashToken(token), expiresAt);
 
       try {
         await sendVerificationEmail(usuario.email, usuario.nome, token);
@@ -379,7 +383,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const token = generateSecureToken();
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
-      await storage.createPasswordResetToken(usuario.id, token, expiresAt);
+      await storage.createPasswordResetToken(usuario.id, hashToken(token), expiresAt);
 
       try {
         await sendPasswordResetEmail(usuario.email, usuario.nome, token);
@@ -401,7 +405,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const data = schema.parse(req.body);
 
-      const record = await storage.getPasswordResetToken(data.token);
+      const record = await storage.getPasswordResetToken(hashToken(data.token));
       if (!record) return res.status(400).json({ error: "Link inválido ou expirado." });
       if (record.usedAt) return res.status(400).json({ error: "Este link já foi utilizado." });
       if (new Date() > record.expiresAt) return res.status(400).json({ error: "Link expirado. Solicite um novo." });

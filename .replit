@@ -48,4 +48,3 @@ timeoutMs = 20000
 [userenv]
 
 [userenv.shared]
-RESEND_API_KEY = "re_LhuNMtXw_2mQALXkM4f27wN1j9PQeLtuc"

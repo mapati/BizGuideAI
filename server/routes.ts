@@ -438,9 +438,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
+      const lockoutExpirou = usuario.lockedUntil && new Date() >= usuario.lockedUntil;
+      const tentativasAtuais = lockoutExpirou ? 0 : (usuario.loginAttempts ?? 0);
+      if (lockoutExpirou) {
+        await storage.updateUsuarioLoginAttempts(usuario.id, 0, null);
+      }
+
       const senhaCorreta = await bcrypt.compare(data.senha, usuario.senha);
       if (!senhaCorreta) {
-        const newAttempts = (usuario.loginAttempts ?? 0) + 1;
+        const newAttempts = tentativasAtuais + 1;
         if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
           const lockedUntil = new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1000);
           await storage.updateUsuarioLoginAttempts(usuario.id, newAttempts, lockedUntil);

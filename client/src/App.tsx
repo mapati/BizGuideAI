@@ -30,9 +30,12 @@ import LandingPage from "@/pages/LandingPage";
 import TrialExpirado from "@/pages/TrialExpirado";
 import Admin from "@/pages/Admin";
 import Equipe from "@/pages/Equipe";
+import VerifyEmail from "@/pages/VerifyEmail";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
 import NotFound from "@/pages/not-found";
 
-const PUBLIC_ROUTES = ["/", "/login", "/register", "/trial-expirado"];
+const PUBLIC_ROUTES = ["/", "/login", "/register", "/trial-expirado", "/verify-email", "/forgot-password", "/reset-password"];
 
 function TrialBanner({ diasRestantes }: { diasRestantes: number }) {
   if (diasRestantes > 3) return null;
@@ -121,6 +124,9 @@ function AppLayout() {
         <Route path="/" component={LandingPage} />
         <Route path="/login" component={Login} />
         <Route path="/register" component={Register} />
+        <Route path="/verify-email" component={VerifyEmail} />
+        <Route path="/forgot-password" component={ForgotPassword} />
+        <Route path="/reset-password" component={ResetPassword} />
         <Route path="/trial-expirado" component={TrialExpirado} />
       </Switch>
     );

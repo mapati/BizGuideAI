@@ -44,6 +44,19 @@ interface RegisterData {
   tamanho: string;
 }
 
+export class AuthError extends Error {
+  code?: string;
+  email?: string;
+  lockedUntil?: string;
+
+  constructor(message: string, options?: { code?: string; email?: string; lockedUntil?: string }) {
+    super(message);
+    this.code = options?.code;
+    this.email = options?.email;
+    this.lockedUntil = options?.lockedUntil;
+  }
+}
+
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -79,7 +92,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     if (!res.ok) {
       const data = await res.json();
-      throw new Error(data.error || "Erro ao fazer login");
+      throw new AuthError(data.error || "Erro ao fazer login", {
+        code: data.code,
+        email: data.email,
+        lockedUntil: data.lockedUntil,
+      });
     }
     const data = await res.json();
     setUser(data.usuario);
@@ -107,14 +124,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     if (!res.ok) {
       const data = await res.json();
-      throw new Error(data.error || "Erro ao criar conta");
+      throw new AuthError(data.error || "Erro ao criar conta");
     }
-    const data = await res.json();
-    setUser(data.usuario);
-    setEmpresa(data.empresa);
-    setTrialInfo(data.trialInfo ?? null);
-    queryClient.clear();
-    navigate("/");
+    navigate("/verify-email");
   };
 
   return (

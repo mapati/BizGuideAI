@@ -47,7 +47,7 @@ async function runStartupMigrations() {
       if (existingUser.length > 0) {
         // User with ADMIN_EMAIL already exists — ensure they are admin and update password
         await client.query(
-          `UPDATE usuarios SET senha = $1, is_admin = true, role = 'admin' WHERE email = $2`,
+          `UPDATE usuarios SET senha = $1, is_admin = true, role = 'admin', email_verificado = true WHERE email = $2`,
           [senhaHash, adminEmail]
         );
         log(`[SEED] Admin atualizado: ${adminEmail}`);
@@ -65,8 +65,8 @@ async function runStartupMigrations() {
           );
           const empresaId = empresaRows[0].id;
           await client.query(
-            `INSERT INTO usuarios (nome, email, senha, empresa_id, is_admin, role, created_at)
-             VALUES ($1, $2, $3, $4, true, 'admin', NOW())`,
+            `INSERT INTO usuarios (nome, email, senha, empresa_id, is_admin, role, email_verificado, created_at)
+             VALUES ($1, $2, $3, $4, true, 'admin', true, NOW())`,
             [adminNome, adminEmail, senhaHash, empresaId]
           );
           await client.query("COMMIT");

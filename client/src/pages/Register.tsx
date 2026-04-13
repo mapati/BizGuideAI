@@ -16,7 +16,10 @@ const registerSchema = z
   .object({
     nome: z.string().min(2, "Nome deve ter ao menos 2 caracteres"),
     email: z.string().email("E-mail inválido"),
-    senha: z.string().min(6, "Senha deve ter ao menos 6 caracteres"),
+    senha: z
+      .string()
+      .min(8, "Senha deve ter ao menos 8 caracteres")
+      .regex(/\d/, "A senha deve conter pelo menos um número"),
     confirmaSenha: z.string().min(1, "Confirme sua senha"),
     nomeEmpresa: z.string().min(1, "Nome da empresa é obrigatório"),
     setor: z.string().min(1, "Setor é obrigatório"),

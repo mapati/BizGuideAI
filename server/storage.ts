@@ -2,6 +2,8 @@ import { db } from "./db";
 import { 
   empresas, 
   usuarios,
+  emailVerificationTokens,
+  passwordResetTokens,
   fatoresPestel, 
   analiseSwot, 
   objetivos, 
@@ -19,6 +21,8 @@ import {
   type InsertEmpresa,
   type Usuario,
   type InsertUsuario,
+  type EmailVerificationToken,
+  type PasswordResetToken,
   type FatorPestel,
   type InsertFatorPestel,
   type AnaliseSwot,
@@ -46,7 +50,7 @@ import {
   type Fatura,
   type InsertFatura,
 } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 
 export interface IStorage {
   getEmpresa(id: string): Promise<Empresa | undefined>;
@@ -127,6 +131,18 @@ export interface IStorage {
   getAllFaturas(): Promise<(Fatura & { empresa: Empresa | undefined })[]>;
   createFatura(fatura: InsertFatura): Promise<Fatura>;
   updateFatura(id: string, data: Partial<Pick<Fatura, "status" | "dataPagamento">>): Promise<Fatura>;
+
+  updateUsuarioEmailVerificado(id: string, emailVerificado: boolean): Promise<void>;
+  updateUsuarioLoginAttempts(id: string, attempts: number, lockedUntil?: Date | null): Promise<void>;
+
+  createEmailVerificationToken(usuarioId: string, token: string, expiresAt: Date): Promise<EmailVerificationToken>;
+  getEmailVerificationToken(token: string): Promise<EmailVerificationToken | undefined>;
+  markEmailVerificationTokenUsed(id: string): Promise<void>;
+  getLastVerificationTokenByUserId(usuarioId: string): Promise<EmailVerificationToken | undefined>;
+
+  createPasswordResetToken(usuarioId: string, token: string, expiresAt: Date): Promise<PasswordResetToken>;
+  getPasswordResetToken(token: string): Promise<PasswordResetToken | undefined>;
+  markPasswordResetTokenUsed(id: string): Promise<void>;
 }
 
 function omitTenantFields<T extends Record<string, unknown>>(data: T): Omit<T, "empresaId" | "objetivoId"> {
@@ -535,6 +551,53 @@ export class DbStorage implements IStorage {
     const result = await db.update(faturas).set(data).where(eq(faturas.id, id)).returning();
     if (!result[0]) throw new Error("Fatura não encontrada");
     return result[0];
+  }
+
+  async updateUsuarioEmailVerificado(id: string, emailVerificado: boolean): Promise<void> {
+    await db.update(usuarios).set({ emailVerificado }).where(eq(usuarios.id, id));
+  }
+
+  async updateUsuarioLoginAttempts(id: string, attempts: number, lockedUntil?: Date | null): Promise<void> {
+    await db.update(usuarios).set({
+      loginAttempts: attempts,
+      ...(lockedUntil !== undefined ? { lockedUntil } : {}),
+    }).where(eq(usuarios.id, id));
+  }
+
+  async createEmailVerificationToken(usuarioId: string, token: string, expiresAt: Date): Promise<EmailVerificationToken> {
+    const result = await db.insert(emailVerificationTokens).values({ usuarioId, token, expiresAt }).returning();
+    return result[0];
+  }
+
+  async getEmailVerificationToken(token: string): Promise<EmailVerificationToken | undefined> {
+    const result = await db.select().from(emailVerificationTokens).where(eq(emailVerificationTokens.token, token)).limit(1);
+    return result[0];
+  }
+
+  async markEmailVerificationTokenUsed(id: string): Promise<void> {
+    await db.update(emailVerificationTokens).set({ usedAt: new Date() }).where(eq(emailVerificationTokens.id, id));
+  }
+
+  async getLastVerificationTokenByUserId(usuarioId: string): Promise<EmailVerificationToken | undefined> {
+    const result = await db.select().from(emailVerificationTokens)
+      .where(eq(emailVerificationTokens.usuarioId, usuarioId))
+      .orderBy(desc(emailVerificationTokens.createdAt))
+      .limit(1);
+    return result[0];
+  }
+
+  async createPasswordResetToken(usuarioId: string, token: string, expiresAt: Date): Promise<PasswordResetToken> {
+    const result = await db.insert(passwordResetTokens).values({ usuarioId, token, expiresAt }).returning();
+    return result[0];
+  }
+
+  async getPasswordResetToken(token: string): Promise<PasswordResetToken | undefined> {
+    const result = await db.select().from(passwordResetTokens).where(eq(passwordResetTokens.token, token)).limit(1);
+    return result[0];
+  }
+
+  async markPasswordResetTokenUsed(id: string): Promise<void> {
+    await db.update(passwordResetTokens).set({ usedAt: new Date() }).where(eq(passwordResetTokens.id, id));
   }
 
 }

@@ -1,6 +1,8 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { sendVerificationEmail, sendPasswordResetEmail } from "./email";
+import { randomBytes } from "crypto";
 import { 
   insertEmpresaSchema,
   type InsertEmpresa,
@@ -237,7 +239,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const registerSchema = z.object({
     nome: z.string().min(1),
     email: z.string().email(),
-    senha: z.string().min(6),
+    senha: z.string().min(8).regex(/\d/, "A senha deve conter pelo menos um número"),
     nomeEmpresa: z.string().min(1),
     setor: z.string().min(1),
     tamanho: z.string().min(1),
@@ -248,6 +250,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     estado: z.string().optional(),
     cep: z.string().optional(),
   });
+
+  function generateSecureToken(): string {
+    return randomBytes(32).toString("hex");
+  }
+
+  const MAX_LOGIN_ATTEMPTS = 5;
+  const LOCKOUT_MINUTES = 15;
 
   app.post("/api/auth/register", async (req, res) => {
     try {
@@ -281,16 +290,127 @@ export async function registerRoutes(app: Express): Promise<Server> {
         senha: senhaHash,
         isAdmin: false,
         role: "admin",
+        emailVerificado: false,
+        loginAttempts: 0,
       });
 
-      req.session.userId = usuario.id;
-      req.session.empresaId = empresa.id;
+      const token = generateSecureToken();
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await storage.createEmailVerificationToken(usuario.id, token, expiresAt);
 
-      res.json({
-        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresaId: usuario.empresaId, isAdmin: usuario.isAdmin, role: usuario.role },
-        empresa,
-        trialInfo: computeTrialInfo(empresa),
+      try {
+        await sendVerificationEmail(usuario.email, usuario.nome, token);
+      } catch (emailErr) {
+        console.error("[EMAIL] Falha ao enviar e-mail de verificação:", emailErr);
+      }
+
+      res.status(202).json({ message: "Conta criada. Verifique seu e-mail para continuar." });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/auth/verify-email", async (req, res) => {
+    try {
+      const token = req.query.token as string;
+      if (!token) return res.redirect("/verify-email?error=token_invalido");
+
+      const record = await storage.getEmailVerificationToken(token);
+      if (!record) return res.redirect("/verify-email?error=token_invalido");
+      if (record.usedAt) return res.redirect("/login?verified=1");
+      if (new Date() > record.expiresAt) return res.redirect("/verify-email?error=token_expirado");
+
+      await storage.markEmailVerificationTokenUsed(record.id);
+      await storage.updateUsuarioEmailVerificado(record.usuarioId, true);
+
+      res.redirect("/login?verified=1");
+    } catch (error: any) {
+      res.redirect("/verify-email?error=erro_interno");
+    }
+  });
+
+  app.post("/api/auth/resend-verification", async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email) return res.status(400).json({ error: "E-mail obrigatório" });
+
+      const usuario = await storage.getUsuarioByEmail(email);
+      if (!usuario) {
+        return res.json({ message: "Se o e-mail estiver cadastrado, você receberá o link em breve." });
+      }
+
+      if (usuario.emailVerificado) {
+        return res.status(400).json({ error: "Este e-mail já foi verificado." });
+      }
+
+      const lastToken = await storage.getLastVerificationTokenByUserId(usuario.id);
+      if (lastToken && !lastToken.usedAt) {
+        const secondsSinceLast = (Date.now() - lastToken.createdAt.getTime()) / 1000;
+        if (secondsSinceLast < 60) {
+          return res.status(429).json({ error: "Aguarde 1 minuto antes de reenviar." });
+        }
+      }
+
+      const token = generateSecureToken();
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await storage.createEmailVerificationToken(usuario.id, token, expiresAt);
+
+      try {
+        await sendVerificationEmail(usuario.email, usuario.nome, token);
+      } catch (emailErr) {
+        console.error("[EMAIL] Falha ao reenviar e-mail de verificação:", emailErr);
+      }
+
+      res.json({ message: "Se o e-mail estiver cadastrado, você receberá o link em breve." });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email) return res.status(400).json({ error: "E-mail obrigatório" });
+
+      const usuario = await storage.getUsuarioByEmail(email);
+      if (!usuario) {
+        return res.json({ message: "Se o e-mail estiver cadastrado, você receberá o link em breve." });
+      }
+
+      const token = generateSecureToken();
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+      await storage.createPasswordResetToken(usuario.id, token, expiresAt);
+
+      try {
+        await sendPasswordResetEmail(usuario.email, usuario.nome, token);
+      } catch (emailErr) {
+        console.error("[EMAIL] Falha ao enviar e-mail de reset:", emailErr);
+      }
+
+      res.json({ message: "Se o e-mail estiver cadastrado, você receberá o link em breve." });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const schema = z.object({
+        token: z.string().min(1),
+        novaSenha: z.string().min(8).regex(/\d/, "A senha deve conter pelo menos um número"),
       });
+      const data = schema.parse(req.body);
+
+      const record = await storage.getPasswordResetToken(data.token);
+      if (!record) return res.status(400).json({ error: "Link inválido ou expirado." });
+      if (record.usedAt) return res.status(400).json({ error: "Este link já foi utilizado." });
+      if (new Date() > record.expiresAt) return res.status(400).json({ error: "Link expirado. Solicite um novo." });
+
+      await storage.markPasswordResetTokenUsed(record.id);
+      const senhaHash = await bcrypt.hash(data.novaSenha, 10);
+      await storage.updateUsuarioSenha(record.usuarioId, senhaHash);
+
+      res.json({ message: "Senha redefinida com sucesso." });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
@@ -309,10 +429,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ error: "Credenciais inválidas" });
       }
 
+      if (usuario.lockedUntil && new Date() < usuario.lockedUntil) {
+        const minutosRestantes = Math.ceil((usuario.lockedUntil.getTime() - Date.now()) / 60000);
+        return res.status(403).json({
+          error: `Conta bloqueada por tentativas excessivas. Tente novamente em ${minutosRestantes} minuto(s).`,
+          code: "CONTA_BLOQUEADA",
+          lockedUntil: usuario.lockedUntil,
+        });
+      }
+
       const senhaCorreta = await bcrypt.compare(data.senha, usuario.senha);
       if (!senhaCorreta) {
-        return res.status(401).json({ error: "Credenciais inválidas" });
+        const newAttempts = (usuario.loginAttempts ?? 0) + 1;
+        if (newAttempts >= MAX_LOGIN_ATTEMPTS) {
+          const lockedUntil = new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1000);
+          await storage.updateUsuarioLoginAttempts(usuario.id, newAttempts, lockedUntil);
+          return res.status(403).json({
+            error: `Conta bloqueada por ${LOCKOUT_MINUTES} minutos após ${MAX_LOGIN_ATTEMPTS} tentativas incorretas.`,
+            code: "CONTA_BLOQUEADA",
+            lockedUntil,
+          });
+        } else {
+          await storage.updateUsuarioLoginAttempts(usuario.id, newAttempts);
+          const tentativasRestantes = MAX_LOGIN_ATTEMPTS - newAttempts;
+          return res.status(401).json({
+            error: `Credenciais inválidas. ${tentativasRestantes} tentativa(s) restante(s) antes do bloqueio.`,
+          });
+        }
       }
+
+      if (!usuario.emailVerificado) {
+        return res.status(403).json({
+          error: "Confirme seu e-mail antes de entrar. Verifique sua caixa de entrada.",
+          code: "EMAIL_NAO_VERIFICADO",
+          email: usuario.email,
+        });
+      }
+
+      if ((usuario.loginAttempts ?? 0) > 0) {
+        await storage.updateUsuarioLoginAttempts(usuario.id, 0, null);
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        req.session.regenerate((err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
 
       req.session.userId = usuario.id;
       req.session.empresaId = usuario.empresaId;
@@ -338,8 +501,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!senhaAtual || !novaSenha) {
         return res.status(400).json({ error: "Senha atual e nova senha são obrigatórias" });
       }
-      if (novaSenha.length < 6) {
-        return res.status(400).json({ error: "A nova senha deve ter pelo menos 6 caracteres" });
+      if (novaSenha.length < 8 || !/\d/.test(novaSenha)) {
+        return res.status(400).json({ error: "A nova senha deve ter pelo menos 8 caracteres e um número" });
       }
       const usuario = await storage.getUsuarioById(req.session.userId);
       if (!usuario) {

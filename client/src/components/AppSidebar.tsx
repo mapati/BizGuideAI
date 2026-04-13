@@ -1,4 +1,4 @@
-import { Home, Map, Target, TrendingUp, CheckCircle, FileText, Compass, Layers, Grid3x3, ListChecks, Briefcase, LogOut, BarChart3, ShieldCheck, Users, CheckCircle2, Circle } from "lucide-react";
+import { Home, Map, Target, TrendingUp, CheckCircle, FileText, Compass, Layers, Grid3x3, ListChecks, Briefcase, LogOut, BarChart3, ShieldCheck, Users, CheckCircle2, Circle, ArrowRight } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -36,12 +36,15 @@ const marchaItems = [
   { title: "Acompanhamento", url: "/ritos", icon: CheckCircle, jornadaId: "acompanhamento" },
 ];
 
-function EtapaIndicador({ jornadaId, etapas }: { jornadaId: string | null; etapas: ReturnType<typeof useJornadaProgresso>["etapas"] }) {
+function EtapaIndicador({ jornadaId, etapas, proximaEtapaId }: { jornadaId: string | null; etapas: ReturnType<typeof useJornadaProgresso>["etapas"]; proximaEtapaId?: string | null }) {
   if (!jornadaId) return null;
   const etapa = etapas.find((e) => e.id === jornadaId);
   if (!etapa) return null;
   if (etapa.concluida) {
     return <CheckCircle2 className="h-3.5 w-3.5 text-green-500 ml-auto flex-shrink-0" />;
+  }
+  if (proximaEtapaId === jornadaId) {
+    return <ArrowRight className="h-3.5 w-3.5 text-primary ml-auto flex-shrink-0" />;
   }
   return <Circle className="h-3.5 w-3.5 text-muted-foreground/40 ml-auto flex-shrink-0" />;
 }
@@ -49,7 +52,7 @@ function EtapaIndicador({ jornadaId, etapas }: { jornadaId: string | null; etapa
 export function AppSidebar() {
   const [location] = useLocation();
   const { user, empresa, logout } = useAuth();
-  const { etapas, isLoading: jornadaLoading } = useJornadaProgresso();
+  const { etapas, isLoading: jornadaLoading, jornadaConcluida } = useJornadaProgresso();
 
   const initials = user?.nome
     ? user.nome
@@ -60,8 +63,9 @@ export function AppSidebar() {
         .toUpperCase()
     : "?";
 
-  const perfilEtapa = etapas.find((e) => e.id === "perfil");
-  const indicadoresEtapa = etapas.find((e) => e.id === "indicadores");
+  const proximaEtapa = !jornadaConcluida
+    ? etapas.find((e) => !e.concluida && (!e.bloqueadaPor || e.bloqueadaPor.length === 0))
+    : null;
 
   return (
     <Sidebar>
@@ -100,10 +104,8 @@ export function AppSidebar() {
                   <Link href="/onboarding">
                     <FileText />
                     <span>Perfil da Empresa</span>
-                    {!jornadaLoading && perfilEtapa && (
-                      perfilEtapa.concluida
-                        ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 ml-auto flex-shrink-0" />
-                        : <Circle className="h-3.5 w-3.5 text-muted-foreground/40 ml-auto flex-shrink-0" />
+                    {!jornadaLoading && (
+                      <EtapaIndicador jornadaId="perfil" etapas={etapas} proximaEtapaId={proximaEtapa?.id} />
                     )}
                   </Link>
                 </SidebarMenuButton>
@@ -117,10 +119,8 @@ export function AppSidebar() {
                   <Link href="/indicadores">
                     <BarChart3 />
                     <span>KPIs — Indicadores</span>
-                    {!jornadaLoading && indicadoresEtapa && (
-                      indicadoresEtapa.concluida
-                        ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 ml-auto flex-shrink-0" />
-                        : <Circle className="h-3.5 w-3.5 text-muted-foreground/40 ml-auto flex-shrink-0" />
+                    {!jornadaLoading && (
+                      <EtapaIndicador jornadaId="indicadores" etapas={etapas} proximaEtapaId={proximaEtapa?.id} />
                     )}
                   </Link>
                 </SidebarMenuButton>
@@ -172,7 +172,7 @@ export function AppSidebar() {
                       <item.icon />
                       <span>{item.title}</span>
                       {!jornadaLoading && (
-                        <EtapaIndicador jornadaId={item.jornadaId} etapas={etapas} />
+                        <EtapaIndicador jornadaId={item.jornadaId} etapas={etapas} proximaEtapaId={proximaEtapa?.id} />
                       )}
                     </Link>
                   </SidebarMenuButton>
@@ -197,7 +197,7 @@ export function AppSidebar() {
                       <item.icon />
                       <span>{item.title}</span>
                       {!jornadaLoading && (
-                        <EtapaIndicador jornadaId={item.jornadaId} etapas={etapas} />
+                        <EtapaIndicador jornadaId={item.jornadaId} etapas={etapas} proximaEtapaId={proximaEtapa?.id} />
                       )}
                     </Link>
                   </SidebarMenuButton>
@@ -222,7 +222,7 @@ export function AppSidebar() {
                       <item.icon />
                       <span>{item.title}</span>
                       {!jornadaLoading && (
-                        <EtapaIndicador jornadaId={item.jornadaId} etapas={etapas} />
+                        <EtapaIndicador jornadaId={item.jornadaId} etapas={etapas} proximaEtapaId={proximaEtapa?.id} />
                       )}
                     </Link>
                   </SidebarMenuButton>

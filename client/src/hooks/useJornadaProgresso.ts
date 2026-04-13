@@ -15,11 +15,14 @@ import {
 import type { LucideIcon } from "lucide-react";
 import type { Empresa } from "@shared/schema";
 
+export type EtapaStatus = "pendente" | "iniciado" | "concluido";
+
 export interface JornadaEtapa {
   id: string;
   nome: string;
   rota: string;
   concluida: boolean;
+  status: EtapaStatus;
   icone: LucideIcon;
   descricao: string;
   valorIA: string;
@@ -110,6 +113,7 @@ export function useJornadaProgresso(): JornadaProgresso {
     loadingRituais;
 
   const perfilCompleto = !!(empresa?.nome && empresa?.setor && empresa?.tamanho);
+  const perfilIniciado = !!(empresa?.nome || empresa?.setor);
 
   const acompanhamentoConcluido = rituais.some(
     (r: any) =>
@@ -117,12 +121,19 @@ export function useJornadaProgresso(): JornadaProgresso {
       (r.checklist && Array.isArray(r.checklist) && r.checklist.some((c: any) => c.done))
   );
 
+  function derivarStatus(concluida: boolean, iniciado: boolean): EtapaStatus {
+    if (concluida) return "concluido";
+    if (iniciado) return "iniciado";
+    return "pendente";
+  }
+
   const etapas: JornadaEtapa[] = [
     {
       id: "perfil",
       nome: "Perfil da Empresa",
       rota: "/onboarding",
       concluida: perfilCompleto,
+      status: derivarStatus(perfilCompleto, perfilIniciado),
       icone: Target,
       descricao:
         "Defina os dados básicos da sua empresa: nome, setor, tamanho e descrição. Esses dados personalizam toda a análise estratégica.",
@@ -134,6 +145,7 @@ export function useJornadaProgresso(): JornadaProgresso {
       nome: "KPIs — Indicadores",
       rota: "/indicadores",
       concluida: indicadores.length > 0,
+      status: derivarStatus(indicadores.length > 0, false),
       icone: BarChart3,
       descricao:
         "Configure os KPIs (Key Performance Indicators) para monitorar a saúde operacional da empresa antes de construir a estratégia.",
@@ -145,7 +157,8 @@ export function useJornadaProgresso(): JornadaProgresso {
       id: "pestel",
       nome: "Cenário Externo — PESTEL",
       rota: "/pestel",
-      concluida: fatoresPestel.length > 0,
+      concluida: fatoresPestel.length >= 6,
+      status: derivarStatus(fatoresPestel.length >= 6, fatoresPestel.length > 0),
       icone: Globe2,
       descricao:
         "Mapeie fatores Políticos, Econômicos, Sociais, Tecnológicos, Ambientais e Legais que influenciam o seu mercado.",
@@ -157,7 +170,8 @@ export function useJornadaProgresso(): JornadaProgresso {
       id: "cinco-forcas",
       nome: "Mercado e Concorrência — Cinco Forças",
       rota: "/cinco-forcas",
-      concluida: cincoForcas.length > 0,
+      concluida: cincoForcas.length >= 3,
+      status: derivarStatus(cincoForcas.length >= 3, cincoForcas.length > 0),
       icone: Swords,
       descricao:
         "Analise as cinco forças de Porter: rivalidade, entrantes, substitutos, poder de clientes e poder de fornecedores.",
@@ -170,6 +184,7 @@ export function useJornadaProgresso(): JornadaProgresso {
       nome: "Modelo de Negócio — Canvas",
       rota: "/bmc",
       concluida: modeloNegocio.length >= 5,
+      status: derivarStatus(modeloNegocio.length >= 5, modeloNegocio.length > 0),
       icone: LayoutGrid,
       descricao:
         "Mapeie os 9 blocos do Business Model Canvas: proposta de valor, clientes, canais, receitas, custos e mais.",
@@ -182,6 +197,7 @@ export function useJornadaProgresso(): JornadaProgresso {
       nome: "Forças e Fraquezas — SWOT",
       rota: "/swot",
       concluida: swotItens.length >= 4,
+      status: derivarStatus(swotItens.length >= 4, swotItens.length > 0),
       icone: GitBranch,
       descricao:
         "Identifique Forças internas, Fraquezas, Oportunidades externas e Ameaças do mercado para ter uma visão completa.",
@@ -194,6 +210,7 @@ export function useJornadaProgresso(): JornadaProgresso {
       nome: "Estratégias — Matriz TOWS",
       rota: "/estrategias",
       concluida: estrategias.length > 0,
+      status: derivarStatus(estrategias.length > 0, false),
       icone: Flag,
       descricao:
         "Combine Forças, Fraquezas, Oportunidades e Ameaças do SWOT para criar estratégias práticas: SO, ST, WO e WT.",
@@ -206,6 +223,7 @@ export function useJornadaProgresso(): JornadaProgresso {
       nome: "Oportunidades de Crescimento",
       rota: "/oportunidades-crescimento",
       concluida: oportunidades.length > 0,
+      status: derivarStatus(oportunidades.length > 0, false),
       icone: TrendingUp,
       descricao:
         "Use a Matriz de Ansoff para identificar caminhos de crescimento: penetração, desenvolvimento de mercado, de produto e diversificação.",
@@ -218,6 +236,7 @@ export function useJornadaProgresso(): JornadaProgresso {
       nome: "Iniciativas Prioritárias",
       rota: "/iniciativas",
       concluida: iniciativas.length > 0,
+      status: derivarStatus(iniciativas.length > 0, false),
       icone: Briefcase,
       descricao:
         "Transforme estratégias em projetos concretos com responsáveis, prazos e impacto esperado.",
@@ -230,6 +249,7 @@ export function useJornadaProgresso(): JornadaProgresso {
       nome: "OKRs — Objetivos e Resultados-Chave",
       rota: "/okrs",
       concluida: objetivos.length > 0,
+      status: derivarStatus(objetivos.length > 0, false),
       icone: Rocket,
       descricao:
         "Defina Objetivos inspiradores com Resultados-Chave mensuráveis para guiar a execução da estratégia com foco e clareza.",
@@ -242,6 +262,7 @@ export function useJornadaProgresso(): JornadaProgresso {
       nome: "Acompanhamento — Ritos Estratégicos",
       rota: "/ritos",
       concluida: acompanhamentoConcluido,
+      status: derivarStatus(acompanhamentoConcluido, rituais.length > 0),
       icone: Activity,
       descricao:
         "Estabeleça uma cadência de revisão semanal, mensal e trimestral para garantir a execução consistente da estratégia.",

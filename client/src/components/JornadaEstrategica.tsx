@@ -19,25 +19,31 @@ import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
 import type { JornadaEtapa } from "@/hooks/useJornadaProgresso";
 
 function getCtaLabel(etapa: JornadaEtapa): string {
-  if (etapa.concluida) return "Revisar";
-  const bloqueada = etapa.bloqueadaPor && etapa.bloqueadaPor.length > 0;
-  if (bloqueada) return "";
+  if (etapa.status === "concluido") return "Revisar";
+  if (etapa.status === "iniciado") return "Continuar";
   return "Iniciar";
 }
 
 function getStatusBadge(etapa: JornadaEtapa) {
-  if (etapa.concluida) {
+  const bloqueada = etapa.bloqueadaPor && etapa.bloqueadaPor.length > 0;
+  if (etapa.status === "concluido") {
     return (
       <Badge variant="outline" className="text-xs text-green-600 dark:text-green-400 border-green-600/30">
         Concluído
       </Badge>
     );
   }
-  const bloqueada = etapa.bloqueadaPor && etapa.bloqueadaPor.length > 0;
   if (bloqueada) {
     return (
       <Badge variant="secondary" className="text-xs">
         Aguardando etapa anterior
+      </Badge>
+    );
+  }
+  if (etapa.status === "iniciado") {
+    return (
+      <Badge variant="secondary" className="text-xs text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30">
+        Iniciado
       </Badge>
     );
   }

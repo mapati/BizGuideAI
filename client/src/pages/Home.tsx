@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueries, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { JornadaEstrategica } from "@/components/JornadaEstrategica";
+import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -75,6 +76,14 @@ function getSaudeCor(saude: number): { label: string; className: string } {
   if (saude >= 70) return { label: "Excelente", className: "text-green-600" };
   if (saude >= 30) return { label: "Atenção", className: "text-yellow-600" };
   return { label: "Crítico", className: "text-red-600" };
+}
+
+function JornadaEstrategicaCondicional() {
+  const { totalConcluidas, jornadaConcluida, isLoading } = useJornadaProgresso();
+  if (isLoading) return null;
+  if (jornadaConcluida) return <JornadaEstrategica />;
+  if (totalConcluidas < 6) return <JornadaEstrategica />;
+  return <JornadaEstrategica />;
 }
 
 export default function Home() {
@@ -223,7 +232,7 @@ export default function Home() {
           </div>
         </Card>
       )}
-      <JornadaEstrategica />
+      <JornadaEstrategicaCondicional />
       {/* Header */}
       <div className="flex flex-wrap items-center gap-5">
         {empresa?.logoUrl && (

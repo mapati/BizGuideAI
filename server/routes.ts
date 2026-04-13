@@ -344,7 +344,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       if (usuario.emailVerificado) {
-        return res.status(400).json({ error: "Este e-mail já foi verificado." });
+        return res.json({ message: "Se o e-mail estiver cadastrado, você receberá o link em breve." });
       }
 
       const lastToken = await storage.getLastVerificationTokenByUserId(usuario.id);

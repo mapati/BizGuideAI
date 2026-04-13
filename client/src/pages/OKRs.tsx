@@ -350,7 +350,7 @@ export default function OKRs() {
     );
   }
 
-  const semEstategias = empresa && estrategias.length === 0;
+  const semEstategias = empresa && estrategias.length === 0 && objetivos.length === 0;
 
   return (
     <div>

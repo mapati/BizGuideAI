@@ -12,10 +12,38 @@ import {
   Lock,
   Map,
   ArrowRight,
+  PartyPopper,
 } from "lucide-react";
 import { Link } from "wouter";
 import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
 import type { JornadaStep } from "@/hooks/useJornadaProgresso";
+
+function getCtaLabel(step: JornadaStep): string {
+  return "Iniciar";
+}
+
+function getStatusBadge(step: JornadaStep) {
+  if (step.concluido) {
+    return (
+      <Badge variant="outline" className="text-xs text-green-600 dark:text-green-400 border-green-600/30">
+        Concluído
+      </Badge>
+    );
+  }
+  const bloqueado = step.bloqueadoPor && step.bloqueadoPor.length > 0;
+  if (bloqueado) {
+    return (
+      <Badge variant="secondary" className="text-xs">
+        Aguardando etapa anterior
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="secondary" className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30">
+      Pendente
+    </Badge>
+  );
+}
 
 function StepItem({ step }: { step: JornadaStep }) {
   const bloqueado = step.bloqueadoPor && step.bloqueadoPor.length > 0;
@@ -52,16 +80,7 @@ function StepItem({ step }: { step: JornadaStep }) {
           >
             {step.titulo}
           </span>
-          {step.concluido && (
-            <Badge variant="outline" className="text-xs text-green-600 dark:text-green-400 border-green-600/30">
-              Concluído
-            </Badge>
-          )}
-          {bloqueado && !step.concluido && (
-            <Badge variant="secondary" className="text-xs">
-              Aguardando etapa anterior
-            </Badge>
-          )}
+          {getStatusBadge(step)}
         </div>
         <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
           {step.descricao}
@@ -69,7 +88,7 @@ function StepItem({ step }: { step: JornadaStep }) {
       </div>
       {!step.concluido && !bloqueado && (
         <Link href={step.url} data-testid={`link-jornada-${step.id}`}>
-          <Button variant="ghost" size="icon" className="flex-shrink-0">
+          <Button variant="ghost" size="icon" className="flex-shrink-0" aria-label={getCtaLabel(step)}>
             <ArrowRight className="h-4 w-4" />
           </Button>
         </Link>
@@ -83,9 +102,37 @@ export function JornadaEstrategica() {
     useJornadaProgresso();
   const maioriaConcluida = totalConcluidos >= 6;
   const [open, setOpen] = useState(!maioriaConcluida);
+  const [celebrationDismissed, setCelebrationDismissed] = useState(false);
 
   if (isLoading) return null;
-  if (jornadaConcluida) return null;
+
+  if (jornadaConcluida && !celebrationDismissed) {
+    return (
+      <Card className="mb-6 p-6 border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20" data-testid="card-jornada-concluida">
+        <div className="flex items-center gap-4">
+          <PartyPopper className="h-10 w-10 text-green-600 dark:text-green-400 flex-shrink-0" />
+          <div className="flex-1">
+            <h3 className="font-semibold text-green-800 dark:text-green-300 text-lg">
+              Jornada Estratégica concluída!
+            </h3>
+            <p className="text-sm text-green-700 dark:text-green-400 mt-1">
+              Parabéns! Você completou todas as {total} etapas da jornada. Sua empresa agora tem uma estratégia completa e estruturada. Continue acompanhando os rituais e ajustando conforme necessário.
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setCelebrationDismissed(true)}
+            data-testid="button-fechar-celebracao"
+          >
+            Fechar
+          </Button>
+        </div>
+      </Card>
+    );
+  }
+
+  if (jornadaConcluida && celebrationDismissed) return null;
 
   const proximaStep = steps.find(
     (s) => !s.concluido && (!s.bloqueadoPor || s.bloqueadoPor.length === 0)
@@ -144,7 +191,7 @@ export function JornadaEstrategica() {
                     className="w-full sm:w-auto"
                     data-testid="button-proxima-etapa"
                   >
-                    Ir para: {proximaStep.titulo}
+                    Iniciar: {proximaStep.titulo}
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
                 </Link>

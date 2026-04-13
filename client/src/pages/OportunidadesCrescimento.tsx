@@ -289,7 +289,7 @@ export default function OportunidadesCrescimento() {
     );
   }
 
-  const semEstategias = empresa && estrategias.length === 0;
+  const semEstategias = empresa && estrategias.length === 0 && oportunidades.length === 0;
 
   return (
     <div className="container mx-auto p-6">

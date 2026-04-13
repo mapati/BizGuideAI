@@ -276,7 +276,7 @@ export default function Iniciativas() {
     );
   }
 
-  const semEstategias = empresa && estrategias.length === 0;
+  const semEstategias = empresa && estrategias.length === 0 && iniciativas.length === 0;
 
   return (
     <div className="container mx-auto p-6 max-w-7xl">

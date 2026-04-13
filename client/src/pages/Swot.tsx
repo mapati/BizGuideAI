@@ -485,7 +485,7 @@ export default function Swot() {
 
   const grupos = agruparPorTipo();
 
-  const semExternos = empresa && fatoresPestel.length === 0 && cincoForcasData.length === 0;
+  const semExternos = empresa && fatoresPestel.length === 0 && cincoForcasData.length === 0 && analises.length === 0;
 
   return (
     <div className="max-w-6xl mx-auto">

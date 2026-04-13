@@ -135,7 +135,7 @@ export default function Onboarding() {
         title: "Perfil criado com sucesso!",
         description: "Agora vamos começar a análise estratégica.",
       });
-      setLocation("/dashboard");
+      setLocation("/dashboard?welcome=1");
     },
     onError: (error: any) => {
       toast({

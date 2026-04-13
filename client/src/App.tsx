@@ -1,6 +1,6 @@
 import { Switch, Route, useLocation, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -80,10 +80,16 @@ function TrialStatusBanner({ diasRestantes }: { diasRestantes: number }) {
 }
 
 function AppLayout() {
-  const { user, empresa, trialInfo, isLoading } = useAuth();
+  const { user, trialInfo, isLoading } = useAuth();
   const [location] = useLocation();
 
-  if (isLoading) {
+  const { data: empresaQuery, isLoading: loadingEmpresa } = useQuery<any | null>({
+    queryKey: ["/api/empresa"],
+    enabled: !!user,
+    retry: false,
+  });
+
+  if (isLoading || (!!user && loadingEmpresa)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-muted-foreground">Carregando...</div>
@@ -103,7 +109,8 @@ function AppLayout() {
 
   const rotasPublicasApp = ["/onboarding", "/trial-expirado", "/admin"];
   const naRotaRestrita = !rotasPublicasApp.some((r) => location.startsWith(r));
-  if (user && !isLoading && empresa === null && naRotaRestrita) {
+  const semEmpresa = !loadingEmpresa && !empresaQuery;
+  if (user && semEmpresa && naRotaRestrita) {
     return <Redirect to="/onboarding" />;
   }
 

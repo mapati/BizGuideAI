@@ -279,7 +279,7 @@ export default function Estrategias() {
   }
 
   const grupos = agruparPorTipo();
-  const semSwot = empresa && swotItens.length < 4;
+  const semSwot = empresa && swotItens.length < 4 && estrategias.length === 0;
 
   return (
     <div className="max-w-6xl mx-auto">

@@ -1,6 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueries, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { JornadaEstrategica } from "@/components/JornadaEstrategica";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -80,6 +81,16 @@ export default function Home() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [diagnostico, setDiagnostico] = useState<Diagnostico | null>(null);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("welcome") === "1") {
+      setShowWelcome(true);
+      setLocation("/dashboard", { replace: true });
+    }
+  }, []);
 
   const { data: empresa } = useQuery<Empresa>({ queryKey: ["/api/empresa"] });
   const empresaId = empresa?.id;
@@ -189,6 +200,29 @@ export default function Home() {
 
   return (
     <div className="space-y-6">
+      {showWelcome && (
+        <Card className="p-5 border-primary/20 bg-primary/5 dark:bg-primary/10" data-testid="card-boas-vindas">
+          <div className="flex items-start gap-4">
+            <div className="flex-1">
+              <h3 className="font-semibold text-base">
+                Bem-vindo à Jornada Estratégica, {user?.nome?.split(" ")[0] || ""}!
+              </h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Seu perfil foi criado com sucesso. Agora siga as etapas abaixo para construir a estratégia completa da sua empresa — a IA estará com você em cada passo.
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowWelcome(false)}
+              data-testid="button-fechar-boas-vindas"
+              className="flex-shrink-0"
+            >
+              ×
+            </Button>
+          </div>
+        </Card>
+      )}
       <JornadaEstrategica />
       {/* Header */}
       <div className="flex flex-wrap items-center gap-5">

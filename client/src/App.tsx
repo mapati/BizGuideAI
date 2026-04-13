@@ -107,10 +107,11 @@ function AppLayout() {
     return <Redirect to="/dashboard" />;
   }
 
-  const rotasPublicasApp = ["/onboarding", "/trial-expirado", "/admin"];
+  const rotasPublicasApp = ["/onboarding", "/trial-expirado"];
   const naRotaRestrita = !rotasPublicasApp.some((r) => location.startsWith(r));
+  const isAdminRoute = location.startsWith("/admin");
   const semEmpresa = !loadingEmpresa && !empresaQuery;
-  if (user && semEmpresa && naRotaRestrita) {
+  if (user && semEmpresa && naRotaRestrita && !(isAdminRoute && user.isAdmin)) {
     return <Redirect to="/onboarding" />;
   }
 

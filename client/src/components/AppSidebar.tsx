@@ -40,8 +40,9 @@ function EtapaIndicador({ jornadaId, etapas, proximaEtapaId }: { jornadaId: stri
   if (!jornadaId) return null;
   const etapa = etapas.find((e) => e.id === jornadaId);
   if (!etapa) return null;
-  if (etapa.concluida) {
-    return <CheckCircle2 className="h-3.5 w-3.5 text-green-500 ml-auto flex-shrink-0" />;
+  const temDados = etapa.status !== "pendente";
+  if (temDados) {
+    return <CheckCircle2 className={`h-3.5 w-3.5 ml-auto flex-shrink-0 ${etapa.concluida ? "text-green-500" : "text-green-400/70"}`} />;
   }
   if (proximaEtapaId === jornadaId) {
     return <ArrowRight className="h-3.5 w-3.5 text-primary ml-auto flex-shrink-0" />;

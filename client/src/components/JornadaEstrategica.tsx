@@ -137,9 +137,10 @@ function EtapaCard({ etapa }: { etapa: JornadaEtapa }) {
 interface JornadaEstrategicaProps {
   progresso: JornadaProgresso;
   defaultOpen?: boolean;
+  compact?: boolean;
 }
 
-export function JornadaEstrategica({ progresso, defaultOpen }: JornadaEstrategicaProps) {
+export function JornadaEstrategica({ progresso, defaultOpen, compact }: JornadaEstrategicaProps) {
   const { etapas, totalConcluidas, total, percentual, jornadaConcluida } = progresso;
   const [open, setOpen] = useState(defaultOpen ?? true);
   const [celebrationDismissed, setCelebrationDismissed] = useState(false);
@@ -178,6 +179,46 @@ export function JornadaEstrategica({ progresso, defaultOpen }: JornadaEstrategic
   const proximaEtapa = etapas.find(
     (e) => !e.concluida && (!e.bloqueadaPor || e.bloqueadaPor.length === 0)
   );
+
+  if (compact) {
+    return (
+      <Card className="mb-6 opacity-70" data-testid="card-jornada-estrategica">
+        <Collapsible open={open} onOpenChange={setOpen}>
+          <CollapsibleTrigger asChild>
+            <button
+              className="w-full flex items-center justify-between px-6 py-3 text-left hover-elevate"
+              data-testid="button-toggle-jornada"
+            >
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Map className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium text-muted-foreground">Jornada Estratégica</span>
+                </div>
+                <Badge variant="secondary" className="text-xs" data-testid="badge-jornada-progresso">
+                  {totalConcluidas}/{total} etapas
+                </Badge>
+                <Progress value={percentual} className="w-16 h-1" />
+              </div>
+              {open ? (
+                <ChevronUp className="h-3.5 w-3.5 text-muted-foreground/60" />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/60" />
+              )}
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="px-2 pb-3">
+              <div className="divide-y divide-border/50">
+                {etapas.map((etapa) => (
+                  <EtapaCard key={etapa.id} etapa={etapa} />
+                ))}
+              </div>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+      </Card>
+    );
+  }
 
   return (
     <Card className="mb-6" data-testid="card-jornada-estrategica">

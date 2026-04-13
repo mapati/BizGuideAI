@@ -99,6 +99,11 @@ export function useJornadaProgresso(): JornadaProgresso {
     enabled: !!empresaId,
   });
 
+  const { data: eventos = [], isLoading: loadingEventos } = useQuery<any[]>({
+    queryKey: ["/api/eventos", empresaId],
+    enabled: !!empresaId,
+  });
+
   const isLoading =
     loadingEmpresa ||
     loadingIndicadores ||
@@ -110,16 +115,26 @@ export function useJornadaProgresso(): JornadaProgresso {
     loadingOport ||
     loadingIniciativas ||
     loadingOkrs ||
-    loadingRituais;
+    loadingRituais ||
+    loadingEventos;
 
   const perfilCompleto = !!(empresa?.nome && empresa?.setor && empresa?.tamanho);
   const perfilIniciado = !!(empresa?.nome || empresa?.setor);
 
-  const acompanhamentoConcluido = rituais.some(
-    (r: any) =>
-      r.completado === true ||
-      (r.checklist && Array.isArray(r.checklist) && r.checklist.some((c: any) => c.done))
-  );
+  const acompanhamentoConcluido = (() => {
+    const ritualConcluido = rituais.some((r: any) => {
+      if (r.completado === true || r.completado === "true") return true;
+      try {
+        const checklist = typeof r.checklist === "string"
+          ? JSON.parse(r.checklist)
+          : r.checklist;
+        return Array.isArray(checklist) && checklist.some((c: any) => c.done === true || c.done === "true");
+      } catch {
+        return false;
+      }
+    });
+    return ritualConcluido || eventos.length > 0;
+  })();
 
   function derivarStatus(concluida: boolean, iniciado: boolean): EtapaStatus {
     if (concluida) return "concluido";

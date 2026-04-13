@@ -118,8 +118,8 @@ export function useJornadaProgresso(): JornadaProgresso {
     loadingRituais ||
     loadingEventos;
 
-  const perfilCompleto = !!(empresa?.nome && empresa?.setor && empresa?.tamanho);
-  const perfilIniciado = !!(empresa?.nome || empresa?.setor);
+  const perfilCompleto = !!(empresa?.nome && empresa?.setor && empresa?.tamanho && empresa?.descricao);
+  const perfilIniciado = !!(empresa?.nome && empresa?.setor && empresa?.tamanho);
 
   const acompanhamentoConcluido = (() => {
     const ritualConcluido = rituais.some((r: any) => {

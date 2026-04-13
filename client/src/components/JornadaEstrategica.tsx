@@ -255,6 +255,15 @@ export function JornadaEstrategica({ progresso, defaultOpen, compact }: JornadaE
             </div>
           </button>
         </CollapsibleTrigger>
+        {!open && proximaEtapa && (
+          <div className="px-6 pb-4 flex items-center gap-2" data-testid="jornada-dica-abrir">
+            <Sparkles className="h-3.5 w-3.5 text-primary/70 flex-shrink-0" />
+            <span className="text-xs text-muted-foreground">
+              Próxima etapa: <span className="font-medium text-foreground">{proximaEtapa.nome}</span>
+              {" "}— clique para ver o roteiro completo da jornada
+            </span>
+          </div>
+        )}
         <CollapsibleContent>
           <div className="px-2 pb-4">
             <div className="flex items-center gap-2 px-4 pb-3 sm:hidden">

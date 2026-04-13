@@ -431,8 +431,8 @@ export default function Pestel() {
         <Card className="mt-6">
           <EmptyState
             icon={<Compass className="h-16 w-16" />}
-            title="Nenhum fator externo identificado ainda"
-            description='Clique em "Analisar com IA" para a IA pesquisar o cenário atual e gerar fatores relevantes para sua empresa.'
+            title="Comece mapeando o cenário externo"
+            description="A análise PESTEL identifica fatores Políticos, Econômicos, Sociais, Tecnológicos, Ambientais e Legais que impactam o seu negócio. Entender o macro-ambiente é o primeiro passo para tomar decisões estratégicas fundamentadas. A IA pesquisa notícias e tendências atuais para gerar fatores relevantes para o seu setor automaticamente."
             actionLabel="Adicionar Primeiro Fator"
             onAction={() => setIsDialogOpen(true)}
           />

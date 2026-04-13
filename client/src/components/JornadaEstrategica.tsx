@@ -6,32 +6,35 @@ import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   CheckCircle2,
-  Circle,
   ChevronDown,
   ChevronUp,
   Lock,
   Map,
   ArrowRight,
   PartyPopper,
+  Sparkles,
 } from "lucide-react";
 import { Link } from "wouter";
 import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
-import type { JornadaStep } from "@/hooks/useJornadaProgresso";
+import type { JornadaEtapa } from "@/hooks/useJornadaProgresso";
 
-function getCtaLabel(step: JornadaStep): string {
+function getCtaLabel(etapa: JornadaEtapa): string {
+  if (etapa.concluida) return "Revisar";
+  const bloqueada = etapa.bloqueadaPor && etapa.bloqueadaPor.length > 0;
+  if (bloqueada) return "";
   return "Iniciar";
 }
 
-function getStatusBadge(step: JornadaStep) {
-  if (step.concluido) {
+function getStatusBadge(etapa: JornadaEtapa) {
+  if (etapa.concluida) {
     return (
       <Badge variant="outline" className="text-xs text-green-600 dark:text-green-400 border-green-600/30">
         Concluído
       </Badge>
     );
   }
-  const bloqueado = step.bloqueadoPor && step.bloqueadoPor.length > 0;
-  if (bloqueado) {
+  const bloqueada = etapa.bloqueadaPor && etapa.bloqueadaPor.length > 0;
+  if (bloqueada) {
     return (
       <Badge variant="secondary" className="text-xs">
         Aguardando etapa anterior
@@ -45,51 +48,66 @@ function getStatusBadge(step: JornadaStep) {
   );
 }
 
-function StepItem({ step }: { step: JornadaStep }) {
-  const bloqueado = step.bloqueadoPor && step.bloqueadoPor.length > 0;
+function EtapaCard({ etapa }: { etapa: JornadaEtapa }) {
+  const bloqueada = etapa.bloqueadaPor && etapa.bloqueadaPor.length > 0;
+  const Icone = etapa.icone;
+  const ctaLabel = getCtaLabel(etapa);
 
   return (
     <div
       className={`flex items-start gap-3 py-3 px-4 rounded-md transition-colors ${
-        step.concluido
+        etapa.concluida
           ? "opacity-60"
-          : bloqueado
-          ? "opacity-50"
-          : "hover-elevate cursor-pointer"
+          : bloqueada
+          ? "opacity-40"
+          : ""
       }`}
-      data-testid={`jornada-step-${step.id}`}
+      data-testid={`jornada-etapa-${etapa.id}`}
     >
       <div className="flex-shrink-0 mt-0.5">
-        {step.concluido ? (
+        {etapa.concluida ? (
           <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
-        ) : bloqueado ? (
-          <Lock className="h-5 w-5 text-muted-foreground/50" />
+        ) : bloqueada ? (
+          <Lock className="h-5 w-5 text-muted-foreground/40" />
         ) : (
-          <Circle className="h-5 w-5 text-muted-foreground" />
+          <Icone className="h-5 w-5 text-primary" />
         )}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap mb-1">
           <span className="text-xs font-semibold text-muted-foreground">
-            {step.numero}.
+            {etapa.id === "perfil" ? "1" : etapa.id === "indicadores" ? "2" : etapa.id === "pestel" ? "3" : etapa.id === "cinco-forcas" ? "4" : etapa.id === "bmc" ? "5" : etapa.id === "swot" ? "6" : etapa.id === "estrategias" ? "7" : etapa.id === "oportunidades" ? "8" : etapa.id === "iniciativas" ? "9" : etapa.id === "okrs" ? "10" : "11"}.
           </span>
           <span
             className={`text-sm font-medium ${
-              step.concluido ? "line-through text-muted-foreground" : ""
+              etapa.concluida ? "line-through text-muted-foreground" : ""
             }`}
           >
-            {step.titulo}
+            {etapa.nome}
           </span>
-          {getStatusBadge(step)}
+          {getStatusBadge(etapa)}
         </div>
-        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-          {step.descricao}
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          {etapa.descricao}
         </p>
+        {!bloqueada && (
+          <div className="flex items-center gap-1 mt-1.5">
+            <Sparkles className="h-3 w-3 text-primary/70 flex-shrink-0" />
+            <p className="text-xs text-primary/80 leading-relaxed">
+              {etapa.valorIA}
+            </p>
+          </div>
+        )}
       </div>
-      {!step.concluido && !bloqueado && (
-        <Link href={step.url} data-testid={`link-jornada-${step.id}`}>
-          <Button variant="ghost" size="icon" className="flex-shrink-0" aria-label={getCtaLabel(step)}>
-            <ArrowRight className="h-4 w-4" />
+      {!bloqueada && (
+        <Link href={etapa.rota} data-testid={`link-jornada-${etapa.id}`}>
+          <Button
+            variant={etapa.concluida ? "ghost" : "outline"}
+            size="sm"
+            className="flex-shrink-0 whitespace-nowrap"
+          >
+            {ctaLabel}
+            <ArrowRight className="h-3 w-3 ml-1" />
           </Button>
         </Link>
       )}
@@ -98,25 +116,28 @@ function StepItem({ step }: { step: JornadaStep }) {
 }
 
 export function JornadaEstrategica() {
-  const { steps, totalConcluidos, total, percentual, jornadaConcluida, isLoading } =
+  const { etapas, totalConcluidas, total, percentual, jornadaConcluida, isLoading } =
     useJornadaProgresso();
-  const maioriaConcluida = totalConcluidos >= 6;
-  const [open, setOpen] = useState(!maioriaConcluida);
+  const emAndamento = totalConcluidas < 6;
+  const [open, setOpen] = useState(emAndamento);
   const [celebrationDismissed, setCelebrationDismissed] = useState(false);
 
   if (isLoading) return null;
 
   if (jornadaConcluida && !celebrationDismissed) {
     return (
-      <Card className="mb-6 p-6 border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20" data-testid="card-jornada-concluida">
-        <div className="flex items-center gap-4">
-          <PartyPopper className="h-10 w-10 text-green-600 dark:text-green-400 flex-shrink-0" />
+      <Card
+        className="mb-6 p-6 border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20"
+        data-testid="card-jornada-concluida"
+      >
+        <div className="flex items-start gap-4 flex-wrap">
+          <PartyPopper className="h-10 w-10 text-green-600 dark:text-green-400 flex-shrink-0 mt-1" />
           <div className="flex-1">
             <h3 className="font-semibold text-green-800 dark:text-green-300 text-lg">
               Jornada Estratégica concluída!
             </h3>
             <p className="text-sm text-green-700 dark:text-green-400 mt-1">
-              Parabéns! Você completou todas as {total} etapas da jornada. Sua empresa agora tem uma estratégia completa e estruturada. Continue acompanhando os rituais e ajustando conforme necessário.
+              Parabéns! Você completou todas as {total} etapas da jornada. Sua empresa tem agora uma estratégia completa e estruturada. Continue acompanhando os rituais e ajustando conforme necessário.
             </p>
           </div>
           <Button
@@ -134,8 +155,8 @@ export function JornadaEstrategica() {
 
   if (jornadaConcluida && celebrationDismissed) return null;
 
-  const proximaStep = steps.find(
-    (s) => !s.concluido && (!s.bloqueadoPor || s.bloqueadoPor.length === 0)
+  const proximaEtapa = etapas.find(
+    (e) => !e.concluida && (!e.bloqueadaPor || e.bloqueadaPor.length === 0)
   );
 
   return (
@@ -152,11 +173,11 @@ export function JornadaEstrategica() {
                 <span className="font-semibold">Jornada Estratégica</span>
               </div>
               <Badge variant="secondary" data-testid="badge-jornada-progresso">
-                {totalConcluidos}/{total} etapas
+                {totalConcluidas}/{total} etapas
               </Badge>
-              {proximaStep && (
+              {proximaEtapa && !open && (
                 <span className="text-xs text-muted-foreground hidden sm:inline">
-                  Próxima: {proximaStep.titulo}
+                  Próxima: {proximaEtapa.nome}
                 </span>
               )}
             </div>
@@ -180,18 +201,15 @@ export function JornadaEstrategica() {
               <span className="text-xs text-muted-foreground">{percentual}%</span>
             </div>
             <div className="divide-y divide-border/50">
-              {steps.map((step) => (
-                <StepItem key={step.id} step={step} />
+              {etapas.map((etapa) => (
+                <EtapaCard key={etapa.id} etapa={etapa} />
               ))}
             </div>
-            {proximaStep && (
+            {proximaEtapa && (
               <div className="mt-4 px-4">
-                <Link href={proximaStep.url}>
-                  <Button
-                    className="w-full sm:w-auto"
-                    data-testid="button-proxima-etapa"
-                  >
-                    Iniciar: {proximaStep.titulo}
+                <Link href={proximaEtapa.rota}>
+                  <Button className="w-full sm:w-auto" data-testid="button-proxima-etapa">
+                    Iniciar: {proximaEtapa.nome}
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
                 </Link>

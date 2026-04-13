@@ -407,8 +407,8 @@ export default function Estrategias() {
         <Card className="mt-6">
           <EmptyState
             icon={<Target className="h-16 w-16" />}
-            title="Nenhuma estratégia criada ainda"
-            description="Gere estratégias automaticamente com IA ou crie manualmente combinando elementos da sua análise SWOT."
+            title="Transforme o SWOT em estratégias práticas"
+            description="A Matriz TOWS combina os quadrantes do SWOT para criar 4 tipos de estratégia: SO (Forças + Oportunidades), ST (Forças + Ameaças), WO (Fraquezas + Oportunidades) e WT (Fraquezas + Ameaças). A IA usa todo o contexto que você já mapeou para gerar estratégias relevantes e acionáveis para o seu negócio."
             actionLabel="Gerar com IA"
             onAction={handleGenerateStrategies}
           />

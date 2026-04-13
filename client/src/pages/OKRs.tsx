@@ -499,9 +499,9 @@ export default function OKRs() {
             <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
               <TargetIcon className="h-6 w-6 text-primary" />
             </div>
-            <h3 className="text-lg font-semibold">Nenhum objetivo criado</h3>
+            <h3 className="text-lg font-semibold">Defina onde você quer chegar</h3>
             <p className="text-sm text-muted-foreground">
-              Comece gerando objetivos com IA baseados nas suas apostas estratégicas ou crie manualmente.
+              OKRs (Objectives & Key Results) traduzem a estratégia em metas claras e mensuráveis. Cada Objetivo é inspirador e ambicioso; os Resultados-Chave são indicadores concretos de progresso. A IA cria OKRs alinhados às suas iniciativas e estratégias, garantindo execução focada e rastreável.
             </p>
             <Button
               onClick={() => gerarObjetivosMutation.mutate(undefined)}

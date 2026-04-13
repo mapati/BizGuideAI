@@ -36,11 +36,11 @@ const marchaItems = [
   { title: "Acompanhamento", url: "/ritos", icon: CheckCircle, jornadaId: "acompanhamento" },
 ];
 
-function StepIndicator({ jornadaId, steps }: { jornadaId: string | null; steps: ReturnType<typeof useJornadaProgresso>["steps"] }) {
+function EtapaIndicador({ jornadaId, etapas }: { jornadaId: string | null; etapas: ReturnType<typeof useJornadaProgresso>["etapas"] }) {
   if (!jornadaId) return null;
-  const step = steps.find((s) => s.id === jornadaId);
-  if (!step) return null;
-  if (step.concluido) {
+  const etapa = etapas.find((e) => e.id === jornadaId);
+  if (!etapa) return null;
+  if (etapa.concluida) {
     return <CheckCircle2 className="h-3.5 w-3.5 text-green-500 ml-auto flex-shrink-0" />;
   }
   return <Circle className="h-3.5 w-3.5 text-muted-foreground/40 ml-auto flex-shrink-0" />;
@@ -49,7 +49,7 @@ function StepIndicator({ jornadaId, steps }: { jornadaId: string | null; steps: 
 export function AppSidebar() {
   const [location] = useLocation();
   const { user, empresa, logout } = useAuth();
-  const { steps, isLoading: jornadaLoading } = useJornadaProgresso();
+  const { etapas, isLoading: jornadaLoading } = useJornadaProgresso();
 
   const initials = user?.nome
     ? user.nome
@@ -60,8 +60,8 @@ export function AppSidebar() {
         .toUpperCase()
     : "?";
 
-  const perfilStep = steps.find((s) => s.id === "perfil");
-  const indicadoresStep = steps.find((s) => s.id === "indicadores");
+  const perfilEtapa = etapas.find((e) => e.id === "perfil");
+  const indicadoresEtapa = etapas.find((e) => e.id === "indicadores");
 
   return (
     <Sidebar>
@@ -100,8 +100,8 @@ export function AppSidebar() {
                   <Link href="/onboarding">
                     <FileText />
                     <span>Perfil da Empresa</span>
-                    {!jornadaLoading && perfilStep && (
-                      perfilStep.concluido
+                    {!jornadaLoading && perfilEtapa && (
+                      perfilEtapa.concluida
                         ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 ml-auto flex-shrink-0" />
                         : <Circle className="h-3.5 w-3.5 text-muted-foreground/40 ml-auto flex-shrink-0" />
                     )}
@@ -117,8 +117,8 @@ export function AppSidebar() {
                   <Link href="/indicadores">
                     <BarChart3 />
                     <span>KPIs — Indicadores</span>
-                    {!jornadaLoading && indicadoresStep && (
-                      indicadoresStep.concluido
+                    {!jornadaLoading && indicadoresEtapa && (
+                      indicadoresEtapa.concluida
                         ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500 ml-auto flex-shrink-0" />
                         : <Circle className="h-3.5 w-3.5 text-muted-foreground/40 ml-auto flex-shrink-0" />
                     )}
@@ -172,7 +172,7 @@ export function AppSidebar() {
                       <item.icon />
                       <span>{item.title}</span>
                       {!jornadaLoading && (
-                        <StepIndicator jornadaId={item.jornadaId} steps={steps} />
+                        <EtapaIndicador jornadaId={item.jornadaId} etapas={etapas} />
                       )}
                     </Link>
                   </SidebarMenuButton>
@@ -197,7 +197,7 @@ export function AppSidebar() {
                       <item.icon />
                       <span>{item.title}</span>
                       {!jornadaLoading && (
-                        <StepIndicator jornadaId={item.jornadaId} steps={steps} />
+                        <EtapaIndicador jornadaId={item.jornadaId} etapas={etapas} />
                       )}
                     </Link>
                   </SidebarMenuButton>
@@ -222,7 +222,7 @@ export function AppSidebar() {
                       <item.icon />
                       <span>{item.title}</span>
                       {!jornadaLoading && (
-                        <StepIndicator jornadaId={item.jornadaId} steps={steps} />
+                        <EtapaIndicador jornadaId={item.jornadaId} etapas={etapas} />
                       )}
                     </Link>
                   </SidebarMenuButton>

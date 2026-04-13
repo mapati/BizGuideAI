@@ -448,8 +448,8 @@ export default function CincoForcasPage() {
       ) : forcasData.length === 0 && !isSuggesting ? (
         <EmptyState
           icon={<Layers className="h-16 w-16" />}
-          title="Nenhuma análise ainda"
-          description='Clique em "Analisar com IA" para a IA pesquisar os concorrentes e gerar uma análise fundamentada das forças do seu mercado.'
+          title="Analise as forças que moldam seu mercado"
+          description="O modelo de Cinco Forças de Porter avalia rivalidade entre concorrentes, ameaça de novos entrantes, poder de fornecedores e clientes, e ameaça de substitutos. Essa análise revela onde sua empresa tem vantagem e onde está vulnerável. A IA pesquisa concorrentes e tendências do setor para gerar uma análise completa e embasada."
         />
       ) : forcasData.length > 0 ? (
         <div className="grid grid-cols-1 gap-4 mt-6">

@@ -807,8 +807,8 @@ export default function Swot() {
         <Card className="mt-6">
           <EmptyState
             icon={<Target className="h-16 w-16" />}
-            title="Nenhuma análise realizada ainda"
-            description="Comece identificando forças, fraquezas, oportunidades e ameaças do seu negócio."
+            title="Identifique o que diferencia sua empresa"
+            description="O SWOT mapeia Forças internas (o que você faz bem), Fraquezas (o que precisa melhorar), Oportunidades externas (tendências favoráveis) e Ameaças (riscos do mercado). É a síntese estratégica mais importante do planejamento. A IA cruza seus dados de PESTEL, Cinco Forças e Canvas para sugerir itens altamente contextualizados."
             actionLabel="Adicionar Primeiro Item"
             onAction={() => setIsDialogOpen(true)}
           />

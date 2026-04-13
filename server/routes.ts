@@ -1241,6 +1241,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         nota: nota || null,
         registradoPor: registradoPor || null,
       });
+      const numVal = parseFloat(String(valor).replace(/[^\d.,\-]/g, "").replace(",", "."));
+      const indicador = await storage.getIndicador(id);
+      if (indicador) {
+        const numMeta = parseFloat(String(indicador.meta).replace(/[^\d.,\-]/g, "").replace(",", "."));
+        let status = "verde";
+        if (!isNaN(numVal) && !isNaN(numMeta) && numMeta !== 0) {
+          const ratio = numVal / numMeta;
+          if (ratio < 0.7) status = "vermelho";
+          else if (ratio < 0.95) status = "amarelo";
+        }
+        await storage.updateIndicador(id, indicador.empresaId, { atual: valor, status });
+      }
       res.json(leitura);
     } catch (error: any) {
       res.status(500).json({ error: error.message });

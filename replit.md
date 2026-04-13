@@ -105,7 +105,7 @@ A guided onboarding journey implemented across the app:
 
 - **Priority Initiatives Portfolio:** Full CRUD for initiatives (title, description, status, priority, deadline, responsible, impact) with AI generation and anti-duplication.
 - **OKR Management:** Full CRUD for Objectives and Key Results with AI-powered generation based on strategic context, including anti-duplication.
-- **Balanced Scorecard (BSC) Indicators:** Full CRUD for indicators across four perspectives (Finances, Customers, Processes, People) with AI generation and anti-duplication.
+- **Balanced Scorecard (BSC) Dashboard:** Modern KPI dashboard with 4 perspective summary tiles (colored), large-number KPI cards with sparklines, status badges, and trend deltas. Click-to-drilldown Sheet panel with AreaChart evolution, period filters (3m/6m/12m/all), inline reading registration, and full history. Backend auto-updates `atual` and `status` fields when new readings are registered. Gap analysis section with progress bars. Full CRUD with AI generation and anti-duplication.
 - **Management Rituals & Alerts System:**
     - Four ritual cadences (Daily, Weekly, Monthly, Quarterly) with pre-defined checklists and guiding questions.
     - Intelligent alerts for critical BSC indicators, overdue initiatives, and stale key results.

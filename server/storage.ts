@@ -108,6 +108,7 @@ export interface IStorage {
   deleteResultadoChave(id: string, empresaId: string): Promise<void>;
   
   getIndicadores(empresaId: string): Promise<Indicador[]>;
+  getIndicador(id: string): Promise<Indicador | null>;
   createIndicador(indicador: InsertIndicador): Promise<Indicador>;
   updateIndicador(id: string, empresaId: string, indicador: Partial<InsertIndicador>): Promise<Indicador>;
   updateIndicadorBenchmark(id: string, benchmark: string): Promise<void>;
@@ -380,6 +381,11 @@ export class DbStorage implements IStorage {
 
   async getIndicadores(empresaId: string): Promise<Indicador[]> {
     return db.select().from(indicadores).where(eq(indicadores.empresaId, empresaId));
+  }
+
+  async getIndicador(id: string): Promise<Indicador | null> {
+    const result = await db.select().from(indicadores).where(eq(indicadores.id, id));
+    return result[0] ?? null;
   }
 
   async createIndicador(indicador: InsertIndicador): Promise<Indicador> {

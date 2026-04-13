@@ -595,7 +595,7 @@ export default function LandingPage() {
                 >
                   inteligente
                 </span>{" "}
-                para PMEs
+                para empresas de todos os portes e segmentos
               </h1>
 
               <p className="text-lg text-slate-300 leading-relaxed" data-testid="text-hero-subtitle">
@@ -877,7 +877,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <Badge variant="outline" className="mb-4 text-sm px-4 py-1">Por que empresas escolhem o BizGuideAI</Badge>
-            <h2 className="text-3xl font-bold mb-3">Gestão estratégica ao alcance de qualquer PME</h2>
+            <h2 className="text-3xl font-bold mb-3">Gestão estratégica ao alcance de qualquer empresa</h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
               Combinamos as melhores metodologias acadêmicas com a velocidade da inteligência artificial.
             </p>
@@ -887,7 +887,7 @@ export default function LandingPage() {
               {
                 icon: Target,
                 title: "Frameworks de classe mundial",
-                desc: "PESTEL, SWOT, BSC, OKR, Cinco Forças e Modelo de Negócio Canvas — metodologias usadas pelas maiores empresas do mundo, acessíveis à sua PME.",
+                desc: "PESTEL, SWOT, BSC, OKR, Cinco Forças e Modelo de Negócio Canvas — metodologias usadas pelas maiores empresas do mundo, agora acessíveis a qualquer negócio.",
               },
               {
                 icon: Zap,

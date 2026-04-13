@@ -527,6 +527,8 @@ export default function Iniciativas() {
             icon={<Briefcase className="h-16 w-16" />}
             title="Coloque a estratégia em movimento"
             description="Iniciativas são projetos e ações concretas que executam suas estratégias. Cada iniciativa tem responsável, prazo, prioridade e impacto esperado. A IA sugere iniciativas práticas derivadas diretamente das estratégias que você definiu, ordenadas por prioridade estratégica."
+            actionLabel="Criar Primeira Iniciativa"
+            onAction={() => setOpenDialog(true)}
           />
           <div className="mt-8 grid gap-4 md:grid-cols-2">
             <ExampleCard>

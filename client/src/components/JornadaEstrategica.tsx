@@ -79,9 +79,10 @@ function StepItem({ step }: { step: JornadaStep }) {
 }
 
 export function JornadaEstrategica() {
-  const [open, setOpen] = useState(true);
   const { steps, totalConcluidos, total, percentual, jornadaConcluida, isLoading } =
     useJornadaProgresso();
+  const maioriaConcluida = totalConcluidos >= 6;
+  const [open, setOpen] = useState(!maioriaConcluida);
 
   if (isLoading) return null;
   if (jornadaConcluida) return null;

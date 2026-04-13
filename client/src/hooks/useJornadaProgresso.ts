@@ -51,7 +51,7 @@ export function useJornadaProgresso(): JornadaProgresso & { isLoading: boolean }
   });
 
   const { data: swotItens = [], isLoading: loadingSwot } = useQuery<any[]>({
-    queryKey: ["/api/swot", empresaId],
+    queryKey: ["/api/analise-swot", empresaId],
     enabled: !!empresaId,
   });
 
@@ -75,6 +75,11 @@ export function useJornadaProgresso(): JornadaProgresso & { isLoading: boolean }
     enabled: !!empresaId,
   });
 
+  const { data: rituais = [], isLoading: loadingRituais } = useQuery<any[]>({
+    queryKey: ["/api/rituais", empresaId],
+    enabled: !!empresaId,
+  });
+
   const isLoading =
     loadingEmpresa ||
     loadingIndicadores ||
@@ -85,16 +90,21 @@ export function useJornadaProgresso(): JornadaProgresso & { isLoading: boolean }
     loadingEstategias ||
     loadingOport ||
     loadingIniciativas ||
-    loadingOkrs;
+    loadingOkrs ||
+    loadingRituais;
 
   const perfilCompleto = !!(empresa?.nome && empresa?.setor && empresa?.tamanho);
+
+  const acompanhamentoConcluido = rituais.some(
+    (r: any) => r.completado === true || (r.checklist && Array.isArray(r.checklist) && r.checklist.some((c: any) => c.done))
+  );
 
   const steps: JornadaStep[] = [
     {
       id: "perfil",
       numero: 1,
       titulo: "Perfil da Empresa",
-      descricao: "Defina os dados básicos da sua empresa para personalizar toda a análise estratégica.",
+      descricao: "Defina os dados básicos da sua empresa para personalizar toda a análise estratégica com IA.",
       url: "/onboarding",
       concluido: perfilCompleto,
     },
@@ -111,7 +121,7 @@ export function useJornadaProgresso(): JornadaProgresso & { isLoading: boolean }
       id: "pestel",
       numero: 3,
       titulo: "Cenário Externo (PESTEL)",
-      descricao: "Mapeie os fatores políticos, econômicos, sociais, tecnológicos, ambientais e legais que afetam o seu negócio.",
+      descricao: "Mapeie fatores políticos, econômicos, sociais, tecnológicos, ambientais e legais que afetam o negócio.",
       url: "/pestel",
       concluido: fatoresPestel.length > 0,
       bloqueadoPor: perfilCompleto ? [] : ["perfil"],
@@ -156,7 +166,7 @@ export function useJornadaProgresso(): JornadaProgresso & { isLoading: boolean }
       id: "oportunidades",
       numero: 8,
       titulo: "Oportunidades de Crescimento",
-      descricao: "Identifique e priorize as maiores oportunidades para expandir o negócio.",
+      descricao: "Identifique e priorize as maiores oportunidades para expandir o negócio (Matriz de Ansoff).",
       url: "/oportunidades-crescimento",
       concluido: oportunidades.length > 0,
       bloqueadoPor: estrategias.length > 0 ? [] : ["estrategias"],
@@ -185,7 +195,7 @@ export function useJornadaProgresso(): JornadaProgresso & { isLoading: boolean }
       titulo: "Acompanhamento (Ritos Estratégicos)",
       descricao: "Estabeleça uma cadência de revisão para garantir a execução consistente da estratégia.",
       url: "/ritos",
-      concluido: false,
+      concluido: acompanhamentoConcluido,
       bloqueadoPor: objetivos.length > 0 ? [] : ["okrs"],
     },
   ];

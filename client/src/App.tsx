@@ -80,7 +80,7 @@ function TrialStatusBanner({ diasRestantes }: { diasRestantes: number }) {
 }
 
 function AppLayout() {
-  const { user, trialInfo, isLoading } = useAuth();
+  const { user, empresa, trialInfo, isLoading } = useAuth();
   const [location] = useLocation();
 
   if (isLoading) {
@@ -101,12 +101,9 @@ function AppLayout() {
     return <Redirect to="/dashboard" />;
   }
 
-  const empresaData = queryClient.getQueryData<any>(["/api/empresa"]);
-  const empresaCarregada = queryClient.getQueryState(["/api/empresa"])?.status === "success";
-  const semEmpresa = empresaCarregada && !empresaData;
   const rotasPublicasApp = ["/onboarding", "/trial-expirado", "/admin"];
   const naRotaRestrita = !rotasPublicasApp.some((r) => location.startsWith(r));
-  if (user && semEmpresa && naRotaRestrita) {
+  if (user && !isLoading && empresa === null && naRotaRestrita) {
     return <Redirect to="/onboarding" />;
   }
 

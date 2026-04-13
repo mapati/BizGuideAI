@@ -60,8 +60,8 @@ export default function OKRs() {
 
   const empresaId = empresa?.id;
 
-  const { data: iniciativas = [] } = useQuery<any[]>({
-    queryKey: ["/api/iniciativas", empresaId],
+  const { data: estrategias = [] } = useQuery<any[]>({
+    queryKey: ["/api/estrategias", empresaId],
     enabled: !!empresaId,
   });
 
@@ -350,16 +350,16 @@ export default function OKRs() {
     );
   }
 
-  const semIniciativas = empresa && iniciativas.length === 0;
+  const semEstategias = empresa && estrategias.length === 0;
 
   return (
     <div>
-      {semIniciativas && (
+      {semEstategias && (
         <PrerequisiteWarning
-          titulo="Recomendado: defina iniciativas antes de criar OKRs"
-          descricao="OKRs são mais eficazes quando derivam das iniciativas e estratégias que você já priorizou. Complete as Iniciativas Prioritárias primeiro."
-          linkLabel="Ir para Iniciativas"
-          linkHref="/iniciativas"
+          titulo="Recomendado: defina estratégias antes de criar OKRs"
+          descricao="OKRs são mais eficazes quando derivam das estratégias definidas na Matriz TOWS. Complete as Estratégias primeiro para que seus objetivos estejam alinhados."
+          linkLabel="Ir para Estratégias"
+          linkHref="/estrategias"
           variante="info"
         />
       )}

@@ -14,7 +14,7 @@ import {
 
 export function OrbitalGrid() {
   return (
-    <div className="relative w-full h-[580px] bg-[#020817] rounded-xl border border-white/10 overflow-hidden flex items-center justify-center font-sans">
+    <div className="relative w-full h-[520px] bg-[#020817] rounded-xl border border-white/10 overflow-hidden flex items-center justify-center font-sans">
       {/* Dynamic Background */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(56,189,248,0.05)_0%,rgba(2,8,23,0)_70%)]" />
       <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgoJPHJlY3Qgd2lkdGg9IjQiIGhlaWdodD0iNCIgZmlsbD0iI2ZmZmZmZiIgZmlsbC1vcGFjaXR5PSIwLjAyIi8+Cjwvc3ZnPg==')] opacity-50" />

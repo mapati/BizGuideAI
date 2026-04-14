@@ -15,7 +15,7 @@ import {
 
 export function DataHologram() {
   return (
-    <div className="relative w-full h-[560px] bg-[#020817] rounded-xl overflow-hidden font-sans flex items-center justify-center border border-white/5 shadow-2xl">
+    <div className="relative w-full h-[520px] bg-[#020817] rounded-xl overflow-hidden font-sans flex items-center justify-center border border-white/5 shadow-2xl">
       {/* Dynamic Background */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(56,189,248,0.08)_0%,transparent_70%)]" />
       <div 

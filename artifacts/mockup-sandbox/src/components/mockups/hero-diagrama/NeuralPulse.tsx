@@ -12,15 +12,15 @@ import {
 
 export function NeuralPulse() {
   return (
-    <div className="relative w-full h-[580px] bg-[#020817] overflow-hidden flex items-center justify-center font-sans">
+    <div className="relative w-full h-[520px] bg-[#020817] overflow-hidden flex items-center justify-center font-sans">
       {/* Background glow effects */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-sky-900/20 blur-[120px] rounded-full pointer-events-none" />
       <div className="absolute top-1/2 left-[40%] -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] bg-indigo-900/30 blur-[100px] rounded-full pointer-events-none" />
 
-      {/* SVG Canvas — viewBox 1000×580 for absolute coordinate accuracy */}
+      {/* SVG Canvas — viewBox 1000×520 for absolute coordinate accuracy */}
       <svg
         className="absolute inset-0 w-full h-full pointer-events-none"
-        viewBox="0 0 1000 580"
+        viewBox="0 0 1000 520"
         preserveAspectRatio="xMidYMid meet"
         style={{ zIndex: 1 }}
       >

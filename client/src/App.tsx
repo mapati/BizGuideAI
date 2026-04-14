@@ -202,6 +202,10 @@ function AppLayout() {
                 <Route path="/trial-expirado" component={TrialExpirado} />
                 <Route path="/admin" component={Admin} />
                 <Route path="/equipe" component={Equipe} />
+                {/* Auth routes: must remain accessible even when logged in */}
+                <Route path="/reset-password" component={ResetPassword} />
+                <Route path="/verify-email" component={VerifyEmail} />
+                <Route path="/forgot-password" component={ForgotPassword} />
                 <Route component={NotFound} />
               </Switch>
             </main>

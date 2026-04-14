@@ -234,7 +234,7 @@ function PerspectiveSummaryTile({
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold truncate">{perspectiva.label}</p>
-          <p className="text-xs text-muted-foreground">{inds.length} KPI{inds.length !== 1 ? "s" : ""}</p>
+          <p className="text-xs text-muted-foreground">{inds.length} indicador{inds.length !== 1 ? "es" : ""}</p>
         </div>
       </div>
       {inds.length > 0 && (
@@ -674,7 +674,7 @@ export default function Indicadores() {
       invalidate();
       setDialogOpen(false);
       setForm(EMPTY_FORM);
-      toast({ title: "Indicador criado!", description: "KPI adicionado com sucesso." });
+      toast({ title: "Indicador criado!", description: "Indicador adicionado com sucesso." });
     },
     onError: () =>
       toast({ title: "Erro ao criar", variant: "destructive" }),
@@ -716,7 +716,7 @@ export default function Indicadores() {
       invalidate();
       toast({
         title: "Benchmarks gerados!",
-        description: `${data?.updated ?? 0} KPI(s) contextualizados com dados setoriais.`,
+        description: `${data?.updated ?? 0} indicador(es) contextualizados com dados setoriais.`,
       });
     },
     onError: () => toast({ title: "Erro ao gerar benchmarks", variant: "destructive" }),
@@ -741,12 +741,12 @@ export default function Indicadores() {
       }
       invalidate();
       toast({
-        title: "KPIs gerados!",
+        title: "Indicadores gerados!",
         description: `${data.indicadores.length} indicador(es) criado(s) pela IA.`,
       });
     },
     onError: () =>
-      toast({ title: "Erro ao gerar KPIs com IA", variant: "destructive" }),
+      toast({ title: "Erro ao gerar indicadores com IA", variant: "destructive" }),
   });
 
   const abrirCriar = () => {
@@ -805,9 +805,9 @@ export default function Indicadores() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="KPIs — Painel BSC"
-        description="Monitore a execução estratégica nas 4 perspectivas do Balanced Scorecard."
-        tooltip="Os KPIs do Painel BSC derivam da estratégia já construída. Diferente do Diagnóstico Atual (baseline pré-estratégico), esses indicadores medem se a estratégia está sendo executada e gerando os resultados esperados."
+        title="Painel de Indicadores"
+        description="Monitore os principais indicadores do negócio e acompanhe a saúde da estratégia em execução."
+        tooltip="Indicadores que derivam da estratégia já construída. Diferente do Diagnóstico Atual (pré-estratégico), esses indicadores medem se a estratégia está sendo executada e gerando os resultados esperados."
         action={
           <div className="flex gap-2 flex-wrap">
             <Button
@@ -838,7 +838,7 @@ export default function Indicadores() {
             </Button>
             <Button onClick={abrirCriar} data-testid="button-add-indicador">
               <Plus className="h-4 w-4 mr-2" />
-              Novo KPI
+              Novo Indicador
             </Button>
           </div>
         }
@@ -857,7 +857,7 @@ export default function Indicadores() {
               <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
                 <BarChart3 className="h-3.5 w-3.5 text-primary" />
               </div>
-              <span className="text-sm font-semibold">KPIs — Saúde contínua do negócio</span>
+              <span className="text-sm font-semibold">Indicadores — Saúde contínua do negócio</span>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed pl-8">
               Medem o que já está em funcionamento. Têm meta fixa e status permanente (verde/amarelo/vermelho).
@@ -872,7 +872,7 @@ export default function Indicadores() {
               <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
                 <Target className="h-3.5 w-3.5 text-primary" />
               </div>
-              <span className="text-sm font-semibold">OKRs — Mudança e crescimento</span>
+              <span className="text-sm font-semibold">Metas — Mudança e crescimento</span>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed pl-8">
               Definem onde você quer chegar em um ciclo. Têm prazo e progresso de 0–100%.
@@ -882,7 +882,7 @@ export default function Indicadores() {
           <div className="hidden sm:flex items-center sm:self-center">
             <Link href="/okrs">
               <Button size="sm" variant="ghost" data-testid="link-ver-okrs">
-                Ver OKRs
+                Ver Metas
                 <ArrowRight className="h-3 w-3 ml-1" />
               </Button>
             </Link>
@@ -896,9 +896,9 @@ export default function Indicadores() {
             <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
               <BarChart3 className="h-6 w-6 text-primary" />
             </div>
-            <h3 className="text-lg font-semibold">Nenhum KPI cadastrado</h3>
+            <h3 className="text-lg font-semibold">Nenhum indicador cadastrado</h3>
             <p className="text-sm text-muted-foreground">
-              Crie KPIs estratégicos nas 4 perspectivas BSC para monitorar se a estratégia está sendo executada, ou deixe a IA gerar indicadores alinhados aos seus OKRs e estratégias.
+              Crie indicadores para monitorar a saúde do negócio nas 4 áreas estratégicas, ou deixe a IA gerar indicadores alinhados às suas metas e estratégias.
             </p>
             <div className="flex gap-2 justify-center flex-wrap">
               <Button
@@ -911,7 +911,7 @@ export default function Indicadores() {
                 ) : (
                   <Sparkles className="h-4 w-4 mr-2" />
                 )}
-                Gerar KPIs com IA
+                Gerar Indicadores com IA
               </Button>
               <Button variant="outline" onClick={abrirCriar} data-testid="button-criar-kpi-empty">
                 <Plus className="h-4 w-4 mr-2" />
@@ -1040,14 +1040,14 @@ export default function Indicadores() {
         <DialogTrigger className="hidden" />
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editando ? "Editar KPI" : "Novo KPI"}</DialogTitle>
+            <DialogTitle>{editando ? "Editar Indicador" : "Novo Indicador"}</DialogTitle>
             <DialogDescription>
-              {editando ? "Atualize os dados do indicador." : "Preencha os campos para criar um novo indicador BSC."}
+              {editando ? "Atualize os dados do indicador." : "Preencha os campos para criar um novo indicador."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
-              <Label htmlFor="perspectiva">Perspectiva BSC</Label>
+              <Label htmlFor="perspectiva">Área do Negócio</Label>
               <Select
                 value={form.perspectiva}
                 onValueChange={(v) => setForm({ ...form, perspectiva: v })}
@@ -1129,7 +1129,7 @@ export default function Indicadores() {
               data-testid="button-salvar-kpi"
             >
               {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-              {editando ? "Salvar alterações" : "Criar KPI"}
+              {editando ? "Salvar alterações" : "Criar Indicador"}
             </Button>
           </div>
         </DialogContent>

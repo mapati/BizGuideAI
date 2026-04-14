@@ -426,7 +426,7 @@ export default function CincoForcasPage() {
                   : "bg-muted/40 text-muted-foreground"
               }`}>
                 <Sparkles className={`h-4 w-4 ${suggestPhase === "generating" ? "animate-pulse" : ""}`} />
-                <span>Gerando análise das Cinco Forças com IA</span>
+                <span>Gerando análise de mercado com IA</span>
                 {suggestPhase === "generating" && (
                   <Loader2 className="h-3 w-3 ml-auto animate-spin" />
                 )}
@@ -449,7 +449,7 @@ export default function CincoForcasPage() {
         <EmptyState
           icon={<Layers className="h-16 w-16" />}
           title="Analise as forças que moldam seu mercado"
-          description="O modelo de Cinco Forças de Porter avalia rivalidade entre concorrentes, ameaça de novos entrantes, poder de fornecedores e clientes, e ameaça de substitutos. Essa análise revela onde sua empresa tem vantagem e onde está vulnerável. A IA pesquisa concorrentes e tendências do setor para gerar uma análise completa e embasada."
+          description="Avalie as forças que moldam o seu mercado: rivalidade entre concorrentes, ameaça de novos entrantes, poder de fornecedores e clientes, e ameaça de substitutos. Essa análise revela onde sua empresa tem vantagem e onde está vulnerável. A IA pesquisa concorrentes e tendências do setor para gerar uma análise completa e embasada."
           actionLabel="Adicionar Primeira Análise"
           onAction={() => setIsDialogOpen(true)}
         />

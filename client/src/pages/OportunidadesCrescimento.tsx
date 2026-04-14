@@ -282,7 +282,7 @@ export default function OportunidadesCrescimento() {
         <PageHeader
           icon={TrendingUp}
           title="Oportunidades de Crescimento"
-          subtitle="Matriz de Ansoff: Explore caminhos para expandir seu negócio"
+          subtitle="Explore caminhos para expandir seu negócio"
         />
         <div className="mt-6">Carregando...</div>
       </div>
@@ -296,7 +296,7 @@ export default function OportunidadesCrescimento() {
       {semEstategias && (
         <PrerequisiteWarning
           titulo="Recomendado: defina estratégias antes de mapear oportunidades"
-          descricao="As oportunidades de crescimento ficam mais claras quando derivam das estratégias da Matriz TOWS. Crie as estratégias primeiro para uma análise mais coerente."
+          descricao="As oportunidades de crescimento ficam mais claras quando derivam das estratégias definidas. Crie as estratégias primeiro para uma análise mais coerente."
           linkLabel="Ir para Estratégias"
           linkHref="/estrategias"
           variante="info"
@@ -305,7 +305,7 @@ export default function OportunidadesCrescimento() {
       <PageHeader
         icon={TrendingUp}
         title="Oportunidades de Crescimento"
-        subtitle="Matriz de Ansoff: Explore caminhos para expandir seu negócio"
+        subtitle="Explore caminhos para expandir seu negócio"
       />
 
       <div className="mt-6 flex gap-3">
@@ -334,7 +334,7 @@ export default function OportunidadesCrescimento() {
 
             <div className="space-y-4">
               <div>
-                <Label htmlFor="tipo">Tipo (Matriz de Ansoff)</Label>
+                <Label htmlFor="tipo">Tipo de Crescimento</Label>
                 <Select
                   value={formData.tipo}
                   onValueChange={(value) => setFormData({ ...formData, tipo: value })}

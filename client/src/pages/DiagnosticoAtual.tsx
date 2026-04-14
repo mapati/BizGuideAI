@@ -239,7 +239,7 @@ export default function DiagnosticoAtual() {
       <PageHeader
         title="Diagnóstico Atual"
         description="Registre 3 a 5 métricas que representam a situação real do negócio hoje, antes de construir a estratégia."
-        tooltip="O Diagnóstico Atual cria um baseline pré-estratégico. Diferente dos KPIs BSC (que derivam da estratégia), essas métricas capturam o estado de partida — permitindo medir o impacto das decisões estratégicas ao longo do tempo."
+        tooltip="O Diagnóstico Atual cria um ponto de partida do negócio. Diferente dos indicadores estratégicos (que derivam do plano), essas métricas capturam a situação atual — permitindo medir o impacto das decisões ao longo do tempo."
         action={
           <div className="flex gap-2">
             <Button

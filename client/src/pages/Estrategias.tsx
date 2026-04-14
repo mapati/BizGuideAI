@@ -268,7 +268,7 @@ export default function Estrategias() {
         <Card className="p-8">
           <h2 className="text-2xl font-semibold mb-4">Complete seu perfil primeiro</h2>
           <p className="text-muted-foreground mb-6">
-            Para criar estratégias, você precisa completar o perfil da sua empresa e a análise SWOT.
+            Para criar estratégias, você precisa completar o perfil da sua empresa e o diagnóstico de forças e fraquezas.
           </p>
           <Button onClick={() => window.location.href = "/onboarding"} data-testid="button-ir-onboarding">
             Ir para Onboarding
@@ -285,17 +285,17 @@ export default function Estrategias() {
     <div className="max-w-6xl mx-auto">
       {semSwot && (
         <PrerequisiteWarning
-          titulo="Recomendado: complete a análise SWOT antes de criar estratégias"
-          descricao="A Matriz TOWS combina forças, fraquezas, oportunidades e ameaças. Ter pelo menos 4 itens no SWOT enriquece muito as estratégias geradas pela IA."
-          linkLabel="Ir para SWOT"
+          titulo="Recomendado: mapeie forças e fraquezas antes de criar estratégias"
+          descricao="Suas estratégias ficam mais precisas quando combinam pontos fortes, fraquezas, oportunidades e ameaças. Ter pelo menos 4 itens no diagnóstico enriquece muito o que a IA gera."
+          linkLabel="Ir para Forças e Fraquezas"
           linkHref="/swot"
           variante="info"
         />
       )}
       <PageHeader
-        title="Estratégias (Matriz TOWS)"
+        title="Estratégias de Ação"
         description="Combine forças, fraquezas, oportunidades e ameaças para criar estratégias práticas e acionáveis."
-        tooltip="A Matriz TOWS (SWOT Cruzada) ajuda a criar estratégias combinando elementos internos e externos identificados na análise SWOT."
+        tooltip="Estratégias que cruzam seus pontos fortes e fracos com oportunidades e ameaças do mercado — transformando o diagnóstico em um plano concreto."
         action={
           <div className="flex gap-2">
             <Button
@@ -320,7 +320,7 @@ export default function Estrategias() {
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div>
-                    <Label htmlFor="tipo">Tipo de Estratégia (Matriz TOWS)</Label>
+                    <Label htmlFor="tipo">Tipo de Estratégia</Label>
                     <Select value={formData.tipo} onValueChange={(value) => setFormData({ ...formData, tipo: value })}>
                       <SelectTrigger data-testid="select-tipo-estrategia">
                         <SelectValue placeholder="Selecione o tipo" />
@@ -407,8 +407,8 @@ export default function Estrategias() {
         <Card className="mt-6">
           <EmptyState
             icon={<Target className="h-16 w-16" />}
-            title="Transforme o SWOT em estratégias práticas"
-            description="A Matriz TOWS combina os quadrantes do SWOT para criar 4 tipos de estratégia: SO (Forças + Oportunidades), ST (Forças + Ameaças), WO (Fraquezas + Oportunidades) e WT (Fraquezas + Ameaças). A IA usa todo o contexto que você já mapeou para gerar estratégias relevantes e acionáveis para o seu negócio."
+            title="Transforme o diagnóstico em estratégias práticas"
+            description="Estratégias que combinam seus pontos fortes com as oportunidades do mercado, e neutralizam fraquezas e ameaças. A IA usa todo o contexto que você já mapeou para gerar estratégias relevantes e acionáveis para o seu negócio."
             actionLabel="Gerar com IA"
             onAction={handleGenerateStrategies}
           />

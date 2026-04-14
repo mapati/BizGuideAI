@@ -408,7 +408,7 @@ export default function Pestel() {
                   : "bg-muted/40 text-muted-foreground"
               }`}>
                 <Sparkles className={`h-4 w-4 ${suggestPhase === "generating" ? "animate-pulse" : ""}`} />
-                <span>Gerando fatores PESTEL com IA</span>
+                <span>Gerando análise do cenário externo com IA</span>
                 {suggestPhase === "generating" && (
                   <Loader2 className="h-3 w-3 ml-auto animate-spin" />
                 )}
@@ -432,7 +432,7 @@ export default function Pestel() {
           <EmptyState
             icon={<Compass className="h-16 w-16" />}
             title="Comece mapeando o cenário externo"
-            description="A análise PESTEL identifica fatores Políticos, Econômicos, Sociais, Tecnológicos, Ambientais e Legais que impactam o seu negócio. Entender o macro-ambiente é o primeiro passo para tomar decisões estratégicas fundamentadas. A IA pesquisa notícias e tendências atuais para gerar fatores relevantes para o seu setor automaticamente."
+            description="Identifique os fatores externos que impactam seu negócio: políticos, econômicos, sociais, tecnológicos, ambientais e legais. Entender o ambiente ao redor é o primeiro passo para decisões estratégicas fundamentadas. A IA pesquisa notícias e tendências atuais para gerar fatores relevantes para o seu setor automaticamente."
             actionLabel="Adicionar Primeiro Fator"
             onAction={() => setIsDialogOpen(true)}
           />
@@ -500,7 +500,7 @@ export default function Pestel() {
             <CollapsibleContent>
               <div className="px-6 pb-6 pt-0 border-t">
                 <p className="text-xs text-muted-foreground mb-4 pt-4">
-                  Resumo do contexto externo pesquisado pela IA e usado como base para gerar os fatores PESTEL da sua empresa.
+                  Resumo do cenário externo pesquisado pela IA e usado como base para identificar os fatores relevantes para a sua empresa.
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {Object.entries(cenarioExterno).map(([dim, data]) => (

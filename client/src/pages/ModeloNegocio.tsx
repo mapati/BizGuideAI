@@ -289,9 +289,9 @@ export default function ModeloNegocio() {
   return (
     <div>
       <PageHeader
-        title="Modelo de Negócio (Canvas)"
-        description="Visualize e edite os 9 blocos do Business Model Canvas. Clique em qualquer bloco para editar."
-        tooltip="O Business Model Canvas é uma ferramenta visual para descrever, analisar e desenvolver modelos de negócio. Clique em cada bloco para adicionar ou editar o conteúdo."
+        title="Modelo de Negócio"
+        description="Visualize e edite os 9 elementos essenciais do seu modelo de negócio. Clique em qualquer bloco para editar."
+        tooltip="Uma visão completa do seu modelo de negócio: proposta de valor, clientes, canais, receitas, custos, parceiros e mais. Clique em cada bloco para adicionar ou editar."
         action={
           <Button
             variant="outline"
@@ -335,7 +335,7 @@ export default function ModeloNegocio() {
             <div className="flex-1">
               <h3 className="font-semibold text-base mb-1">Mapeie seu modelo de negócio</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                O Business Model Canvas organiza os 9 elementos essenciais do seu negócio em um único quadro: proposta de valor, clientes, canais, receitas, custos, parceiros e mais. Clique em qualquer bloco para começar a preencher, ou use a IA para gerar um modelo completo baseado no perfil da sua empresa.
+                Os 9 elementos essenciais do seu negócio em um único quadro: proposta de valor, clientes, canais, receitas, custos, parceiros e mais. Clique em qualquer bloco para começar a preencher, ou use a IA para gerar um modelo completo baseado no perfil da sua empresa.
               </p>
             </div>
             <Button

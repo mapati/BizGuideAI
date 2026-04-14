@@ -62,12 +62,12 @@ type FonteId = "documento" | "pestel" | "cincoForcas" | "modeloNegocio" | "indic
 
 const FONTES_CONFIG: { id: FonteId; label: string; desc: string; grupo: "interna" | "externa" }[] = [
   { id: "documento",      label: "Documento estratégico",     desc: "PDF carregado",             grupo: "interna" },
-  { id: "modeloNegocio",  label: "Modelo de Negócio",         desc: "Business Model Canvas",     grupo: "interna" },
-  { id: "indicadores",    label: "Indicadores (KPIs)",        desc: "Métricas e metas",          grupo: "interna" },
-  { id: "objetivos",      label: "Objetivos e OKRs",          desc: "Metas estratégicas",        grupo: "interna" },
+  { id: "modeloNegocio",  label: "Modelo de Negócio",         desc: "Estrutura do negócio",      grupo: "interna" },
+  { id: "indicadores",    label: "Indicadores",               desc: "Métricas e metas",          grupo: "interna" },
+  { id: "objetivos",      label: "Metas e Resultados",        desc: "Objetivos estratégicos",    grupo: "interna" },
   { id: "estrategias",    label: "Estratégias e Iniciativas", desc: "Plano de ação",             grupo: "interna" },
-  { id: "pestel",         label: "Análise PESTEL",            desc: "Cenário externo",           grupo: "externa" },
-  { id: "cincoForcas",    label: "Mercado e concorrência",    desc: "Cinco Forças",              grupo: "externa" },
+  { id: "pestel",         label: "Cenário Externo",           desc: "Fatores macro",             grupo: "externa" },
+  { id: "cincoForcas",    label: "Mercado e concorrência",    desc: "Análise de mercado",        grupo: "externa" },
 ];
 
 const FONTES_INTERNAS = FONTES_CONFIG.filter((f) => f.grupo === "interna");
@@ -491,8 +491,8 @@ export default function Swot() {
     <div className="max-w-6xl mx-auto">
       {semExternos && (
         <PrerequisiteWarning
-          titulo="Enriqueça sua análise SWOT com dados do ambiente externo"
-          descricao="Você ainda não tem fatores PESTEL nem análise de mercado. Preencher essas seções antes ajuda a identificar oportunidades e ameaças com mais precisão."
+          titulo="Enriqueça seu diagnóstico com dados do ambiente externo"
+          descricao="Você ainda não tem fatores do cenário externo nem análise de mercado. Preencher essas seções antes ajuda a identificar oportunidades e ameaças com mais precisão."
           linkLabel="Analisar cenário externo"
           linkHref="/pestel"
           variante="info"
@@ -603,7 +603,7 @@ export default function Swot() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Settings2 className="h-5 w-5" />
-              Gerar SWOT com IA
+              Gerar diagnóstico com IA
             </DialogTitle>
           </DialogHeader>
 
@@ -808,7 +808,7 @@ export default function Swot() {
           <EmptyState
             icon={<Target className="h-16 w-16" />}
             title="Identifique o que diferencia sua empresa"
-            description="O SWOT mapeia Forças internas (o que você faz bem), Fraquezas (o que precisa melhorar), Oportunidades externas (tendências favoráveis) e Ameaças (riscos do mercado). É a síntese estratégica mais importante do planejamento. A IA cruza seus dados de PESTEL, Cinco Forças e Canvas para sugerir itens altamente contextualizados."
+            description="Mapeie o que sua empresa faz bem (forças), o que precisa melhorar (fraquezas), as tendências favoráveis (oportunidades) e os riscos do mercado (ameaças). É a síntese estratégica mais importante do planejamento. A IA cruza seus dados de cenário externo, mercado e modelo de negócio para sugerir itens altamente contextualizados."
             actionLabel="Adicionar Primeiro Item"
             onAction={() => setIsDialogOpen(true)}
           />

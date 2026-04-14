@@ -146,8 +146,8 @@ export default function Exportacao() {
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { label: "Objetivos OKR", value: objetivos.length },
-              { label: "KPIs BSC", value: indicadores.length },
+              { label: "Objetivos", value: objetivos.length },
+              { label: "Indicadores", value: indicadores.length },
               { label: "Estratégias", value: estrategias.length },
               { label: "Iniciativas", value: iniciativas.length },
             ].map(item => (

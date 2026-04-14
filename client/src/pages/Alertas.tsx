@@ -14,14 +14,14 @@ const alertTypes = [
   {
     tipo: "kpi_vermelho",
     icon: TrendingDown,
-    label: "KPI em Estado Crítico",
+    label: "Indicador em Estado Crítico",
     desc: "Receba um alerta quando um indicador entrar em estado vermelho (abaixo do limite crítico).",
     color: "text-red-600",
   },
   {
     tipo: "kpi_amarelo",
     icon: AlertTriangle,
-    label: "KPI em Atenção",
+    label: "Indicador em Atenção",
     desc: "Receba um alerta quando um indicador entrar em estado amarelo (abaixo da meta).",
     color: "text-yellow-600",
   },
@@ -35,8 +35,8 @@ const alertTypes = [
   {
     tipo: "okr_sem_atualizacao",
     icon: CheckCircle,
-    label: "OKR sem Atualização",
-    desc: "Receba um lembrete quando um resultado-chave não for atualizado há mais de 14 dias.",
+    label: "Meta sem Atualização",
+    desc: "Receba um lembrete quando uma meta não for atualizada há mais de 14 dias.",
     color: "text-blue-600",
   },
   {

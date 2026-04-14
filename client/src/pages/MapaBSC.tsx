@@ -58,8 +58,8 @@ export default function MapaBSC() {
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
       <PageHeader
-        title="Mapa Estratégico BSC"
-        description="Visualize as relações de causa e efeito entre objetivos nas 4 perspectivas do Balanced Scorecard."
+        title="Mapa de Performance"
+        description="Visualize as relações de causa e efeito entre os seus objetivos estratégicos."
         action={
           <Button onClick={() => setDialogOpen(true)} disabled={objetivos.length < 2} data-testid="button-add-relacao">
             <Plus className="h-4 w-4 mr-2" /> Nova Relação
@@ -72,8 +72,8 @@ export default function MapaBSC() {
       ) : objetivos.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center text-muted-foreground">
-            <p>Nenhum objetivo OKR cadastrado ainda.</p>
-            <p className="text-sm mt-1">Crie objetivos na página de OKRs antes de visualizar o mapa.</p>
+            <p>Nenhuma meta cadastrada ainda.</p>
+            <p className="text-sm mt-1">Crie objetivos na página de Metas e Resultados antes de visualizar o mapa.</p>
           </CardContent>
         </Card>
       ) : (

@@ -9,8 +9,8 @@ import type { Estrategia, Iniciativa, Objetivo, Indicador } from "@shared/schema
 const camadas = [
   { label: "Estratégias", sublabel: "Por que fazemos?", icon: TrendingUp, color: "bg-blue-500/10 border-blue-200 dark:border-blue-800", text: "text-blue-700 dark:text-blue-400" },
   { label: "Iniciativas", sublabel: "O que fazemos?", icon: Briefcase, color: "bg-orange-500/10 border-orange-200 dark:border-orange-800", text: "text-orange-700 dark:text-orange-400" },
-  { label: "OKRs", sublabel: "Onde queremos chegar?", icon: Target, color: "bg-purple-500/10 border-purple-200 dark:border-purple-800", text: "text-purple-700 dark:text-purple-400" },
-  { label: "KPIs", sublabel: "Como medimos?", icon: BarChart3, color: "bg-green-500/10 border-green-200 dark:border-green-800", text: "text-green-700 dark:text-green-400" },
+  { label: "Metas", sublabel: "Onde queremos chegar?", icon: Target, color: "bg-purple-500/10 border-purple-200 dark:border-purple-800", text: "text-purple-700 dark:text-purple-400" },
+  { label: "Indicadores", sublabel: "Como medimos?", icon: BarChart3, color: "bg-green-500/10 border-green-200 dark:border-green-800", text: "text-green-700 dark:text-green-400" },
 ];
 
 function MetricCard({ label, value, meta, status }: { label: string; value: string; meta?: string; status?: string }) {
@@ -55,7 +55,7 @@ export default function Rastreabilidade() {
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       <PageHeader
         title="Rastreabilidade Estratégica"
-        description="Visualize a coerência entre as 4 camadas do seu plano: Estratégias → Iniciativas → OKRs → KPIs."
+        description="Visualize a coerência entre as 4 camadas do seu plano: Estratégias → Iniciativas → Metas → Indicadores."
       />
 
       {/* Barra de cobertura */}

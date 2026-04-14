@@ -106,12 +106,12 @@ const RITUAIS_CONFIG = [
     nome: "Ritual Mensal",
     frequencia: "Primeira sexta do mês",
     duracao: "1h",
-    descricao: "Análise estratégica e revisão de indicadores BSC",
+    descricao: "Análise estratégica e revisão dos indicadores do negócio",
     cor: "bg-orange-500",
     checklist: [
-      "Revisar todos os indicadores BSC",
+      "Revisar todos os indicadores do negócio",
       "Analisar desvios significativos",
-      "Ajustar OKRs se necessário",
+      "Ajustar metas se necessário",
       "Definir ações corretivas para indicadores críticos"
     ],
     perguntas: [
@@ -130,7 +130,7 @@ const RITUAIS_CONFIG = [
     checklist: [
       "Revisar todas as apostas estratégicas",
       "Avaliar efetividade das estratégias",
-      "Analisar cenário externo (PESTEL)",
+      "Analisar cenário externo do mercado",
       "Replanejar próximo trimestre",
       "Celebrar conquistas do período"
     ],

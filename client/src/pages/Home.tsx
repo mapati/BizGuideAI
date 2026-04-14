@@ -271,7 +271,7 @@ export default function Home() {
         <Card className="p-6 lg:col-span-2 flex flex-col items-center justify-center gap-4" data-testid="card-performance-geral">
           <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground self-start w-full">
             <TrendingUp className="h-4 w-4" />
-            <span>Performance Geral dos OKRs</span>
+            <span>Performance Geral das Metas</span>
           </div>
           {isLoading ? (
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -281,7 +281,7 @@ export default function Home() {
               <p className="text-sm text-muted-foreground">Nenhum objetivo cadastrado</p>
               <Link href="/okrs">
                 <Button size="sm" variant="outline" data-testid="button-go-okrs">
-                  Criar OKRs
+                  Criar Metas
                 </Button>
               </Link>
             </div>
@@ -290,7 +290,7 @@ export default function Home() {
               <CircularProgress value={performanceGeral} size={120} strokeWidth={12} />
               <div className="text-center">
                 <p className="text-sm text-muted-foreground">
-                  {objetivos.length} objetivo{objetivos.length !== 1 ? "s" : ""} · {totalKRs} resultado{totalKRs !== 1 ? "s" : ""}-chave
+                  {objetivos.length} objetivo{objetivos.length !== 1 ? "s" : ""} · {totalKRs} meta{totalKRs !== 1 ? "s" : ""} de resultado
                 </p>
               </div>
             </>
@@ -335,7 +335,7 @@ export default function Home() {
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {p.numObjetivos} objetivo{p.numObjetivos !== 1 ? "s" : ""}
-                      {p.comKRs < p.numObjetivos && ` · ${p.numObjetivos - p.comKRs} sem KRs`}
+                      {p.comKRs < p.numObjetivos && ` · ${p.numObjetivos - p.comKRs} sem métricas`}
                     </p>
                   </>
                 )}
@@ -352,7 +352,7 @@ export default function Home() {
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
-              <h3 className="font-semibold">Indicadores BSC (KPIs)</h3>
+              <h3 className="font-semibold">Indicadores do Negócio</h3>
             </div>
             <Link href="/indicadores">
               <Button size="sm" variant="ghost" data-testid="button-ver-indicadores">
@@ -513,7 +513,7 @@ export default function Home() {
             <div>
               <h3 className="font-semibold text-lg">Diagnóstico Estratégico com IA</h3>
               <p className="text-sm text-muted-foreground">
-                Análise completa de OKRs, KPIs e eventos para um relatório executivo do plano
+                Análise completa de metas, indicadores e eventos para um relatório executivo do plano
               </p>
             </div>
           </div>

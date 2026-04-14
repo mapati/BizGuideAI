@@ -137,8 +137,8 @@ export default function OKRs() {
     onSuccess: async (data, objetivoId) => {
       if (data.resultados && data.resultados.length > 0) {
         toast({
-          title: "Resultados-Chave Gerados!",
-          description: `${data.resultados.length} resultado(s)-chave sugerido(s) pela IA.`,
+          title: "Métricas Geradas!",
+          description: `${data.resultados.length} métrica(s) de progresso sugerida(s) pela IA.`,
         });
         for (const res of data.resultados) {
           await criarResultadoMutation.mutateAsync({
@@ -245,7 +245,7 @@ export default function OKRs() {
       queryClient.invalidateQueries({ queryKey: [`/api/resultados-chave/${objetivoSelecionado?.id}`] });
       toast({
         title: "Resultado removido",
-        description: "O resultado-chave foi removido.",
+        description: "A métrica foi removida.",
       });
     },
   });
@@ -279,7 +279,7 @@ export default function OKRs() {
     if (!novoResultado.metrica || !novoResultado.valorInicial || !novoResultado.valorAlvo || !novoResultado.owner || !novoResultado.prazo) {
       toast({
         title: "Campos obrigatórios",
-        description: "Preencha todos os campos do resultado-chave.",
+        description: "Preencha todos os campos da métrica.",
         variant: "destructive",
       });
       return;
@@ -374,17 +374,17 @@ export default function OKRs() {
     <div>
       {semEstategias && (
         <PrerequisiteWarning
-          titulo="Recomendado: defina estratégias antes de criar OKRs"
-          descricao="OKRs são mais eficazes quando derivam das estratégias definidas na Matriz TOWS. Complete as Estratégias primeiro para que seus objetivos estejam alinhados."
+          titulo="Recomendado: defina estratégias antes de criar suas metas"
+          descricao="Suas metas ficam mais poderosas quando derivam das estratégias definidas. Complete as Estratégias primeiro para que seus objetivos estejam alinhados ao plano."
           linkLabel="Ir para Estratégias"
           linkHref="/estrategias"
           variante="info"
         />
       )}
       <PageHeader
-        title="OKRs — Objetivos e Resultados-Chave"
-        description="Defina onde quer chegar e como vai medir o progresso. Cada objetivo tem resultados-chave com meta de 0–100% dentro de um prazo."
-        tooltip="OKRs (Objectives & Key Results) são metas ambiciosas com prazo definido e progresso mensurável. São diferentes dos KPIs, que medem a saúde contínua do negócio — acesse 'KPIs — Indicadores' para isso."
+        title="Metas e Resultados"
+        description="Defina onde quer chegar e como vai medir o progresso. Cada objetivo tem métricas de acompanhamento com prazo definido."
+        tooltip="Metas ambiciosas com prazo e progresso mensurável (0–100%). Diferente dos Indicadores, que monitoram a saúde contínua do negócio com status verde/amarelo/vermelho."
         action={
           <div className="flex gap-2">
             <Button
@@ -398,7 +398,7 @@ export default function OKRs() {
               ) : (
                 <Sparkles className="h-4 w-4 mr-2" />
               )}
-              Gerar para todas as perspectivas
+              Gerar para todas as áreas
             </Button>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
@@ -444,7 +444,7 @@ export default function OKRs() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="perspectiva">Perspectiva BSC</Label>
+                    <Label htmlFor="perspectiva">Área do Negócio</Label>
                     <Select
                       value={novoObjetivo.perspectiva}
                       onValueChange={(value) => setNovoObjetivo({ ...novoObjetivo, perspectiva: value })}
@@ -498,7 +498,7 @@ export default function OKRs() {
         }
       />
 
-      {/* Educational callout: OKR vs KPI */}
+      {/* Educational callout: Metas vs Indicadores */}
       <Card className="p-4 bg-muted/30" data-testid="card-educational-okr">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1 space-y-1">
@@ -506,11 +506,11 @@ export default function OKRs() {
               <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
                 <TargetIcon className="h-3.5 w-3.5 text-primary" />
               </div>
-              <span className="text-sm font-semibold">OKRs — Mudança e crescimento (esta página)</span>
+              <span className="text-sm font-semibold">Metas — O que queremos conquistar (esta página)</span>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed pl-8">
               Definem onde você quer chegar em um ciclo. Têm prazo e progresso de 0–100%.
-              Clique em um objetivo para gerenciar seus resultados-chave (KRs).
+              Clique em um objetivo para gerenciar suas métricas de progresso.
             </p>
           </div>
           <div className="hidden sm:flex items-center text-muted-foreground/40">
@@ -521,7 +521,7 @@ export default function OKRs() {
               <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
                 <TrendingUp className="h-3.5 w-3.5 text-primary" />
               </div>
-              <span className="text-sm font-semibold">KPIs — Saúde contínua do negócio</span>
+              <span className="text-sm font-semibold">Indicadores — Saúde contínua do negócio</span>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed pl-8">
               Medem o que já está em operação com status verde/amarelo/vermelho. Sem prazo de encerramento — monitorados permanentemente.
@@ -538,7 +538,7 @@ export default function OKRs() {
             </div>
             <h3 className="text-lg font-semibold">Defina onde você quer chegar</h3>
             <p className="text-sm text-muted-foreground">
-              OKRs (Objectives & Key Results) traduzem a estratégia em metas claras e mensuráveis. Cada Objetivo é inspirador e ambicioso; os Resultados-Chave são indicadores concretos de progresso. A IA cria OKRs alinhados às suas iniciativas e estratégias, garantindo execução focada e rastreável.
+              Metas claras e mensuráveis traduzem a estratégia em ação. Cada objetivo é ambicioso e tem métricas concretas de progresso com prazo definido. A IA cria metas alinhadas às suas iniciativas e estratégias, garantindo execução focada e rastreável.
             </p>
             <Button
               onClick={() => gerarObjetivosMutation.mutate(undefined)}
@@ -800,7 +800,7 @@ export default function OKRs() {
                         />
                       </div>
                       <div>
-                        <Label>Perspectiva BSC</Label>
+                        <Label>Área do Negócio</Label>
                         <Select
                           value={objetivoEditado.perspectiva}
                           onValueChange={(value) => setObjetivoEditado({ ...objetivoEditado, perspectiva: value })}
@@ -846,7 +846,7 @@ export default function OKRs() {
               </div>
 
               <div className="flex items-center justify-between">
-                <h4 className="font-semibold">Resultados-Chave</h4>
+                <h4 className="font-semibold">Métricas de Progresso</h4>
                 <div className="flex gap-2">
                   <Button
                     size="sm"
@@ -871,7 +871,7 @@ export default function OKRs() {
                     </DialogTrigger>
                     <DialogContent>
                       <DialogHeader>
-                        <DialogTitle>Novo Resultado-Chave</DialogTitle>
+                        <DialogTitle>Nova Métrica de Progresso</DialogTitle>
                       </DialogHeader>
                       <div className="space-y-4 py-4">
                         <div>
@@ -944,7 +944,7 @@ export default function OKRs() {
                           {criarResultadoMutation.isPending ? (
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                           ) : null}
-                          Criar Resultado-Chave
+                          Criar Métrica
                         </Button>
                       </div>
                     </DialogContent>
@@ -954,7 +954,7 @@ export default function OKRs() {
 
               {resultadosChave.length === 0 ? (
                 <div className="text-center py-8 text-sm text-muted-foreground">
-                  Nenhum resultado-chave definido ainda
+                  Nenhuma métrica de progresso definida ainda
                 </div>
               ) : (
                 <div className="space-y-3">

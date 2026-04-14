@@ -31,9 +31,9 @@ const apostasItems = [
 ];
 
 const marchaItems = [
-  { title: "OKRs — Objetivos", url: "/okrs", icon: Target, jornadaId: "okrs" },
-  { title: "Performance dos OKRs", url: "/bsc", icon: ListChecks, jornadaId: null },
-  { title: "KPIs — Painel BSC", url: "/indicadores", icon: BarChart3, jornadaId: "indicadores" },
+  { title: "Metas e Resultados", url: "/okrs", icon: Target, jornadaId: "okrs" },
+  { title: "Performance das Metas", url: "/bsc", icon: ListChecks, jornadaId: null },
+  { title: "Indicadores", url: "/indicadores", icon: BarChart3, jornadaId: "indicadores" },
   { title: "Acompanhamento", url: "/ritos", icon: CheckCircle, jornadaId: "acompanhamento" },
 ];
 
@@ -185,7 +185,7 @@ export function AppSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Apostas</SidebarGroupLabel>
+          <SidebarGroupLabel>Plano de Ação</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {apostasItems.map((item) => (
@@ -210,7 +210,7 @@ export function AppSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Marcha</SidebarGroupLabel>
+          <SidebarGroupLabel>Execução</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {marchaItems.map((item) => (
@@ -274,7 +274,7 @@ export function AppSidebar() {
                 <SidebarMenuButton asChild isActive={location === "/mapa-bsc"} data-testid="link-mapa-bsc">
                   <Link href="/mapa-bsc">
                     <Network />
-                    <span>Mapa Estratégico BSC</span>
+                    <span>Mapa de Performance</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

@@ -116,9 +116,9 @@ export default function BSC() {
   return (
     <div className="space-y-8">
       <PageHeader
-        title="Performance dos OKRs"
-        description="Acompanhe o progresso dos seus objetivos estratégicos organizados nas 4 perspectivas do Balanced Scorecard."
-        tooltip="Esta visão mostra o avanço de 0–100% dos Resultados-Chave de cada OKR. Para monitorar indicadores de saúde contínua do negócio (KPIs verde/amarelo/vermelho), acesse 'KPIs — Indicadores'."
+        title="Performance das Metas"
+        description="Acompanhe o progresso dos seus objetivos estratégicos organizados nas 4 áreas do negócio."
+        tooltip="Esta visão mostra o avanço de 0–100% das métricas de progresso de cada objetivo. Para monitorar indicadores de saúde contínua do negócio (verde/amarelo/vermelho), acesse 'Indicadores' no menu."
       />
 
       {/* Educational callout */}
@@ -129,10 +129,10 @@ export default function BSC() {
               <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
                 <TrendingUp className="h-3.5 w-3.5 text-primary" />
               </div>
-              <span className="text-sm font-semibold">Esta página: progresso dos OKRs (0–100%)</span>
+              <span className="text-sm font-semibold">Esta página: progresso das metas (0–100%)</span>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed pl-8">
-              Mostra quanto cada objetivo avançou no ciclo atual. Os percentuais são calculados a partir dos resultados-chave (KRs).
+              Mostra quanto cada objetivo avançou no ciclo atual. Os percentuais são calculados a partir das métricas de progresso.
             </p>
           </div>
           <div className="flex-1 space-y-1">
@@ -140,15 +140,15 @@ export default function BSC() {
               <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center">
                 <BarChart3 className="h-3.5 w-3.5 text-primary" />
               </div>
-              <span className="text-sm font-semibold">Para KPIs (verde/amarelo/vermelho) →</span>
+              <span className="text-sm font-semibold">Para Indicadores (verde/amarelo/vermelho) →</span>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed pl-8">
-              Indicadores de saúde contínua do negócio estão em "KPIs — Indicadores" no menu lateral.
+              Indicadores de saúde contínua do negócio estão em "Indicadores" no menu lateral.
             </p>
           </div>
           <Link href="/indicadores" className="hidden sm:block self-center">
             <Button size="sm" variant="ghost" data-testid="link-ver-kpis-bsc">
-              Ver KPIs
+              Ver Indicadores
               <ArrowRight className="h-3 w-3 ml-1" />
             </Button>
           </Link>
@@ -200,7 +200,7 @@ export default function BSC() {
             </div>
             <h3 className="text-lg font-semibold">Nenhum objetivo criado</h3>
             <p className="text-sm text-muted-foreground">
-              Crie objetivos estratégicos na página de OKRs para visualizar os indicadores de desempenho aqui.
+              Crie objetivos na página de Metas e Resultados para visualizar o progresso do plano aqui.
             </p>
           </div>
         </Card>

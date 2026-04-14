@@ -4289,9 +4289,17 @@ Inclua 3-5 itens em cada lista. Seja específico e cite os dados reais fornecido
     const cens = await storage.getCenarios(req.session.empresaId!);
     res.json(cens);
   });
+  // Upsert by (empresaId, tipo) — guarantees at most 1 record per scenario type
   app.post("/api/cenarios", requireAuth, async (req, res) => {
     try {
       const data = insertCenarioSchema.parse({ ...req.body, empresaId: req.session.empresaId });
+      const existing = (await storage.getCenarios(req.session.empresaId!)).find(
+        (c) => c.tipo === data.tipo,
+      );
+      if (existing) {
+        const updated = await storage.updateCenario(existing.id, req.session.empresaId!, data);
+        return res.json(updated);
+      }
       const c = await storage.createCenario(data);
       res.status(201).json(c);
     } catch (e: any) { res.status(400).json({ error: e.message }); }
@@ -4355,11 +4363,15 @@ Responda APENAS com JSON no formato:
   });
 
   // Suggest only the respostaEstrategica for a single scenario card
+  const sugerirRespostaSchema = z.object({
+    tipo: z.enum(["pessimista", "base", "otimista"]),
+    titulo: z.string().max(200).default(""),
+    descricao: z.string().max(1000).default(""),
+    premissas: z.string().max(2000).default("[]"),
+  });
   app.post("/api/ai/sugerir-resposta-cenario", requireAuth, async (req, res) => {
     try {
-      const { tipo, titulo, descricao, premissas } = req.body as {
-        tipo: string; titulo: string; descricao: string; premissas: string;
-      };
+      const { tipo, titulo, descricao, premissas } = sugerirRespostaSchema.parse(req.body);
       const empresa = await storage.getEmpresa(req.session.empresaId!);
       if (!empresa) return res.status(404).json({ error: "Empresa não encontrada" });
       const [swots, estrategias] = await Promise.all([

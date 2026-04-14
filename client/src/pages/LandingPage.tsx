@@ -51,61 +51,61 @@ import { useState } from "react";
 const features = [
   {
     icon: Globe,
-    title: "Análise PESTEL",
-    desc: "Mapeie os fatores políticos, econômicos, sociais e tecnológicos com insights gerados por IA.",
+    title: "Leitura do Cenário",
+    desc: "Entenda o que acontece fora da sua empresa e como isso afeta o seu negócio — a IA faz essa análise por você.",
   },
   {
     icon: Network,
-    title: "Cinco Forças de Porter",
-    desc: "Entenda a dinâmica competitiva do seu setor e identifique oportunidades de posicionamento.",
+    title: "Mapa da Concorrência",
+    desc: "Descubra como o seu mercado funciona, quem são seus concorrentes reais e onde estão as brechas.",
   },
   {
     icon: Layers,
-    title: "Análise SWOT",
-    desc: "Identifique forças, fraquezas, oportunidades e ameaças de forma estruturada e automática.",
+    title: "Diagnóstico Completo",
+    desc: "Veja com clareza os pontos fortes, os pontos fracos e as oportunidades do seu negócio.",
   },
   {
     icon: Crosshair,
-    title: "OKRs",
-    desc: "Defina objetivos ambiciosos e resultados-chave mensuráveis com acompanhamento em tempo real.",
+    title: "Metas e Resultados",
+    desc: "Defina objetivos claros e acompanhe se está no caminho certo — com números, não achismos.",
   },
   {
     icon: BarChart3,
-    title: "BSC e Indicadores",
-    desc: "Gerencie KPIs nas quatro perspectivas do Balanced Scorecard com dashboards automáticos.",
+    title: "Painel de Indicadores",
+    desc: "Todos os números importantes do seu negócio em um só lugar, com alertas automáticos.",
   },
   {
     icon: TrendingUp,
-    title: "Iniciativas Prioritárias",
-    desc: "Organize e priorize projetos estratégicos com visibilidade de status, prazo e responsáveis.",
+    title: "Projetos Prioritários",
+    desc: "Organize o que precisa ser feito, quem é responsável e quando deve estar pronto.",
   },
   {
     icon: Calendar,
-    title: "Ritos de Gestão",
-    desc: "Cadências diárias, semanais, mensais e trimestrais com checklists e registro de decisões.",
+    title: "Rotina de Acompanhamento",
+    desc: "Reuniões e revisões organizadas com checklists prontos — para manter o plano vivo.",
   },
   {
     icon: Brain,
-    title: "IA Estratégica",
-    desc: "Diagnóstico automático da empresa com recomendações personalizadas baseadas nos seus dados.",
+    title: "Inteligência Artificial",
+    desc: "A IA analisa os dados da sua empresa e entrega recomendações prontas, sob medida para você.",
   },
 ];
 
 const pains = [
   {
     icon: ClipboardList,
-    problem: "Planejamento manual e sem padrão",
-    solution: "Métodos confiáveis de gestão gerados e organizados pela inteligência artificial",
+    problem: "Planejamento no improviso, sem método",
+    solution: "Um roteiro pronto que organiza cada decisão importante da sua empresa — do diagnóstico ao plano de ação",
   },
   {
     icon: Users,
-    problem: "Sem clareza de objetivos e resultados",
-    solution: "Monitoramento de objetivos, resultados-chave e análise de cenário externo — tudo estruturado automaticamente",
+    problem: "Cada um puxa para um lado, sem direção clara",
+    solution: "Metas claras, prioridades definidas e um painel que mostra se a empresa está no caminho certo",
   },
   {
     icon: LineChart,
-    problem: "Sem tempo para análises longas",
-    solution: "Diagnóstico completo do seu negócio em minutos, sem depender de consultoria cara",
+    problem: "Sem tempo (nem dinheiro) para consultoria",
+    solution: "A IA faz em minutos o que levaria semanas — e entrega tudo pronto, na linguagem do empresário",
   },
 ];
 
@@ -113,17 +113,17 @@ const steps = [
   {
     number: "01",
     title: "Cadastre sua empresa",
-    desc: "Crie sua conta e informe o site da empresa. A IA lê o seu site e gera automaticamente o perfil estratégico inicial.",
+    desc: "Informe o site da sua empresa. A inteligência artificial lê as informações e monta o perfil do seu negócio automaticamente.",
   },
   {
     number: "02",
-    title: "Siga a Jornada Estratégica",
-    desc: "Um roteiro guiado de 11 etapas conduz você do diagnóstico à execução — PESTEL, SWOT, OKRs e muito mais. Passo a passo, sem perder nada.",
+    title: "Siga o roteiro guiado",
+    desc: "Um passo a passo com 11 etapas leva você do diagnóstico ao plano de ação completo. Sem pular nada, sem se perder.",
   },
   {
     number: "03",
-    title: "Execute e acompanhe",
-    desc: "Monitore OKRs, KPIs e iniciativas em tempo real. Realize ritos de gestão com checklists automáticos e mantenha a estratégia viva.",
+    title: "Acompanhe os resultados",
+    desc: "Veja se as metas estão sendo atingidas, acompanhe os projetos em andamento e mantenha a equipe alinhada.",
   },
 ];
 
@@ -153,17 +153,17 @@ function InlineCircularProgress({ value, size = 64, strokeWidth = 7 }: { value: 
 function MockupSidebar({ active }: { active: "inicio" | "okrs" | "kpis" }) {
   const nav = [
     { id: "inicio", label: "Início" },
-    { id: "mapa", label: "Mapa Estratégico" },
+    { id: "mapa", label: "Visão Geral" },
     { id: "pestel", label: "Cenário Externo", section: "DIAGNÓSTICO" },
     { id: "forcas", label: "Mercado e Concorrência" },
     { id: "bmc", label: "Modelo de Negócio" },
     { id: "swot", label: "Forças e Fraquezas" },
-    { id: "estrategias", label: "Estratégias", section: "APOSTAS" },
+    { id: "estrategias", label: "Estratégias", section: "PLANO DE AÇÃO" },
     { id: "oportunidades", label: "Oportunidades" },
-    { id: "iniciativas", label: "Iniciativas Prioritárias" },
-    { id: "okrs", label: "OKRs — Objetivos", section: "MARCHA" },
-    { id: "kpis", label: "KPIs — Indicadores" },
-    { id: "bsc", label: "Performance dos OKRs" },
+    { id: "iniciativas", label: "Projetos Prioritários" },
+    { id: "okrs", label: "Metas e Resultados", section: "EXECUÇÃO" },
+    { id: "kpis", label: "Indicadores" },
+    { id: "bsc", label: "Painel de Performance" },
     { id: "ritos", label: "Acompanhamento" },
   ];
 
@@ -242,10 +242,10 @@ function MockupHome() {
             <div className="col-span-2 bg-white rounded-lg border border-gray-100 p-3 flex flex-col items-center justify-center gap-2">
               <div className="flex items-center gap-1 text-[9px] font-medium text-gray-500 self-start">
                 <TrendingUp className="h-3 w-3" />
-                Performance Geral dos OKRs
+                Performance Geral
               </div>
               <InlineCircularProgress value={68} size={72} strokeWidth={7} />
-              <p className="text-[8px] text-gray-400 text-center">5 objetivos · 14 resultados-chave</p>
+              <p className="text-[8px] text-gray-400 text-center">5 objetivos · 14 metas de resultado</p>
             </div>
 
             <div className="col-span-3 grid grid-cols-2 gap-2">
@@ -277,7 +277,7 @@ function MockupHome() {
             <div className="bg-white rounded-lg border border-gray-100 p-2.5">
               <div className="flex items-center gap-1 mb-2">
                 <BarChart3 className="h-3 w-3 text-gray-400" />
-                <span className="text-[9px] font-semibold text-gray-700">Indicadores BSC (KPIs)</span>
+                <span className="text-[9px] font-semibold text-gray-700">Indicadores do Negócio</span>
               </div>
               <div className="flex items-center gap-3 mb-2">
                 <div className="flex items-center gap-1">
@@ -315,7 +315,7 @@ function MockupHome() {
               <div className="mt-1 border border-gray-100 rounded p-1.5 flex items-start gap-1.5 bg-primary/5">
                 <Sparkles className="h-3 w-3 text-primary flex-shrink-0 mt-0.5" />
                 <p className="text-[7.5px] text-gray-600 leading-relaxed">
-                  <span className="text-primary font-semibold">IA:</span> Sua Margem Bruta está 4pp abaixo da meta. Revise a precificação dos serviços de maior volume.
+                  <span className="text-primary font-semibold">IA:</span> Sua margem de lucro está abaixo da meta. Revise os preços dos serviços de maior volume.
                 </p>
               </div>
             </div>
@@ -370,14 +370,14 @@ function MockupOKRs() {
   ];
 
   return (
-    <BrowserChrome title="bizguideai.app — OKRs">
+    <BrowserChrome title="bizguideai.app — Metas e Resultados">
       <div className="flex bg-gray-50" style={{ minHeight: 400 }}>
         <MockupSidebar active="okrs" />
         <div className="flex-1 p-3 flex flex-col gap-3 overflow-hidden min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <h1 className="text-[11px] font-bold text-gray-900">OKRs — Objetivos e Resultados-Chave</h1>
-              <p className="text-[9px] text-gray-400">Defina objetivos ambiciosos e acompanhe resultados mensuráveis</p>
+              <h1 className="text-[11px] font-bold text-gray-900">Metas e Resultados</h1>
+              <p className="text-[9px] text-gray-400">Defina objetivos claros e acompanhe o progresso em tempo real</p>
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">
               <div className="flex items-center gap-0.5 bg-primary text-white rounded px-1.5 py-1 text-[8px] font-medium">
@@ -448,8 +448,8 @@ function MockupIndicadores() {
       icon: Users,
       headerCor: "text-blue-600 bg-blue-50",
       indicadores: [
-        { nome: "NPS — Net Promoter Score", atual: "74", meta: "75", status: "verde" as const },
-        { nome: "Churn Rate", atual: "2.1%", meta: "2%", status: "verde" as const },
+        { nome: "Satisfação do Cliente", atual: "74", meta: "75", status: "verde" as const },
+        { nome: "Cancelamentos", atual: "2.1%", meta: "2%", status: "verde" as const },
       ],
     },
   ];
@@ -473,18 +473,18 @@ function MockupIndicadores() {
   };
 
   return (
-    <BrowserChrome title="bizguideai.app — KPIs — Indicadores">
+    <BrowserChrome title="bizguideai.app — Indicadores">
       <div className="flex bg-gray-50" style={{ minHeight: 400 }}>
         <MockupSidebar active="kpis" />
         <div className="flex-1 p-3 flex flex-col gap-3 overflow-hidden min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <h1 className="text-[11px] font-bold text-gray-900">KPIs — Indicadores de Performance</h1>
-              <p className="text-[9px] text-gray-400">Balanced Scorecard — monitoramento das 4 perspectivas</p>
+              <h1 className="text-[11px] font-bold text-gray-900">Indicadores de Performance</h1>
+              <p className="text-[9px] text-gray-400">Os números mais importantes do seu negócio, organizados por área</p>
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">
               <div className="flex items-center gap-0.5 border border-gray-200 bg-white rounded px-1.5 py-1 text-[8px] text-gray-600">
-                + Novo KPI
+                + Novo Indicador
               </div>
               <div className="flex items-center gap-0.5 bg-primary text-white rounded px-1.5 py-1 text-[8px] font-medium">
                 <Sparkles className="h-2.5 w-2.5" />
@@ -538,26 +538,26 @@ function MockupJornada() {
       label: "DIAGNÓSTICO",
       etapas: [
         { nome: "Perfil da Empresa", icone: Target, status: "concluido" as const },
-        { nome: "KPIs — Indicadores", icone: BarChart3, status: "concluido" as const },
-        { nome: "Cenário Externo — PESTEL", icone: Globe2, status: "concluido" as const },
+        { nome: "Indicadores do Negócio", icone: BarChart3, status: "concluido" as const },
+        { nome: "Cenário Externo", icone: Globe2, status: "concluido" as const },
         { nome: "Mercado e Concorrência", icone: Swords, status: "iniciado" as const },
-        { nome: "Modelo de Negócio — Canvas", icone: LayoutGrid, status: "pendente" as const },
-        { nome: "Forças e Fraquezas — SWOT", icone: GitBranch, status: "pendente" as const },
+        { nome: "Modelo de Negócio", icone: LayoutGrid, status: "pendente" as const },
+        { nome: "Forças e Fraquezas", icone: GitBranch, status: "pendente" as const },
       ],
     },
     {
-      label: "APOSTAS",
+      label: "PLANO DE AÇÃO",
       etapas: [
-        { nome: "Estratégias — Matriz TOWS", icone: Flag, status: "pendente" as const },
-        { nome: "Oportunidades de Crescimento", icone: TrendingUp, status: "pendente" as const },
-        { nome: "Iniciativas Prioritárias", icone: Briefcase, status: "pendente" as const },
+        { nome: "Estratégias de Crescimento", icone: Flag, status: "pendente" as const },
+        { nome: "Oportunidades de Mercado", icone: TrendingUp, status: "pendente" as const },
+        { nome: "Projetos Prioritários", icone: Briefcase, status: "pendente" as const },
       ],
     },
     {
-      label: "MARCHA",
+      label: "EXECUÇÃO",
       etapas: [
-        { nome: "OKRs — Objetivos e Resultados-Chave", icone: Rocket, status: "pendente" as const },
-        { nome: "Acompanhamento — Ritos Estratégicos", icone: Activity, status: "pendente" as const },
+        { nome: "Metas e Resultados", icone: Rocket, status: "pendente" as const },
+        { nome: "Rotina de Acompanhamento", icone: Activity, status: "pendente" as const },
       ],
     },
   ];
@@ -600,7 +600,7 @@ function MockupJornada() {
             <ArrowRight className="h-3 w-3 text-blue-600 flex-shrink-0" />
             <div>
               <p className="text-[8.5px] font-semibold text-blue-800">Próxima etapa</p>
-              <p className="text-[8px] text-blue-600">Mercado e Concorrência — Cinco Forças de Porter</p>
+              <p className="text-[8px] text-blue-600">Mercado e Concorrência</p>
             </div>
             <div className="ml-auto flex-shrink-0 bg-blue-600 text-white text-[7.5px] font-medium rounded px-1.5 py-0.5">
               Continuar
@@ -658,9 +658,9 @@ function MockupJornada() {
 }
 
 const showcaseTabs = [
-  { id: "jornada", label: "Jornada Guiada", icon: Map, component: MockupJornada },
-  { id: "home", label: "Início", icon: Home, component: MockupHome },
-  { id: "okrs", label: "OKRs", icon: Target, component: MockupOKRs },
+  { id: "jornada", label: "Roteiro Guiado", icon: Map, component: MockupJornada },
+  { id: "home", label: "Painel Inicial", icon: Home, component: MockupHome },
+  { id: "okrs", label: "Metas", icon: Target, component: MockupOKRs },
   { id: "indicadores", label: "Indicadores", icon: BarChart3, component: MockupIndicadores },
 ];
 
@@ -717,7 +717,7 @@ export default function LandingPage() {
                   data-testid="badge-hero-tag"
                 >
                   <Zap className="h-3.5 w-3.5 mr-1.5" />
-                  IA aplicada à estratégia empresarial
+                  Gestão inteligente para sua empresa
                 </Badge>
               </div>
 
@@ -725,22 +725,22 @@ export default function LandingPage() {
                 className="text-4xl sm:text-5xl lg:text-5xl font-bold text-white leading-tight"
                 data-testid="heading-hero"
               >
-                Planejamento estratégico{" "}
+                Sua empresa com{" "}
                 <span
                   className="text-transparent bg-clip-text"
                   style={{ backgroundImage: "linear-gradient(135deg, hsl(var(--primary)) 0%, #60a5fa 100%)" }}
                 >
-                  inteligente
+                  direção clara
                 </span>{" "}
-                para empresas de todos os portes e segmentos
+                e plano de ação na mão
               </h1>
 
               <p className="text-lg text-slate-300 leading-relaxed" data-testid="text-hero-subtitle">
-                Um roteiro guiado de 11 etapas conduz você do diagnóstico à execução — PESTEL, SWOT, Canvas, OKRs e muito mais. Sofisticado o suficiente para grandes decisões, simples o suficiente para qualquer empresário.
+                Um roteiro guiado em 11 passos leva você do diagnóstico ao plano de ação — com a inteligência artificial fazendo o trabalho pesado. Você só precisa responder algumas perguntas.
               </p>
 
               <div className="flex flex-wrap gap-3">
-                {["PESTEL", "SWOT", "OKRs", "BSC", "Cinco Forças", "Iniciativas"].map(tag => (
+                {["Diagnóstico Completo", "Análise de Mercado", "Metas Claras", "Indicadores", "Plano de Ação", "Acompanhamento"].map(tag => (
                   <span key={tag} className="text-xs text-slate-400 border border-slate-700 rounded-full px-2.5 py-1">{tag}</span>
                 ))}
               </div>
@@ -773,8 +773,8 @@ export default function LandingPage() {
           >
             {[
               { label: "Ferramentas de Gestão", value: "14+" },
-              { label: "Metodologias Validadas", value: "Acadêmicas" },
-              { label: "IA Integrada", value: "GPT-4o" },
+              { label: "Metodologias", value: "Comprovadas" },
+              { label: "Inteligência Artificial", value: "Integrada" },
               { label: "Suporte", value: "Remoto & Presencial" },
             ].map((stat) => (
               <div key={stat.label} className="text-center">
@@ -807,10 +807,10 @@ export default function LandingPage() {
               Veja o produto em ação
             </Badge>
             <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-              Veja a Jornada Estratégica em ação
+              Simples de usar, poderoso nos resultados
             </h2>
             <p className="text-slate-400 text-lg max-w-2xl mx-auto">
-              Um roteiro guiado que conduz passo a passo — da análise ao plano — com dashboards intuitivos e IA integrada em cada etapa.
+              O sistema te conduz passo a passo — você responde, a IA trabalha, e no final você tem um plano estratégico completo para sua empresa.
             </p>
           </div>
 
@@ -853,13 +853,13 @@ export default function LandingPage() {
           <div className="text-center mb-14">
             <Badge variant="outline" className="mb-4 text-sm px-4 py-1">
               <Map className="h-3.5 w-3.5 mr-1.5" />
-              Jornada Estratégica Guiada
+              Roteiro completo em 11 passos
             </Badge>
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-              Do diagnóstico à execução — passo a passo
+              Cada passo no lugar certo, na hora certa
             </h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              O BizGuideAI guia você por uma jornada estruturada de 11 etapas. Sofisticado o suficiente para grandes decisões, simples o suficiente para qualquer empresário.
+              Você não precisa saber por onde começar. O sistema te guia do início ao fim — e a IA cuida da parte difícil.
             </p>
           </div>
 
@@ -867,8 +867,8 @@ export default function LandingPage() {
           <div className="hidden lg:flex items-center justify-center mb-8 gap-0">
             {[
               { label: "Diagnóstico", num: "01", bg: "bg-blue-600", count: "6 etapas" },
-              { label: "Apostas", num: "02", bg: "bg-purple-600", count: "3 etapas" },
-              { label: "Marcha", num: "03", bg: "bg-green-600", count: "2 etapas" },
+              { label: "Plano de Ação", num: "02", bg: "bg-purple-600", count: "3 etapas" },
+              { label: "Execução", num: "03", bg: "bg-green-600", count: "2 etapas" },
             ].map((fase, i) => (
               <div key={fase.label} className="flex items-center">
                 <div className={`flex items-center gap-3 px-5 py-3 rounded-xl ${fase.bg} text-white`}>
@@ -898,39 +898,39 @@ export default function LandingPage() {
                 corIcone: "text-blue-600 bg-blue-100",
                 corLinha: "bg-blue-200",
                 etapas: [
-                  { num: 1, nome: "Perfil da Empresa", icone: Target, desc: "Dados da empresa e contexto para personalizar toda a análise" },
-                  { num: 2, nome: "KPIs — Indicadores", icone: BarChart3, desc: "Métricas de saúde operacional antes de construir a estratégia" },
-                  { num: 3, nome: "Cenário Externo — PESTEL", icone: Globe2, desc: "Forças políticas, econômicas e sociais que afetam o negócio" },
-                  { num: 4, nome: "Mercado e Concorrência", icone: Swords, desc: "Análise das cinco forças de Porter e posicionamento competitivo" },
-                  { num: 5, nome: "Modelo de Negócio", icone: LayoutGrid, desc: "Os 9 blocos do Business Model Canvas" },
-                  { num: 6, nome: "Forças e Fraquezas — SWOT", icone: GitBranch, desc: "Visão interna e externa consolidada para tomada de decisão" },
+                  { num: 1, nome: "Perfil da Empresa", icone: Target, desc: "A IA conhece seu negócio e personaliza tudo a partir daqui" },
+                  { num: 2, nome: "Indicadores do Negócio", icone: BarChart3, desc: "Os números que mostram a saúde da sua empresa hoje" },
+                  { num: 3, nome: "Cenário Externo", icone: Globe2, desc: "O que está acontecendo no mundo que afeta o seu negócio" },
+                  { num: 4, nome: "Mercado e Concorrência", icone: Swords, desc: "Quem são seus concorrentes e onde estão suas vantagens" },
+                  { num: 5, nome: "Modelo de Negócio", icone: LayoutGrid, desc: "Como sua empresa gera valor, para quem e de que forma" },
+                  { num: 6, nome: "Forças e Fraquezas", icone: GitBranch, desc: "Visão completa do que vai bem e do que precisa melhorar" },
                 ],
               },
               {
                 faseNum: "02",
-                faseLabel: "Apostas",
+                faseLabel: "Plano de Ação",
                 bg: "bg-purple-600",
                 corBorda: "border-purple-100",
                 corFundo: "bg-purple-50/40 dark:bg-purple-950/20",
                 corIcone: "text-purple-600 bg-purple-100",
                 corLinha: "bg-purple-200",
                 etapas: [
-                  { num: 7, nome: "Estratégias — Matriz TOWS", icone: Flag, desc: "Estratégias práticas derivadas do cruzamento do SWOT" },
-                  { num: 8, nome: "Oportunidades de Crescimento", icone: TrendingUp, desc: "Caminhos de expansão com a Matriz de Ansoff" },
-                  { num: 9, nome: "Iniciativas Prioritárias", icone: Briefcase, desc: "Projetos concretos com responsáveis, prazos e impacto" },
+                  { num: 7, nome: "Estratégias de Crescimento", icone: Flag, desc: "O que fazer com base no diagnóstico — ações práticas e priorizadas" },
+                  { num: 8, nome: "Oportunidades de Mercado", icone: TrendingUp, desc: "Caminhos para crescer: novos clientes, produtos ou mercados" },
+                  { num: 9, nome: "Projetos Prioritários", icone: Briefcase, desc: "O que executar primeiro, com responsáveis e prazos definidos" },
                 ],
               },
               {
                 faseNum: "03",
-                faseLabel: "Marcha",
+                faseLabel: "Execução",
                 bg: "bg-green-600",
                 corBorda: "border-green-100",
                 corFundo: "bg-green-50/40 dark:bg-green-950/20",
                 corIcone: "text-green-600 bg-green-100",
                 corLinha: "bg-green-200",
                 etapas: [
-                  { num: 10, nome: "OKRs — Objetivos e Resultados-Chave", icone: Rocket, desc: "Metas inspiradoras com indicadores mensuráveis de progresso" },
-                  { num: 11, nome: "Acompanhamento — Ritos Estratégicos", icone: Activity, desc: "Cadências de revisão semanal, mensal e trimestral" },
+                  { num: 10, nome: "Metas e Resultados", icone: Rocket, desc: "Objetivos claros com indicadores para saber se está no caminho" },
+                  { num: 11, nome: "Rotina de Acompanhamento", icone: Activity, desc: "Revisões periódicas para manter tudo no rumo certo" },
                 ],
               },
             ].map((grupo) => (
@@ -973,11 +973,11 @@ export default function LandingPage() {
 
           <div className="mt-10 text-center">
             <p className="text-muted-foreground text-sm mb-4">
-              A IA guia cada etapa com sugestões contextualizadas para o seu negócio — nenhum conhecimento técnico necessário.
+              A IA cuida da análise e das recomendações — você foca nas decisões que importam para o seu negócio.
             </p>
             <Link href="/register">
               <Button size="lg" className="gap-2" data-testid="button-jornada-cta">
-                Começar minha Jornada Estratégica
+                Começar agora — é grátis por 7 dias
                 <ArrowRight className="h-5 w-5" />
               </Button>
             </Link>
@@ -1023,10 +1023,10 @@ export default function LandingPage() {
       <section className="py-20 bg-muted/30" data-testid="section-features">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
-            <Badge variant="outline" className="mb-4 text-sm px-4 py-1">Ferramentas incluídas</Badge>
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">Tudo que você precisa para gerir com estratégia</h2>
+            <Badge variant="outline" className="mb-4 text-sm px-4 py-1">O que está incluído</Badge>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">Tudo que você precisa para crescer com clareza</h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              Uma plataforma completa com os principais métodos de gestão estratégica, todos potencializados por inteligência artificial.
+              Uma plataforma completa que organiza a gestão da sua empresa — da análise ao acompanhamento — com inteligência artificial em cada etapa.
             </p>
           </div>
 
@@ -1065,20 +1065,20 @@ export default function LandingPage() {
             <div className="flex flex-col gap-6">
               <Badge className="bg-primary/20 text-primary border-primary/30 w-fit text-sm px-3 py-1">
                 <Brain className="h-3.5 w-3.5 mr-1.5" />
-                Powered by GPT-4o
+                Inteligência Artificial Avançada
               </Badge>
               <h2 className="text-3xl sm:text-4xl font-bold text-white">
-                A IA que trabalha para a sua empresa, não o contrário
+                A IA que entende o seu negócio de verdade
               </h2>
               <p className="text-slate-400 text-lg leading-relaxed">
-                Nossa integração com GPT-4o vai além de textos genéricos. A IA do BizGuideAI lê os dados reais do seu negócio e gera análises estratégicas customizadas, recomendações priorizadas e diagnósticos em linguagem executiva.
+                Não é um chatbot genérico. A inteligência artificial do BizGuideAI lê os dados reais da sua empresa e entrega análises sob medida, recomendações priorizadas e diagnósticos em linguagem que qualquer empresário entende.
               </p>
               <div className="flex flex-col gap-3">
                 {[
-                  "Analisa o site da empresa e gera o perfil estratégico automaticamente",
-                  "Sugere OKRs, iniciativas e KPIs alinhados ao contexto do seu setor",
-                  "Identifica cruzamentos estratégicos no SWOT e prioriza ações",
-                  "Gera insights contextuais em cada etapa do planejamento",
+                  "Lê o site da sua empresa e monta o perfil do negócio automaticamente",
+                  "Sugere metas, projetos e indicadores alinhados ao seu setor",
+                  "Cruza informações e descobre onde estão as maiores oportunidades",
+                  "Entrega recomendações prontas em cada etapa do roteiro",
                 ].map(item => (
                   <div key={item} className="flex items-start gap-3">
                     <div className="h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -1097,10 +1097,10 @@ export default function LandingPage() {
               />
               <div className="relative space-y-3">
                 {[
-                  { title: "Análise de Site", desc: "IA lê seu site e gera perfil estratégico", tag: "Auto", color: "text-emerald-400" },
-                  { title: "Geração de OKRs", desc: "Objetivos e KRs alinhados ao seu contexto real", tag: "Contextual", color: "text-blue-400" },
-                  { title: "SWOT Inteligente", desc: "Cruzamentos SO, WO, ST, WT automáticos", tag: "Estratégico", color: "text-purple-400" },
-                  { title: "Diagnóstico Executivo", desc: "Relatório em linguagem de C-level, não em jargão técnico", tag: "Executivo", color: "text-amber-400" },
+                  { title: "Perfil Automático", desc: "A IA lê seu site e monta o perfil do negócio", tag: "Automático", color: "text-emerald-400" },
+                  { title: "Metas sob Medida", desc: "Objetivos e indicadores alinhados ao seu mercado", tag: "Personalizado", color: "text-blue-400" },
+                  { title: "Diagnóstico Cruzado", desc: "Descobre oportunidades combinando diferentes análises", tag: "Estratégico", color: "text-purple-400" },
+                  { title: "Linguagem Clara", desc: "Relatórios diretos, sem jargão — prontos para decidir", tag: "Executivo", color: "text-amber-400" },
                 ].map(item => (
                   <div key={item.title} className="flex items-center gap-3 bg-slate-900/80 border border-white/10 rounded-xl p-4">
                     <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -1124,7 +1124,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
             <Badge variant="outline" className="mb-4 text-sm px-4 py-1">Como funciona</Badge>
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">Do zero ao plano estratégico em 3 passos</h2>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">Do zero ao plano completo em 3 passos</h2>
             <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
               Sem consultores caros. Sem planilhas infinitas. Sem semanas de trabalho.
             </p>
@@ -1152,27 +1152,27 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <Badge variant="outline" className="mb-4 text-sm px-4 py-1">Por que empresas escolhem o BizGuideAI</Badge>
-            <h2 className="text-3xl font-bold mb-3">Gestão estratégica ao alcance de qualquer empresa</h2>
+            <h2 className="text-3xl font-bold mb-3">Planejamento profissional ao alcance de qualquer empresa</h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              Combinamos as melhores metodologias acadêmicas com a velocidade da inteligência artificial.
+              Metodologias usadas pelas maiores empresas do mundo, agora acessíveis para o seu negócio — de forma simples e guiada.
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
               {
                 icon: Map,
-                title: "Jornada guiada — passo a passo",
-                desc: "Nenhuma etapa esquecida. O sistema conduz você por um roteiro de 11 passos — do diagnóstico à execução — com foco no que importa e na ordem certa.",
+                title: "Roteiro guiado — passo a passo",
+                desc: "Nenhuma etapa esquecida. O sistema te conduz por um roteiro de 11 passos — do diagnóstico ao plano de ação — na ordem certa.",
               },
               {
                 icon: Zap,
-                title: "Sofisticado e simples ao mesmo tempo",
-                desc: "Metodologias de classe mundial (PESTEL, SWOT, OKR, BSC, Porter) entregues de forma guiada, visual e com assistência da IA em cada etapa.",
+                title: "Profissional e simples ao mesmo tempo",
+                desc: "As mesmas metodologias usadas por grandes empresas e consultorias, entregues de forma guiada e visual — sem precisar ser especialista.",
               },
               {
                 icon: Shield,
-                title: "Consultoria por trás da plataforma",
-                desc: "A Consulting Now está por trás do BizGuideAI, trazendo expertise de consultoria estratégica real para dentro do software.",
+                title: "Consultoria de verdade por trás",
+                desc: "A Consulting Now está por trás do BizGuideAI, trazendo experiência real de consultoria estratégica para dentro da plataforma.",
               },
             ].map(item => {
               const Icon = item.icon;
@@ -1201,10 +1201,10 @@ export default function LandingPage() {
             7 dias de acesso completo, grátis
           </Badge>
           <h2 className="text-3xl sm:text-4xl font-bold text-primary-foreground">
-            Comece a gerir sua empresa com estratégia hoje mesmo
+            Pare de apagar incêndio. Comece a planejar de verdade.
           </h2>
           <p className="text-primary-foreground/80 text-lg max-w-2xl">
-            Junte-se aos empresários que já usam inteligência artificial para tomar decisões mais rápidas e com mais clareza.
+            Milhares de empresários já descobriram que planejar não precisa ser complicado — basta ter a ferramenta certa.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4">
             <Link href="/register">
@@ -1225,9 +1225,9 @@ export default function LandingPage() {
       {/* CONTATO */}
       <section className="py-16 bg-muted/30 border-t" data-testid="section-contato">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-2xl font-bold mb-3">Dúvidas? Fale com um consultor</h2>
+          <h2 className="text-2xl font-bold mb-3">Quer conversar antes de começar?</h2>
           <p className="text-muted-foreground mb-10">
-            Nossa equipe está pronta para ajudar você a dar o próximo passo no planejamento estratégico da sua empresa.
+            Nossa equipe está pronta para tirar suas dúvidas e ajudar você a dar o próximo passo.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <a href="https://wa.me/5511950377286?text=Ol%C3%A1%2C%20gostaria%20de%20saber%20mais%20sobre%20o%20BizGuideAI" target="_blank" rel="noopener noreferrer" data-testid="link-whatsapp-contato">

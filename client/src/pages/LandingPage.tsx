@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import aiDiagramImg from "@assets/1775934540417_1775934559877.png";
+import { HeroDiagramaIA } from "@/components/HeroDiagramaIA";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -788,13 +788,8 @@ export default function LandingPage() {
 
       {/* DIAGRAMA IA */}
       <section className="bg-slate-950 border-t border-white/5 py-10 sm:py-14">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-center">
-          <img
-            src={aiDiagramImg}
-            alt="Da análise ao plano estratégico inteligente com IA"
-            className="w-full max-w-3xl rounded-xl"
-            data-testid="img-ai-diagram"
-          />
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <HeroDiagramaIA />
         </div>
       </section>
 

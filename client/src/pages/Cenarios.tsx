@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -30,10 +29,52 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Cenario } from "@shared/schema";
 
-// ── config ────────────────────────────────────────────────────────────────────
+// ── types ─────────────────────────────────────────────────────────────────────
 
 const TIPOS = ["pessimista", "base", "otimista"] as const;
 type TipoCenario = typeof TIPOS[number];
+
+interface CenarioBody {
+  tipo: TipoCenario;
+  titulo: string;
+  descricao: string;
+  premissas: string;
+  respostaEstrategica: string;
+}
+
+interface RespostaBody {
+  respostaEstrategica: string;
+}
+
+interface AiCenarioSugestao {
+  tipo: string;
+  titulo: string;
+  descricao: string;
+  premissas: string[];
+  resposta_estrategica: string;
+}
+
+interface AiGerarResponse {
+  cenarios: AiCenarioSugestao[];
+}
+
+interface AiSugerirRespostaResponse {
+  respostaEstrategica: string;
+}
+
+interface FormFields {
+  titulo: string;
+  descricao: string;
+  premissas: string;
+  respostaEstrategica: string;
+}
+
+const emptyForm = (): FormFields => ({
+  titulo: "",
+  descricao: "",
+  premissas: "",
+  respostaEstrategica: "",
+});
 
 const tipoConfig: Record<TipoCenario, {
   label: string;
@@ -69,21 +110,16 @@ const tipoConfig: Record<TipoCenario, {
   },
 };
 
-// ── types ─────────────────────────────────────────────────────────────────────
+// ── helpers ───────────────────────────────────────────────────────────────────
 
-interface FormFields {
-  titulo: string;
-  descricao: string;
-  premissas: string;
-  respostaEstrategica: string;
+function parsePremissas(raw: string): string {
+  return JSON.stringify(
+    raw
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean),
+  );
 }
-
-const emptyForm = (): FormFields => ({
-  titulo: "",
-  descricao: "",
-  premissas: "",
-  respostaEstrategica: "",
-});
 
 function cenarioToForm(c: Cenario): FormFields {
   let premissas = "";
@@ -100,30 +136,12 @@ function cenarioToForm(c: Cenario): FormFields {
   };
 }
 
-function parsePremissas(raw: string): string {
-  return JSON.stringify(raw.split("\n").map((l) => l.trim()).filter(Boolean));
-}
-
-// ── sub-components ────────────────────────────────────────────────────────────
-
-function PremissasList({ premissas }: { premissas: string }) {
-  const list: string[] = (() => {
-    try { return JSON.parse(premissas || "[]"); } catch { return premissas ? [premissas] : []; }
-  })();
-  if (!list.filter(Boolean).length) return null;
-  return (
-    <div>
-      <p className="text-xs font-medium text-muted-foreground mb-1.5">Premissas</p>
-      <ul className="space-y-1">
-        {list.filter(Boolean).map((p, i) => (
-          <li key={i} className="flex gap-2 items-start text-xs">
-            <span className="text-muted-foreground mt-0.5">•</span>
-            <span>{p}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
+function parsePremissasList(raw: string): string[] {
+  try {
+    return JSON.parse(raw || "[]") as string[];
+  } catch {
+    return raw ? [raw] : [];
+  }
 }
 
 // ── main component ────────────────────────────────────────────────────────────
@@ -132,9 +150,11 @@ export default function Cenarios() {
   const { toast } = useToast();
 
   // edit dialog
-  const [editDialog, setEditDialog] = useState<{ open: boolean; tipo: TipoCenario | null; existing: Cenario | null }>({
-    open: false, tipo: null, existing: null,
-  });
+  const [editDialog, setEditDialog] = useState<{
+    open: boolean;
+    tipo: TipoCenario | null;
+    existing: Cenario | null;
+  }>({ open: false, tipo: null, existing: null });
   const [editForm, setEditForm] = useState<FormFields>(emptyForm());
 
   // AI generation review dialog
@@ -144,30 +164,38 @@ export default function Cenarios() {
     base: emptyForm(),
     otimista: emptyForm(),
   });
+  const [isSavingReview, setIsSavingReview] = useState(false);
 
-  // per-card "Sugerir IA para resposta" loading state
+  // per-card inline resposta editing state
+  const [editingResposta, setEditingResposta] = useState<TipoCenario | null>(null);
+  const [respostaText, setRespostaText] = useState("");
+
+  // per-card "Sugerir IA para resposta" loading
   const [suggestingTipo, setSuggestingTipo] = useState<TipoCenario | null>(null);
 
-  const { data: cenarios = [], isLoading } = useQuery<Cenario[]>({ queryKey: ["/api/cenarios"] });
+  const { data: cenarios = [], isLoading } = useQuery<Cenario[]>({
+    queryKey: ["/api/cenarios"],
+  });
 
   const inv = () => queryClient.invalidateQueries({ queryKey: ["/api/cenarios"] });
 
   const updateMut = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: any }) =>
+    mutationFn: ({ id, body }: { id: string; body: Partial<CenarioBody> | RespostaBody }) =>
       apiRequest("PATCH", `/api/cenarios/${id}`, body),
-    onSuccess: () => { inv(); },
+    onSuccess: () => inv(),
     onError: () => toast({ title: "Erro ao salvar cenário", variant: "destructive" }),
   });
 
   const createMut = useMutation({
-    mutationFn: (body: any) => apiRequest("POST", "/api/cenarios", body),
-    onSuccess: () => { inv(); },
+    mutationFn: (body: CenarioBody) => apiRequest("POST", "/api/cenarios", body),
+    onSuccess: () => inv(),
     onError: () => toast({ title: "Erro ao criar cenário", variant: "destructive" }),
   });
 
   const gerarMut = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/ai/gerar-cenarios", {}),
-    onSuccess: (d: any) => {
+    mutationFn: (): Promise<AiGerarResponse> =>
+      apiRequest("POST", "/api/ai/gerar-cenarios", {}),
+    onSuccess: (d) => {
       const novo: Record<TipoCenario, FormFields> = {
         pessimista: emptyForm(),
         base: emptyForm(),
@@ -189,33 +217,44 @@ export default function Cenarios() {
     onError: () => toast({ title: "Erro ao gerar cenários com IA", variant: "destructive" }),
   });
 
-  async function salvarRevisao() {
-    const existing = Object.fromEntries(
-      cenarios.map((c) => [c.tipo as TipoCenario, c]),
-    ) as Record<TipoCenario, Cenario | undefined>;
+  const cenarioByTipo = Object.fromEntries(
+    cenarios.map((c) => [c.tipo as TipoCenario, c]),
+  ) as Record<TipoCenario, Cenario | undefined>;
 
-    const promises = TIPOS.map((tipo) => {
-      const f = reviewForms[tipo];
-      if (!f.titulo) return Promise.resolve();
-      const body = {
-        tipo,
-        titulo: f.titulo,
-        descricao: f.descricao,
-        premissas: parsePremissas(f.premissas),
-        respostaEstrategica: f.respostaEstrategica,
-      };
-      const exst = existing[tipo];
-      if (exst) {
-        return apiRequest("PATCH", `/api/cenarios/${exst.id}`, body);
-      } else {
-        return apiRequest("POST", "/api/cenarios", body);
-      }
-    });
-    await Promise.all(promises);
-    inv();
-    setReviewDialog(false);
-    toast({ title: "Cenários salvos com sucesso!" });
+  // ── save review (after AI generation) ──
+
+  async function salvarRevisao() {
+    setIsSavingReview(true);
+    try {
+      await Promise.all(
+        TIPOS.map((tipo) => {
+          const f = reviewForms[tipo];
+          if (!f.titulo.trim()) return Promise.resolve();
+          const body: CenarioBody = {
+            tipo,
+            titulo: f.titulo,
+            descricao: f.descricao,
+            premissas: parsePremissas(f.premissas),
+            respostaEstrategica: f.respostaEstrategica,
+          };
+          const existing = cenarioByTipo[tipo];
+          if (existing) {
+            return apiRequest("PATCH", `/api/cenarios/${existing.id}`, body);
+          }
+          return apiRequest("POST", "/api/cenarios", body);
+        }),
+      );
+      inv();
+      setReviewDialog(false);
+      toast({ title: "Cenários salvos com sucesso!" });
+    } catch {
+      toast({ title: "Erro ao salvar cenários", variant: "destructive" });
+    } finally {
+      setIsSavingReview(false);
+    }
   }
+
+  // ── edit dialog ──
 
   function abrirEditar(tipo: TipoCenario, existing: Cenario | null) {
     setEditDialog({ open: true, tipo, existing });
@@ -224,7 +263,7 @@ export default function Cenarios() {
 
   async function salvarEdicao() {
     if (!editDialog.tipo) return;
-    const body = {
+    const body: CenarioBody = {
       tipo: editDialog.tipo,
       titulo: editForm.titulo,
       descricao: editForm.descricao,
@@ -240,24 +279,46 @@ export default function Cenarios() {
     toast({ title: "Cenário salvo!" });
   }
 
+  // ── inline resposta editing ──
+
+  function iniciarEdicaoResposta(tipo: TipoCenario, texto: string) {
+    setEditingResposta(tipo);
+    setRespostaText(texto);
+  }
+
+  async function salvarRespostaInline(tipo: TipoCenario) {
+    const existing = cenarioByTipo[tipo];
+    if (!existing) return;
+    await updateMut.mutateAsync({
+      id: existing.id,
+      body: { respostaEstrategica: respostaText } satisfies RespostaBody,
+    });
+    setEditingResposta(null);
+    toast({ title: "Resposta estratégica salva!" });
+  }
+
+  // ── AI suggestion for resposta ──
+
   async function sugerirResposta(tipo: TipoCenario) {
-    const c = cenarios.find((x) => x.tipo === tipo);
+    const c = cenarioByTipo[tipo];
     setSuggestingTipo(tipo);
     try {
-      const d: any = await apiRequest("POST", "/api/ai/sugerir-resposta-cenario", {
-        tipo,
-        titulo: c?.titulo || "",
-        descricao: c?.descricao || "",
-        premissas: c?.premissas || "[]",
-      });
-      if (d?.respostaEstrategica) {
-        const body = {
-          respostaEstrategica: d.respostaEstrategica,
-        };
-        if (c) {
-          await updateMut.mutateAsync({ id: c.id, body });
-          toast({ title: "Resposta estratégica sugerida e salva!" });
-        }
+      const d = await apiRequest(
+        "POST",
+        "/api/ai/sugerir-resposta-cenario",
+        {
+          tipo,
+          titulo: c?.titulo ?? "",
+          descricao: c?.descricao ?? "",
+          premissas: c?.premissas ?? "[]",
+        },
+      ) as AiSugerirRespostaResponse;
+      if (d?.respostaEstrategica && c) {
+        await updateMut.mutateAsync({
+          id: c.id,
+          body: { respostaEstrategica: d.respostaEstrategica } satisfies RespostaBody,
+        });
+        toast({ title: "Resposta estratégica sugerida e salva!" });
       }
     } catch {
       toast({ title: "Erro ao sugerir resposta", variant: "destructive" });
@@ -266,11 +327,7 @@ export default function Cenarios() {
     }
   }
 
-  const cenarioByTipo = Object.fromEntries(
-    cenarios.map((c) => [c.tipo, c]),
-  ) as Record<TipoCenario, Cenario | undefined>;
-
-  const isSaving = updateMut.isPending || createMut.isPending;
+  const isEditPending = updateMut.isPending || createMut.isPending;
 
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
@@ -302,6 +359,7 @@ export default function Cenarios() {
             const cfg = tipoConfig[tipo];
             const Icon = cfg.icon;
             const c = cenarioByTipo[tipo];
+            const premList = c ? parsePremissasList(c.premissas) : [];
 
             return (
               <div key={tipo} className="flex flex-col gap-3">
@@ -338,44 +396,101 @@ export default function Cenarios() {
                       </CardHeader>
                       <CardContent className="space-y-3 text-sm">
                         {c.descricao && (
-                          <p className="text-muted-foreground leading-relaxed text-xs">{c.descricao}</p>
+                          <p className="text-muted-foreground leading-relaxed text-xs">
+                            {c.descricao}
+                          </p>
                         )}
-                        <PremissasList premissas={c.premissas} />
-                        {c.respostaEstrategica ? (
-                          <div className="bg-background/70 rounded-md p-3 space-y-1">
-                            <p className="text-xs font-medium text-muted-foreground">Como a empresa se adapta</p>
-                            <p className="text-xs leading-relaxed">{c.respostaEstrategica}</p>
+
+                        {premList.filter(Boolean).length > 0 && (
+                          <div>
+                            <p className="text-xs font-medium text-muted-foreground mb-1.5">
+                              Premissas
+                            </p>
+                            <ul className="space-y-1">
+                              {premList.filter(Boolean).map((p, i) => (
+                                <li key={i} className="flex gap-2 items-start text-xs">
+                                  <span className="text-muted-foreground mt-0.5">•</span>
+                                  <span>{p}</span>
+                                </li>
+                              ))}
+                            </ul>
                           </div>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="w-full text-xs"
-                            onClick={() => sugerirResposta(tipo)}
-                            disabled={suggestingTipo === tipo}
-                            data-testid={`button-sugerir-resposta-${tipo}`}
-                          >
-                            {suggestingTipo === tipo
-                              ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                              : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
-                            Sugerir resposta com IA
-                          </Button>
                         )}
-                        {c.respostaEstrategica && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="w-full text-xs text-muted-foreground"
-                            onClick={() => sugerirResposta(tipo)}
-                            disabled={suggestingTipo === tipo}
-                            data-testid={`button-sugerir-resposta-${tipo}`}
-                          >
-                            {suggestingTipo === tipo
-                              ? <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
-                              : <Sparkles className="h-3 w-3 mr-1.5" />}
-                            Nova sugestão de resposta
-                          </Button>
-                        )}
+
+                        {/* Inline editable "Como a empresa se adapta" */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs font-medium text-muted-foreground">
+                              Como a empresa se adapta
+                            </p>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-xs text-muted-foreground"
+                              onClick={() => sugerirResposta(tipo)}
+                              disabled={suggestingTipo === tipo || updateMut.isPending}
+                              data-testid={`button-sugerir-resposta-${tipo}`}
+                            >
+                              {suggestingTipo === tipo
+                                ? <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                : <Sparkles className="h-3 w-3 mr-1" />}
+                              Sugerir com IA
+                            </Button>
+                          </div>
+
+                          {editingResposta === tipo ? (
+                            <div className="space-y-2">
+                              <Textarea
+                                value={respostaText}
+                                onChange={(e) => setRespostaText(e.target.value)}
+                                rows={3}
+                                className="text-xs resize-none bg-background/70"
+                                autoFocus
+                                data-testid={`textarea-resposta-inline-${tipo}`}
+                              />
+                              <div className="flex gap-2 justify-end">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 text-xs"
+                                  onClick={() => setEditingResposta(null)}
+                                >
+                                  <X className="h-3 w-3 mr-1" /> Cancelar
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  className="h-7 text-xs"
+                                  onClick={() => salvarRespostaInline(tipo)}
+                                  disabled={updateMut.isPending}
+                                  data-testid={`button-salvar-resposta-inline-${tipo}`}
+                                >
+                                  {updateMut.isPending
+                                    ? <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                    : null}
+                                  Salvar
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              className="w-full text-left"
+                              onClick={() =>
+                                iniciarEdicaoResposta(tipo, c.respostaEstrategica || "")
+                              }
+                              data-testid={`button-editar-resposta-${tipo}`}
+                            >
+                              {c.respostaEstrategica ? (
+                                <div className="bg-background/70 rounded-md p-3 text-xs leading-relaxed hover-elevate">
+                                  {c.respostaEstrategica}
+                                </div>
+                              ) : (
+                                <div className="bg-background/40 rounded-md p-3 text-xs text-muted-foreground hover-elevate border border-dashed">
+                                  Clique para adicionar a resposta estratégica...
+                                </div>
+                              )}
+                            </button>
+                          )}
+                        </div>
                       </CardContent>
                     </>
                   ) : (
@@ -412,8 +527,10 @@ export default function Cenarios() {
               {editDialog.tipo && (
                 <span className="flex items-center gap-2">
                   Cenário{" "}
-                  <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${editDialog.tipo ? tipoConfig[editDialog.tipo].badge : ""}`}>
-                    {editDialog.tipo ? tipoConfig[editDialog.tipo].label : ""}
+                  <span
+                    className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${tipoConfig[editDialog.tipo].badge}`}
+                  >
+                    {tipoConfig[editDialog.tipo].label}
                   </span>
                 </span>
               )}
@@ -430,8 +547,8 @@ export default function Cenarios() {
                   editDialog.tipo === "pessimista"
                     ? "Ex: Retração econômica severa"
                     : editDialog.tipo === "otimista"
-                    ? "Ex: Expansão de mercado acelerada"
-                    : "Ex: Crescimento moderado e estável"
+                      ? "Ex: Expansão de mercado acelerada"
+                      : "Ex: Crescimento moderado e estável"
                 }
                 data-testid="input-titulo-cenario"
               />
@@ -479,10 +596,10 @@ export default function Cenarios() {
             </Button>
             <Button
               onClick={salvarEdicao}
-              disabled={isSaving || !editForm.titulo.trim()}
+              disabled={isEditPending || !editForm.titulo.trim()}
               data-testid="button-salvar-cenario"
             >
-              {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {isEditPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Salvar
             </Button>
           </DialogFooter>
@@ -507,19 +624,25 @@ export default function Cenarios() {
               const cfg = tipoConfig[tipo];
               const f = reviewForms[tipo];
               return (
-                <div key={tipo} className={`rounded-lg border p-4 space-y-3 ${cfg.cardBg} ${cfg.cardBorder}`}>
-                  <div className="flex items-center gap-2">
-                    <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${cfg.badge}`}>
-                      {cfg.label}
-                    </span>
-                  </div>
+                <div
+                  key={tipo}
+                  className={`rounded-lg border p-4 space-y-3 ${cfg.cardBg} ${cfg.cardBorder}`}
+                >
+                  <span
+                    className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${cfg.badge}`}
+                  >
+                    {cfg.label}
+                  </span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
+                    <div className="space-y-1.5 sm:col-span-2">
                       <Label className="text-xs">Título</Label>
                       <Input
                         value={f.titulo}
                         onChange={(e) =>
-                          setReviewForms((r) => ({ ...r, [tipo]: { ...r[tipo], titulo: e.target.value } }))
+                          setReviewForms((r) => ({
+                            ...r,
+                            [tipo]: { ...r[tipo], titulo: e.target.value },
+                          }))
                         }
                         className="text-sm"
                         data-testid={`review-titulo-${tipo}`}
@@ -530,7 +653,10 @@ export default function Cenarios() {
                       <Textarea
                         value={f.descricao}
                         onChange={(e) =>
-                          setReviewForms((r) => ({ ...r, [tipo]: { ...r[tipo], descricao: e.target.value } }))
+                          setReviewForms((r) => ({
+                            ...r,
+                            [tipo]: { ...r[tipo], descricao: e.target.value },
+                          }))
                         }
                         rows={2}
                         className="text-sm resize-none"
@@ -542,7 +668,10 @@ export default function Cenarios() {
                       <Textarea
                         value={f.premissas}
                         onChange={(e) =>
-                          setReviewForms((r) => ({ ...r, [tipo]: { ...r[tipo], premissas: e.target.value } }))
+                          setReviewForms((r) => ({
+                            ...r,
+                            [tipo]: { ...r[tipo], premissas: e.target.value },
+                          }))
                         }
                         rows={3}
                         className="text-sm resize-none"
@@ -575,8 +704,12 @@ export default function Cenarios() {
               <X className="h-4 w-4 mr-2" />
               Descartar
             </Button>
-            <Button onClick={salvarRevisao} disabled={isSaving} data-testid="button-confirmar-cenarios-ia">
-              {isSaving
+            <Button
+              onClick={salvarRevisao}
+              disabled={isSavingReview}
+              data-testid="button-confirmar-cenarios-ia"
+            >
+              {isSavingReview
                 ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 : <CheckCircle2 className="h-4 w-4 mr-2" />}
               Confirmar e Salvar

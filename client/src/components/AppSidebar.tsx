@@ -19,10 +19,10 @@ import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
 
 const mapItems = [
   { title: "Cenário Externo", url: "/pestel", icon: Compass, jornadaId: "pestel" },
+  { title: "Cenários Estratégicos", url: "/cenarios", icon: CloudLightning, jornadaId: null },
   { title: "Mercado e Concorrência", url: "/cinco-forcas", icon: Layers, jornadaId: "cinco-forcas" },
   { title: "Modelo de Negócio", url: "/bmc", icon: Grid3x3, jornadaId: "bmc" },
   { title: "Forças e Fraquezas", url: "/swot", icon: Target, jornadaId: "swot" },
-  { title: "Cenários Estratégicos", url: "/cenarios", icon: CloudLightning, jornadaId: null },
 ];
 
 const apostasItems = [

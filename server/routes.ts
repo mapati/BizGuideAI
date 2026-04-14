@@ -4306,51 +4306,91 @@ Inclua 3-5 itens em cada lista. Seja específico e cite os dados reais fornecido
     await storage.deleteCenario(req.params.id, req.session.empresaId!);
     res.json({ ok: true });
   });
+  // Returns suggestions only — does NOT save to DB (user reviews in dialog before confirming)
   app.post("/api/ai/gerar-cenarios", requireAuth, async (req, res) => {
     try {
       const empresa = await storage.getEmpresa(req.session.empresaId!);
       if (!empresa) return res.status(404).json({ error: "Empresa não encontrada" });
-      const swots = await storage.getAnaliseSwot(req.session.empresaId!);
-      const pestels = await storage.getFatoresPestel(req.session.empresaId!);
+      const [swots, pestels, estrategias] = await Promise.all([
+        storage.getAnaliseSwot(req.session.empresaId!),
+        storage.getFatoresPestel(req.session.empresaId!),
+        storage.getEstrategias(req.session.empresaId!),
+      ]);
       const swotResume = swots.map(s => `${s.tipo.toUpperCase()}: ${s.descricao}`).join("\n");
-      const pestelResume = pestels.map(p => `${p.categoria}: ${p.descricao} (impacto: ${p.impacto})`).join("\n");
+      const pestelResume = pestels.map(p => `${p.tipo}: ${p.descricao} (impacto: ${p.impacto})`).join("\n");
+      const estResume = estrategias.slice(0, 5).map(e => e.descricao).join("; ");
       const completion = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [{
           role: "user",
           content: `Você é consultor estratégico especializado em planejamento de cenários para PMEs brasileiras.
 Empresa: ${empresa.nome} | Setor: ${empresa.setor} | Porte: ${empresa.tamanho}
+Descrição: ${empresa.descricao || ""}
 
-SWOT:\n${swotResume}
-PESTEL:\n${pestelResume}
+ANÁLISE SWOT:\n${swotResume || "Não disponível"}
+FATORES PESTEL:\n${pestelResume || "Não disponível"}
+ESTRATÉGIAS:\n${estResume || "Não disponível"}
 
-Gere 3 cenários estratégicos (pessimista, base e otimista) em JSON:
+Gere 3 cenários estratégicos distintos (pessimista, base e otimista) em JSON.
+Cada cenário deve refletir a realidade do setor ${empresa.setor} com dados concretos.
+premissas deve ter 3-4 itens específicos e mensuráveis.
+resposta_estrategica deve ser acionável e específica para a empresa.
+
+Responda APENAS com JSON no formato:
 {
   "cenarios": [
-    { "tipo": "pessimista", "titulo": "...", "descricao": "...", "premissas": ["...", "..."], "resposta_estrategica": "..." },
-    { "tipo": "base", "titulo": "...", "descricao": "...", "premissas": ["...", "..."], "resposta_estrategica": "..." },
-    { "tipo": "otimista", "titulo": "...", "descricao": "...", "premissas": ["...", "..."], "resposta_estrategica": "..." }
+    { "tipo": "pessimista", "titulo": "Título conciso", "descricao": "Contexto do cenário em 2-3 frases.", "premissas": ["...", "...", "..."], "resposta_estrategica": "Como a empresa deve responder..." },
+    { "tipo": "base", "titulo": "...", "descricao": "...", "premissas": ["...", "...", "..."], "resposta_estrategica": "..." },
+    { "tipo": "otimista", "titulo": "...", "descricao": "...", "premissas": ["...", "...", "..."], "resposta_estrategica": "..." }
   ]
-}
-Seja específico com dados do setor ${empresa.setor}. premissas deve ter 3-4 itens.`,
+}`,
         }],
         response_format: { type: "json_object" },
         temperature: 0.7,
       });
       const parsed = JSON.parse(completion.choices[0].message.content || "{}");
-      const cenariosCriados = [];
-      for (const c of parsed.cenarios || []) {
-        const criado = await storage.createCenario({
-          empresaId: req.session.empresaId!,
-          tipo: c.tipo,
-          titulo: c.titulo,
-          descricao: c.descricao,
-          premissas: JSON.stringify(c.premissas || []),
-          respostaEstrategica: c.resposta_estrategica,
-        });
-        cenariosCriados.push(criado);
-      }
-      res.json({ cenarios: cenariosCriados });
+      // Return suggestions only — frontend saves after user review
+      res.json({ cenarios: parsed.cenarios || [] });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
+  // Suggest only the respostaEstrategica for a single scenario card
+  app.post("/api/ai/sugerir-resposta-cenario", requireAuth, async (req, res) => {
+    try {
+      const { tipo, titulo, descricao, premissas } = req.body as {
+        tipo: string; titulo: string; descricao: string; premissas: string;
+      };
+      const empresa = await storage.getEmpresa(req.session.empresaId!);
+      if (!empresa) return res.status(404).json({ error: "Empresa não encontrada" });
+      const [swots, estrategias] = await Promise.all([
+        storage.getAnaliseSwot(req.session.empresaId!),
+        storage.getEstrategias(req.session.empresaId!),
+      ]);
+      const swotResume = swots.map(s => `${s.tipo.toUpperCase()}: ${s.descricao}`).join("\n");
+      const estResume = estrategias.slice(0, 5).map(e => e.descricao).join("; ");
+      let premList: string[] = [];
+      try { premList = JSON.parse(premissas || "[]"); } catch { premList = []; }
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{
+          role: "user",
+          content: `Você é consultor estratégico de PMEs brasileiras.
+Empresa: ${empresa.nome} | Setor: ${empresa.setor}
+SWOT: ${swotResume || "Não disponível"}
+Estratégias: ${estResume || "Não disponível"}
+
+Cenário ${tipo}: "${titulo}"
+Descrição: ${descricao}
+Premissas: ${premList.join("; ")}
+
+Escreva uma resposta estratégica específica e acionável (3-5 frases) de como esta empresa deve adaptar suas operações e estratégia neste cenário ${tipo}.
+Responda APENAS com JSON: { "respostaEstrategica": "..." }`,
+        }],
+        response_format: { type: "json_object" },
+        temperature: 0.7,
+      });
+      const parsed = JSON.parse(completion.choices[0].message.content || "{}");
+      res.json({ respostaEstrategica: parsed.respostaEstrategica || "" });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 

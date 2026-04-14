@@ -1,14 +1,8 @@
 import type { CSSProperties } from "react";
 import {
   Building2,
-  Target,
-  BarChart3,
-  Globe,
-  Briefcase,
   FileText,
   CheckCircle2,
-  Zap,
-  TrendingUp,
 } from "lucide-react";
 
 /* ─── Neural network node positions (viewBox 0 0 130 110) ─── */
@@ -39,34 +33,24 @@ NN_NODES.h2.forEach(a => NN_NODES.output.forEach(b => {
 const LEFT_PACKETS  = [{ dur: "2.0s", delay: "0.0s" }, { dur: "2.0s", delay: "0.7s" }, { dur: "2.0s", delay: "1.4s" }];
 const RIGHT_PACKETS = [{ dur: "2.2s", delay: "0.3s" }, { dur: "2.2s", delay: "1.1s" }, { dur: "2.2s", delay: "1.9s" }];
 
-const ORBIT_1 = [
-  { label: "SWOT",    Icon: Target,    color: "text-sky-400",     ang: 0   },
-  { label: "Cenário", Icon: Globe,     color: "text-indigo-400",  ang: 120 },
-  { label: "Mercado", Icon: BarChart3, color: "text-emerald-400", ang: 240 },
-];
-const ORBIT_2 = [
-  { label: "Negócio",     Icon: Briefcase,  color: "text-fuchsia-400", ang: 60  },
-  { label: "Estratégia",  Icon: Zap,        color: "text-amber-400",   ang: 180 },
-  { label: "Crescimento", Icon: TrendingUp, color: "text-rose-400",    ang: 300 },
-];
 const PLAN_ROWS = [
   { label: "Diretrizes", pct: "100%", delay: "0s",   done: true  },
   { label: "Metas OKR",  pct: "82%",  delay: "0.5s", done: true  },
   { label: "Ações",      pct: "45%",  delay: "1.0s", done: false },
 ];
 
+/* Height & vertical center for this component */
+const H = 380;
+const CY = H / 2; // 190
+
 export function HeroDiagramaIA() {
   return (
-    <div className="relative w-full h-[520px] bg-[#020817] rounded-xl border border-white/10 overflow-hidden font-sans">
+    <div className="relative w-full bg-[#020817] rounded-xl border border-white/10 overflow-hidden font-sans" style={{ height: H }}>
 
       <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes og-orbit {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(360deg); }
-        }
-        @keyframes og-counter {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(-360deg); }
+        @keyframes og-pulse-core {
+          0%,100% { opacity: 0.4; transform: scale(0.97); }
+          50%     { opacity: 0.9; transform: scale(1.03); }
         }
         @keyframes og-packet-left {
           0%   { offset-distance: 0%;   opacity: 0; }
@@ -79,10 +63,6 @@ export function HeroDiagramaIA() {
           5%   { opacity: 1; }
           90%  { opacity: 1; }
           100% { offset-distance: 100%; opacity: 0; }
-        }
-        @keyframes og-pulse-core {
-          0%,100% { opacity: 0.4; transform: scale(0.97); }
-          50%     { opacity: 0.9; transform: scale(1.03); }
         }
         @keyframes og-nn-signal {
           0%,40% { stroke-dashoffset: 60; opacity: 0; }
@@ -102,15 +82,11 @@ export function HeroDiagramaIA() {
           50%     { transform: translateY(-6px); }
         }
 
-        .og-orbit-1 { animation: og-orbit   28s linear infinite; }
-        .og-orbit-2 { animation: og-orbit   42s linear infinite reverse; }
-        .og-node-1  { animation: og-counter 28s linear infinite; }
-        .og-node-2  { animation: og-counter 42s linear infinite reverse; }
-        .og-pulse   { animation: og-pulse-core 3s ease-in-out infinite; }
-        .og-float   { animation: og-float 6s ease-in-out infinite; }
+        .og-pulse { animation: og-pulse-core 3s ease-in-out infinite; }
+        .og-float { animation: og-float 6s ease-in-out infinite; }
 
         .og-pkt-left {
-          offset-path: path('M 155 260 C 260 260 340 260 400 260');
+          offset-path: path('M 155 ${CY} C 260 ${CY} 340 ${CY} 400 ${CY}');
           width: 10px; height: 10px;
           border-radius: 50%;
           background: #38bdf8;
@@ -119,7 +95,7 @@ export function HeroDiagramaIA() {
           animation: og-packet-left var(--dur,2s) linear var(--del,0s) infinite;
         }
         .og-pkt-right {
-          offset-path: path('M 600 260 C 660 260 740 260 830 260');
+          offset-path: path('M 600 ${CY} C 660 ${CY} 740 ${CY} 830 ${CY}');
           width: 10px; height: 10px;
           border-radius: 50%;
           background: #a78bfa;
@@ -149,10 +125,10 @@ export function HeroDiagramaIA() {
       {/* Radial background glow */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_50%,rgba(56,189,248,0.06)_0%,transparent_70%)]" />
 
-      {/* Main SVG — tubes + orbit ring guides */}
+      {/* Main SVG — tubes only */}
       <svg
         className="absolute inset-0 w-full h-full pointer-events-none z-0"
-        viewBox="0 0 990 520"
+        viewBox={`0 0 990 ${H}`}
         preserveAspectRatio="xMidYMid meet"
       >
         <defs>
@@ -173,18 +149,14 @@ export function HeroDiagramaIA() {
         </defs>
 
         {/* Left tube: Empresa → Core */}
-        <path d="M 155 260 C 260 260 340 260 400 260"
+        <path d={`M 155 ${CY} C 260 ${CY} 340 ${CY} 400 ${CY}`}
           stroke="url(#og-grad-left)" strokeWidth="2" fill="none" filter="url(#og-glow)" />
-        <polygon points="398,255 410,260 398,265" fill="#38bdf8" opacity="0.5" />
+        <polygon points={`398,${CY - 5} 410,${CY} 398,${CY + 5}`} fill="#38bdf8" opacity="0.5" />
 
         {/* Right tube: Core → Plano */}
-        <path d="M 590 260 C 650 260 730 260 835 260"
+        <path d={`M 590 ${CY} C 650 ${CY} 730 ${CY} 835 ${CY}`}
           stroke="url(#og-grad-right)" strokeWidth="2" fill="none" filter="url(#og-glow)" />
-        <polygon points="833,255 845,260 833,265" fill="#a78bfa" opacity="0.5" />
-
-        {/* Orbit ring guides */}
-        <circle cx="495" cy="260" r="132" fill="none" stroke="rgba(99,102,241,0.08)" strokeWidth="1" strokeDasharray="4 8" />
-        <circle cx="495" cy="260" r="185" fill="none" stroke="rgba(99,102,241,0.05)" strokeWidth="1" />
+        <polygon points={`833,${CY - 5} 845,${CY} 833,${CY + 5}`} fill="#a78bfa" opacity="0.5" />
       </svg>
 
       {/* Animated data packets (CSS motion-path) */}
@@ -195,7 +167,7 @@ export function HeroDiagramaIA() {
         <div key={i} className="og-pkt-right" style={{ "--dur": p.dur, "--del": p.delay } as CSSProperties} />
       ))}
 
-      {/* ── Layout ── */}
+      {/* ── Three-column layout ── */}
       <div className="relative z-10 w-full h-full flex items-center justify-between px-8">
 
         {/* LEFT: Empresa */}
@@ -223,49 +195,11 @@ export function HeroDiagramaIA() {
           ))}
         </div>
 
-        {/* CENTER: Núcleo IA + Orbits */}
-        <div className="relative flex items-center justify-center" style={{ width: 370, height: 370 }}>
-
-          {/* Orbit ring 1 — 3 nodes, 264px diameter */}
-          <div className="og-orbit-1 absolute" style={{ width: 264, height: 264, top: "50%", left: "50%", marginTop: -132, marginLeft: -132 }}>
-            {ORBIT_1.map(({ label, Icon, color, ang }) => {
-              const rad = (ang * Math.PI) / 180;
-              const r = 132;
-              return (
-                <div key={label} className="absolute" style={{ left: r + r * Math.cos(rad) - 24, top: r + r * Math.sin(rad) - 24, width: 48, height: 48 }}>
-                  <div className="og-node-1 w-full h-full flex items-center justify-center">
-                    <div className="w-11 h-11 rounded-full bg-[#111827] border border-white/10 flex flex-col items-center justify-center shadow-lg gap-0.5">
-                      <Icon className={`w-4 h-4 ${color}`} />
-                      <span className="text-[7px] text-slate-400 font-medium leading-none">{label}</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Orbit ring 2 — 3 nodes, 370px diameter */}
-          <div className="og-orbit-2 absolute" style={{ width: 370, height: 370, top: "50%", left: "50%", marginTop: -185, marginLeft: -185 }}>
-            {ORBIT_2.map(({ label, Icon, color, ang }) => {
-              const rad = (ang * Math.PI) / 180;
-              const r = 185;
-              return (
-                <div key={label} className="absolute" style={{ left: r + r * Math.cos(rad) - 24, top: r + r * Math.sin(rad) - 24, width: 48, height: 48 }}>
-                  <div className="og-node-2 w-full h-full flex items-center justify-center">
-                    <div className="w-11 h-11 rounded-full bg-[#111827] border border-white/10 flex flex-col items-center justify-center shadow-lg gap-0.5">
-                      <Icon className={`w-4 h-4 ${color}`} />
-                      <span className="text-[7px] text-slate-400 font-medium leading-none">{label}</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Core — neural network SVG */}
-          <div className="relative z-20 flex flex-col items-center" style={{ width: 148, height: 148 }}>
+        {/* CENTER: Núcleo IA */}
+        <div className="flex flex-col items-center">
+          <div className="relative z-20 flex flex-col items-center" style={{ width: 160, height: 160 }}>
             <div className="absolute inset-0 rounded-full bg-indigo-500/20 blur-2xl og-pulse" />
-            <div className="relative w-[148px] h-[148px] rounded-full border border-indigo-500/40 bg-[#07091f] shadow-[0_0_40px_rgba(99,102,241,0.3)] flex items-center justify-center overflow-hidden">
+            <div className="relative w-[160px] h-[160px] rounded-full border border-indigo-500/40 bg-[#07091f] shadow-[0_0_40px_rgba(99,102,241,0.3)] flex items-center justify-center overflow-hidden">
               <svg viewBox="0 0 130 110" className="w-full h-full" style={{ padding: "14px" }}>
                 {NN_EDGES.map((e, i) => (
                   <line key={`b${i}`} className="og-nn-base" x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} />
@@ -296,12 +230,12 @@ export function HeroDiagramaIA() {
                 style={{ background: "linear-gradient(to bottom, transparent 0%, rgba(99,102,241,0.12) 50%, transparent 100%)", animation: "og-pulse-core 2.5s ease-in-out infinite" }}
               />
             </div>
-            <div className="mt-3 text-center">
-              <p className="text-white font-bold text-sm tracking-wider">Núcleo IA</p>
-              <div className="flex items-center justify-center gap-1 mt-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-emerald-400/80 text-[9px] font-mono uppercase tracking-widest">processando</span>
-              </div>
+          </div>
+          <div className="mt-3 text-center">
+            <p className="text-white font-bold text-sm tracking-wider">Núcleo IA</p>
+            <div className="flex items-center justify-center gap-1 mt-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-emerald-400/80 text-[9px] font-mono uppercase tracking-widest">processando</span>
             </div>
           </div>
         </div>

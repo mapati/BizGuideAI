@@ -764,6 +764,10 @@ export default function LandingPage() {
                 <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-primary" />Sem cartão de crédito</span>
                 <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-primary" />Configuração em minutos</span>
               </div>
+
+              <div className="w-full mt-2">
+                <HeroDiagramaIA />
+              </div>
           </div>
 
           {/* Stats bar */}
@@ -783,13 +787,6 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* DIAGRAMA IA */}
-      <section className="bg-slate-950 border-t border-white/5 py-10 sm:py-14">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <HeroDiagramaIA />
         </div>
       </section>
 

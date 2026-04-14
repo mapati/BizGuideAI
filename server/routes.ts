@@ -4470,11 +4470,11 @@ Seja específico para o setor ${empresa.setor}.`,
 
   // ── Configurações de Notificação (Alertas E-mail) ────────────────────────
   app.get("/api/notificacoes/configuracoes", requireAuth, async (req, res) => {
-    res.json(await storage.getConfiguracoesNotificacao(req.session.usuarioId!));
+    res.json(await storage.getConfiguracoesNotificacao(req.session.userId!));
   });
   app.post("/api/notificacoes/configuracoes", requireAuth, async (req, res) => {
     try {
-      const data = insertConfiguracaoNotificacaoSchema.parse({ ...req.body, usuarioId: req.session.usuarioId });
+      const data = insertConfiguracaoNotificacaoSchema.parse({ ...req.body, usuarioId: req.session.userId });
       res.json(await storage.upsertConfiguracaoNotificacao(data));
     } catch (e: any) { res.status(400).json({ error: e.message }); }
   });

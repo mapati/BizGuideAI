@@ -177,67 +177,67 @@ export function useJornadaProgresso(): JornadaProgresso {
     },
     {
       id: "pestel",
-      nome: "Cenário Externo — PESTEL",
+      nome: "Cenário Externo",
       rota: "/pestel",
       concluida: fatoresPestel.length >= 6,
       status: derivarStatus(fatoresPestel.length >= 6, fatoresPestel.length > 0),
       icone: Globe2,
       descricao:
-        "Mapeie fatores Políticos, Econômicos, Sociais, Tecnológicos, Ambientais e Legais que influenciam o seu mercado.",
+        "Mapeie os fatores externos — políticos, econômicos, sociais, tecnológicos, ambientais e legais — que influenciam o seu mercado.",
       valorIA:
-        "A IA pesquisa e sugere fatores PESTEL relevantes para o seu setor, enriquecendo a análise com dados reais.",
+        "A IA pesquisa e sugere fatores externos relevantes para o seu setor, enriquecendo a análise com dados reais.",
       bloqueadaPor: perfilCompleto ? [] : ["perfil"],
     },
     {
       id: "cinco-forcas",
-      nome: "Mercado e Concorrência — Cinco Forças",
+      nome: "Mercado e Concorrência",
       rota: "/cinco-forcas",
       concluida: cincoForcas.length >= 3,
       status: derivarStatus(cincoForcas.length >= 3, cincoForcas.length > 0),
       icone: Swords,
       descricao:
-        "Analise as cinco forças de Porter: rivalidade, entrantes, substitutos, poder de clientes e poder de fornecedores.",
+        "Analise as forças do seu mercado: rivalidade entre concorrentes, ameaça de entrantes, substitutos, poder de clientes e poder de fornecedores.",
       valorIA:
-        "A IA avalia cada força competitiva do seu setor e sugere estratégias de posicionamento com base no contexto PESTEL.",
+        "A IA avalia cada força competitiva do seu setor e sugere estratégias de posicionamento com base no cenário externo mapeado.",
       bloqueadaPor: perfilCompleto ? [] : ["perfil"],
     },
     {
       id: "bmc",
-      nome: "Modelo de Negócio — Canvas",
+      nome: "Modelo de Negócio",
       rota: "/bmc",
       concluida: modeloNegocio.length >= 5,
       status: derivarStatus(modeloNegocio.length >= 5, modeloNegocio.length > 0),
       icone: LayoutGrid,
       descricao:
-        "Mapeie os 9 blocos do Business Model Canvas: proposta de valor, clientes, canais, receitas, custos e mais.",
+        "Mapeie os 9 blocos do seu modelo de negócio: proposta de valor, clientes, canais, fontes de receita, estrutura de custos e mais.",
       valorIA:
-        "A IA analisa cada bloco do seu Canvas e identifica lacunas ou oportunidades de melhoria no modelo de negócio.",
+        "A IA analisa cada bloco do seu modelo de negócio e identifica lacunas ou oportunidades de melhoria.",
       bloqueadaPor: perfilCompleto ? [] : ["perfil"],
     },
     {
       id: "swot",
-      nome: "Forças e Fraquezas — SWOT",
+      nome: "Forças e Fraquezas",
       rota: "/swot",
       concluida: swotItens.length >= 4,
       status: derivarStatus(swotItens.length >= 4, swotItens.length > 0),
       icone: GitBranch,
       descricao:
-        "Identifique Forças internas, Fraquezas, Oportunidades externas e Ameaças do mercado para ter uma visão completa.",
+        "Identifique as forças internas, fraquezas, oportunidades externas e ameaças do mercado para ter uma visão completa da sua posição estratégica.",
       valorIA:
-        "A IA cruza PESTEL, Cinco Forças e Canvas para sugerir itens SWOT altamente contextualizados.",
+        "A IA cruza o cenário externo, análise de mercado e modelo de negócio para sugerir itens altamente contextualizados.",
       bloqueadaPor: perfilCompleto ? [] : ["perfil"],
     },
     {
       id: "estrategias",
-      nome: "Estratégias — Matriz TOWS",
+      nome: "Estratégias",
       rota: "/estrategias",
       concluida: estrategias.length > 0,
       status: derivarStatus(estrategias.length > 0, false),
       icone: Flag,
       descricao:
-        "Combine Forças, Fraquezas, Oportunidades e Ameaças do SWOT para criar estratégias práticas: SO, ST, WO e WT.",
+        "Combine as forças, fraquezas, oportunidades e ameaças mapeadas para criar estratégias práticas e priorizadas.",
       valorIA:
-        "A IA gera estratégias TOWS personalizadas com base em todo o contexto que você construiu nas etapas anteriores.",
+        "A IA gera estratégias personalizadas com base em todo o contexto que você construiu nas etapas anteriores.",
       bloqueadaPor: swotItens.length >= 4 ? [] : ["swot"],
     },
     {
@@ -248,7 +248,7 @@ export function useJornadaProgresso(): JornadaProgresso {
       status: derivarStatus(oportunidades.length > 0, false),
       icone: TrendingUp,
       descricao:
-        "Use a Matriz de Ansoff para identificar caminhos de crescimento: penetração, desenvolvimento de mercado, de produto e diversificação.",
+        "Identifique caminhos de crescimento: conquistar mais do mercado atual, entrar em novos mercados, lançar produtos ou diversificar.",
       valorIA:
         "A IA prioriza oportunidades com base nas estratégias definidas e no perfil de risco da sua empresa.",
       bloqueadaPor: estrategias.length > 0 ? [] : ["estrategias"],
@@ -268,33 +268,33 @@ export function useJornadaProgresso(): JornadaProgresso {
     },
     {
       id: "okrs",
-      nome: "OKRs — Objetivos e Resultados-Chave",
+      nome: "Metas e Resultados",
       rota: "/okrs",
       concluida: objetivos.length > 0,
       status: derivarStatus(objetivos.length > 0, false),
       icone: Rocket,
       descricao:
-        "Defina Objetivos inspiradores com Resultados-Chave mensuráveis para guiar a execução da estratégia com foco e clareza.",
+        "Defina objetivos inspiradores com resultados-chave mensuráveis para guiar a execução da estratégia com foco e clareza.",
       valorIA:
-        "A IA cria OKRs conectados às suas iniciativas e estratégias, garantindo alinhamento de cima a baixo.",
+        "A IA cria metas conectadas às suas iniciativas e estratégias, garantindo alinhamento de cima a baixo.",
       bloqueadaPor: estrategias.length > 0 ? [] : ["estrategias"],
     },
     {
       id: "indicadores",
-      nome: "KPIs — Painel BSC",
+      nome: "Indicadores de Performance",
       rota: "/indicadores",
       concluida: indicadoresBsc.length > 0,
       status: derivarStatus(indicadoresBsc.length > 0, false),
       icone: BarChart3,
       descricao:
-        "Com a estratégia definida, construa o Painel BSC nas 4 perspectivas — Finanças, Clientes, Processos e Pessoas — para monitorar a execução continuamente.",
+        "Com a estratégia definida, construa um painel de indicadores nas 4 perspectivas — Finanças, Clientes, Processos e Pessoas — para monitorar a execução continuamente.",
       valorIA:
-        "A IA gera KPIs estratégicos derivados das suas estratégias e OKRs, com metas alinhadas ao plano.",
+        "A IA gera indicadores estratégicos derivados das suas estratégias e metas, com alvos alinhados ao plano.",
       bloqueadaPor: objetivos.length > 0 ? [] : ["okrs"],
     },
     {
       id: "acompanhamento",
-      nome: "Acompanhamento — Ritos Estratégicos",
+      nome: "Acompanhamento",
       rota: "/ritos",
       concluida: acompanhamentoConcluido,
       status: derivarStatus(acompanhamentoConcluido, rituais.length > 0),
@@ -302,7 +302,7 @@ export function useJornadaProgresso(): JornadaProgresso {
       descricao:
         "Estabeleça uma cadência de revisão semanal, mensal e trimestral para garantir a execução consistente da estratégia.",
       valorIA:
-        "A IA agenda os rituais e gera pautas automáticas para cada revisão, mantendo o time alinhado.",
+        "A IA agenda as revisões e gera pautas automáticas para cada encontro, mantendo o time alinhado.",
       bloqueadaPor: objetivos.length > 0 ? [] : ["okrs"],
     },
   ];

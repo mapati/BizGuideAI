@@ -1,276 +1,397 @@
 import React from 'react';
-import { 
-  Building2, 
-  BrainCircuit, 
-  Target, 
-  BarChart3, 
-  Globe, 
-  Briefcase, 
-  FileText, 
+import {
+  Building2,
+  Target,
+  BarChart3,
+  Globe,
+  Briefcase,
+  FileText,
   CheckCircle2,
-  Cpu,
-  Zap
+  Zap,
+  TrendingUp,
 } from 'lucide-react';
+
+/* ─── Neural network node positions (viewBox 0 0 130 110) ─── */
+const NN_NODES = {
+  input:  [{ x: 18, y: 28 }, { x: 18, y: 55 }, { x: 18, y: 82 }],
+  h1:     [{ x: 52, y: 18 }, { x: 52, y: 43 }, { x: 52, y: 68 }, { x: 52, y: 93 }],
+  h2:     [{ x: 86, y: 28 }, { x: 86, y: 55 }, { x: 86, y: 82 }],
+  output: [{ x: 116, y: 41 }, { x: 116, y: 70 }],
+};
+
+/* All directed edges */
+const NN_EDGES: Array<{ x1: number; y1: number; x2: number; y2: number; delay: string }> = [];
+const delays = ['0s','0.15s','0.3s','0.45s','0.6s','0.75s','0.9s','1.05s','1.2s','1.35s','1.5s','1.65s','1.8s','1.95s','2.1s','2.25s','2.4s','2.55s','2.7s','2.85s','3.0s','3.15s','3.3s','3.45s'];
+let edgeIdx = 0;
+NN_NODES.input.forEach(a => NN_NODES.h1.forEach(b => {
+  NN_EDGES.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, delay: delays[edgeIdx++ % delays.length] });
+}));
+NN_NODES.h1.forEach(a => NN_NODES.h2.forEach(b => {
+  NN_EDGES.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, delay: delays[edgeIdx++ % delays.length] });
+}));
+NN_NODES.h2.forEach(a => NN_NODES.output.forEach(b => {
+  NN_EDGES.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, delay: delays[edgeIdx++ % delays.length] });
+}));
+
+/* Predefined data-packet positions along the left & right tubes */
+const LEFT_PACKETS = [
+  { dur: '2.0s', delay: '0.0s' },
+  { dur: '2.0s', delay: '0.7s' },
+  { dur: '2.0s', delay: '1.4s' },
+];
+const RIGHT_PACKETS = [
+  { dur: '2.2s', delay: '0.3s' },
+  { dur: '2.2s', delay: '1.1s' },
+  { dur: '2.2s', delay: '1.9s' },
+];
 
 export function OrbitalGrid() {
   return (
-    <div className="relative w-full h-[520px] bg-[#020817] rounded-xl border border-white/10 overflow-hidden flex items-center justify-center font-sans">
-      {/* Dynamic Background */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(56,189,248,0.05)_0%,rgba(2,8,23,0)_70%)]" />
-      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgoJPHJlY3Qgd2lkdGg9IjQiIGhlaWdodD0iNCIgZmlsbD0iI2ZmZmZmZiIgZmlsbC1vcGFjaXR5PSIwLjAyIi8+Cjwvc3ZnPg==')] opacity-50" />
+    <div className="relative w-full h-[520px] bg-[#020817] rounded-xl border border-white/10 overflow-hidden font-sans">
 
-      {/* Internal Styles for keyframes */}
-      <style dangerouslySetInnerHTML={{__html: `
-        @keyframes orbit-rotate {
+      {/* ── CSS keyframes ── */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes og-orbit {
           from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
+          to   { transform: rotate(360deg); }
         }
-        @keyframes counter-rotate {
+        @keyframes og-counter {
           from { transform: rotate(0deg); }
-          to { transform: rotate(-360deg); }
+          to   { transform: rotate(-360deg); }
         }
-        @keyframes dash-flow {
-          to { stroke-dashoffset: -100; }
+        @keyframes og-packet-left {
+          0%   { offset-distance: 0%;   opacity: 0; }
+          5%   { opacity: 1; }
+          90%  { opacity: 1; }
+          100% { offset-distance: 100%; opacity: 0; }
         }
-        @keyframes pulse-ring {
-          0% { transform: scale(0.95); opacity: 0.5; }
-          50% { transform: scale(1.05); opacity: 0.8; }
-          100% { transform: scale(0.95); opacity: 0.5; }
+        @keyframes og-packet-right {
+          0%   { offset-distance: 0%;   opacity: 0; }
+          5%   { opacity: 1; }
+          90%  { opacity: 1; }
+          100% { offset-distance: 100%; opacity: 0; }
         }
-        @keyframes fill-bar {
-          0% { width: 0%; }
-          100% { width: var(--target-width); }
+        @keyframes og-pulse-core {
+          0%,100% { opacity: 0.4; transform: scale(0.97); }
+          50%     { opacity: 0.9; transform: scale(1.03); }
         }
-        .orbit-container {
+        @keyframes og-nn-signal {
+          0%,40% { stroke-dashoffset: 60;  opacity: 0;   }
+          50%    { opacity: 0.9; }
+          100%   { stroke-dashoffset: 0;   opacity: 0; }
+        }
+        @keyframes og-node-pulse {
+          0%,100% { r: 4;   opacity: 0.6; }
+          50%     { r: 5.5; opacity: 1;   }
+        }
+        @keyframes og-fill-bar {
+          0%   { width: 0%; }
+          100% { width: var(--tw, 100%); }
+        }
+        @keyframes og-float {
+          0%,100% { transform: translateY(0px); }
+          50%     { transform: translateY(-6px); }
+        }
+
+        .og-orbit-1  { animation: og-orbit   28s linear infinite; }
+        .og-orbit-2  { animation: og-orbit   42s linear infinite reverse; }
+        .og-node-1   { animation: og-counter 28s linear infinite; }
+        .og-node-2   { animation: og-counter 42s linear infinite reverse; }
+        .og-pulse    { animation: og-pulse-core 3s ease-in-out infinite; }
+        .og-float    { animation: og-float 6s ease-in-out infinite; }
+
+        /* Motion path packets */
+        .og-pkt-left {
+          offset-path: path('M 155 260 C 260 260 340 260 400 260');
+          width: 10px; height: 10px;
+          border-radius: 50%;
+          background: #38bdf8;
+          box-shadow: 0 0 8px 3px rgba(56,189,248,0.7);
           position: absolute;
-          top: 50%;
-          left: 50%;
-          width: 0;
-          height: 0;
+          animation: og-packet-left var(--dur,2s) linear var(--del,0s) infinite;
         }
-        .orbit-ring-1 {
-          animation: orbit-rotate 30s linear infinite;
-        }
-        .orbit-ring-2 {
-          animation: orbit-rotate 45s linear infinite reverse;
-        }
-        .orbit-node {
+        .og-pkt-right {
+          offset-path: path('M 600 260 C 660 260 740 260 830 260');
+          width: 10px; height: 10px;
+          border-radius: 50%;
+          background: #a78bfa;
+          box-shadow: 0 0 8px 3px rgba(167,139,250,0.7);
           position: absolute;
-          /* The negative margin centers the node on the orbit path */
-          margin-top: -24px;
-          margin-left: -24px;
-          width: 48px;
-          height: 48px;
-          animation: counter-rotate 30s linear infinite;
+          animation: og-packet-right var(--dur,2.2s) linear var(--del,0s) infinite;
         }
-        .orbit-node-reverse {
-          animation: counter-rotate 45s linear infinite reverse;
+
+        /* NN edge signal */
+        .og-nn-edge {
+          fill: none;
+          stroke: #818cf8;
+          stroke-width: 1;
+          stroke-dasharray: 60;
+          stroke-dashoffset: 60;
+          animation: og-nn-signal 1.8s ease-in-out var(--ed,0s) infinite;
         }
-        .path-line {
-          stroke-dasharray: 6 6;
-          animation: dash-flow 2s linear infinite;
+        .og-nn-base {
+          fill: none;
+          stroke: rgba(99,102,241,0.12);
+          stroke-width: 0.8;
         }
-        .pulse-core {
-          animation: pulse-ring 3s ease-in-out infinite;
-        }
-        .progress-bar-fill {
-          animation: fill-bar 2s ease-out forwards;
+
+        .og-bar-fill {
+          animation: og-fill-bar 2.5s ease-out var(--bd,0s) forwards;
         }
       `}} />
 
-      {/* SVG Connections */}
-      <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 1 }}>
+      {/* ── Background radial glow ── */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_50%,rgba(56,189,248,0.06)_0%,transparent_70%)]" />
+
+      {/* ── Main SVG (tubes + orbit rings) ── */}
+      <svg className="absolute inset-0 w-full h-full pointer-events-none z-0" viewBox="0 0 990 520" preserveAspectRatio="xMidYMid meet">
         <defs>
-          <linearGradient id="glow-line" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.2" />
-            <stop offset="50%" stopColor="#38bdf8" stopOpacity="0.8" />
-            <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.2" />
+          {/* Left tube gradient: sky */}
+          <linearGradient id="og-grad-left" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%"   stopColor="#38bdf8" stopOpacity="0.05" />
+            <stop offset="50%"  stopColor="#38bdf8" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.05" />
           </linearGradient>
-          <filter id="glow-blur">
-            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-            <feMerge>
-              <feMergeNode in="coloredBlur"/>
-              <feMergeNode in="SourceGraphic"/>
-            </feMerge>
+          {/* Right tube gradient: violet */}
+          <linearGradient id="og-grad-right" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%"   stopColor="#a78bfa" stopOpacity="0.05" />
+            <stop offset="50%"  stopColor="#a78bfa" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="#a78bfa" stopOpacity="0.05" />
+          </linearGradient>
+          <filter id="og-glow">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+          <filter id="og-glow-strong">
+            <feGaussianBlur stdDeviation="6" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
           </filter>
         </defs>
 
-        {/* Path: Empresa -> AI */}
-        <path 
-          d="M 150 290 Q 250 290 350 290" 
-          fill="none" 
-          stroke="url(#glow-line)" 
-          strokeWidth="2" 
-          className="path-line"
-          filter="url(#glow-blur)"
-        />
+        {/* Left tube: Empresa → Core */}
+        <path d="M 155 260 C 260 260 340 260 400 260"
+          stroke="url(#og-grad-left)" strokeWidth="2" fill="none" filter="url(#og-glow)" />
+        {/* Direction arrow tip */}
+        <polygon points="398,255 410,260 398,265" fill="#38bdf8" opacity="0.5" />
 
-        {/* Path: AI -> Plano */}
-        <path 
-          d="M 650 290 Q 750 290 850 290" 
-          fill="none" 
-          stroke="url(#glow-line)" 
-          strokeWidth="2" 
-          className="path-line"
-          filter="url(#glow-blur)"
-        />
-        
-        {/* Decorative Orbit Rings in SVG */}
-        <circle cx="500" cy="290" r="140" fill="none" stroke="#ffffff" strokeOpacity="0.05" strokeWidth="1" />
-        <circle cx="500" cy="290" r="200" fill="none" stroke="#ffffff" strokeOpacity="0.03" strokeWidth="1" strokeDasharray="4 8" />
+        {/* Right tube: Core → Plano */}
+        <path d="M 590 260 C 650 260 730 260 835 260"
+          stroke="url(#og-grad-right)" strokeWidth="2" fill="none" filter="url(#og-glow)" />
+        <polygon points="833,255 845,260 833,265" fill="#a78bfa" opacity="0.5" />
+
+        {/* Orbit rings */}
+        <circle cx="495" cy="260" r="132" fill="none" stroke="rgba(99,102,241,0.08)" strokeWidth="1" strokeDasharray="4 8" />
+        <circle cx="495" cy="260" r="185" fill="none" stroke="rgba(99,102,241,0.05)" strokeWidth="1" />
       </svg>
 
-      {/* Main Grid Layout */}
-      <div className="relative z-10 w-full max-w-[1000px] flex items-center justify-between px-10">
-        
-        {/* LEFT: Empresa Node */}
-        <div className="flex flex-col items-center gap-4 w-[140px]">
+      {/* ── Animated data packets (motion-path) ── */}
+      {LEFT_PACKETS.map((p, i) => (
+        <div key={i} className="og-pkt-left" style={{ '--dur': p.dur, '--del': p.delay } as React.CSSProperties} />
+      ))}
+      {RIGHT_PACKETS.map((p, i) => (
+        <div key={i} className="og-pkt-right" style={{ '--dur': p.dur, '--del': p.delay } as React.CSSProperties} />
+      ))}
+
+      {/* ── Layout: Left | Center | Right ── */}
+      <div className="relative z-10 w-full h-full flex items-center justify-between px-8">
+
+        {/* ─── LEFT: Empresa ─── */}
+        <div className="flex flex-col items-center gap-3 w-[138px] og-float">
           <div className="relative">
-            <div className="absolute inset-0 bg-sky-500/20 rounded-2xl blur-xl pulse-core" />
-            <div className="relative w-20 h-20 bg-[#0f172a] border border-sky-500/30 rounded-2xl flex items-center justify-center shadow-[0_0_15px_rgba(56,189,248,0.2)]">
-              <Building2 className="w-8 h-8 text-sky-400" />
+            {/* glow halo */}
+            <div className="absolute inset-0 rounded-2xl bg-sky-500/15 blur-xl og-pulse" />
+            <div className="relative w-20 h-20 bg-[#0c1627] border border-sky-500/30 rounded-2xl flex items-center justify-center shadow-[0_0_20px_rgba(56,189,248,0.18)]">
+              <Building2 className="w-9 h-9 text-sky-400" />
             </div>
-            
-            {/* Small data particles */}
-            <div className="absolute -right-3 top-1/2 w-2 h-2 bg-sky-400 rounded-full animate-ping" />
+            {/* Outgoing ping dot */}
+            <div className="absolute top-1/2 -right-2.5 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-sky-400 animate-ping" style={{ animationDuration: '1.4s' }} />
           </div>
           <div className="text-center">
-            <h3 className="text-white font-medium text-sm">Perfil da Empresa</h3>
-            <p className="text-slate-400 text-xs mt-1">Dados & Contexto</p>
+            <p className="text-white font-semibold text-sm leading-tight">Perfil da<br />Empresa</p>
+            <p className="text-sky-400/60 text-[10px] font-mono mt-1 uppercase tracking-wider">→ dados</p>
           </div>
+          {/* Mini data chips */}
+          {['Missão','Mercado','Finanças'].map((label, i) => (
+            <div
+              key={i}
+              className="w-full flex items-center gap-1.5 bg-sky-500/5 border border-sky-500/15 rounded-lg px-2.5 py-1.5"
+              style={{ opacity: 0.7 + i * 0.1 }}
+            >
+              <div className="w-1 h-1 rounded-full bg-sky-400 animate-pulse" style={{ animationDelay: `${i * 0.3}s` }} />
+              <span className="text-sky-300/80 text-[10px]">{label}</span>
+            </div>
+          ))}
         </div>
 
-        {/* CENTER: AI Nucleus & Orbits */}
-        <div className="relative w-[300px] h-[300px] flex items-center justify-center">
-          
-          {/* Inner Core */}
-          <div className="relative z-20 flex flex-col items-center">
-            <div className="absolute inset-0 bg-indigo-500/20 rounded-full blur-2xl pulse-core" />
-            
-            {/* AI Brain Element */}
-            <div className="relative w-28 h-28 rounded-full border border-indigo-500/50 bg-[#0a0f24] flex items-center justify-center shadow-[0_0_30px_rgba(99,102,241,0.3)]">
-              <div className="absolute inset-1 rounded-full border border-indigo-400/20 border-dashed animate-spin-slow" style={{ animationDuration: '20s' }} />
-              <BrainCircuit className="w-12 h-12 text-indigo-400 drop-shadow-[0_0_8px_rgba(99,102,241,0.8)]" />
-              <Cpu className="absolute bottom-2 right-2 w-5 h-5 text-sky-300 opacity-70" />
+        {/* ─── CENTER: Núcleo IA + Orbits ─── */}
+        <div className="relative flex items-center justify-center" style={{ width: 370, height: 370 }}>
+
+          {/* Orbit ring 1 */}
+          <div className="og-orbit-1 absolute" style={{ width: 264, height: 264, top: '50%', left: '50%', marginTop: -132, marginLeft: -132 }}>
+            {[
+              { label: 'SWOT', Icon: Target,   color: 'text-sky-400',     ang: 0   },
+              { label: 'Cenário', Icon: Globe,  color: 'text-indigo-400',  ang: 120 },
+              { label: 'Mercado', Icon: BarChart3, color: 'text-emerald-400', ang: 240 },
+            ].map(({ label, Icon, color, ang }) => {
+              const rad = (ang * Math.PI) / 180;
+              const r = 132;
+              const x = r + r * Math.cos(rad) - 24;
+              const y = r + r * Math.sin(rad) - 24;
+              return (
+                <div key={label} className="absolute" style={{ left: x, top: y, width: 48, height: 48 }}>
+                  <div className="og-node-1 w-full h-full flex items-center justify-center">
+                    <div className={`w-11 h-11 rounded-full bg-[#111827] border border-white/10 flex flex-col items-center justify-center shadow-lg gap-0.5`}>
+                      <Icon className={`w-4 h-4 ${color}`} />
+                      <span className="text-[7px] text-slate-400 font-medium leading-none">{label}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Orbit ring 2 */}
+          <div className="og-orbit-2 absolute" style={{ width: 370, height: 370, top: '50%', left: '50%', marginTop: -185, marginLeft: -185 }}>
+            {[
+              { label: 'Negócio', Icon: Briefcase,  color: 'text-fuchsia-400', ang: 60  },
+              { label: 'Estratégia', Icon: Zap,     color: 'text-amber-400',   ang: 180 },
+              { label: 'Crescimento', Icon: TrendingUp, color: 'text-rose-400', ang: 300 },
+            ].map(({ label, Icon, color, ang }) => {
+              const rad = (ang * Math.PI) / 180;
+              const r = 185;
+              const x = r + r * Math.cos(rad) - 24;
+              const y = r + r * Math.sin(rad) - 24;
+              return (
+                <div key={label} className="absolute" style={{ left: x, top: y, width: 48, height: 48 }}>
+                  <div className="og-node-2 w-full h-full flex items-center justify-center">
+                    <div className={`w-11 h-11 rounded-full bg-[#111827] border border-white/10 flex flex-col items-center justify-center shadow-lg gap-0.5`}>
+                      <Icon className={`w-4 h-4 ${color}`} />
+                      <span className="text-[7px] text-slate-400 font-medium leading-none">{label}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* ── Core: neural network ── */}
+          <div className="relative z-20 flex flex-col items-center" style={{ width: 148, height: 148 }}>
+            {/* Glow halo */}
+            <div className="absolute inset-0 rounded-full bg-indigo-500/20 blur-2xl og-pulse" />
+
+            {/* Circle border */}
+            <div className="relative w-[148px] h-[148px] rounded-full border border-indigo-500/40 bg-[#07091f] shadow-[0_0_40px_rgba(99,102,241,0.3)] flex items-center justify-center overflow-hidden">
+
+              {/* Neural network SVG */}
+              <svg
+                viewBox="0 0 130 110"
+                className="w-full h-full"
+                style={{ padding: '14px' }}
+              >
+                {/* Base edges (static, dim) */}
+                {NN_EDGES.map((e, i) => (
+                  <line key={`b${i}`} className="og-nn-base" x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} />
+                ))}
+
+                {/* Animated signal edges */}
+                {NN_EDGES.map((e, i) => (
+                  <line
+                    key={`s${i}`}
+                    className="og-nn-edge"
+                    x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2}
+                    style={{ '--ed': e.delay } as React.CSSProperties}
+                  />
+                ))}
+
+                {/* Input nodes (sky) */}
+                {NN_NODES.input.map((n, i) => (
+                  <circle key={`in${i}`} cx={n.x} cy={n.y} r="4.5"
+                    fill="#38bdf8" opacity="0.8"
+                    style={{ animation: `og-node-pulse 2s ease-in-out ${i * 0.4}s infinite` }}
+                  />
+                ))}
+
+                {/* Hidden layer 1 (indigo) */}
+                {NN_NODES.h1.map((n, i) => (
+                  <circle key={`h1${i}`} cx={n.x} cy={n.y} r="4"
+                    fill="#818cf8" opacity="0.75"
+                    style={{ animation: `og-node-pulse 2s ease-in-out ${0.2 + i * 0.3}s infinite` }}
+                  />
+                ))}
+
+                {/* Hidden layer 2 (indigo lighter) */}
+                {NN_NODES.h2.map((n, i) => (
+                  <circle key={`h2${i}`} cx={n.x} cy={n.y} r="4"
+                    fill="#a5b4fc" opacity="0.75"
+                    style={{ animation: `og-node-pulse 2s ease-in-out ${0.4 + i * 0.35}s infinite` }}
+                  />
+                ))}
+
+                {/* Output nodes (violet) */}
+                {NN_NODES.output.map((n, i) => (
+                  <circle key={`out${i}`} cx={n.x} cy={n.y} r="5"
+                    fill="#c084fc" opacity="0.9"
+                    style={{ animation: `og-node-pulse 2s ease-in-out ${0.6 + i * 0.5}s infinite` }}
+                  />
+                ))}
+              </svg>
+
+              {/* Scanning line */}
+              <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(99,102,241,0.12) 50%, transparent 100%)', animation: 'og-pulse-core 2.5s ease-in-out infinite' }} />
             </div>
-            <div className="mt-4 text-center">
-              <h2 className="text-white font-bold tracking-wider text-sm uppercase drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]">Núcleo IA</h2>
-              <div className="flex items-center gap-1 justify-center mt-1">
+
+            {/* Label */}
+            <div className="mt-3 text-center">
+              <p className="text-white font-bold text-sm tracking-wider">Núcleo IA</p>
+              <div className="flex items-center justify-center gap-1 mt-0.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-emerald-400/80 text-[10px] uppercase font-mono tracking-wider">Processando</span>
+                <span className="text-emerald-400/80 text-[9px] font-mono uppercase tracking-widest">processando</span>
               </div>
             </div>
-          </div>
-
-          {/* Orbiting Elements */}
-          <div className="orbit-container">
-            {/* Ring 1 (140px radius) */}
-            <div className="absolute inset-0 orbit-ring-1">
-              
-              {/* Node 1: SWOT */}
-              <div className="orbit-node flex flex-col items-center" style={{ transform: 'translate(140px, 0)' }}>
-                <div className="w-12 h-12 rounded-full bg-[#111827] border border-white/10 flex items-center justify-center shadow-lg backdrop-blur-sm group hover:border-sky-400/50 transition-colors">
-                  <Target className="w-5 h-5 text-sky-400" />
-                </div>
-                <span className="absolute top-14 text-[10px] text-slate-300 font-medium whitespace-nowrap bg-[#020817]/80 px-2 py-0.5 rounded">Análise SWOT</span>
-              </div>
-
-              {/* Node 2: PESTEL / Cenário */}
-              <div className="orbit-node flex flex-col items-center" style={{ transform: 'translate(-70px, 121.2px)' }}>
-                <div className="w-12 h-12 rounded-full bg-[#111827] border border-white/10 flex items-center justify-center shadow-lg backdrop-blur-sm">
-                  <Globe className="w-5 h-5 text-indigo-400" />
-                </div>
-                <span className="absolute top-14 text-[10px] text-slate-300 font-medium whitespace-nowrap bg-[#020817]/80 px-2 py-0.5 rounded">Cenário Externo</span>
-              </div>
-
-              {/* Node 3: Mercado */}
-              <div className="orbit-node flex flex-col items-center" style={{ transform: 'translate(-70px, -121.2px)' }}>
-                <div className="w-12 h-12 rounded-full bg-[#111827] border border-white/10 flex items-center justify-center shadow-lg backdrop-blur-sm">
-                  <BarChart3 className="w-5 h-5 text-emerald-400" />
-                </div>
-                <span className="absolute top-14 text-[10px] text-slate-300 font-medium whitespace-nowrap bg-[#020817]/80 px-2 py-0.5 rounded">Mercado</span>
-              </div>
-
-            </div>
-            
-            {/* Ring 2 (200px radius, counter-rotating) */}
-            <div className="absolute inset-0 orbit-ring-2">
-              
-              {/* Node 4: Modelo Negócio */}
-              <div className="orbit-node-reverse orbit-node flex flex-col items-center" style={{ transform: 'translate(0, -200px)' }}>
-                <div className="w-12 h-12 rounded-full bg-[#111827] border border-white/10 flex items-center justify-center shadow-lg backdrop-blur-sm">
-                  <Briefcase className="w-5 h-5 text-fuchsia-400" />
-                </div>
-                <span className="absolute top-14 text-[10px] text-slate-300 font-medium whitespace-nowrap bg-[#020817]/80 px-2 py-0.5 rounded">Modelo de Negócio</span>
-              </div>
-
-              {/* Node 5: Estratégias */}
-              <div className="orbit-node-reverse orbit-node flex flex-col items-center" style={{ transform: 'translate(0, 200px)' }}>
-                <div className="w-12 h-12 rounded-full bg-[#111827] border border-white/10 flex items-center justify-center shadow-lg backdrop-blur-sm">
-                  <Zap className="w-5 h-5 text-amber-400" />
-                </div>
-                <span className="absolute top-14 text-[10px] text-slate-300 font-medium whitespace-nowrap bg-[#020817]/80 px-2 py-0.5 rounded">Estratégias</span>
-              </div>
-            </div>
-
           </div>
         </div>
 
-        {/* RIGHT: Plano Estratégico Card */}
-        <div className="w-[220px] relative">
-          <div className="absolute inset-0 bg-emerald-500/10 rounded-xl blur-xl pulse-core" style={{ animationDelay: '1s' }} />
-          
-          <div className="relative bg-[#0a0f1e]/90 border border-emerald-500/30 rounded-xl p-5 shadow-[0_0_20px_rgba(16,185,129,0.15)] backdrop-blur-md">
-            
-            <div className="flex items-center gap-3 mb-4 border-b border-white/5 pb-3">
-              <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-                <FileText className="w-5 h-5 text-emerald-400" />
+        {/* ─── RIGHT: Plano Estratégico ─── */}
+        <div className="w-[175px] relative og-float" style={{ animationDelay: '1.5s' }}>
+          <div className="absolute inset-0 rounded-xl bg-violet-500/10 blur-xl og-pulse" style={{ animationDelay: '0.8s' } as React.CSSProperties} />
+          <div className="relative bg-[#0a0e1e]/90 border border-violet-500/30 rounded-xl p-4 shadow-[0_0_25px_rgba(139,92,246,0.15)] backdrop-blur-md">
+
+            {/* Header */}
+            <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-white/5">
+              <div className="w-9 h-9 rounded-lg bg-violet-500/20 border border-violet-500/30 flex items-center justify-center shrink-0">
+                <FileText className="w-4 h-4 text-violet-300" />
               </div>
               <div>
-                <h3 className="text-white font-medium text-sm leading-tight">Plano<br/>Estratégico</h3>
+                <p className="text-white font-semibold text-xs leading-tight">Plano<br />Estratégico</p>
+                <p className="text-violet-400/60 text-[9px] font-mono mt-0.5 uppercase">Gerado por IA</p>
               </div>
             </div>
 
-            <div className="space-y-3">
-              {/* Fake Progress Rows */}
-              <div className="space-y-1.5">
+            {/* Progress bars */}
+            {[
+              { label: 'Diretrizes', pct: '100%', delay: '0s',   done: true  },
+              { label: 'Metas OKR',  pct: '82%',  delay: '0.5s', done: true  },
+              { label: 'Ações',      pct: '45%',  delay: '1.0s', done: false },
+            ].map(({ label, pct, delay, done }) => (
+              <div key={label} className="space-y-1 mb-2.5">
                 <div className="flex justify-between items-center">
-                  <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Diretrizes
+                  <span className="text-[9px] text-slate-400 flex items-center gap-1">
+                    <CheckCircle2 className={`w-2.5 h-2.5 ${done ? 'text-emerald-400' : 'text-slate-600'}`} />
+                    {label}
                   </span>
-                  <span className="text-[10px] text-white">100%</span>
+                  <span className="text-[9px] text-white font-mono">{pct}</span>
                 </div>
-                <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-400 rounded-full progress-bar-fill" style={{ '--target-width': '100%' } as React.CSSProperties} />
+                <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-indigo-500 to-violet-400 rounded-full og-bar-fill"
+                    style={{ '--tw': pct, '--bd': delay } as React.CSSProperties}
+                  />
                 </div>
               </div>
+            ))}
 
-              <div className="space-y-1.5">
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Metas (OKRs)
-                  </span>
-                  <span className="text-[10px] text-white">85%</span>
-                </div>
-                <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-400 rounded-full progress-bar-fill" style={{ '--target-width': '85%', animationDelay: '0.5s' } as React.CSSProperties} />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                    <div className="w-3 h-3 rounded-full border border-slate-500" /> Ações
-                  </span>
-                  <span className="text-[10px] text-white">40%</span>
-                </div>
-                <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-400 rounded-full progress-bar-fill" style={{ '--target-width': '40%', animationDelay: '1s' } as React.CSSProperties} />
-                </div>
-              </div>
-            </div>
-
-            <button className="w-full mt-5 py-2 rounded bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-white font-medium transition-colors">
+            {/* CTA */}
+            <button className="w-full mt-3 py-1.5 rounded-lg bg-violet-500/10 border border-violet-500/20 text-[10px] text-violet-300 font-medium tracking-wide hover:bg-violet-500/20 transition-colors">
               Visualizar Plano
             </button>
           </div>

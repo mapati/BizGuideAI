@@ -44,6 +44,7 @@ import ResetPassword from "@/pages/ResetPassword";
 import NotFound from "@/pages/not-found";
 
 const PUBLIC_ROUTES = ["/", "/login", "/register", "/trial-expirado", "/verify-email", "/forgot-password", "/reset-password"];
+const PUBLIC_PREFIXES = ["/plano-publico/"];
 
 function TrialBanner({ diasRestantes }: { diasRestantes: number }) {
   if (diasRestantes > 3) return null;
@@ -108,7 +109,7 @@ function AppLayout() {
     );
   }
 
-  const isPublic = PUBLIC_ROUTES.includes(location);
+  const isPublic = PUBLIC_ROUTES.includes(location) || PUBLIC_PREFIXES.some((p) => location.startsWith(p));
 
   if (!user && !isPublic) {
     return <Redirect to="/" />;
@@ -118,7 +119,7 @@ function AppLayout() {
     return <Redirect to="/dashboard" />;
   }
 
-  const rotasPublicasApp = ["/onboarding", "/trial-expirado"];
+  const rotasPublicasApp = ["/onboarding", "/trial-expirado", "/plano-publico/"];
   const naRotaRestrita = !rotasPublicasApp.some((r) => location.startsWith(r));
   const isAdminRoute = location.startsWith("/admin");
   const semEmpresa = !loadingEmpresa && !empresaQuery;

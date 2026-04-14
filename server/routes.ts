@@ -4442,8 +4442,16 @@ Seja específico para o setor ${empresa.setor}.`,
   });
   app.post("/api/compartilhamentos", requireAuth, async (req, res) => {
     try {
-      const data = insertCompartilhamentoSchema.parse({ ...req.body, empresaId: req.session.empresaId, criadoPor: req.session.userEmail });
-      res.status(201).json(await storage.createCompartilhamento(data));
+      const { tipo } = z.object({ tipo: z.string().optional().default("completo") }).parse(req.body);
+      const usuario = await storage.getUsuarioById(req.session.userId!);
+      const comp = await storage.createCompartilhamento({
+        empresaId: req.session.empresaId!,
+        tipo,
+        token: "",
+        ativo: true,
+        criadoPor: usuario?.nome ?? null,
+      });
+      res.status(201).json(comp);
     } catch (e: any) { res.status(400).json({ error: e.message }); }
   });
   app.delete("/api/compartilhamentos/:id", requireAuth, async (req, res) => {

@@ -13,7 +13,7 @@ const NN_NODES = {
   output: [{ x: 116, y: 41 }, { x: 116, y: 70 }],
 };
 
-const delays = [
+const NN_EDGE_DELAYS = [
   "0s","0.15s","0.3s","0.45s","0.6s","0.75s","0.9s","1.05s",
   "1.2s","1.35s","1.5s","1.65s","1.8s","1.95s","2.1s","2.25s",
   "2.4s","2.55s","2.7s","2.85s","3.0s","3.15s","3.3s","3.45s",
@@ -21,17 +21,14 @@ const delays = [
 const NN_EDGES: Array<{ x1: number; y1: number; x2: number; y2: number; delay: string }> = [];
 let edgeIdx = 0;
 NN_NODES.input.forEach(a => NN_NODES.h1.forEach(b => {
-  NN_EDGES.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, delay: delays[edgeIdx++ % delays.length] });
+  NN_EDGES.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, delay: NN_EDGE_DELAYS[edgeIdx++ % NN_EDGE_DELAYS.length] });
 }));
 NN_NODES.h1.forEach(a => NN_NODES.h2.forEach(b => {
-  NN_EDGES.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, delay: delays[edgeIdx++ % delays.length] });
+  NN_EDGES.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, delay: NN_EDGE_DELAYS[edgeIdx++ % NN_EDGE_DELAYS.length] });
 }));
 NN_NODES.h2.forEach(a => NN_NODES.output.forEach(b => {
-  NN_EDGES.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, delay: delays[edgeIdx++ % delays.length] });
+  NN_EDGES.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, delay: NN_EDGE_DELAYS[edgeIdx++ % NN_EDGE_DELAYS.length] });
 }));
-
-const LEFT_PACKETS  = [{ dur: "2.0s", delay: "0.0s" }, { dur: "2.0s", delay: "0.7s" }, { dur: "2.0s", delay: "1.4s" }];
-const RIGHT_PACKETS = [{ dur: "2.2s", delay: "0.3s" }, { dur: "2.2s", delay: "1.1s" }, { dur: "2.2s", delay: "1.9s" }];
 
 const PLAN_ROWS = [
   { label: "Diretrizes", pct: "100%", delay: "0s",   done: true  },
@@ -39,30 +36,38 @@ const PLAN_ROWS = [
   { label: "Ações",      pct: "45%",  delay: "1.0s", done: false },
 ];
 
-/* Height & vertical center for this component */
-const H = 380;
-const CY = H / 2; // 190
+/*
+ * SVG coordinate space: viewBox "0 0 990 380"
+ *
+ * The 4 chip paths in SVG coordinates — each chip exits the right edge of the
+ * left panel (SVG x≈190) at its own y and curves smoothly into the core (495,190).
+ * Right edge of left panel: px-8(32) + w-[138px] ≈ CSS 170 → SVG x≈190
+ * Chip y centers (CSS→SVG, scale≈0.905, vOffset≈18):
+ *   chip1 CSS≈200 → SVG≈201   chip3 CSS≈280 → SVG≈289
+ *   chip2 CSS≈240 → SVG≈245   chip4 CSS≈320 → SVG≈334
+ */
+const CHIP_PATHS = [
+  "M 190 201 C 340 201 440 190 495 190",
+  "M 190 245 C 340 245 440 190 495 190",
+  "M 190 289 C 340 289 440 190 495 190",
+  "M 190 334 C 340 334 440 190 495 190",
+];
+
+/* Two packets per chip lane — offset by half the cycle duration (2.6s) */
+const LEFT_PACKET_OFFSETS = ["0s", "1.3s"];
+
+/* Three packets from core → plan, starting after ~1s processing delay */
+const RIGHT_PACKET_OFFSETS = ["1.0s", "1.87s", "2.73s"];
+const RIGHT_PATH = "M 495 190 C 650 190 740 190 840 190";
 
 export function HeroDiagramaIA() {
   return (
-    <div className="relative w-full bg-[#020817] rounded-xl border border-white/10 overflow-hidden font-sans" style={{ height: H }}>
+    <div className="relative w-full bg-[#020817] rounded-xl border border-white/10 overflow-hidden font-sans" style={{ height: 380 }}>
 
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes og-pulse-core {
           0%,100% { opacity: 0.4; transform: scale(0.97); }
           50%     { opacity: 0.9; transform: scale(1.03); }
-        }
-        @keyframes og-packet-left {
-          0%   { offset-distance: 0%;   opacity: 0; }
-          5%   { opacity: 1; }
-          90%  { opacity: 1; }
-          100% { offset-distance: 100%; opacity: 0; }
-        }
-        @keyframes og-packet-right {
-          0%   { offset-distance: 0%;   opacity: 0; }
-          5%   { opacity: 1; }
-          90%  { opacity: 1; }
-          100% { offset-distance: 100%; opacity: 0; }
         }
         @keyframes og-nn-signal {
           0%,40% { stroke-dashoffset: 60; opacity: 0; }
@@ -85,25 +90,6 @@ export function HeroDiagramaIA() {
         .og-pulse { animation: og-pulse-core 3s ease-in-out infinite; }
         .og-float { animation: og-float 6s ease-in-out infinite; }
 
-        .og-pkt-left {
-          offset-path: path('M 155 ${CY} C 260 ${CY} 340 ${CY} 400 ${CY}');
-          width: 10px; height: 10px;
-          border-radius: 50%;
-          background: #38bdf8;
-          box-shadow: 0 0 8px 3px rgba(56,189,248,0.7);
-          position: absolute;
-          animation: og-packet-left var(--dur,2s) linear var(--del,0s) infinite;
-        }
-        .og-pkt-right {
-          offset-path: path('M 600 ${CY} C 660 ${CY} 740 ${CY} 830 ${CY}');
-          width: 10px; height: 10px;
-          border-radius: 50%;
-          background: #a78bfa;
-          box-shadow: 0 0 8px 3px rgba(167,139,250,0.7);
-          position: absolute;
-          animation: og-packet-right var(--dur,2.2s) linear var(--del,0s) infinite;
-        }
-
         .og-nn-edge {
           fill: none;
           stroke: #818cf8;
@@ -125,47 +111,80 @@ export function HeroDiagramaIA() {
       {/* Radial background glow */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_50%,rgba(56,189,248,0.06)_0%,transparent_70%)]" />
 
-      {/* Main SVG — tubes only */}
+      {/* ── Main SVG ── paths + particles */}
       <svg
         className="absolute inset-0 w-full h-full pointer-events-none z-0"
-        viewBox={`0 0 990 ${H}`}
+        viewBox="0 0 990 380"
         preserveAspectRatio="xMidYMid meet"
       >
         <defs>
-          <linearGradient id="og-grad-left" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%"   stopColor="#38bdf8" stopOpacity="0.05" />
-            <stop offset="50%"  stopColor="#38bdf8" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.05" />
+          {/* Per-path gradients for left chip lanes */}
+          {CHIP_PATHS.map((_, i) => (
+            <linearGradient key={i} id={`og-chip-grad-${i}`} gradientUnits="userSpaceOnUse"
+              x1="190" y1="0" x2="495" y2="0">
+              <stop offset="0%"   stopColor="#38bdf8" stopOpacity="0.04" />
+              <stop offset="60%"  stopColor="#38bdf8" stopOpacity="0.22" />
+              <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.04" />
+            </linearGradient>
+          ))}
+          <linearGradient id="og-grad-right" gradientUnits="userSpaceOnUse" x1="495" y1="190" x2="840" y2="190">
+            <stop offset="0%"   stopColor="#a78bfa" stopOpacity="0.04" />
+            <stop offset="55%"  stopColor="#a78bfa" stopOpacity="0.30" />
+            <stop offset="100%" stopColor="#a78bfa" stopOpacity="0.04" />
           </linearGradient>
-          <linearGradient id="og-grad-right" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%"   stopColor="#a78bfa" stopOpacity="0.05" />
-            <stop offset="50%"  stopColor="#a78bfa" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#a78bfa" stopOpacity="0.05" />
-          </linearGradient>
-          <filter id="og-glow">
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+
+          {/* Glow filters */}
+          <filter id="og-glow-sm" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="2.5" result="b" />
+            <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+          <filter id="og-glow-md" x="-80%" y="-80%" width="260%" height="260%">
+            <feGaussianBlur stdDeviation="4" result="b" />
+            <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
           </filter>
         </defs>
 
-        {/* Left tube: Empresa → Core */}
-        <path d={`M 155 ${CY} C 260 ${CY} 340 ${CY} 400 ${CY}`}
-          stroke="url(#og-grad-left)" strokeWidth="2" fill="none" filter="url(#og-glow)" />
-        <polygon points={`398,${CY - 5} 410,${CY} 398,${CY + 5}`} fill="#38bdf8" opacity="0.5" />
+        {/* ── 4 chip guide paths (subtle) ── */}
+        {CHIP_PATHS.map((d, i) => (
+          <path key={i} d={d} fill="none"
+            stroke={`url(#og-chip-grad-${i})`} strokeWidth="1.2"
+            filter="url(#og-glow-sm)" />
+        ))}
+        {/* Arrow tip at core entry */}
+        <polygon points="492,185 503,190 492,195" fill="#38bdf8" opacity="0.4" />
 
-        {/* Right tube: Core → Plano */}
-        <path d={`M 590 ${CY} C 650 ${CY} 730 ${CY} 835 ${CY}`}
-          stroke="url(#og-grad-right)" strokeWidth="2" fill="none" filter="url(#og-glow)" />
-        <polygon points={`833,${CY - 5} 845,${CY} 833,${CY + 5}`} fill="#a78bfa" opacity="0.5" />
+        {/* ── Right guide path (core → plan) ── */}
+        <path d={RIGHT_PATH} fill="none"
+          stroke="url(#og-grad-right)" strokeWidth="1.5"
+          filter="url(#og-glow-sm)" />
+        <polygon points="837,185 848,190 837,195" fill="#a78bfa" opacity="0.45" />
+
+        {/* ── LEFT PARTICLES: 2 per chip lane × 4 chips = 8 spheres ── */}
+        {CHIP_PATHS.flatMap((chipPath, ci) =>
+          LEFT_PACKET_OFFSETS.map((offset, pi) => (
+            <circle key={`l-${ci}-${pi}`} r="5.5" fill="#38bdf8" opacity="0" filter="url(#og-glow-md)">
+              <animateMotion dur="2.6s" begin={offset} repeatCount="indefinite" calcMode="spline"
+                keySplines="0.4 0 0.6 1" path={chipPath} />
+              <animate attributeName="opacity" dur="2.6s" begin={offset} repeatCount="indefinite"
+                values="0;0;1;1;0.8;0" keyTimes="0;0.04;0.12;0.80;0.92;1" />
+              <animate attributeName="r" dur="2.6s" begin={offset} repeatCount="indefinite"
+                values="3;5.5;5.5;4.5;3" keyTimes="0;0.12;0.80;0.92;1" />
+            </circle>
+          ))
+        )}
+
+        {/* ── RIGHT PARTICLES: 3 spheres from core to plan ── */}
+        {RIGHT_PACKET_OFFSETS.map((offset, i) => (
+          <circle key={`r-${i}`} r="5.5" fill="#a78bfa" opacity="0" filter="url(#og-glow-md)">
+            <animateMotion dur="2.8s" begin={offset} repeatCount="indefinite" calcMode="spline"
+              keySplines="0.4 0 0.6 1" path={RIGHT_PATH} />
+            <animate attributeName="opacity" dur="2.8s" begin={offset} repeatCount="indefinite"
+              values="0;0;1;1;0.8;0" keyTimes="0;0.04;0.12;0.80;0.92;1" />
+            <animate attributeName="r" dur="2.8s" begin={offset} repeatCount="indefinite"
+              values="3;5.5;5.5;4.5;3" keyTimes="0;0.12;0.80;0.92;1" />
+          </circle>
+        ))}
       </svg>
-
-      {/* Animated data packets (CSS motion-path) */}
-      {LEFT_PACKETS.map((p, i) => (
-        <div key={i} className="og-pkt-left" style={{ "--dur": p.dur, "--del": p.delay } as CSSProperties} />
-      ))}
-      {RIGHT_PACKETS.map((p, i) => (
-        <div key={i} className="og-pkt-right" style={{ "--dur": p.dur, "--del": p.delay } as CSSProperties} />
-      ))}
 
       {/* ── Three-column layout ── */}
       <div className="relative z-10 w-full h-full flex items-center justify-between px-8">
@@ -177,7 +196,6 @@ export function HeroDiagramaIA() {
             <div className="relative w-20 h-20 bg-[#0c1627] border border-sky-500/30 rounded-2xl flex items-center justify-center shadow-[0_0_20px_rgba(56,189,248,0.18)]">
               <Building2 className="w-9 h-9 text-sky-400" />
             </div>
-            <div className="absolute top-1/2 -right-2.5 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-sky-400 animate-ping" style={{ animationDuration: "1.4s" }} />
           </div>
           <div className="text-center">
             <p className="text-white font-semibold text-sm leading-tight">Perfil da<br />Empresa</p>
@@ -187,9 +205,13 @@ export function HeroDiagramaIA() {
             <div
               key={label}
               className="w-full flex items-center gap-1.5 bg-sky-500/5 border border-sky-500/15 rounded-lg px-2.5 py-1.5"
-              style={{ opacity: 0.7 + i * 0.1 }}
+              style={{ opacity: 0.75 + i * 0.08 }}
             >
-              <div className="w-1 h-1 rounded-full bg-sky-400 animate-pulse" style={{ animationDelay: `${i * 0.3}s` }} />
+              {/* pulsing dot simulating data leaving this chip */}
+              <div className="relative flex-shrink-0 w-1.5 h-1.5">
+                <span className="absolute inset-0 rounded-full bg-sky-400 animate-ping" style={{ animationDelay: `${i * 0.65}s`, animationDuration: "2.6s" }} />
+                <span className="absolute inset-0 rounded-full bg-sky-300" />
+              </div>
               <span className="text-sky-300/80 text-[10px]">{label}</span>
             </div>
           ))}

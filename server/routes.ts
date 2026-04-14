@@ -4463,16 +4463,18 @@ Seja específico para o setor ${empresa.setor}.`,
     try {
       const comp = await storage.getCompartilhamentoByToken(req.params.token);
       if (!comp) return res.status(404).json({ error: "Link não encontrado ou expirado" });
-      const [empresa, objetivos, indicadores, estrategias, iniciativas, riscos, cenarios] = await Promise.all([
+      const [empresa, fatoresPestel, cincoForcas, modeloNegocio, swot, estrategias, oportunidades, iniciativas, cenarios] = await Promise.all([
         storage.getEmpresa(comp.empresaId),
-        storage.getObjetivos(comp.empresaId),
-        storage.getIndicadores(comp.empresaId),
+        storage.getFatoresPestel(comp.empresaId),
+        storage.getCincoForcas(comp.empresaId),
+        storage.getModeloNegocio(comp.empresaId),
+        storage.getAnaliseSwot(comp.empresaId),
         storage.getEstrategias(comp.empresaId),
+        storage.getOportunidadesCrescimento(comp.empresaId),
         storage.getIniciativas(comp.empresaId),
-        storage.getRiscos(comp.empresaId),
         storage.getCenarios(comp.empresaId),
       ]);
-      res.json({ empresa, objetivos, indicadores, estrategias, iniciativas, riscos, cenarios });
+      res.json({ empresa, fatoresPestel, cincoForcas, modeloNegocio, swot, estrategias, oportunidades, iniciativas, cenarios });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 

@@ -199,9 +199,8 @@ export function HeroDiagramaIA() {
           </div>
           <div className="text-center">
             <p className="text-white font-semibold text-sm leading-tight">Perfil da<br />Empresa</p>
-            <p className="text-sky-400/60 text-[10px] font-mono mt-1 uppercase tracking-wider">→ dados</p>
           </div>
-          {["Diagnóstico", "Análises", "Mercado", "Cenários"].map((label, i) => (
+          {["Dados Coletados", "Diagnóstico", "Mercado", "Cenários"].map((label, i) => (
             <div
               key={label}
               className="w-full flex items-center gap-1.5 bg-sky-500/5 border border-sky-500/15 rounded-lg px-2.5 py-1.5"

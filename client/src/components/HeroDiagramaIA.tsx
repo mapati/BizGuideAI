@@ -38,13 +38,7 @@ const PLAN_ROWS = [
 
 /*
  * SVG coordinate space: viewBox "0 0 990 380"
- *
- * The 4 chip paths in SVG coordinates — each chip exits the right edge of the
- * left panel (SVG x≈190) at its own y and curves smoothly into the core (495,190).
- * Right edge of left panel: px-8(32) + w-[138px] ≈ CSS 170 → SVG x≈190
- * Chip y centers (CSS→SVG, scale≈0.905, vOffset≈18):
- *   chip1 CSS≈200 → SVG≈201   chip3 CSS≈280 → SVG≈289
- *   chip2 CSS≈240 → SVG≈245   chip4 CSS≈320 → SVG≈334
+ * Left panel right edge ≈ SVG x 190, core centre = (495, 190)
  */
 const CHIP_PATHS = [
   "M 190 201 C 340 201 440 190 495 190",
@@ -52,13 +46,50 @@ const CHIP_PATHS = [
   "M 190 289 C 340 289 440 190 495 190",
   "M 190 334 C 340 334 440 190 495 190",
 ];
-
-/* Two packets per chip lane — offset by half the cycle duration (2.6s) */
 const LEFT_PACKET_OFFSETS = ["0s", "1.3s"];
 
-/* Three packets from core → plan, starting after ~1s processing delay */
-const RIGHT_PACKET_OFFSETS = ["1.0s", "1.87s", "2.73s"];
-const RIGHT_PATH = "M 495 190 C 650 190 740 190 840 190";
+/*
+ * Five output-node pills fan out from core (495,190) toward the plan card (~830,y).
+ * They spread vertically at the midpoint then reconverge, creating a fan/burst effect.
+ * dur = 3.8 s; stagger = 3.8/5 = 0.76 s → all 5 always in flight simultaneously.
+ */
+const OUTPUT_NODES = [
+  {
+    label: "SWOT",
+    path:  "M 495 190 C 590 138 720 132 830 160",
+    fill:  "rgba(99,102,241,0.88)",
+    stroke:"rgba(129,140,248,0.5)",
+    begin: "0s",
+  },
+  {
+    label: "OKRs",
+    path:  "M 495 190 C 590 165 720 162 830 175",
+    fill:  "rgba(139,92,246,0.88)",
+    stroke:"rgba(167,139,250,0.5)",
+    begin: "0.76s",
+  },
+  {
+    label: "Estratégia",
+    path:  "M 495 190 C 640 190 740 190 830 190",
+    fill:  "rgba(124,58,237,0.88)",
+    stroke:"rgba(167,139,250,0.5)",
+    begin: "1.52s",
+  },
+  {
+    label: "Metas",
+    path:  "M 495 190 C 590 218 720 220 830 207",
+    fill:  "rgba(139,92,246,0.88)",
+    stroke:"rgba(167,139,250,0.5)",
+    begin: "2.28s",
+  },
+  {
+    label: "Cenários",
+    path:  "M 495 190 C 590 248 720 252 830 222",
+    fill:  "rgba(168,85,247,0.88)",
+    stroke:"rgba(192,132,252,0.5)",
+    begin: "3.04s",
+  },
+];
 
 export function HeroDiagramaIA() {
   return (
@@ -111,14 +142,14 @@ export function HeroDiagramaIA() {
       {/* Radial background glow */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_50%,rgba(56,189,248,0.06)_0%,transparent_70%)]" />
 
-      {/* ── Main SVG ── paths + particles */}
+      {/* ── Main SVG ── paths + particles + output nodes */}
       <svg
         className="absolute inset-0 w-full h-full pointer-events-none z-0"
         viewBox="0 0 990 380"
         preserveAspectRatio="xMidYMid meet"
       >
         <defs>
-          {/* Per-path gradients for left chip lanes */}
+          {/* Left chip lane gradients */}
           {CHIP_PATHS.map((_, i) => (
             <linearGradient key={i} id={`og-chip-grad-${i}`} gradientUnits="userSpaceOnUse"
               x1="190" y1="0" x2="495" y2="0">
@@ -127,11 +158,6 @@ export function HeroDiagramaIA() {
               <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.04" />
             </linearGradient>
           ))}
-          <linearGradient id="og-grad-right" gradientUnits="userSpaceOnUse" x1="495" y1="190" x2="840" y2="190">
-            <stop offset="0%"   stopColor="#a78bfa" stopOpacity="0.04" />
-            <stop offset="55%"  stopColor="#a78bfa" stopOpacity="0.30" />
-            <stop offset="100%" stopColor="#a78bfa" stopOpacity="0.04" />
-          </linearGradient>
 
           {/* Glow filters */}
           <filter id="og-glow-sm" x="-50%" y="-50%" width="200%" height="200%">
@@ -142,9 +168,13 @@ export function HeroDiagramaIA() {
             <feGaussianBlur stdDeviation="4" result="b" />
             <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
           </filter>
+          <filter id="og-glow-pill" x="-40%" y="-120%" width="180%" height="340%">
+            <feGaussianBlur stdDeviation="3" result="b" />
+            <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
         </defs>
 
-        {/* ── 4 chip guide paths (subtle) ── */}
+        {/* ── 4 chip guide paths (left side) ── */}
         {CHIP_PATHS.map((d, i) => (
           <path key={i} d={d} fill="none"
             stroke={`url(#og-chip-grad-${i})`} strokeWidth="1.2"
@@ -153,18 +183,19 @@ export function HeroDiagramaIA() {
         {/* Arrow tip at core entry */}
         <polygon points="492,185 503,190 492,195" fill="#38bdf8" opacity="0.4" />
 
-        {/* ── Right guide path (core → plan) ── */}
-        <path d={RIGHT_PATH} fill="none"
-          stroke="url(#og-grad-right)" strokeWidth="1.5"
-          filter="url(#og-glow-sm)" />
-        <polygon points="837,185 848,190 837,195" fill="#a78bfa" opacity="0.45" />
+        {/* ── 5 output fan guide paths (right side, very subtle) ── */}
+        {OUTPUT_NODES.map((node, i) => (
+          <path key={`guide-${i}`} d={node.path} fill="none"
+            stroke="rgba(139,92,246,0.09)" strokeWidth="1"
+            filter="url(#og-glow-sm)" />
+        ))}
 
-        {/* ── LEFT PARTICLES: 2 per chip lane × 4 chips = 8 spheres ── */}
+        {/* ── LEFT PARTICLES: 2 per chip × 4 chips = 8 blue spheres ── */}
         {CHIP_PATHS.flatMap((chipPath, ci) =>
           LEFT_PACKET_OFFSETS.map((offset, pi) => (
             <circle key={`l-${ci}-${pi}`} r="5.5" fill="#38bdf8" opacity="0" filter="url(#og-glow-md)">
               <animateMotion dur="2.6s" begin={offset} repeatCount="indefinite" calcMode="spline"
-                keySplines="0.4 0 0.6 1" path={chipPath} />
+                keySplines="0.4 0 0.6 1" path={chipPath} rotate="0" />
               <animate attributeName="opacity" dur="2.6s" begin={offset} repeatCount="indefinite"
                 values="0;0;1;1;0.8;0" keyTimes="0;0.04;0.12;0.80;0.92;1" />
               <animate attributeName="r" dur="2.6s" begin={offset} repeatCount="indefinite"
@@ -173,17 +204,43 @@ export function HeroDiagramaIA() {
           ))
         )}
 
-        {/* ── RIGHT PARTICLES: 3 spheres from core to plan ── */}
-        {RIGHT_PACKET_OFFSETS.map((offset, i) => (
-          <circle key={`r-${i}`} r="5.5" fill="#a78bfa" opacity="0" filter="url(#og-glow-md)">
-            <animateMotion dur="2.8s" begin={offset} repeatCount="indefinite" calcMode="spline"
-              keySplines="0.4 0 0.6 1" path={RIGHT_PATH} />
-            <animate attributeName="opacity" dur="2.8s" begin={offset} repeatCount="indefinite"
-              values="0;0;1;1;0.8;0" keyTimes="0;0.04;0.12;0.80;0.92;1" />
-            <animate attributeName="r" dur="2.8s" begin={offset} repeatCount="indefinite"
-              values="3;5.5;5.5;4.5;3" keyTimes="0;0.12;0.80;0.92;1" />
-          </circle>
-        ))}
+        {/* ── RIGHT OUTPUT NODES: 5 labeled pills fanning out to plan ── */}
+        {OUTPUT_NODES.map((node, i) => {
+          const labelLen = node.label.length;
+          const pillW = Math.max(52, labelLen * 6.2 + 16);
+          const halfW = pillW / 2;
+          return (
+            <g key={`out-${i}`} opacity="0" filter="url(#og-glow-pill)">
+              {/* pill background */}
+              <rect
+                x={-halfW} y="-11" width={pillW} height="22" rx="11"
+                fill={node.fill} stroke={node.stroke} strokeWidth="0.8"
+              />
+              {/* label */}
+              <text
+                x="0" y="4.5"
+                textAnchor="middle" dominantBaseline="middle"
+                fill="white" fontSize="8.5" fontWeight="700"
+                fontFamily="ui-sans-serif,system-ui,sans-serif"
+                letterSpacing="0.3"
+              >
+                {node.label}
+              </text>
+              <animateMotion
+                dur="3.8s" begin={node.begin}
+                repeatCount="indefinite"
+                rotate="0"
+                calcMode="spline" keySplines="0.42 0 0.58 1"
+                path={node.path}
+              />
+              <animate
+                attributeName="opacity" dur="3.8s" begin={node.begin}
+                repeatCount="indefinite"
+                values="0;0;1;1;1;0" keyTimes="0;0.05;0.14;0.72;0.88;1"
+              />
+            </g>
+          );
+        })}
       </svg>
 
       {/* ── Three-column layout ── */}
@@ -206,7 +263,6 @@ export function HeroDiagramaIA() {
               className="w-full flex items-center gap-1.5 bg-sky-500/5 border border-sky-500/15 rounded-lg px-2.5 py-1.5"
               style={{ opacity: 0.75 + i * 0.08 }}
             >
-              {/* pulsing dot simulating data leaving this chip */}
               <div className="relative flex-shrink-0 w-1.5 h-1.5">
                 <span className="absolute inset-0 rounded-full bg-sky-400 animate-ping" style={{ animationDelay: `${i * 0.65}s`, animationDuration: "2.6s" }} />
                 <span className="absolute inset-0 rounded-full bg-sky-300" />

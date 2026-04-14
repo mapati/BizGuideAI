@@ -230,7 +230,7 @@ export function HeroDiagramaIA() {
                 dur="3.8s" begin={node.begin}
                 repeatCount="indefinite"
                 rotate="0"
-                calcMode="spline" keySplines="0.42 0 0.58 1"
+                calcMode="spline" keySplines="0.4 0 0.6 1"
                 path={node.path}
               />
               <animate

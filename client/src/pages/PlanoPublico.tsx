@@ -20,17 +20,20 @@ import {
   Package,
   Star,
   Calendar,
+  Target,
+  CheckCircle2,
+  ChevronRight,
 } from "lucide-react";
 
-// ── helpers ──────────────────────────────────────────────────────────────────
+// ─── color maps ──────────────────────────────────────────────────────────────
 
 const PESTEL_LABELS: Record<string, { label: string; color: string }> = {
-  Político:     { label: "Político",     color: "bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300" },
-  Econômico:    { label: "Econômico",    color: "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300" },
-  Social:       { label: "Social",       color: "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300" },
-  Tecnológico:  { label: "Tecnológico",  color: "bg-cyan-100 text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300" },
-  Ambiental:    { label: "Ambiental",    color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300" },
-  Legal:        { label: "Legal",        color: "bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300" },
+  Político:    { label: "Político",    color: "bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300" },
+  Econômico:   { label: "Econômico",   color: "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300" },
+  Social:      { label: "Social",      color: "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300" },
+  Tecnológico: { label: "Tecnológico", color: "bg-cyan-100 text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300" },
+  Ambiental:   { label: "Ambiental",   color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300" },
+  Legal:       { label: "Legal",       color: "bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300" },
 };
 
 const IMPACTO_COLOR: Record<string, string> = {
@@ -39,11 +42,11 @@ const IMPACTO_COLOR: Record<string, string> = {
   baixo: "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300",
 };
 
-const SWOT_CONFIG: Record<string, { label: string; bg: string; border: string; badge: string }> = {
-  forca:      { label: "Forças",       bg: "bg-green-50 dark:bg-green-950/20",    border: "border-green-200 dark:border-green-800",    badge: "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300" },
-  fraqueza:   { label: "Fraquezas",    bg: "bg-red-50 dark:bg-red-950/20",        border: "border-red-200 dark:border-red-800",        badge: "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300" },
-  oportunidade: { label: "Oportunidades", bg: "bg-blue-50 dark:bg-blue-950/20",  border: "border-blue-200 dark:border-blue-800",    badge: "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300" },
-  ameaca:     { label: "Ameaças",      bg: "bg-orange-50 dark:bg-orange-950/20",  border: "border-orange-200 dark:border-orange-800",  badge: "bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300" },
+const SWOT_CONFIG: Record<string, { label: string; accent: string; bg: string; border: string; badge: string }> = {
+  forca:       { label: "Forças",        accent: "bg-green-500",   bg: "bg-green-50 dark:bg-green-950/20",   border: "border-green-200 dark:border-green-800",   badge: "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300" },
+  fraqueza:    { label: "Fraquezas",     accent: "bg-red-500",     bg: "bg-red-50 dark:bg-red-950/20",       border: "border-red-200 dark:border-red-800",       badge: "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300" },
+  oportunidade:{ label: "Oportunidades", accent: "bg-blue-500",    bg: "bg-blue-50 dark:bg-blue-950/20",     border: "border-blue-200 dark:border-blue-800",     badge: "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300" },
+  ameaca:      { label: "Ameaças",       accent: "bg-orange-500",  bg: "bg-orange-50 dark:bg-orange-950/20", border: "border-orange-200 dark:border-orange-800", badge: "bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300" },
 };
 
 const INTENSIDADE_COLOR: Record<string, string> = {
@@ -52,37 +55,59 @@ const INTENSIDADE_COLOR: Record<string, string> = {
   baixa: "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300",
 };
 
-const CENARIO_CONFIG: Record<string, { label: string; bg: string; border: string; badge: string }> = {
-  pessimista: { label: "Pessimista", bg: "bg-red-50 dark:bg-red-950/20",    border: "border-red-200 dark:border-red-800",    badge: "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300" },
-  base:       { label: "Base",       bg: "bg-blue-50 dark:bg-blue-950/20",  border: "border-blue-200 dark:border-blue-800",  badge: "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300" },
-  otimista:   { label: "Otimista",   bg: "bg-green-50 dark:bg-green-950/20",border: "border-green-200 dark:border-green-800",badge: "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300" },
+const CENARIO_CONFIG: Record<string, { label: string; bg: string; border: string; badge: string; accent: string }> = {
+  pessimista: { label: "Pessimista", accent: "bg-red-500",   bg: "bg-red-50 dark:bg-red-950/20",    border: "border-red-200 dark:border-red-800",    badge: "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300" },
+  base:       { label: "Base",       accent: "bg-blue-500",  bg: "bg-blue-50 dark:bg-blue-950/20",  border: "border-blue-200 dark:border-blue-800",  badge: "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300" },
+  otimista:   { label: "Otimista",   accent: "bg-green-500", bg: "bg-green-50 dark:bg-green-950/20",border: "border-green-200 dark:border-green-800",badge: "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300" },
+};
+
+const PERSPECTIVA_COLOR: Record<string, string> = {
+  Financeira:          "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
+  Clientes:            "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300",
+  "Processos Internos":"bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300",
+  Aprendizado:         "bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300",
 };
 
 const BMC_ORDER = [
-  "Parceiros-Chave",
-  "Atividades-Chave",
-  "Proposta de Valor",
-  "Relacionamento com Clientes",
-  "Segmentos de Clientes",
-  "Recursos-Chave",
-  "Canais",
-  "Estrutura de Custos",
-  "Fontes de Receita",
+  "Parceiros-Chave","Atividades-Chave","Proposta de Valor",
+  "Relacionamento com Clientes","Segmentos de Clientes","Recursos-Chave",
+  "Canais","Estrutura de Custos","Fontes de Receita",
 ];
 
-function SectionHeader({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
+// ─── subcomponents ───────────────────────────────────────────────────────────
+
+function ChapterHeader({ num, icon: Icon, title }: { num: number; icon: LucideIcon; title: string }) {
   return (
-    <div className="flex items-center gap-3 mb-5">
-      <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
-        <Icon className="h-4 w-4 text-primary" />
+    <div className="flex items-center gap-5 mb-8" data-testid={`chapter-${num}`}>
+      <div className="flex-shrink-0 flex flex-col items-center">
+        <span className="text-3xl font-black text-muted-foreground/20 leading-none tabular-nums select-none">
+          {String(num).padStart(2, "0")}
+        </span>
       </div>
-      <h2 className="text-lg font-semibold">{title}</h2>
-      <div className="flex-1 h-px bg-border" />
+      <div className="flex-1 border-t border-border pt-4">
+        <div className="flex items-center gap-2.5">
+          <div className="h-7 w-7 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <Icon className="h-3.5 w-3.5 text-primary" />
+          </div>
+          <h2 className="text-base font-bold uppercase tracking-widest text-foreground">{title}</h2>
+        </div>
+      </div>
     </div>
   );
 }
 
-// ── main component ────────────────────────────────────────────────────────────
+function TocEntry({ num, title, hasData }: { num: number; title: string; hasData: boolean }) {
+  if (!hasData) return null;
+  return (
+    <div className="flex items-center gap-2 py-2 border-b border-border/50 last:border-0">
+      <span className="text-xs font-mono text-muted-foreground w-6 flex-shrink-0">{String(num).padStart(2, "0")}</span>
+      <ChevronRight className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+      <span className="text-sm text-foreground">{title}</span>
+    </div>
+  );
+}
+
+// ─── main component ───────────────────────────────────────────────────────────
 
 export default function PlanoPublico() {
   const { token } = useParams<{ token: string }>();
@@ -118,92 +143,126 @@ export default function PlanoPublico() {
 
   const {
     empresa,
-    fatoresPestel = [],
-    cincoForcas = [],
-    modeloNegocio = [],
-    swot = [],
-    estrategias = [],
-    oportunidades = [],
-    iniciativas = [],
-    cenarios = [],
+    fatoresPestel  = [],
+    cincoForcas    = [],
+    modeloNegocio  = [],
+    swot           = [],
+    estrategias    = [],
+    oportunidades  = [],
+    iniciativas    = [],
+    objetivos      = [],
+    cenarios       = [],
   } = data;
 
-  // group data
-  const pestelByTipo = fatoresPestel.reduce((acc: Record<string, any[]>, f: any) => {
-    (acc[f.tipo] = acc[f.tipo] || []).push(f);
-    return acc;
-  }, {});
+  const pestelByTipo  = fatoresPestel.reduce((acc: Record<string, any[]>, f: any) => { (acc[f.tipo] = acc[f.tipo] || []).push(f); return acc; }, {});
+  const swotByTipo    = swot.reduce((acc: Record<string, any[]>, s: any) => { (acc[s.tipo] = acc[s.tipo] || []).push(s); return acc; }, {});
+  const bmcByBloco    = modeloNegocio.reduce((acc: Record<string, any[]>, b: any) => { (acc[b.bloco] = acc[b.bloco] || []).push(b); return acc; }, {});
 
-  const swotByTipo = swot.reduce((acc: Record<string, any[]>, s: any) => {
-    (acc[s.tipo] = acc[s.tipo] || []).push(s);
-    return acc;
-  }, {});
+  const initials = (empresa?.nome || "?")
+    .split(" ").filter(Boolean).slice(0, 2).map((w: string) => w[0].toUpperCase()).join("");
 
-  const bmcByBloco = modeloNegocio.reduce((acc: Record<string, any[]>, b: any) => {
-    (acc[b.bloco] = acc[b.bloco] || []).push(b);
-    return acc;
-  }, {});
+  const year = new Date().getFullYear();
 
-  const totalSections = [
-    fatoresPestel.length,
-    cincoForcas.length,
-    modeloNegocio.length,
-    swot.length,
-    estrategias.length,
-    oportunidades.length,
-    iniciativas.length,
-  ].filter((n) => n > 0).length;
+  // chapter visibility
+  const chapters = [
+    { num: 1,  title: "Perfil da Empresa",           hasData: true },
+    { num: 2,  title: "Modelo de Negócio",            hasData: modeloNegocio.length > 0 },
+    { num: 3,  title: "Cenário Externo (PESTEL)",     hasData: fatoresPestel.length > 0 },
+    { num: 4,  title: "Mercado e Concorrência",       hasData: cincoForcas.length > 0 },
+    { num: 5,  title: "Forças e Fraquezas (SWOT)",    hasData: swot.length > 0 },
+    { num: 6,  title: "Estratégias",                  hasData: estrategias.length > 0 },
+    { num: 7,  title: "Oportunidades de Crescimento", hasData: oportunidades.length > 0 },
+    { num: 8,  title: "Iniciativas Prioritárias",     hasData: iniciativas.length > 0 },
+    { num: 9,  title: "Metas e Resultados Desejados", hasData: objetivos.length > 0 },
+    { num: 10, title: "Cenários Estratégicos",        hasData: cenarios.length > 0 },
+  ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background" data-testid="plano-publico">
 
-      {/* ── Hero / Header ── */}
-      <div className="border-b bg-muted/30">
-        <div className="max-w-6xl mx-auto px-6 py-10">
-          <div className="flex items-start gap-5 flex-wrap">
-            <div className="h-16 w-16 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Building2 className="h-8 w-8 text-primary" />
+      {/* ══ CAPA ══════════════════════════════════════════════════════════════ */}
+      <div className="bg-[#0c1a2e] relative overflow-hidden" data-testid="cover-section">
+        {/* decorative lines */}
+        <div className="absolute inset-0 opacity-[0.04]">
+          <div className="absolute top-0 left-0 w-full h-full"
+            style={{ backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(255,255,255,0.5) 40px)", backgroundSize: "100% 40px" }}
+          />
+        </div>
+        <div className="absolute top-0 right-0 w-1/3 h-full bg-gradient-to-l from-sky-500/5 to-transparent" />
+
+        <div className="relative max-w-4xl mx-auto px-8 py-16">
+          {/* label */}
+          <div className="flex items-center gap-2 mb-10">
+            <div className="h-px flex-1 bg-sky-500/30" />
+            <span className="text-xs font-bold tracking-[0.25em] text-sky-400/80 uppercase">
+              Plano Estratégico · {year}
+            </span>
+            <div className="h-px flex-1 bg-sky-500/30" />
+          </div>
+
+          {/* company block */}
+          <div className="flex items-start gap-6 flex-wrap">
+            <div className="h-20 w-20 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center flex-shrink-0">
+              <span className="text-2xl font-black text-sky-300 tracking-tight">{initials}</span>
             </div>
             <div className="flex-1 min-w-0">
-              <h1 className="text-3xl font-bold">{empresa?.nome || "Plano Estratégico"}</h1>
-              <div className="flex flex-wrap gap-2 mt-2">
+              <h1 className="text-4xl font-black text-white leading-tight tracking-tight mb-3">
+                {empresa?.nome || "Empresa"}
+              </h1>
+              <div className="flex flex-wrap gap-2">
                 {empresa?.setor && (
-                  <Badge variant="secondary" className="text-sm no-default-hover-elevate no-default-active-elevate">
+                  <span className="px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/15 text-sky-300 border border-sky-500/20">
                     {empresa.setor}
-                  </Badge>
+                  </span>
                 )}
                 {empresa?.tamanho && (
-                  <Badge variant="outline" className="text-sm no-default-hover-elevate no-default-active-elevate">
+                  <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/5 text-white/60 border border-white/10">
                     {empresa.tamanho}
-                  </Badge>
+                  </span>
                 )}
                 {(empresa?.cidade || empresa?.estado) && (
-                  <Badge variant="outline" className="text-sm no-default-hover-elevate no-default-active-elevate">
-                    <MapPin className="h-3 w-3 mr-1" />
+                  <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white/5 text-white/60 border border-white/10 flex items-center gap-1">
+                    <MapPin className="h-3 w-3" />
                     {[empresa.cidade, empresa.estado].filter(Boolean).join(", ")}
-                  </Badge>
+                  </span>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                Book estratégico · Visualização somente leitura · BizGuideAI
-              </p>
             </div>
-            <div className="text-right text-sm text-muted-foreground hidden md:block">
-              <p className="font-medium text-foreground">{totalSections} seções</p>
-              <p>neste plano</p>
-            </div>
+          </div>
+
+          {/* divider */}
+          <div className="mt-12 pt-6 border-t border-white/10 flex items-center justify-between flex-wrap gap-3">
+            <span className="text-xs text-white/30 tracking-widest uppercase">
+              Book Estratégico · Visualização Somente Leitura
+            </span>
+            <span className="text-xs font-bold text-sky-400/60 tracking-widest uppercase">
+              BizGuideAI
+            </span>
           </div>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-6 py-10 space-y-12">
+      {/* ══ SUMÁRIO ══════════════════════════════════════════════════════════ */}
+      <div className="border-b bg-muted/30" data-testid="toc-section">
+        <div className="max-w-4xl mx-auto px-8 py-8">
+          <p className="text-xs font-bold tracking-[0.2em] uppercase text-muted-foreground mb-4">
+            Sumário
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
+            {chapters.map((ch) => (
+              <TocEntry key={ch.num} num={ch.num} title={ch.title} hasData={ch.hasData} />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ══ CONTEÚDO ══════════════════════════════════════════════════════════ */}
+      <div className="max-w-4xl mx-auto px-8 py-14 space-y-16">
 
         {/* ── 1. Perfil da Empresa ── */}
         <section data-testid="section-perfil">
-          <SectionHeader icon={Building2} title="Perfil da Empresa" />
-          <div className="space-y-5">
-
-            {/* Descrição do negócio — largura total */}
+          <ChapterHeader num={1} icon={Building2} title="Perfil da Empresa" />
+          <div className="space-y-4">
             {empresa?.descricao && (
               <Card>
                 <CardContent className="p-5">
@@ -212,20 +271,17 @@ export default function PlanoPublico() {
                 </CardContent>
               </Card>
             )}
-
-            {/* Grid de atributos — sem coluna vazia */}
             {(() => {
               const fields = [
-                empresa?.modeloNegocio      && { icon: Grid3x3,  label: "Tipo de Negócio",            value: empresa.modeloNegocio },
-                empresa?.areaAtuacao        && { icon: Globe,     label: "Abrangência de Mercado",     value: empresa.areaAtuacao },
-                empresa?.publicoAlvo        && { icon: Users,     label: "Clientes Atendidos",         value: empresa.publicoAlvo },
-                empresa?.principaisProdutos && { icon: Package,   label: "Produtos e Serviços",        value: empresa.principaisProdutos },
-                empresa?.diferenciaisCompetitivos && { icon: Star, label: "Vantagens Competitivas",   value: empresa.diferenciaisCompetitivos },
-                empresa?.concorrentesConhecidos   && { icon: Building2, label: "Principais Concorrentes", value: empresa.concorrentesConhecidos },
-                empresa?.anoFundacao        && { icon: Calendar,  label: "Fundada em",                 value: String(empresa.anoFundacao) },
-                empresa?.cnpj               && { icon: Globe,     label: "CNPJ",                       value: empresa.cnpj },
+                empresa?.modeloNegocio           && { icon: Grid3x3,   label: "Tipo de Negócio",          value: empresa.modeloNegocio },
+                empresa?.areaAtuacao             && { icon: Globe,      label: "Abrangência de Mercado",   value: empresa.areaAtuacao },
+                empresa?.publicoAlvo             && { icon: Users,      label: "Clientes Atendidos",       value: empresa.publicoAlvo },
+                empresa?.principaisProdutos      && { icon: Package,    label: "Produtos e Serviços",      value: empresa.principaisProdutos },
+                empresa?.diferenciaisCompetitivos&& { icon: Star,       label: "Vantagens Competitivas",   value: empresa.diferenciaisCompetitivos },
+                empresa?.concorrentesConhecidos  && { icon: Building2,  label: "Principais Concorrentes",  value: empresa.concorrentesConhecidos },
+                empresa?.anoFundacao             && { icon: Calendar,   label: "Fundada em",               value: String(empresa.anoFundacao) },
+                empresa?.cnpj                   && { icon: Globe,       label: "CNPJ",                     value: empresa.cnpj },
               ].filter(Boolean) as { icon: LucideIcon; label: string; value: string }[];
-
               if (!fields.length) return null;
               return (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -245,17 +301,11 @@ export default function PlanoPublico() {
                 </div>
               );
             })()}
-
-            {/* Website */}
             {empresa?.website && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Globe className="h-3.5 w-3.5 flex-shrink-0" />
-                <a
-                  href={empresa.website}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-foreground transition-colors underline-offset-4 hover:underline"
-                >
+                <a href={empresa.website} target="_blank" rel="noopener noreferrer"
+                  className="hover:text-foreground transition-colors underline-offset-4 hover:underline">
                   {empresa.website.replace(/^https?:\/\//, "")}
                 </a>
               </div>
@@ -263,17 +313,15 @@ export default function PlanoPublico() {
           </div>
         </section>
 
-        {/* ── 2. Modelo de Negócio (BMC) ── */}
+        {/* ── 2. Modelo de Negócio ── */}
         {modeloNegocio.length > 0 && (
           <section data-testid="section-bmc">
-            <SectionHeader icon={Grid3x3} title="Modelo de Negócio" />
+            <ChapterHeader num={2} icon={Grid3x3} title="Modelo de Negócio" />
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {BMC_ORDER.filter((bloco) => bmcByBloco[bloco]?.length).map((bloco) => (
                 <Card key={bloco}>
                   <CardHeader className="pb-2 pt-4 px-4">
-                    <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      {bloco}
-                    </CardTitle>
+                    <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{bloco}</CardTitle>
                   </CardHeader>
                   <CardContent className="px-4 pb-4 pt-0 space-y-1.5">
                     {bmcByBloco[bloco].map((b: any) => (
@@ -282,40 +330,33 @@ export default function PlanoPublico() {
                   </CardContent>
                 </Card>
               ))}
-              {/* blocos não mapeados no BMC_ORDER */}
-              {Object.entries(bmcByBloco)
-                .filter(([bloco]) => !BMC_ORDER.includes(bloco))
-                .map(([bloco, items]) => (
-                  <Card key={bloco}>
-                    <CardHeader className="pb-2 pt-4 px-4">
-                      <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        {bloco}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="px-4 pb-4 pt-0 space-y-1.5">
-                      {items.map((b: any) => (
-                        <p key={b.id} className="text-sm leading-snug">{b.descricao}</p>
-                      ))}
-                    </CardContent>
-                  </Card>
-                ))}
+              {Object.entries(bmcByBloco).filter(([bloco]) => !BMC_ORDER.includes(bloco)).map(([bloco, items]) => (
+                <Card key={bloco}>
+                  <CardHeader className="pb-2 pt-4 px-4">
+                    <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{bloco}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="px-4 pb-4 pt-0 space-y-1.5">
+                    {(items as any[]).map((b: any) => (
+                      <p key={b.id} className="text-sm leading-snug">{b.descricao}</p>
+                    ))}
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           </section>
         )}
 
-        {/* ── 3. Cenário Externo ── */}
+        {/* ── 3. Cenário Externo (PESTEL) ── */}
         {fatoresPestel.length > 0 && (
           <section data-testid="section-pestel">
-            <SectionHeader icon={Globe2} title="Cenário Externo" />
+            <ChapterHeader num={3} icon={Globe2} title="Cenário Externo (PESTEL)" />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {Object.entries(pestelByTipo).map(([tipo, fatores]) => {
                 const cfg = PESTEL_LABELS[tipo] || { label: tipo, color: "bg-muted text-muted-foreground" };
                 return (
                   <Card key={tipo}>
                     <CardHeader className="pb-2 pt-4 px-4">
-                      <span className={`inline-flex w-fit items-center rounded-md px-2 py-0.5 text-xs font-semibold ${cfg.color}`}>
-                        {cfg.label}
-                      </span>
+                      <span className={`inline-flex w-fit items-center rounded-md px-2 py-0.5 text-xs font-semibold ${cfg.color}`}>{cfg.label}</span>
                     </CardHeader>
                     <CardContent className="px-4 pb-4 pt-0 space-y-3">
                       {(fatores as any[]).map((f: any) => (
@@ -325,9 +366,7 @@ export default function PlanoPublico() {
                             <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium ${IMPACTO_COLOR[f.impacto?.toLowerCase()] || "bg-muted text-muted-foreground"}`}>
                               Impacto {f.impacto}
                             </span>
-                            {f.evidencia && (
-                              <span className="text-xs text-muted-foreground italic">{f.evidencia}</span>
-                            )}
+                            {f.evidencia && <span className="text-xs text-muted-foreground italic">{f.evidencia}</span>}
                           </div>
                         </div>
                       ))}
@@ -342,7 +381,7 @@ export default function PlanoPublico() {
         {/* ── 4. Mercado e Concorrência ── */}
         {cincoForcas.length > 0 && (
           <section data-testid="section-cinco-forcas">
-            <SectionHeader icon={Layers} title="Mercado e Concorrência" />
+            <ChapterHeader num={4} icon={Layers} title="Mercado e Concorrência" />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {cincoForcas.map((f: any) => (
                 <Card key={f.id}>
@@ -354,9 +393,7 @@ export default function PlanoPublico() {
                       </span>
                     </div>
                     <p className="text-sm text-muted-foreground leading-snug">{f.descricao}</p>
-                    {f.impacto && (
-                      <p className="text-xs text-muted-foreground border-t pt-2">{f.impacto}</p>
-                    )}
+                    {f.impacto && <p className="text-xs text-muted-foreground border-t pt-2">{f.impacto}</p>}
                   </CardContent>
                 </Card>
               ))}
@@ -364,21 +401,19 @@ export default function PlanoPublico() {
           </section>
         )}
 
-        {/* ── 5. Forças e Fraquezas ── */}
+        {/* ── 5. Forças e Fraquezas (SWOT) ── */}
         {swot.length > 0 && (
           <section data-testid="section-swot">
-            <SectionHeader icon={GitBranch} title="Forças e Fraquezas" />
+            <ChapterHeader num={5} icon={GitBranch} title="Forças e Fraquezas (SWOT)" />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {(["forca", "oportunidade", "fraqueza", "ameaca"] as const).map((tipo) => {
                 const items = swotByTipo[tipo] || [];
                 if (!items.length) return null;
                 const cfg = SWOT_CONFIG[tipo];
                 return (
-                  <Card key={tipo} className={`${cfg.bg} ${cfg.border}`}>
+                  <Card key={tipo} className={`${cfg.bg} ${cfg.border} overflow-hidden`}>
                     <CardHeader className="pb-2 pt-4 px-4">
-                      <span className={`inline-flex w-fit items-center rounded-md px-2 py-0.5 text-xs font-semibold ${cfg.badge}`}>
-                        {cfg.label}
-                      </span>
+                      <span className={`inline-flex w-fit items-center rounded-md px-2 py-0.5 text-xs font-semibold ${cfg.badge}`}>{cfg.label}</span>
                     </CardHeader>
                     <CardContent className="px-4 pb-4 pt-0 space-y-2">
                       {items.map((s: any) => (
@@ -395,22 +430,53 @@ export default function PlanoPublico() {
           </section>
         )}
 
-        {/* ── 6. Oportunidades de Crescimento ── */}
+        {/* ── 6. Estratégias ── */}
+        {estrategias.length > 0 && (
+          <section data-testid="section-estrategias">
+            <ChapterHeader num={6} icon={Lightbulb} title="Estratégias" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {estrategias.map((e: any) => (
+                <Card key={e.id}>
+                  <CardContent className="p-4 space-y-2">
+                    <div className="flex items-start gap-2 flex-wrap">
+                      {e.tipo && (
+                        <Badge variant="outline" className="text-xs flex-shrink-0 no-default-hover-elevate no-default-active-elevate">{e.tipo}</Badge>
+                      )}
+                      {e.prioridade && (
+                        <Badge variant="secondary"
+                          className={`text-xs flex-shrink-0 no-default-hover-elevate no-default-active-elevate ${
+                            e.prioridade === "alta"  ? "text-red-700 bg-red-100 dark:bg-red-950/40 dark:text-red-300" :
+                            e.prioridade === "média" ? "text-yellow-700 bg-yellow-100 dark:bg-yellow-950/40 dark:text-yellow-300" : ""
+                          }`}>
+                          {e.prioridade}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm font-medium">{e.titulo}</p>
+                    {e.descricao && <p className="text-sm text-muted-foreground leading-snug">{e.descricao}</p>}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ── 7. Oportunidades de Crescimento ── */}
         {oportunidades.length > 0 && (
           <section data-testid="section-oportunidades">
-            <SectionHeader icon={TrendingUp} title="Oportunidades de Crescimento" />
+            <ChapterHeader num={7} icon={TrendingUp} title="Oportunidades de Crescimento" />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {oportunidades.map((o: any) => (
                 <Card key={o.id}>
                   <CardContent className="p-4 space-y-2">
                     <div className="flex items-start gap-2 flex-wrap">
-                      <Badge variant="outline" className="text-xs flex-shrink-0 no-default-hover-elevate no-default-active-elevate">
-                        {o.tipo}
-                      </Badge>
+                      {o.tipo && (
+                        <Badge variant="outline" className="text-xs flex-shrink-0 no-default-hover-elevate no-default-active-elevate">{o.tipo}</Badge>
+                      )}
                       <p className="text-sm font-medium">{o.titulo}</p>
                     </div>
                     <p className="text-sm text-muted-foreground leading-snug">{o.descricao}</p>
-                    <div className="flex gap-2 flex-wrap pt-1">
+                    <div className="flex gap-4 flex-wrap pt-1">
                       {o.potencial && (
                         <span className="text-xs text-muted-foreground">Potencial: <span className="font-medium text-foreground">{o.potencial}</span></span>
                       )}
@@ -425,68 +491,34 @@ export default function PlanoPublico() {
           </section>
         )}
 
-        {/* ── 7. Estratégias ── */}
-        {estrategias.length > 0 && (
-          <section data-testid="section-estrategias">
-            <SectionHeader icon={Lightbulb} title="Estratégias" />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {estrategias.map((e: any) => (
-                <Card key={e.id}>
-                  <CardContent className="p-4 space-y-2">
-                    <div className="flex items-start gap-2 flex-wrap">
-                      <Badge variant="outline" className="text-xs flex-shrink-0 no-default-hover-elevate no-default-active-elevate">
-                        {e.tipo}
-                      </Badge>
-                      <Badge
-                        variant="secondary"
-                        className={`text-xs flex-shrink-0 no-default-hover-elevate no-default-active-elevate ${
-                          e.prioridade === "alta" ? "text-red-700 bg-red-100 dark:bg-red-950/40 dark:text-red-300" :
-                          e.prioridade === "média" ? "text-yellow-700 bg-yellow-100 dark:bg-yellow-950/40 dark:text-yellow-300" :
-                          ""
-                        }`}
-                      >
-                        {e.prioridade}
-                      </Badge>
-                    </div>
-                    <p className="text-sm font-medium">{e.titulo}</p>
-                    {e.descricao && <p className="text-sm text-muted-foreground leading-snug">{e.descricao}</p>}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </section>
-        )}
-
         {/* ── 8. Iniciativas Prioritárias ── */}
         {iniciativas.length > 0 && (
           <section data-testid="section-iniciativas">
-            <SectionHeader icon={Briefcase} title="Iniciativas Prioritárias" />
+            <ChapterHeader num={8} icon={Briefcase} title="Iniciativas Prioritárias" />
             <div className="space-y-2">
-              {iniciativas.map((ini: any) => (
+              {iniciativas.map((ini: any, idx: number) => (
                 <Card key={ini.id}>
                   <CardContent className="p-4">
                     <div className="flex items-start gap-3 flex-wrap">
+                      <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-xs font-bold text-muted-foreground tabular-nums">{idx + 1}</span>
+                      </div>
                       <div className="flex-1 min-w-0 space-y-0.5">
                         <p className="text-sm font-medium">{ini.titulo}</p>
                         {ini.descricao && <p className="text-xs text-muted-foreground leading-snug">{ini.descricao}</p>}
                       </div>
                       <div className="flex gap-2 flex-shrink-0 flex-wrap">
                         {ini.prioridade && (
-                          <Badge
-                            variant="secondary"
+                          <Badge variant="secondary"
                             className={`text-xs no-default-hover-elevate no-default-active-elevate ${
-                              ini.prioridade === "alta" ? "text-red-700 bg-red-100 dark:bg-red-950/40 dark:text-red-300" :
-                              ini.prioridade === "média" ? "text-yellow-700 bg-yellow-100 dark:bg-yellow-950/40 dark:text-yellow-300" :
-                              ""
-                            }`}
-                          >
+                              ini.prioridade === "alta"  ? "text-red-700 bg-red-100 dark:bg-red-950/40 dark:text-red-300" :
+                              ini.prioridade === "média" ? "text-yellow-700 bg-yellow-100 dark:bg-yellow-950/40 dark:text-yellow-300" : ""
+                            }`}>
                             {ini.prioridade}
                           </Badge>
                         )}
                         {ini.status && (
-                          <Badge variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate">
-                            {ini.status}
-                          </Badge>
+                          <Badge variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate">{ini.status}</Badge>
                         )}
                         {ini.prazo && (
                           <span className="text-xs text-muted-foreground self-center">{ini.prazo}</span>
@@ -500,10 +532,72 @@ export default function PlanoPublico() {
           </section>
         )}
 
-        {/* ── 9. Cenários Estratégicos ── */}
+        {/* ── 9. Metas e Resultados Desejados ── */}
+        {objetivos.length > 0 && (
+          <section data-testid="section-objetivos">
+            <ChapterHeader num={9} icon={Target} title="Metas e Resultados Desejados" />
+            <div className="space-y-4">
+              {objetivos.map((obj: any, idx: number) => (
+                <Card key={obj.id} data-testid={`card-objetivo-${obj.id}`}>
+                  <CardContent className="p-5 space-y-3">
+                    {/* Objective header */}
+                    <div className="flex items-start gap-3 flex-wrap">
+                      <div className="h-7 w-7 rounded-full border-2 border-primary/30 flex items-center justify-center flex-shrink-0 bg-primary/5">
+                        <span className="text-xs font-black text-primary tabular-nums">{idx + 1}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold leading-snug">{obj.titulo}</p>
+                        {obj.descricao && <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{obj.descricao}</p>}
+                      </div>
+                      <div className="flex gap-2 flex-wrap flex-shrink-0">
+                        {obj.perspectiva && (
+                          <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${PERSPECTIVA_COLOR[obj.perspectiva] || "bg-muted text-muted-foreground"}`}>
+                            {obj.perspectiva}
+                          </span>
+                        )}
+                        {obj.prazo && (
+                          <span className="text-xs text-muted-foreground self-center">{obj.prazo}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Key results */}
+                    {obj.resultadosChave?.length > 0 && (
+                      <div className="border-t pt-3 space-y-2">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Resultados-Chave</p>
+                        <div className="space-y-2">
+                          {obj.resultadosChave.map((kr: any) => (
+                            <div key={kr.id} className="flex items-start gap-2">
+                              <CheckCircle2 className="h-3.5 w-3.5 text-primary/60 flex-shrink-0 mt-0.5" />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm leading-snug">{kr.metrica}</p>
+                                <div className="flex gap-3 flex-wrap mt-0.5">
+                                  {kr.valorAlvo !== null && kr.valorAlvo !== undefined && (
+                                    <span className="text-xs text-muted-foreground">Meta: <span className="font-medium text-foreground">{kr.valorAlvo}</span></span>
+                                  )}
+                                  {kr.valorInicial !== null && kr.valorInicial !== undefined && (
+                                    <span className="text-xs text-muted-foreground">Início: <span className="font-medium text-foreground">{kr.valorInicial}</span></span>
+                                  )}
+                                  {kr.prazo && <span className="text-xs text-muted-foreground">{kr.prazo}</span>}
+                                  {kr.owner && <span className="text-xs text-muted-foreground">{kr.owner}</span>}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ── 10. Cenários Estratégicos ── */}
         {cenarios.length > 0 && (
           <section data-testid="section-cenarios">
-            <SectionHeader icon={CloudLightning} title="Cenários Estratégicos" />
+            <ChapterHeader num={10} icon={CloudLightning} title="Cenários Estratégicos" />
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {(["pessimista", "base", "otimista"] as const).map((tipo) => {
                 const c = cenarios.find((x: any) => x.tipo === tipo);
@@ -512,12 +606,10 @@ export default function PlanoPublico() {
                 let premissas: string[] = [];
                 try { premissas = JSON.parse(c.premissas || "[]"); } catch {}
                 return (
-                  <Card key={tipo} className={`${cfg.bg} ${cfg.border}`}>
+                  <Card key={tipo} className={`${cfg.bg} ${cfg.border} overflow-hidden`}>
                     <CardHeader className="pb-2 pt-4 px-4">
-                      <span className={`inline-flex w-fit items-center rounded-md px-2 py-0.5 text-xs font-semibold ${cfg.badge}`}>
-                        {cfg.label}
-                      </span>
-                      {c.titulo && <CardTitle className="text-sm mt-1">{c.titulo}</CardTitle>}
+                      <span className={`inline-flex w-fit items-center rounded-md px-2 py-0.5 text-xs font-semibold ${cfg.badge}`}>{cfg.label}</span>
+                      {c.titulo && <CardTitle className="text-sm mt-1.5">{c.titulo}</CardTitle>}
                     </CardHeader>
                     <CardContent className="px-4 pb-4 pt-0 space-y-3">
                       {c.descricao && <p className="text-sm leading-snug">{c.descricao}</p>}
@@ -548,12 +640,18 @@ export default function PlanoPublico() {
           </section>
         )}
 
-        {/* footer */}
-        <div className="border-t pt-8 text-center space-y-1 pb-4">
-          <p className="text-xs text-muted-foreground">
-            Plano estratégico gerado com <span className="font-semibold text-foreground">BizGuideAI</span> · Visualização somente leitura
-          </p>
-          <p className="text-xs text-muted-foreground">bizguideai.org</p>
+        {/* ── Colofão / Rodapé ── */}
+        <div className="border-t border-dashed pt-10" data-testid="footer-section">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <p className="text-xs font-bold tracking-widest uppercase text-muted-foreground">BizGuideAI</p>
+              <p className="text-xs text-muted-foreground mt-0.5">bizguideai.org</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-muted-foreground">Plano Estratégico · {year}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Visualização somente leitura · Gerado com IA</p>
+            </div>
+          </div>
         </div>
 
       </div>

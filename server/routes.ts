@@ -4515,7 +4515,7 @@ Seja específico para o setor ${empresa.setor}.`,
     try {
       const comp = await storage.getCompartilhamentoByToken(req.params.token);
       if (!comp) return res.status(404).json({ error: "Link não encontrado ou expirado" });
-      const [empresa, fatoresPestel, cincoForcas, modeloNegocio, swot, estrategias, oportunidades, iniciativas, cenarios] = await Promise.all([
+      const [empresa, fatoresPestel, cincoForcas, modeloNegocio, swot, estrategias, oportunidades, iniciativas, cenarios, objetivosList] = await Promise.all([
         storage.getEmpresa(comp.empresaId),
         storage.getFatoresPestel(comp.empresaId),
         storage.getCincoForcas(comp.empresaId),
@@ -4525,8 +4525,24 @@ Seja específico para o setor ${empresa.setor}.`,
         storage.getOportunidadesCrescimento(comp.empresaId),
         storage.getIniciativas(comp.empresaId),
         storage.getCenarios(comp.empresaId),
+        storage.getObjetivos(comp.empresaId),
       ]);
-      res.json({ empresa, fatoresPestel, cincoForcas, modeloNegocio, swot, estrategias, oportunidades, iniciativas, cenarios });
+      // Attach key results (targets only — no valorAtual to protect business performance data)
+      const objetivos = await Promise.all(
+        objetivosList.map(async (o) => {
+          const krs = await storage.getResultadosChave(o.id, comp.empresaId);
+          return {
+            id: o.id, titulo: o.titulo, descricao: o.descricao,
+            perspectiva: o.perspectiva, prazo: o.prazo,
+            resultadosChave: krs.map((kr) => ({
+              id: kr.id, metrica: kr.metrica,
+              valorInicial: kr.valorInicial, valorAlvo: kr.valorAlvo,
+              prazo: kr.prazo, owner: kr.owner,
+            })),
+          };
+        }),
+      );
+      res.json({ empresa, fatoresPestel, cincoForcas, modeloNegocio, swot, estrategias, oportunidades, iniciativas, cenarios, objetivos });
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
 

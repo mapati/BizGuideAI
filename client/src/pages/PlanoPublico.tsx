@@ -2,6 +2,7 @@ import { useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { LucideIcon } from "lucide-react";
 import {
   Loader2,
   Building2,
@@ -69,7 +70,7 @@ const BMC_ORDER = [
   "Fontes de Receita",
 ];
 
-function SectionHeader({ icon: Icon, title }: { icon: React.ElementType; title: string }) {
+function SectionHeader({ icon: Icon, title }: { icon: LucideIcon; title: string }) {
   return (
     <div className="flex items-center gap-3 mb-5">
       <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -200,109 +201,65 @@ export default function PlanoPublico() {
         {/* ── 1. Perfil da Empresa ── */}
         <section data-testid="section-perfil">
           <SectionHeader icon={Building2} title="Perfil da Empresa" />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Descrição + contexto */}
-            <div className="space-y-4">
-              {empresa?.descricao && (
-                <Card>
-                  <CardContent className="p-5">
-                    <p className="text-sm leading-relaxed text-foreground">{empresa.descricao}</p>
-                  </CardContent>
-                </Card>
-              )}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {empresa?.modeloNegocio && (
-                  <div className="flex gap-2 items-start">
-                    <div className="h-7 w-7 rounded-md bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <Grid3x3 className="h-3.5 w-3.5 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground font-medium">Modelo de Negócio</p>
-                      <p className="text-sm">{empresa.modeloNegocio}</p>
-                    </div>
-                  </div>
-                )}
-                {empresa?.areaAtuacao && (
-                  <div className="flex gap-2 items-start">
-                    <div className="h-7 w-7 rounded-md bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <Globe className="h-3.5 w-3.5 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground font-medium">Área de Atuação</p>
-                      <p className="text-sm">{empresa.areaAtuacao}</p>
-                    </div>
-                  </div>
-                )}
-                {empresa?.publicoAlvo && (
-                  <div className="flex gap-2 items-start">
-                    <div className="h-7 w-7 rounded-md bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground font-medium">Público-Alvo</p>
-                      <p className="text-sm">{empresa.publicoAlvo}</p>
-                    </div>
-                  </div>
-                )}
-                {empresa?.principaisProdutos && (
-                  <div className="flex gap-2 items-start">
-                    <div className="h-7 w-7 rounded-md bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <Package className="h-3.5 w-3.5 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground font-medium">Principais Produtos/Serviços</p>
-                      <p className="text-sm">{empresa.principaisProdutos}</p>
-                    </div>
-                  </div>
-                )}
-                {empresa?.diferenciaisCompetitivos && (
-                  <div className="flex gap-2 items-start">
-                    <div className="h-7 w-7 rounded-md bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <Star className="h-3.5 w-3.5 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground font-medium">Diferenciais Competitivos</p>
-                      <p className="text-sm">{empresa.diferenciaisCompetitivos}</p>
-                    </div>
-                  </div>
-                )}
-                {empresa?.anoFundacao && (
-                  <div className="flex gap-2 items-start">
-                    <div className="h-7 w-7 rounded-md bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground font-medium">Fundação</p>
-                      <p className="text-sm">{empresa.anoFundacao}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+          <div className="space-y-5">
 
-            {/* Concorrentes + contatos */}
-            <div className="space-y-4">
-              {empresa?.concorrentesConhecidos && (
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">Concorrentes Conhecidos</CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <p className="text-sm">{empresa.concorrentesConhecidos}</p>
-                  </CardContent>
-                </Card>
-              )}
-              <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
-                {empresa?.website && (
-                  <a href={empresa.website} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1 hover:text-foreground transition-colors">
-                    <Globe className="h-3.5 w-3.5" />
-                    {empresa.website.replace(/^https?:\/\//, "")}
-                  </a>
-                )}
-                {empresa?.cnpj && <span>CNPJ: {empresa.cnpj}</span>}
+            {/* Descrição do negócio — largura total */}
+            {empresa?.descricao && (
+              <Card>
+                <CardContent className="p-5">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Sobre a empresa</p>
+                  <p className="text-sm leading-relaxed">{empresa.descricao}</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Grid de atributos — sem coluna vazia */}
+            {(() => {
+              const fields = [
+                empresa?.modeloNegocio      && { icon: Grid3x3,  label: "Tipo de Negócio",            value: empresa.modeloNegocio },
+                empresa?.areaAtuacao        && { icon: Globe,     label: "Abrangência de Mercado",     value: empresa.areaAtuacao },
+                empresa?.publicoAlvo        && { icon: Users,     label: "Clientes Atendidos",         value: empresa.publicoAlvo },
+                empresa?.principaisProdutos && { icon: Package,   label: "Produtos e Serviços",        value: empresa.principaisProdutos },
+                empresa?.diferenciaisCompetitivos && { icon: Star, label: "Vantagens Competitivas",   value: empresa.diferenciaisCompetitivos },
+                empresa?.concorrentesConhecidos   && { icon: Building2, label: "Principais Concorrentes", value: empresa.concorrentesConhecidos },
+                empresa?.anoFundacao        && { icon: Calendar,  label: "Fundada em",                 value: String(empresa.anoFundacao) },
+                empresa?.cnpj               && { icon: Globe,     label: "CNPJ",                       value: empresa.cnpj },
+              ].filter(Boolean) as { icon: LucideIcon; label: string; value: string }[];
+
+              if (!fields.length) return null;
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {fields.map(({ icon: Icon, label, value }) => (
+                    <Card key={label}>
+                      <CardContent className="p-4 flex gap-3 items-start">
+                        <div className="h-7 w-7 rounded-md bg-muted flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-muted-foreground mb-0.5">{label}</p>
+                          <p className="text-sm leading-snug">{value}</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              );
+            })()}
+
+            {/* Website */}
+            {empresa?.website && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Globe className="h-3.5 w-3.5 flex-shrink-0" />
+                <a
+                  href={empresa.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-foreground transition-colors underline-offset-4 hover:underline"
+                >
+                  {empresa.website.replace(/^https?:\/\//, "")}
+                </a>
               </div>
-            </div>
+            )}
           </div>
         </section>
 

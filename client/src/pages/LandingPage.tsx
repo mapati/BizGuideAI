@@ -695,7 +695,6 @@ export default function LandingPage() {
           </div>
         </div>
       </nav>
-
       {/* HERO */}
       <section className="relative overflow-hidden bg-slate-950">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/30 via-primary/5 to-transparent pointer-events-none" />
@@ -734,9 +733,7 @@ export default function LandingPage() {
                 e plano de ação na mão
               </h1>
 
-              <p className="text-lg text-slate-300 leading-relaxed" data-testid="text-hero-subtitle">
-                Um roteiro guiado em 11 passos leva você do diagnóstico ao plano de ação — com a inteligência artificial fazendo o trabalho pesado. Você só precisa responder algumas perguntas.
-              </p>
+              <p className="text-lg text-slate-300 leading-relaxed" data-testid="text-hero-subtitle">Um roteiro guiado em 12 passos leva você do diagnóstico ao plano de ação — com a inteligência artificial fazendo o trabalho pesado. Você só precisa responder algumas perguntas.</p>
 
               <div className="flex flex-wrap gap-3">
                 {["Diagnóstico Completo", "Análise de Mercado", "Metas Claras", "Plano de Ação", "Acompanhamento"].map(tag => (
@@ -793,7 +790,6 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-
       {/* PRODUTO EM AÇÃO */}
       <section className="py-20 bg-slate-950 border-t border-white/5" data-testid="section-showcase">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -842,7 +838,6 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-
       {/* JORNADA ESTRATÉGICA */}
       <section className="py-20 bg-background" data-testid="section-jornada">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -980,7 +975,6 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-
       {/* PROBLEMA / SOLUÇÃO */}
       <section className="py-20 bg-muted/30" data-testid="section-pains">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1014,7 +1008,6 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-
       {/* FEATURES */}
       <section className="py-20 bg-muted/30" data-testid="section-features">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1046,7 +1039,6 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-
       {/* POWERED BY AI */}
       <section className="py-20 bg-slate-950 relative overflow-hidden" data-testid="section-ai-highlight">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-blue-600/10 pointer-events-none" />
@@ -1114,7 +1106,6 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-
       {/* COMO FUNCIONA */}
       <section className="py-20 bg-background" data-testid="section-how-it-works">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1142,7 +1133,6 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-
       {/* PROVA SOCIAL */}
       <section className="py-20 bg-muted/30" data-testid="section-testimonials">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1187,7 +1177,6 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-
       {/* CTA FINAL */}
       <section className="py-20 bg-gradient-to-br from-primary to-primary/80 relative overflow-hidden" data-testid="section-cta">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent pointer-events-none" />
@@ -1217,7 +1206,6 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-
       {/* CONTATO */}
       <section className="py-16 bg-muted/30 border-t" data-testid="section-contato">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -1250,7 +1238,6 @@ export default function LandingPage() {
           </p>
         </div>
       </section>
-
       {/* FOOTER */}
       <footer className="border-t bg-background py-8" data-testid="section-footer">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">

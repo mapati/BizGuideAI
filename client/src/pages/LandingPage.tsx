@@ -661,7 +661,6 @@ const showcaseTabs = [
   { id: "jornada", label: "Roteiro Guiado", icon: Map, component: MockupJornada },
   { id: "home", label: "Painel Inicial", icon: Home, component: MockupHome },
   { id: "okrs", label: "Metas", icon: Target, component: MockupOKRs },
-  { id: "indicadores", label: "Indicadores", icon: BarChart3, component: MockupIndicadores },
 ];
 
 export default function LandingPage() {
@@ -740,7 +739,7 @@ export default function LandingPage() {
               </p>
 
               <div className="flex flex-wrap gap-3">
-                {["Diagnóstico Completo", "Análise de Mercado", "Metas Claras", "Indicadores", "Plano de Ação", "Acompanhamento"].map(tag => (
+                {["Diagnóstico Completo", "Análise de Mercado", "Metas Claras", "Plano de Ação", "Acompanhamento"].map(tag => (
                   <span key={tag} className="text-xs text-slate-400 border border-slate-700 rounded-full px-2.5 py-1">{tag}</span>
                 ))}
               </div>

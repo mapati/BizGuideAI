@@ -890,7 +890,7 @@ export default function LandingPage() {
                 corLinha: "bg-blue-200",
                 etapas: [
                   { num: 1, nome: "Perfil da Empresa", icone: Target, desc: "A IA conhece seu negócio e personaliza tudo a partir daqui" },
-                  { num: 2, nome: "Diagnóstico Atual", icone: ClipboardList, desc: "Métricas que mostram o estado real do negócio hoje — baseline para medir o impacto da estratégia" },
+                  { num: 2, nome: "Diagnóstico Atual", icone: ClipboardList, desc: "Registre métricas que descrevem o estado atual do negócio — receita, crescimento, margem e satisfação de clientes" },
                   { num: 3, nome: "Cenário Externo", icone: Globe2, desc: "O que está acontecendo no mundo que afeta o seu negócio" },
                   { num: 4, nome: "Mercado e Concorrência", icone: Swords, desc: "Quem são seus concorrentes e onde estão suas vantagens" },
                   { num: 5, nome: "Modelo de Negócio", icone: LayoutGrid, desc: "Como sua empresa gera valor, para quem e de que forma" },
@@ -906,9 +906,9 @@ export default function LandingPage() {
                 corIcone: "text-purple-600 bg-purple-100",
                 corLinha: "bg-purple-200",
                 etapas: [
-                  { num: 7, nome: "Estratégias", icone: Flag, desc: "Estratégias práticas e priorizadas geradas a partir do diagnóstico completo" },
-                  { num: 8, nome: "Oportunidades de Crescimento", icone: TrendingUp, desc: "Caminhos para crescer: conquistar mais mercado, novos produtos ou diversificação" },
-                  { num: 9, nome: "Iniciativas Prioritárias", icone: Briefcase, desc: "Projetos concretos com responsáveis, prazos e impacto esperado definidos" },
+                  { num: 7, nome: "Estratégias", icone: Flag, desc: "Combine as forças, fraquezas, oportunidades e ameaças mapeadas para criar estratégias práticas e priorizadas" },
+                  { num: 8, nome: "Oportunidades de Crescimento", icone: TrendingUp, desc: "Identifique caminhos de crescimento: conquistar mais do mercado atual, entrar em novos mercados ou diversificar" },
+                  { num: 9, nome: "Iniciativas Prioritárias", icone: Briefcase, desc: "Transforme estratégias em projetos concretos com responsáveis, prazos e impacto esperado" },
                 ],
               },
               {
@@ -921,8 +921,8 @@ export default function LandingPage() {
                 corLinha: "bg-green-200",
                 etapas: [
                   { num: 10, nome: "Metas e Resultados", icone: Rocket, desc: "Objetivos claros com resultados-chave mensuráveis para guiar a execução da estratégia" },
-                  { num: 11, nome: "Indicadores de Performance", icone: BarChart3, desc: "Painel de indicadores nas 4 perspectivas — Finanças, Clientes, Processos e Pessoas" },
-                  { num: 12, nome: "Acompanhamento", icone: Activity, desc: "Cadência de revisão semanal, mensal e trimestral para manter a estratégia no rumo" },
+                  { num: 11, nome: "Indicadores de Performance", icone: BarChart3, desc: "Painel de indicadores nas 4 perspectivas — Finanças, Clientes, Processos e Pessoas — para monitorar a execução continuamente" },
+                  { num: 12, nome: "Acompanhamento", icone: Activity, desc: "Estabeleça uma cadência de revisão semanal, mensal e trimestral para garantir a execução consistente da estratégia" },
                 ],
               },
             ].map((grupo) => (

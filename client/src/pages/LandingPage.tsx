@@ -836,7 +836,7 @@ export default function LandingPage() {
               className="absolute -inset-6 rounded-3xl opacity-20 blur-3xl pointer-events-none"
               style={{ background: "radial-gradient(ellipse, hsl(var(--primary)) 0%, transparent 70%)" }}
             />
-            <div className="relative max-w-3xl mx-auto">
+            <div className="relative max-w-[34rem] mx-auto">
               <ActiveMockup />
             </div>
           </div>

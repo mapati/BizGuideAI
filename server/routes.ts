@@ -238,7 +238,24 @@ function computeTrialInfo(empresa: { planoStatus: string; trialStartedAt: Date |
   return { planoStatus, diasRestantes, trialExpirado };
 }
 
+/* ── Modelos de IA (configuráveis via painel Admin) ── */
+const AI_MODELS = {
+  padrao:     "gpt-4.1-mini",
+  relatorios: "gpt-4.1",
+  busca:      "gpt-4o-mini-search-preview",
+};
+
+async function loadModelConfig() {
+  try {
+    const cfg = await storage.getConfiguracoesIA();
+    AI_MODELS.padrao     = cfg.modeloPadrao;
+    AI_MODELS.relatorios = cfg.modeloRelatorios;
+    AI_MODELS.busca      = cfg.modeloBusca;
+  } catch { /* usa defaults se DB ainda não tiver a tabela */ }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
+  await loadModelConfig();
 
   // ==================== AUTH ====================
 
@@ -729,6 +746,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const fatura = await storage.updateFatura(id, updateData);
       res.json(fatura);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/admin/config-ia", async (req, res) => {
+    try {
+      const config = await storage.getConfiguracoesIA();
+      res.json(config);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/admin/config-ia", async (req, res) => {
+    try {
+      const schema = z.object({
+        modeloPadrao:     z.string().min(1).optional(),
+        modeloRelatorios: z.string().min(1).optional(),
+        modeloBusca:      z.string().min(1).optional(),
+      });
+      const data = schema.parse(req.body);
+      const config = await storage.upsertConfiguracoesIA(data);
+      if (data.modeloPadrao)     AI_MODELS.padrao     = data.modeloPadrao;
+      if (data.modeloRelatorios) AI_MODELS.relatorios = data.modeloRelatorios;
+      if (data.modeloBusca)      AI_MODELS.busca      = data.modeloBusca;
+      res.json(config);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
@@ -1433,7 +1477,7 @@ Responda APENAS em JSON válido com exatamente este formato:
       try {
         // Use Responses API with web_search_preview for real-time internet search
         const response = await openai.responses.create({
-          model: "gpt-4o-mini-search-preview",
+          model: AI_MODELS.busca,
           tools: [{ type: "web_search_preview" }],
           input: prompt,
         });
@@ -1460,7 +1504,7 @@ Responda APENAS em JSON válido com exatamente este formato:
         const msg = searchError instanceof Error ? searchError.message : String(searchError);
         console.warn("[PESTEL] web_search_preview falhou, usando fallback:", msg);
         const fallback = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
+          model: AI_MODELS.padrao,
           messages: [
             {
               role: "system",
@@ -1541,7 +1585,7 @@ Responda APENAS em JSON válido com exatamente este formato:
         : "";
       
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: AI_MODELS.padrao,
         messages: [
           {
             role: "system",
@@ -1576,7 +1620,7 @@ Responda APENAS em JSON válido com exatamente este formato:
       const tipoLabel = tipo === "forca" ? "forças" : tipo === "fraqueza" ? "fraquezas" : tipo === "oportunidade" ? "oportunidades" : "ameaças";
       
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: AI_MODELS.padrao,
         messages: [
           {
             role: "system",
@@ -1630,7 +1674,7 @@ Responda APENAS em JSON válido com exatamente este formato:
       const contextoBase = tipo === "forca" || tipo === "fraqueza" ? "MODELO DE NEGÓCIO" : "CENÁRIO EXTERNO (PESTEL) e MERCADO E CONCORRÊNCIA";
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: AI_MODELS.relatorios,
         messages: [
           {
             role: "system",
@@ -1833,7 +1877,7 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
 
       const makeExtracaoCall = async (guiaExtracao: string): Promise<string[]> => {
         const result = await openai.chat.completions.create({
-          model: "gpt-4o",
+          model: AI_MODELS.relatorios,
           messages: [
             {
               role: "system",
@@ -1987,7 +2031,7 @@ Fontes disponíveis: ${todasFontesNomes}.`;
 
       // ── GENERATE SWOT ──────────────────────────────────────────────────────
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: AI_MODELS.relatorios,
         messages: [
           { role: "system", content: systemPrompt },
           {
@@ -2168,7 +2212,7 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
       try {
         // Passo 1 — pesquisa livre na web (modelo focado em buscar, não em formatar)
         const webResponse = await openai.responses.create({
-          model: "gpt-4o-mini-search-preview",
+          model: AI_MODELS.busca,
           tools: [{ type: "web_search_preview" }],
           input: searchPrompt,
         });
@@ -2180,7 +2224,7 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
 
         // Passo 2 — estruturar o texto de pesquisa em JSON (modelo focado em formatar)
         const structureResponse = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
+          model: AI_MODELS.padrao,
           messages: [
             {
               role: "system",
@@ -2232,7 +2276,7 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
 }`;
 
         const fallback = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
+          model: AI_MODELS.padrao,
           messages: [
             {
               role: "system",
@@ -2317,7 +2361,7 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
         : "";
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: AI_MODELS.padrao,
         messages: [
           {
             role: "system",
@@ -2351,7 +2395,7 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
       }
       
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: AI_MODELS.padrao,
         messages: [
           {
             role: "system",
@@ -2384,7 +2428,7 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
       }
       
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: AI_MODELS.padrao,
         messages: [
           {
             role: "system",
@@ -2538,7 +2582,7 @@ ${ctx.join("\n\n")}`;
       ];
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: AI_MODELS.padrao,
         messages,
         temperature: 0.7,
         max_tokens: 700,
@@ -2555,7 +2599,7 @@ ${ctx.join("\n\n")}`;
       const { conceito, contexto } = req.body;
       
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: AI_MODELS.padrao,
         messages: [
           {
             role: "system",
@@ -2642,7 +2686,7 @@ ${ctx.join("\n\n")}`;
       ).join("\n\n");
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: AI_MODELS.padrao,
         messages: [
           {
             role: "system",
@@ -2782,7 +2826,7 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
       ).join("\n\n");
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: AI_MODELS.padrao,
         messages: [
           {
             role: "system",
@@ -2918,7 +2962,7 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
       const oportunidadesResume = oportunidades.map(o => `${o.tipo}: ${o.titulo}`).join("\n");
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: AI_MODELS.padrao,
         messages: [
           {
             role: "system",
@@ -3049,7 +3093,7 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         const objetivosResume = objetivosDestaPerspectiva.map(o => `- ${o.titulo}`).join("\n");
 
         const completion = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
+          model: AI_MODELS.padrao,
           messages: [
             {
               role: "system",
@@ -3174,7 +3218,7 @@ Responda em JSON:
       const iniciativasResume = iniciativas.map(i => i.titulo).join("\n");
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: AI_MODELS.padrao,
         messages: [
           {
             role: "system",
@@ -3510,7 +3554,7 @@ Responda em JSON:
       }
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: AI_MODELS.padrao,
         messages: [
           {
             role: "system",
@@ -3584,7 +3628,7 @@ Gere uma descrição completa e profissional desta empresa.`,
       const objetivosResume = objetivosList.map(o => o.titulo).join("\n");
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: AI_MODELS.padrao,
         messages: [
           {
             role: "system",
@@ -3692,7 +3736,7 @@ Responda em JSON:
         .map((i) => i.nome.toLowerCase().trim());
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: AI_MODELS.padrao,
         messages: [
           {
             role: "system",
@@ -3780,7 +3824,7 @@ Responda em JSON:
       for (const ind of indicadoresBsc) {
         try {
           const completion = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
+            model: AI_MODELS.padrao,
             messages: [
               {
                 role: "system",
@@ -4196,7 +4240,7 @@ Responda em JSON:
           : "Sem alertas ativos no momento.";
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: AI_MODELS.padrao,
         messages: [
           {
             role: "system",
@@ -4328,7 +4372,7 @@ Inclua 3-5 itens em cada lista. Seja específico e cite os dados reais fornecido
       const pestelResume = pestels.map(p => `${p.tipo}: ${p.descricao} (impacto: ${p.impacto})`).join("\n");
       const estResume = estrategias.slice(0, 5).map(e => e.descricao).join("; ");
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: AI_MODELS.relatorios,
         messages: [{
           role: "user",
           content: `Você é consultor estratégico especializado em planejamento de cenários para PMEs brasileiras.
@@ -4383,7 +4427,7 @@ Responda APENAS com JSON no formato:
       let premList: string[] = [];
       try { premList = JSON.parse(premissas || "[]"); } catch { premList = []; }
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: AI_MODELS.relatorios,
         messages: [{
           role: "user",
           content: `Você é consultor estratégico de PMEs brasileiras.
@@ -4435,7 +4479,7 @@ Responda APENAS com JSON: { "respostaEstrategica": "..." }`,
       const ameacas = swots.filter(s => s.tipo === "ameaca").map(s => s.descricao).join("; ");
       const pestelNeg = pestels.filter(p => p.impacto === "negativo").map(p => `${p.categoria}: ${p.descricao}`).join("; ");
       const completion = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: AI_MODELS.relatorios,
         messages: [{
           role: "user",
           content: `Você é especialista em gestão de riscos para PMEs brasileiras.

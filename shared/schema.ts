@@ -424,3 +424,13 @@ export const insertFaturaSchema = createInsertSchema(faturas).omit({
 export type InsertFatura = z.infer<typeof insertFaturaSchema>;
 export type Fatura = typeof faturas.$inferSelect;
 
+export const configuracoesIa = pgTable("configuracoes_ia", {
+  id: integer("id").primaryKey().default(1),
+  modeloPadrao: text("modelo_padrao").notNull().default("gpt-4.1-mini"),
+  modeloRelatorios: text("modelo_relatorios").notNull().default("gpt-4.1"),
+  modeloBusca: text("modelo_busca").notNull().default("gpt-4o-mini-search-preview"),
+  atualizadoEm: timestamp("atualizado_em").defaultNow().notNull(),
+});
+
+export type ConfiguracaoIa = typeof configuracoesIa.$inferSelect;
+

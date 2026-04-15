@@ -24,6 +24,7 @@ import {
   rituais,
   eventos,
   faturas,
+  configuracoesIa,
   type Empresa,
   type InsertEmpresa,
   type Usuario,
@@ -199,6 +200,9 @@ export interface IStorage {
   createPasswordResetToken(usuarioId: string, token: string, expiresAt: Date): Promise<PasswordResetToken>;
   getPasswordResetToken(token: string): Promise<PasswordResetToken | undefined>;
   markPasswordResetTokenUsed(id: string): Promise<void>;
+
+  getConfiguracoesIA(): Promise<{ modeloPadrao: string; modeloRelatorios: string; modeloBusca: string }>;
+  upsertConfiguracoesIA(config: { modeloPadrao?: string; modeloRelatorios?: string; modeloBusca?: string }): Promise<{ modeloPadrao: string; modeloRelatorios: string; modeloBusca: string }>;
 }
 
 function omitTenantFields<T extends Record<string, unknown>>(data: T): Omit<T, "empresaId" | "objetivoId"> {
@@ -770,6 +774,27 @@ export class DbStorage implements IStorage {
 
   async markPasswordResetTokenUsed(id: string): Promise<void> {
     await db.update(passwordResetTokens).set({ usedAt: new Date() }).where(eq(passwordResetTokens.id, id));
+  }
+
+  async getConfiguracoesIA(): Promise<{ modeloPadrao: string; modeloRelatorios: string; modeloBusca: string }> {
+    const result = await db.select().from(configuracoesIa).where(eq(configuracoesIa.id, 1)).limit(1);
+    if (result[0]) {
+      return { modeloPadrao: result[0].modeloPadrao, modeloRelatorios: result[0].modeloRelatorios, modeloBusca: result[0].modeloBusca };
+    }
+    return { modeloPadrao: "gpt-4.1-mini", modeloRelatorios: "gpt-4.1", modeloBusca: "gpt-4o-mini-search-preview" };
+  }
+
+  async upsertConfiguracoesIA(config: { modeloPadrao?: string; modeloRelatorios?: string; modeloBusca?: string }): Promise<{ modeloPadrao: string; modeloRelatorios: string; modeloBusca: string }> {
+    const defaults = await this.getConfiguracoesIA();
+    const merged = {
+      modeloPadrao: config.modeloPadrao ?? defaults.modeloPadrao,
+      modeloRelatorios: config.modeloRelatorios ?? defaults.modeloRelatorios,
+      modeloBusca: config.modeloBusca ?? defaults.modeloBusca,
+    };
+    await db.insert(configuracoesIa)
+      .values({ id: 1, ...merged, atualizadoEm: new Date() })
+      .onConflictDoUpdate({ target: configuracoesIa.id, set: { ...merged, atualizadoEm: new Date() } });
+    return merged;
   }
 
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
@@ -34,6 +34,9 @@ import {
   AlertTriangle,
   Plus,
   ShieldAlert,
+  Brain,
+  Save,
+  Info,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -517,6 +520,163 @@ function TabResumo({ empresas, faturas }: { empresas: AdminEmpresa[]; faturas: A
   );
 }
 
+interface ConfigIA {
+  modeloPadrao: string;
+  modeloRelatorios: string;
+  modeloBusca: string;
+}
+
+const OPCOES_PADRAO = [
+  { value: "gpt-4.1-mini",     label: "GPT-4.1 Mini",     desc: "Mais rápido · Econômico · Recomendado" },
+  { value: "gpt-4o-mini",      label: "GPT-4o Mini",       desc: "Legado OpenAI" },
+  { value: "gpt-4.1",          label: "GPT-4.1",           desc: "Alta qualidade" },
+  { value: "gpt-4o",           label: "GPT-4o",            desc: "Alta qualidade · Legado" },
+];
+
+const OPCOES_RELATORIOS = [
+  { value: "gpt-4.1",          label: "GPT-4.1",           desc: "Alta qualidade · Recomendado" },
+  { value: "gpt-4o",           label: "GPT-4o",            desc: "Alta qualidade · Legado" },
+  { value: "gpt-4.1-mini",     label: "GPT-4.1 Mini",      desc: "Rápido · Econômico" },
+  { value: "gpt-4o-mini",      label: "GPT-4o Mini",       desc: "Econômico · Legado" },
+];
+
+const OPCOES_BUSCA = [
+  { value: "gpt-4o-mini-search-preview", label: "GPT-4o Mini Search Preview", desc: "Web Search · Recomendado" },
+  { value: "gpt-4o-search-preview",      label: "GPT-4o Search Preview",      desc: "Web Search · Mais poderoso" },
+];
+
+function ModelSelector({
+  label,
+  description,
+  value,
+  onChange,
+  opcoes,
+  testId,
+}: {
+  label: string;
+  description: string;
+  value: string;
+  onChange: (v: string) => void;
+  opcoes: { value: string; label: string; desc: string }[];
+  testId: string;
+}) {
+  return (
+    <Card>
+      <CardContent className="p-5 space-y-3">
+        <div>
+          <p className="font-medium text-sm">{label}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+        </div>
+        <Select value={value} onValueChange={onChange}>
+          <SelectTrigger data-testid={testId}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {opcoes.map(o => (
+              <SelectItem key={o.value} value={o.value}>
+                <div className="flex flex-col">
+                  <span className="font-medium">{o.label}</span>
+                  <span className="text-xs text-muted-foreground">{o.desc}</span>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <Info className="h-3 w-3 shrink-0" />
+          <span>Modelo atual: <code className="font-mono bg-muted px-1 rounded">{value}</code></span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TabConfigIA() {
+  const { toast } = useToast();
+  const { data: config, isLoading } = useQuery<ConfigIA>({
+    queryKey: ["/api/admin/config-ia"],
+  });
+
+  const [modeloPadrao,     setModeloPadrao]     = useState("gpt-4.1-mini");
+  const [modeloRelatorios, setModeloRelatorios] = useState("gpt-4.1");
+  const [modeloBusca,      setModeloBusca]      = useState("gpt-4o-mini-search-preview");
+
+  useEffect(() => {
+    if (config) {
+      setModeloPadrao(config.modeloPadrao);
+      setModeloRelatorios(config.modeloRelatorios);
+      setModeloBusca(config.modeloBusca);
+    }
+  }, [config]);
+
+  const salvar = useMutation({
+    mutationFn: () =>
+      apiRequest("PATCH", "/api/admin/config-ia", { modeloPadrao, modeloRelatorios, modeloBusca }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/config-ia"] });
+      toast({ title: "Configuração salva", description: "Os modelos de IA foram atualizados com sucesso." });
+    },
+    onError: (error: Error) =>
+      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" }),
+  });
+
+  if (isLoading) {
+    return <div className="text-sm text-muted-foreground py-8 text-center">Carregando configurações...</div>;
+  }
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <div className="flex items-start gap-3 p-4 rounded-md border bg-muted/40">
+        <Brain className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+        <div>
+          <p className="text-sm font-medium">Modelos de Linguagem (LLM)</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Escolha qual modelo OpenAI será usado em cada tipo de chamada. A mudança entra em vigor imediatamente e persiste entre reinicializações.
+          </p>
+        </div>
+      </div>
+
+      <ModelSelector
+        label="Modelo Padrão — Jornada Estratégica"
+        description="Usado nos ~25 passos da jornada guiada (diagnóstico, SWOT, OKRs, estratégias, metas, etc.)."
+        value={modeloPadrao}
+        onChange={setModeloPadrao}
+        opcoes={OPCOES_PADRAO}
+        testId="select-modelo-padrao"
+      />
+
+      <ModelSelector
+        label="Modelo de Relatórios — Análises Complexas"
+        description="Usado na geração de relatórios executivos, planos completos e sínteses estratégicas (~6 chamadas)."
+        value={modeloRelatorios}
+        onChange={setModeloRelatorios}
+        opcoes={OPCOES_RELATORIOS}
+        testId="select-modelo-relatorios"
+      />
+
+      <ModelSelector
+        label="Modelo de Busca Web — Cenário Externo e Mercado"
+        description="Usado nas etapas que consultam a internet para análise de mercado, concorrência e tendências."
+        value={modeloBusca}
+        onChange={setModeloBusca}
+        opcoes={OPCOES_BUSCA}
+        testId="select-modelo-busca"
+      />
+
+      <div className="flex justify-end">
+        <Button
+          onClick={() => salvar.mutate()}
+          disabled={salvar.isPending}
+          data-testid="button-salvar-config-ia"
+        >
+          <Save className="h-4 w-4 mr-2" />
+          {salvar.isPending ? "Salvando..." : "Salvar Configurações"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function Admin() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
@@ -567,6 +727,10 @@ export default function Admin() {
             <FileText className="h-4 w-4 mr-2" />
             Faturas
           </TabsTrigger>
+          <TabsTrigger value="config-ia" data-testid="tab-config-ia">
+            <Brain className="h-4 w-4 mr-2" />
+            Modelos IA
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="resumo" className="mt-4">
@@ -579,6 +743,10 @@ export default function Admin() {
 
         <TabsContent value="faturas" className="mt-4">
           <TabFaturas faturas={faturas} isLoading={loadingFaturas} empresas={empresas} />
+        </TabsContent>
+
+        <TabsContent value="config-ia" className="mt-4">
+          <TabConfigIA />
         </TabsContent>
       </Tabs>
     </div>

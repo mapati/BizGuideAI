@@ -3,6 +3,7 @@ import {
   Building2,
   FileText,
   CheckCircle2,
+  Wifi,
 } from "lucide-react";
 
 /* ─── Neural network node positions (viewBox 0 0 130 110) ─── */
@@ -41,9 +42,9 @@ const PLAN_ROWS = [
  * Left panel right edge ≈ SVG x 190, core centre = (495, 190)
  */
 const CHIP_PATHS = [
-  "M 190 201 C 340 201 440 190 495 190",
-  "M 190 245 C 340 245 440 190 495 190",
-  "M 190 289 C 340 289 440 190 495 190",
+  "M 215 172 C 350 172 440 190 495 190",
+  "M 215 202 C 350 202 440 190 495 190",
+  "M 215 234 C 350 234 440 190 495 190",
 ];
 const LEFT_PACKET_OFFSETS = ["0s", "1.3s"];
 
@@ -151,7 +152,7 @@ export function HeroDiagramaIA() {
           {/* Left chip lane gradients */}
           {CHIP_PATHS.map((_, i) => (
             <linearGradient key={i} id={`og-chip-grad-${i}`} gradientUnits="userSpaceOnUse"
-              x1="190" y1="0" x2="495" y2="0">
+              x1="215" y1="0" x2="495" y2="0">
               <stop offset="0%"   stopColor="#38bdf8" stopOpacity="0.04" />
               <stop offset="60%"  stopColor="#38bdf8" stopOpacity="0.22" />
               <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.04" />
@@ -246,29 +247,49 @@ export function HeroDiagramaIA() {
       <div className="relative z-10 w-full h-full flex items-center justify-between px-8">
 
         {/* LEFT: Empresa */}
-        <div className="flex flex-col items-center gap-3 w-[138px] og-float">
-          <div className="relative">
-            <div className="absolute inset-0 rounded-2xl bg-sky-500/15 blur-xl og-pulse" />
-            <div className="relative w-20 h-20 bg-[#0c1627] border border-sky-500/30 rounded-2xl flex items-center justify-center shadow-[0_0_20px_rgba(56,189,248,0.18)]">
-              <Building2 className="w-9 h-9 text-sky-400" />
-            </div>
-          </div>
-          <div className="text-center">
-            <p className="text-white font-semibold text-sm leading-tight">Perfil da<br />Empresa</p>
-          </div>
-          {["Dados Coletados", "Website", "Modelo de Negócio"].map((label, i) => (
-            <div
-              key={label}
-              className="w-full flex items-center gap-1.5 bg-sky-500/5 border border-sky-500/15 rounded-lg px-2.5 py-1.5"
-              style={{ opacity: 0.75 + i * 0.08 }}
-            >
-              <div className="relative flex-shrink-0 w-1.5 h-1.5">
-                <span className="absolute inset-0 rounded-full bg-sky-400 animate-ping" style={{ animationDelay: `${i * 0.65}s`, animationDuration: "2.6s" }} />
-                <span className="absolute inset-0 rounded-full bg-sky-300" />
+        <div className="w-[175px] relative og-float">
+          <div className="absolute inset-0 rounded-xl bg-sky-500/10 blur-xl og-pulse" />
+          <div className="relative bg-[#0a0e1e]/90 border border-sky-500/30 rounded-xl p-4 shadow-[0_0_25px_rgba(56,189,248,0.15)] backdrop-blur-md">
+            <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-white/5">
+              <div className="w-9 h-9 rounded-lg bg-sky-500/20 border border-sky-500/30 flex items-center justify-center shrink-0">
+                <Building2 className="w-4 h-4 text-sky-300" />
               </div>
-              <span className="text-sky-300/80 text-[10px]">{label}</span>
+              <div>
+                <p className="text-white font-semibold text-xs leading-tight">Perfil da<br />Empresa</p>
+                <p className="text-sky-400/60 text-[9px] font-mono mt-0.5 uppercase">Fonte de Dados</p>
+              </div>
             </div>
-          ))}
+
+            {[
+              { label: "Dados Coletados", done: true },
+              { label: "Website",         done: true },
+              { label: "Modelo de Negócio", done: false },
+            ].map(({ label, done }, i) => (
+              <div key={label} className="space-y-1 mb-2.5">
+                <div className="flex justify-between items-center">
+                  <span className="text-[9px] text-slate-400 flex items-center gap-1">
+                    <CheckCircle2 className={`w-2.5 h-2.5 ${done ? "text-sky-400" : "text-slate-600"}`} />
+                    {label}
+                  </span>
+                  <div className="relative flex-shrink-0 w-1.5 h-1.5">
+                    <span className="absolute inset-0 rounded-full bg-sky-400 animate-ping" style={{ animationDelay: `${i * 0.65}s`, animationDuration: "2.6s" }} />
+                    <span className="absolute inset-0 rounded-full bg-sky-300" />
+                  </div>
+                </div>
+                <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-sky-500 to-cyan-400 rounded-full og-bar-fill"
+                    style={{ "--tw": done ? "100%" : "58%", "--bd": `${i * 0.5}s` } as CSSProperties}
+                  />
+                </div>
+              </div>
+            ))}
+
+            <div className="w-full mt-3 py-1.5 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center gap-1.5">
+              <Wifi className="w-3 h-3 text-sky-300" />
+              <span className="text-[10px] text-sky-300 font-medium tracking-wide">Conectado</span>
+            </div>
+          </div>
         </div>
 
         {/* CENTER: Núcleo IA */}

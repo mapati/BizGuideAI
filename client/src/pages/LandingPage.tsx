@@ -118,7 +118,7 @@ const steps = [
   {
     number: "02",
     title: "Siga o roteiro guiado",
-    desc: "Um passo a passo com 11 etapas leva você do diagnóstico ao plano de ação completo. Sem pular nada, sem se perder.",
+    desc: "Um passo a passo com 12 etapas leva você do diagnóstico ao plano de ação completo. Sem pular nada, sem se perder.",
   },
   {
     number: "03",

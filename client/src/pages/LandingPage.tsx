@@ -775,17 +775,22 @@ export default function LandingPage() {
             className="mt-16 w-full rounded-xl border border-white/10 bg-white/5 backdrop-blur p-5 grid grid-cols-2 sm:grid-cols-4 gap-4"
             data-testid="section-hero-stats"
           >
-            {[
-              { label: "Ferramentas de Gestão", value: "14+" },
-              { label: "Comprovadas", value: "Metodologias" },
-              { label: "Integrada", value: "Inteligência Artificial" },
-              { label: "Remoto & Presencial", value: "Suporte" },
-            ].map((stat) => (
-              <div key={stat.label} className="text-center">
-                <div className="text-xl font-bold text-white">{stat.value}</div>
-                <div className="text-xs text-slate-400 mt-0.5">{stat.label}</div>
-              </div>
-            ))}
+            <div className="text-center">
+              <div className="text-xl font-bold text-white">14+</div>
+              <div className="text-xs text-slate-400 mt-0.5">Ferramentas de Gestão</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xl font-bold text-white">Metodologias</div>
+              <div className="text-xs text-slate-400 mt-0.5">Comprovadas</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xl font-bold text-white">Inteligência Artificial</div>
+              <div className="text-xs text-slate-400 mt-0.5">Integrada</div>
+            </div>
+            <div className="text-center">
+              <div className="text-xl font-bold text-white">Suporte</div>
+              <div className="text-xs text-slate-400 mt-0.5">Remoto & Presencial</div>
+            </div>
           </div>
         </div>
       </section>

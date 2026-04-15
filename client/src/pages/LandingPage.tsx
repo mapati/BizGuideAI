@@ -844,7 +844,7 @@ export default function LandingPage() {
           <div className="text-center mb-14">
             <Badge variant="outline" className="mb-4 text-sm px-4 py-1">
               <Map className="h-3.5 w-3.5 mr-1.5" />
-              Roteiro completo em 11 passos
+              Roteiro completo em 12 passos
             </Badge>
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">
               Cada passo no lugar certo, na hora certa
@@ -859,7 +859,7 @@ export default function LandingPage() {
             {[
               { label: "Diagnóstico", num: "01", bg: "bg-blue-600", count: "6 etapas" },
               { label: "Plano de Ação", num: "02", bg: "bg-purple-600", count: "3 etapas" },
-              { label: "Execução", num: "03", bg: "bg-green-600", count: "2 etapas" },
+              { label: "Execução", num: "03", bg: "bg-green-600", count: "3 etapas" },
             ].map((fase, i) => (
               <div key={fase.label} className="flex items-center">
                 <div className={`flex items-center gap-3 px-5 py-3 rounded-xl ${fase.bg} text-white`}>
@@ -890,7 +890,7 @@ export default function LandingPage() {
                 corLinha: "bg-blue-200",
                 etapas: [
                   { num: 1, nome: "Perfil da Empresa", icone: Target, desc: "A IA conhece seu negócio e personaliza tudo a partir daqui" },
-                  { num: 2, nome: "Indicadores do Negócio", icone: BarChart3, desc: "Os números que mostram a saúde da sua empresa hoje" },
+                  { num: 2, nome: "Diagnóstico Atual", icone: ClipboardList, desc: "Métricas que mostram o estado real do negócio hoje — baseline para medir o impacto da estratégia" },
                   { num: 3, nome: "Cenário Externo", icone: Globe2, desc: "O que está acontecendo no mundo que afeta o seu negócio" },
                   { num: 4, nome: "Mercado e Concorrência", icone: Swords, desc: "Quem são seus concorrentes e onde estão suas vantagens" },
                   { num: 5, nome: "Modelo de Negócio", icone: LayoutGrid, desc: "Como sua empresa gera valor, para quem e de que forma" },
@@ -906,9 +906,9 @@ export default function LandingPage() {
                 corIcone: "text-purple-600 bg-purple-100",
                 corLinha: "bg-purple-200",
                 etapas: [
-                  { num: 7, nome: "Estratégias de Crescimento", icone: Flag, desc: "O que fazer com base no diagnóstico — ações práticas e priorizadas" },
-                  { num: 8, nome: "Oportunidades de Mercado", icone: TrendingUp, desc: "Caminhos para crescer: novos clientes, produtos ou mercados" },
-                  { num: 9, nome: "Projetos Prioritários", icone: Briefcase, desc: "O que executar primeiro, com responsáveis e prazos definidos" },
+                  { num: 7, nome: "Estratégias", icone: Flag, desc: "Estratégias práticas e priorizadas geradas a partir do diagnóstico completo" },
+                  { num: 8, nome: "Oportunidades de Crescimento", icone: TrendingUp, desc: "Caminhos para crescer: conquistar mais mercado, novos produtos ou diversificação" },
+                  { num: 9, nome: "Iniciativas Prioritárias", icone: Briefcase, desc: "Projetos concretos com responsáveis, prazos e impacto esperado definidos" },
                 ],
               },
               {
@@ -920,8 +920,9 @@ export default function LandingPage() {
                 corIcone: "text-green-600 bg-green-100",
                 corLinha: "bg-green-200",
                 etapas: [
-                  { num: 10, nome: "Metas e Resultados", icone: Rocket, desc: "Objetivos claros com indicadores para saber se está no caminho" },
-                  { num: 11, nome: "Rotina de Acompanhamento", icone: Activity, desc: "Revisões periódicas para manter tudo no rumo certo" },
+                  { num: 10, nome: "Metas e Resultados", icone: Rocket, desc: "Objetivos claros com resultados-chave mensuráveis para guiar a execução da estratégia" },
+                  { num: 11, nome: "Indicadores de Performance", icone: BarChart3, desc: "Painel de indicadores nas 4 perspectivas — Finanças, Clientes, Processos e Pessoas" },
+                  { num: 12, nome: "Acompanhamento", icone: Activity, desc: "Cadência de revisão semanal, mensal e trimestral para manter a estratégia no rumo" },
                 ],
               },
             ].map((grupo) => (
@@ -1148,7 +1149,7 @@ export default function LandingPage() {
               {
                 icon: Map,
                 title: "Roteiro guiado — passo a passo",
-                desc: "Nenhuma etapa esquecida. O sistema te conduz por um roteiro de 11 passos — do diagnóstico ao plano de ação — na ordem certa.",
+                desc: "Nenhuma etapa esquecida. O sistema te conduz por um roteiro de 12 passos — do diagnóstico ao plano de ação — na ordem certa.",
               },
               {
                 icon: Zap,

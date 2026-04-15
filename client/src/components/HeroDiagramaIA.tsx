@@ -44,7 +44,6 @@ const CHIP_PATHS = [
   "M 190 201 C 340 201 440 190 495 190",
   "M 190 245 C 340 245 440 190 495 190",
   "M 190 289 C 340 289 440 190 495 190",
-  "M 190 334 C 340 334 440 190 495 190",
 ];
 const LEFT_PACKET_OFFSETS = ["0s", "1.3s"];
 
@@ -257,7 +256,7 @@ export function HeroDiagramaIA() {
           <div className="text-center">
             <p className="text-white font-semibold text-sm leading-tight">Perfil da<br />Empresa</p>
           </div>
-          {["Dados Coletados", "Diagnóstico", "Mercado", "Cenários"].map((label, i) => (
+          {["Dados Coletados", "Website", "Modelo de Negócio"].map((label, i) => (
             <div
               key={label}
               className="w-full flex items-center gap-1.5 bg-sky-500/5 border border-sky-500/15 rounded-lg px-2.5 py-1.5"
@@ -310,10 +309,6 @@ export function HeroDiagramaIA() {
           </div>
           <div className="mt-3 text-center">
             <p className="text-white font-bold text-sm tracking-wider">Núcleo IA</p>
-            <div className="flex items-center justify-center gap-1 mt-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-emerald-400/80 text-[9px] font-mono uppercase tracking-widest">processando</span>
-            </div>
           </div>
         </div>
 

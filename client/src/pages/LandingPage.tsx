@@ -777,9 +777,9 @@ export default function LandingPage() {
           >
             {[
               { label: "Ferramentas de Gestão", value: "14+" },
-              { label: "Metodologias", value: "Comprovadas" },
-              { label: "Inteligência Artificial", value: "Integrada" },
-              { label: "Suporte", value: "Remoto & Presencial" },
+              { label: "Comprovadas", value: "Metodologias" },
+              { label: "Integrada", value: "Inteligência Artificial" },
+              { label: "Remoto & Presencial", value: "Suporte" },
             ].map((stat) => (
               <div key={stat.label} className="text-center">
                 <div className="text-xl font-bold text-white">{stat.value}</div>

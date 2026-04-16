@@ -765,6 +765,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Força uma reconciliação do status da assinatura direto no Mercado Pago.
+  // Útil quando o webhook não chegou mas o pagamento foi confirmado.
+  app.post("/api/admin/empresas/:id/sincronizar-mp", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const empresa = await storage.getEmpresa(id);
+      if (!empresa) return res.status(404).json({ error: "Empresa não encontrada" });
+      if (!empresa.mpSubscriptionId) {
+        return res.status(400).json({ error: "Empresa não possui assinatura no Mercado Pago" });
+      }
+
+      let subscription: MpSubscription | null = null;
+      try {
+        subscription = (await buscarAssinatura(empresa.mpSubscriptionId)) as MpSubscription;
+      } catch (err) {
+        return res.status(502).json({
+          error: "Falha ao consultar Mercado Pago",
+          detalhe: (err as Error)?.message ?? String(err),
+        });
+      }
+
+      const mpStatus = subscription?.status ?? null;
+      const statusDetail = subscription?.status_detail ?? null;
+      const reason = (subscription?.reason ?? "").toLowerCase();
+      const planoTipo = reason.includes("pro") ? "pro" : "start";
+
+      let empresaAtualizada = empresa;
+      if (mpStatus === "authorized") {
+        empresaAtualizada = await storage.updateEmpresaPlano(empresa.id, {
+          planoStatus: "ativo",
+          planoTipo,
+          planoAtivadoEm: empresa.planoAtivadoEm ?? new Date(),
+          mpSubscriptionStatus: mpStatus,
+        });
+      } else if (mpStatus === "cancelled" || mpStatus === "paused") {
+        empresaAtualizada = await storage.updateEmpresaPlano(empresa.id, {
+          planoStatus: "suspenso",
+          mpSubscriptionStatus: mpStatus,
+        });
+      } else {
+        empresaAtualizada = await storage.updateEmpresaPlano(empresa.id, {
+          mpSubscriptionStatus: mpStatus ?? "pending",
+        });
+      }
+
+      // Auditoria da sincronização manual
+      await storage.createPagamentoEvento({
+        empresaId: empresa.id,
+        tipo: "sync_manual",
+        acao: "admin_sync",
+        mpResourceId: empresa.mpSubscriptionId,
+        status: mpStatus,
+        statusDetail,
+        payload: JSON.stringify(subscription ?? {}).slice(0, 10000),
+      }).catch(() => {});
+
+      res.json({
+        success: true,
+        mpStatus,
+        statusDetail,
+        planoStatus: empresaAtualizada.planoStatus,
+        planoTipo: empresaAtualizada.planoTipo,
+      });
+    } catch (error) {
+      res.status(500).json({ error: (error as Error).message });
+    }
+  });
+
   app.post("/api/admin/empresas/:id/suspender", async (req, res) => {
     try {
       const { id } = req.params;

@@ -39,6 +39,7 @@ import {
   Save,
   Info,
   Trash2,
+  RefreshCw,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -477,6 +478,27 @@ function TabEmpresas({ empresas, isLoading }: { empresas: AdminEmpresa[]; isLoad
     onError: (error: Error) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
   });
 
+  const sincronizarMp = useMutation({
+    mutationFn: (id: string) =>
+      apiRequest("POST", `/api/admin/empresas/${id}/sincronizar-mp`) as Promise<{
+        success: boolean;
+        mpStatus: string | null;
+        planoStatus: string;
+      }>,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/empresas"] });
+      if (data.planoStatus === "ativo") {
+        toast({ title: "Plano ativado", description: "A assinatura foi confirmada no Mercado Pago." });
+      } else {
+        toast({
+          title: "Ainda pendente no Mercado Pago",
+          description: `Status atual: ${data.mpStatus ?? "desconhecido"}. Tente novamente em alguns minutos.`,
+        });
+      }
+    },
+    onError: (error: Error) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
+  });
+
   const filtradas = empresas.filter(e => {
     if (filtro !== "todos" && e.planoStatus !== filtro) return false;
     if (filtroPlan !== "todos" && e.planoTipo !== filtroPlan) return false;
@@ -580,6 +602,18 @@ function TabEmpresas({ empresas, isLoading }: { empresas: AdminEmpresa[]; isLoad
                     >
                       <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
                       Ativar Plano
+                    </Button>
+                  )}
+                  {e.planoStatus === "pendente_pagamento" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => sincronizarMp.mutate(e.id)}
+                      disabled={sincronizarMp.isPending}
+                      data-testid={`button-sincronizar-mp-${e.id}`}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                      Sincronizar com Mercado Pago
                     </Button>
                   )}
                   {e.planoStatus === "ativo" && (

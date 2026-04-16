@@ -1013,69 +1013,50 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-      {/* POWERED BY AI */}
-      <section className="py-20 bg-slate-950 relative overflow-hidden" data-testid="section-ai-highlight">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-blue-600/10 pointer-events-none" />
-        <div
-          className="absolute inset-0 pointer-events-none opacity-10"
-          style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.15'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-          }}
-        />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <div className="flex flex-col gap-6">
-              <Badge className="bg-primary/20 text-primary border-primary/30 w-fit text-sm px-3 py-1">
-                <Brain className="h-3.5 w-3.5 mr-1.5" />
-                Inteligência Artificial Avançada
-              </Badge>
-              <h2 className="text-3xl sm:text-4xl font-bold text-white">
-                A IA que entende o seu negócio de verdade
-              </h2>
-              <p className="text-slate-400 text-lg leading-relaxed">
-                Não é um chatbot genérico. A inteligência artificial do BizGuideAI lê os dados reais da sua empresa e entrega análises sob medida, recomendações priorizadas e diagnósticos em linguagem que qualquer empresário entende.
-              </p>
-              <div className="flex flex-col gap-3">
-                {[
-                  "Lê o site da sua empresa e monta o perfil do negócio automaticamente",
-                  "Sugere metas, projetos e indicadores alinhados ao seu setor",
-                  "Cruza informações e descobre onde estão as maiores oportunidades",
-                  "Entrega recomendações prontas em cada etapa do roteiro",
-                ].map(item => (
-                  <div key={item} className="flex items-start gap-3">
-                    <div className="h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <Sparkles className="h-3 w-3 text-primary" />
-                    </div>
-                    <p className="text-slate-300 text-sm">{item}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
+      {/* PRODUTO EM AÇÃO */}
+      <section className="py-20 bg-slate-950 border-t border-white/5" data-testid="section-showcase">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <Badge variant="secondary" className="mb-4 text-sm px-4 py-1 bg-primary/10 text-primary border-primary/20">
+              <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+              Veja o produto em ação
+            </Badge>
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+              Simples de usar, poderoso nos resultados
+            </h2>
+            <p className="text-slate-400 text-lg max-w-2xl mx-auto">
+              O sistema te conduz passo a passo — você responde, a IA trabalha, e no final você tem um plano estratégico completo para sua empresa.
+            </p>
+          </div>
 
-            <div className="relative">
-              <div
-                className="absolute -inset-4 rounded-2xl opacity-25 blur-2xl pointer-events-none"
-                style={{ background: "radial-gradient(ellipse, #60a5fa 0%, transparent 70%)" }}
-              />
-              <div className="relative space-y-3">
-                {[
-                  { title: "Perfil Automático", desc: "A IA lê seu site e monta o perfil do negócio", tag: "Automático", color: "text-emerald-400" },
-                  { title: "Metas sob Medida", desc: "Objetivos e indicadores alinhados ao seu mercado", tag: "Personalizado", color: "text-blue-400" },
-                  { title: "Diagnóstico Cruzado", desc: "Descobre oportunidades combinando diferentes análises", tag: "Estratégico", color: "text-purple-400" },
-                  { title: "Linguagem Clara", desc: "Relatórios diretos, sem jargão — prontos para decidir", tag: "Executivo", color: "text-amber-400" },
-                ].map(item => (
-                  <div key={item.title} className="flex items-center gap-3 bg-slate-900/80 border border-white/10 rounded-xl p-4">
-                    <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <Sparkles className="h-4 w-4 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm font-semibold">{item.title}</p>
-                      <p className="text-slate-500 text-xs truncate">{item.desc}</p>
-                    </div>
-                    <span className={`text-xs font-medium ${item.color} flex-shrink-0`}>{item.tag}</span>
-                  </div>
-                ))}
-              </div>
+          <div className="flex flex-wrap justify-center gap-2 mb-8">
+            {showcaseTabs.map(tab => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all border ${
+                    activeTab === tab.id
+                      ? "bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/25"
+                      : "bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-500 hover:text-slate-300"
+                  }`}
+                  data-testid={`tab-showcase-${tab.id}`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="relative">
+            <div
+              className="absolute -inset-6 rounded-3xl opacity-20 blur-3xl pointer-events-none"
+              style={{ background: "radial-gradient(ellipse, hsl(var(--primary)) 0%, transparent 70%)" }}
+            />
+            <div className="relative max-w-3xl mx-auto" style={{ zoom: 0.7 }}>
+              <ActiveMockup />
             </div>
           </div>
         </div>
@@ -1151,50 +1132,69 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-      {/* PRODUTO EM AÇÃO */}
-      <section className="py-20 bg-slate-950 border-t border-white/5" data-testid="section-showcase">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <Badge variant="secondary" className="mb-4 text-sm px-4 py-1 bg-primary/10 text-primary border-primary/20">
-              <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-              Veja o produto em ação
-            </Badge>
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-              Simples de usar, poderoso nos resultados
-            </h2>
-            <p className="text-slate-400 text-lg max-w-2xl mx-auto">
-              O sistema te conduz passo a passo — você responde, a IA trabalha, e no final você tem um plano estratégico completo para sua empresa.
-            </p>
-          </div>
+      {/* POWERED BY AI */}
+      <section className="py-20 bg-slate-950 relative overflow-hidden" data-testid="section-ai-highlight">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-blue-600/10 pointer-events-none" />
+        <div
+          className="absolute inset-0 pointer-events-none opacity-10"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.15'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+          }}
+        />
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            <div className="flex flex-col gap-6">
+              <Badge className="bg-primary/20 text-primary border-primary/30 w-fit text-sm px-3 py-1">
+                <Brain className="h-3.5 w-3.5 mr-1.5" />
+                Inteligência Artificial Avançada
+              </Badge>
+              <h2 className="text-3xl sm:text-4xl font-bold text-white">
+                A IA que entende o seu negócio de verdade
+              </h2>
+              <p className="text-slate-400 text-lg leading-relaxed">
+                Não é um chatbot genérico. A inteligência artificial do BizGuideAI lê os dados reais da sua empresa e entrega análises sob medida, recomendações priorizadas e diagnósticos em linguagem que qualquer empresário entende.
+              </p>
+              <div className="flex flex-col gap-3">
+                {[
+                  "Lê o site da sua empresa e monta o perfil do negócio automaticamente",
+                  "Sugere metas, projetos e indicadores alinhados ao seu setor",
+                  "Cruza informações e descobre onde estão as maiores oportunidades",
+                  "Entrega recomendações prontas em cada etapa do roteiro",
+                ].map(item => (
+                  <div key={item} className="flex items-start gap-3">
+                    <div className="h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <Sparkles className="h-3 w-3 text-primary" />
+                    </div>
+                    <p className="text-slate-300 text-sm">{item}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
 
-          <div className="flex flex-wrap justify-center gap-2 mb-8">
-            {showcaseTabs.map(tab => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all border ${
-                    activeTab === tab.id
-                      ? "bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/25"
-                      : "bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-500 hover:text-slate-300"
-                  }`}
-                  data-testid={`tab-showcase-${tab.id}`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="relative">
-            <div
-              className="absolute -inset-6 rounded-3xl opacity-20 blur-3xl pointer-events-none"
-              style={{ background: "radial-gradient(ellipse, hsl(var(--primary)) 0%, transparent 70%)" }}
-            />
-            <div className="relative max-w-3xl mx-auto" style={{ zoom: 0.7 }}>
-              <ActiveMockup />
+            <div className="relative">
+              <div
+                className="absolute -inset-4 rounded-2xl opacity-25 blur-2xl pointer-events-none"
+                style={{ background: "radial-gradient(ellipse, #60a5fa 0%, transparent 70%)" }}
+              />
+              <div className="relative space-y-3">
+                {[
+                  { title: "Perfil Automático", desc: "A IA lê seu site e monta o perfil do negócio", tag: "Automático", color: "text-emerald-400" },
+                  { title: "Metas sob Medida", desc: "Objetivos e indicadores alinhados ao seu mercado", tag: "Personalizado", color: "text-blue-400" },
+                  { title: "Diagnóstico Cruzado", desc: "Descobre oportunidades combinando diferentes análises", tag: "Estratégico", color: "text-purple-400" },
+                  { title: "Linguagem Clara", desc: "Relatórios diretos, sem jargão — prontos para decidir", tag: "Executivo", color: "text-amber-400" },
+                ].map(item => (
+                  <div key={item.title} className="flex items-center gap-3 bg-slate-900/80 border border-white/10 rounded-xl p-4">
+                    <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <Sparkles className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-sm font-semibold">{item.title}</p>
+                      <p className="text-slate-500 text-xs truncate">{item.desc}</p>
+                    </div>
+                    <span className={`text-xs font-medium ${item.color} flex-shrink-0`}>{item.tag}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>

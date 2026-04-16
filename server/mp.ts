@@ -149,8 +149,14 @@ export async function criarAssinatura(params: {
   const plano = PLANOS_MP[params.planoTipo];
   const preApproval = new PreApproval(mpClient);
 
-  // Resolve ou cria o PreApprovalPlan correspondente (melhora aceitação no BR)
-  const preapprovalPlanId = await getOrCreatePlanId(params.planoTipo, params.successUrl);
+  // Observação importante sobre MP + Brasil:
+  // A API `/preapproval` só aceita `preapproval_plan_id` quando também é
+  // enviado `card_token_id` (gerado no frontend via Checkout Bricks). Como
+  // nosso fluxo é "redirect para init_point" (usuário preenche o cartão na
+  // tela do MP), NÃO enviamos `preapproval_plan_id` aqui — isso evita o
+  // erro 500 "card_token_id is required".
+  // A função `getOrCreatePlanId` segue disponível e pode ser usada por um
+  // fluxo futuro baseado em Checkout Bricks.
 
   const body: Record<string, unknown> = {
     reason: plano.nome,
@@ -165,9 +171,6 @@ export async function criarAssinatura(params: {
     notification_url: params.notificationUrl,
     external_reference: params.externalReference,
   };
-  if (preapprovalPlanId) {
-    body.preapproval_plan_id = preapprovalPlanId;
-  }
 
   console.log("[MP] Criando assinatura:", JSON.stringify(body, null, 2));
 

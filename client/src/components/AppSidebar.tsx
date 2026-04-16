@@ -73,7 +73,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar>
-      <SidebarHeader className="border-b p-6">
+      <SidebarHeader className="flex flex-col gap-2 border-b p-6 text-[#000000] bg-[#ffffff]">
         <Link href="/" data-testid="link-home">
           <div className="flex items-center gap-2 cursor-pointer">
             <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center">

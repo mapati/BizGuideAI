@@ -84,7 +84,7 @@ export default function Register() {
   const onSubmit = async (values: RegisterForm) => {
     setIsSubmitting(true);
     try {
-      await register({
+      const result = await register({
         nome: values.nome,
         email: values.email,
         senha: values.senha,
@@ -93,6 +93,16 @@ export default function Register() {
         tamanho: values.tamanho,
         ...(plano ? { plano } : {}),
       });
+      // Paid plan flow: redirect to MP checkout or verify-email fallback
+      if (result?.planoTipo) {
+        if (result.checkoutUrl) {
+          window.location.href = result.checkoutUrl;
+        } else {
+          // MP failed — user still needs to verify email, then login will redirect to /assinar
+          window.location.href = "/verify-email";
+        }
+      }
+      // Trial flow: AuthContext.register() already navigated to /verify-email
     } catch (err: any) {
       toast({
         title: "Erro ao criar conta",
@@ -134,7 +144,7 @@ export default function Register() {
                 <span className="text-primary">Plano {planoInfo[plano].nome}</span>
               </p>
               <p className="text-xs text-muted-foreground">
-                {planoInfo[plano].preco} — após verificar seu e-mail, você será direcionado ao pagamento.
+                {planoInfo[plano].preco} — após criar sua conta, você será redirecionado ao pagamento.
               </p>
             </div>
           </div>
@@ -306,7 +316,11 @@ export default function Register() {
                   disabled={isSubmitting}
                   data-testid="button-register"
                 >
-                  {isSubmitting ? "Criando conta..." : "Criar conta"}
+                  {isSubmitting
+                    ? plano ? "Criando conta..." : "Criando conta..."
+                    : plano
+                    ? "Criar conta e ir para o pagamento"
+                    : "Criar conta"}
                 </Button>
               </form>
             </Form>

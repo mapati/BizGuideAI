@@ -200,6 +200,15 @@ async function requireAuth(req: Request, res: Response, next: NextFunction) {
     }
 
     const planoStatus = empresa.planoStatus;
+
+    if (planoStatus === "pendente_pagamento") {
+      const isPaymentRoute = req.path.startsWith("/api/pagamentos/");
+      if (!isPaymentRoute) {
+        return res.status(403).json({ error: "PENDENTE_PAGAMENTO" });
+      }
+      next(); return;
+    }
+
     if (planoStatus === "expirado" || planoStatus === "suspenso") {
       return res.status(403).json({ error: "TRIAL_EXPIRADO" });
     }
@@ -228,6 +237,9 @@ function stripTenantFields<T extends Record<string, unknown>>(data: T): Omit<T, 
 function computeTrialInfo(empresa: { planoStatus: string; trialStartedAt: Date | null; createdAt: Date }) {
   const planoStatus = empresa.planoStatus;
   if (planoStatus === "ativo") {
+    return { planoStatus, diasRestantes: null, trialExpirado: false };
+  }
+  if (planoStatus === "pendente_pagamento") {
     return { planoStatus, diasRestantes: null, trialExpirado: false };
   }
   if (planoStatus === "expirado" || planoStatus === "suspenso") {
@@ -310,7 +322,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(409).json({ error: "E-mail já cadastrado" });
       }
 
+      const isPaidPlan = data.plano === "start" || data.plano === "pro";
       const now = new Date();
+
       const empresa = await storage.createEmpresa({
         nome: data.nomeEmpresa,
         setor: data.setor,
@@ -321,7 +335,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         cidade: data.cidade,
         estado: data.estado,
         cep: data.cep,
-        planoStatus: "trial",
+        planoStatus: isPaidPlan ? "pendente_pagamento" : "trial",
+        planoTipo: isPaidPlan ? data.plano : undefined,
         trialStartedAt: now,
       });
 
@@ -341,12 +356,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await storage.createEmailVerificationToken(usuario.id, hashToken(token), expiresAt);
 
-      try {
-        await sendVerificationEmail(usuario.email, usuario.nome, token, data.plano);
-      } catch (emailErr) {
+      // Send verification email async (non-blocking for both flows)
+      sendVerificationEmail(usuario.email, usuario.nome, token, data.plano).catch((emailErr) => {
         console.error("[EMAIL] Falha ao enviar e-mail de verificação:", emailErr);
+      });
+
+      // For paid plans: create MP subscription immediately and return checkout URL
+      if (isPaidPlan) {
+        try {
+          const baseUrl = process.env.REPLIT_DOMAINS
+            ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`
+            : "http://localhost:5000";
+
+          const result = await criarAssinatura({
+            planoTipo: data.plano as PlanoTipo,
+            payerEmail: usuario.email,
+            externalReference: empresa.id,
+            successUrl: `${baseUrl}/pagamento/sucesso`,
+          });
+
+          if (result.id) {
+            await storage.updateEmpresaPlano(empresa.id, {
+              mpSubscriptionId: result.id,
+              mpSubscriptionStatus: "pending",
+            });
+          }
+
+          const checkoutUrl = result.init_point || result.sandbox_init_point;
+          if (!checkoutUrl) throw new Error("URL de checkout não disponível");
+
+          return res.status(201).json({ checkoutUrl, planoTipo: data.plano });
+        } catch (mpErr: any) {
+          console.error("[MP] Erro ao criar assinatura no registro:", mpErr.message);
+          // MP failed — return without checkoutUrl; frontend will redirect to /assinar
+          return res.status(201).json({
+            checkoutUrl: null,
+            planoTipo: data.plano,
+            message: "Conta criada. Complete o pagamento para ativar seu plano.",
+          });
+        }
       }
 
+      // Trial flow: redirect to email verification
       res.status(202).json({ message: "Conta criada. Verifique seu e-mail para continuar." });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -510,7 +561,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      if (!usuario.emailVerificado) {
+      // Fetch empresa before email check so we can check planoStatus
+      const empresa = await storage.getEmpresa(usuario.empresaId);
+      const planoStatusLogin = empresa?.planoStatus;
+
+      // Skip email verification for 'ativo' users (payment = validation)
+      if (!usuario.emailVerificado && planoStatusLogin !== "ativo") {
         return res.status(403).json({
           error: "Confirme seu e-mail antes de entrar. Verifique sua caixa de entrada.",
           code: "EMAIL_NAO_VERIFICADO",
@@ -531,8 +587,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       req.session.userId = usuario.id;
       req.session.empresaId = usuario.empresaId;
-
-      const empresa = await storage.getEmpresa(usuario.empresaId);
 
       const loginPlanoLimits = empresa ? getPlanLimits(empresa.planoTipo) : PLAN_LIMITS.start;
       res.json({

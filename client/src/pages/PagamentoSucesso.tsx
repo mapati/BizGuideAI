@@ -1,21 +1,13 @@
 import { useEffect } from "react";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, Target, ArrowRight } from "lucide-react";
-import { queryClient } from "@/lib/queryClient";
 
 export default function PagamentoSucesso() {
-  const [, navigate] = useLocation();
-
   useEffect(() => {
-    queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/empresa"] });
-
-    const timer = setTimeout(() => {
-      navigate("/dashboard");
-    }, 8000);
-    return () => clearTimeout(timer);
-  }, [navigate]);
+    // Log out any active session so user is forced to log in fresh
+    fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => {});
+  }, []);
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
@@ -44,22 +36,22 @@ export default function PagamentoSucesso() {
               Pagamento recebido!
             </h1>
             <p className="text-muted-foreground text-lg leading-relaxed">
-              Seu plano está sendo ativado. Em instantes você terá acesso
-              completo ao BizGuideAI. Você será redirecionado automaticamente.
+              Seu plano está sendo ativado. Faça login para acessar o BizGuideAI
+              com todas as ferramentas disponíveis.
             </p>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full justify-center">
-            <Link href="/dashboard">
-              <Button size="lg" className="gap-2" data-testid="button-ir-dashboard">
-                Ir para o Dashboard
+            <Link href="/login">
+              <Button size="lg" className="gap-2" data-testid="button-ir-login">
+                Fazer login para acessar o sistema
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
           </div>
 
-          <p className="text-sm text-muted-foreground">
-            Redirecionando automaticamente em alguns segundos...
+          <p className="text-xs text-muted-foreground">
+            A ativação do plano pode levar alguns instantes após a confirmação do pagamento.
           </p>
         </div>
       </div>

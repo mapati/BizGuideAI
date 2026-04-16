@@ -41,7 +41,7 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, senha: string) => Promise<void>;
   logout: () => Promise<void>;
-  register: (data: RegisterData) => Promise<void>;
+  register: (data: RegisterData) => Promise<{ checkoutUrl?: string | null; planoTipo?: string }>;
 }
 
 interface RegisterData {
@@ -128,7 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     navigate("/login");
   };
 
-  const register = async (formData: RegisterData) => {
+  const register = async (formData: RegisterData): Promise<{ checkoutUrl?: string | null; planoTipo?: string }> => {
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -139,7 +139,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await res.json();
       throw new AuthError(data.error || "Erro ao criar conta");
     }
-    navigate("/verify-email");
+    const data = await res.json();
+    // Trial flow: redirect to verify-email
+    if (!data.checkoutUrl && !data.planoTipo) {
+      navigate("/verify-email");
+    }
+    return data;
   };
 
   return (

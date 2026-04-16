@@ -46,7 +46,7 @@ import PagamentoSucesso from "@/pages/PagamentoSucesso";
 import PagamentoCancelado from "@/pages/PagamentoCancelado";
 import NotFound from "@/pages/not-found";
 
-const PUBLIC_ROUTES = ["/", "/login", "/register", "/trial-expirado", "/verify-email", "/forgot-password", "/reset-password"];
+const PUBLIC_ROUTES = ["/", "/login", "/register", "/trial-expirado", "/verify-email", "/forgot-password", "/reset-password", "/pagamento/sucesso", "/pagamento/cancelado"];
 const PUBLIC_PREFIXES = ["/plano-publico/"];
 
 function TrialBanner({ diasRestantes }: { diasRestantes: number }) {
@@ -160,11 +160,30 @@ function AppLayout() {
         <Route path="/reset-password" component={ResetPassword} />
         <Route path="/trial-expirado" component={TrialExpirado} />
         <Route path="/plano-publico/:token" component={PlanoPublico} />
+        <Route path="/pagamento/sucesso" component={PagamentoSucesso} />
+        <Route path="/pagamento/cancelado" component={PagamentoCancelado} />
       </Switch>
     );
   }
 
   const PAYMENT_ROUTES = ["/assinar", "/pagamento/sucesso", "/pagamento/cancelado"];
+
+  // Block users with pendente_pagamento: redirect to /assinar
+  const isPendentePagamento = !user?.isAdmin && trialInfo?.planoStatus === "pendente_pagamento";
+  if (isPendentePagamento && !PAYMENT_ROUTES.includes(location)) {
+    const planoTipo = empresa?.planoTipo ?? "start";
+    return <Redirect to={`/assinar?plano=${planoTipo}`} />;
+  }
+  if (isPendentePagamento && PAYMENT_ROUTES.includes(location)) {
+    return (
+      <Switch>
+        <Route path="/assinar" component={Assinar} />
+        <Route path="/pagamento/sucesso" component={PagamentoSucesso} />
+        <Route path="/pagamento/cancelado" component={PagamentoCancelado} />
+      </Switch>
+    );
+  }
+
   const isTrialBlocked =
     !user?.isAdmin &&
     (trialInfo?.trialExpirado === true ||

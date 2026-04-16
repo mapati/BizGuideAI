@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { EnterpriseContactModal } from "@/components/EnterpriseContactModal";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Target,
   Check,
@@ -19,6 +20,7 @@ import {
   ArrowLeft,
   Building2,
   Phone,
+  AlertCircle,
 } from "lucide-react";
 
 const planos = [
@@ -62,10 +64,13 @@ export default function Assinar() {
   const [loadingPlano, setLoadingPlano] = useState<"start" | "pro" | null>(null);
   const [enterpriseOpen, setEnterpriseOpen] = useState(false);
   const { toast } = useToast();
+  const { trialInfo, empresa } = useAuth();
   const search = useSearch();
   const params = new URLSearchParams(search);
   const planoParam = params.get("plano");
   const planoPreSelecionado = planoParam === "start" || planoParam === "pro" ? planoParam : null;
+  const isPendentePagamento = trialInfo?.planoStatus === "pendente_pagamento";
+  const planoTipoEmpresa = empresa?.planoTipo as "start" | "pro" | null | undefined;
 
   useEffect(() => {
     if (planoPreSelecionado) {
@@ -79,7 +84,7 @@ export default function Assinar() {
   const handleAssinar = async (planoTipo: "start" | "pro") => {
     setLoadingPlano(planoTipo);
     try {
-      const data = await apiRequest<{ checkoutUrl: string }>(
+      const data = await apiRequest(
         "POST",
         "/api/pagamentos/criar-assinatura",
         { planoTipo }
@@ -128,6 +133,22 @@ export default function Assinar() {
               ferramentas de IA estratégica. Cancele quando quiser.
             </p>
           </div>
+
+          {isPendentePagamento && (
+            <div
+              className="flex items-start gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-4 w-full max-w-2xl"
+              data-testid="banner-pendente-pagamento"
+            >
+              <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+              <div className="flex flex-col gap-0.5">
+                <p className="text-sm font-semibold text-foreground">Pagamento pendente</p>
+                <p className="text-sm text-muted-foreground">
+                  Sua conta foi criada, mas o pagamento ainda não foi concluído.
+                  Selecione o plano abaixo para finalizar a assinatura e ativar o acesso.
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 w-full">
             {planos.map((plano) => {

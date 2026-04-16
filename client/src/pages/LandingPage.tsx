@@ -697,45 +697,16 @@ export default function LandingPage() {
       </nav>
       {/* HERO */}
       <section className="relative overflow-hidden bg-[#020817]">
-        {/* Aurora orb A — indigo/violet, superior esquerdo */}
+        {/* Aurora gradients — radial-gradient direto, sem filter:blur (evita clip do overflow-hidden) */}
         <div
-          className="absolute pointer-events-none rounded-full"
+          className="absolute inset-0 pointer-events-none"
           style={{
-            width: "58%",
-            height: "58%",
-            top: "-12%",
-            left: "-10%",
-            background: "radial-gradient(circle, rgba(99,102,241,0.22) 0%, transparent 70%)",
-            filter: "blur(120px)",
-            animation: "hero-orb-pulse 8s ease-in-out infinite",
-          }}
-        />
-        {/* Aurora orb B — sky/cyan, superior direito */}
-        <div
-          className="absolute pointer-events-none rounded-full"
-          style={{
-            width: "52%",
-            height: "52%",
-            top: "-15%",
-            right: "-8%",
-            background: "radial-gradient(circle, rgba(56,189,248,0.16) 0%, transparent 70%)",
-            filter: "blur(120px)",
-            animation: "hero-orb-pulse 9.5s ease-in-out infinite",
-            animationDelay: "2s",
-          }}
-        />
-        {/* Aurora orb C — purple, centro-baixo */}
-        <div
-          className="absolute pointer-events-none rounded-full"
-          style={{
-            width: "50%",
-            height: "50%",
-            bottom: "-15%",
-            left: "25%",
-            background: "radial-gradient(circle, rgba(168,85,247,0.14) 0%, transparent 70%)",
-            filter: "blur(120px)",
-            animation: "hero-orb-pulse 11s ease-in-out infinite",
-            animationDelay: "4s",
+            background: `
+              radial-gradient(ellipse 75% 70% at 5% 5%, rgba(99,102,241,0.55) 0%, transparent 70%),
+              radial-gradient(ellipse 70% 65% at 95% 0%, rgba(56,189,248,0.45) 0%, transparent 70%),
+              radial-gradient(ellipse 60% 70% at 50% 100%, rgba(168,85,247,0.38) 0%, transparent 70%)
+            `,
+            animation: "hero-orb-pulse 9s ease-in-out infinite",
           }}
         />
         {/* Dot grid sutil */}

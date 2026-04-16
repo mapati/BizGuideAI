@@ -39,22 +39,30 @@ export async function criarAssinatura(params: {
   const plano = PLANOS_MP[params.planoTipo];
   const preApproval = new PreApproval(mpClient);
 
-  const result = await preApproval.create({
-    body: {
-      reason: plano.nome,
-      auto_recurring: {
-        frequency: 1,
-        frequency_type: "months",
-        transaction_amount: plano.valor,
-        currency_id: "BRL",
-      },
-      payer_email: params.payerEmail,
-      back_url: params.successUrl,
-      notification_url: params.notificationUrl,
-      external_reference: params.externalReference,
-      status: "pending",
+  const body: Record<string, unknown> = {
+    reason: plano.nome,
+    auto_recurring: {
+      frequency: 1,
+      frequency_type: "months",
+      transaction_amount: plano.valor,
+      currency_id: "BRL",
     },
-  });
+    payer_email: params.payerEmail,
+    back_url: params.successUrl,
+    notification_url: params.notificationUrl,
+    external_reference: params.externalReference,
+  };
+
+  console.log("[MP] Criando assinatura:", JSON.stringify(body, null, 2));
+
+  const result = await preApproval.create({ body: body as any });
+
+  console.log("[MP] Resposta:", JSON.stringify({
+    id: result.id,
+    status: result.status,
+    init_point: result.init_point,
+    payer_email: result.payer_email,
+  }, null, 2));
 
   return result;
 }

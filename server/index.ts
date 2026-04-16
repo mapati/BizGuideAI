@@ -48,6 +48,34 @@ async function runStartupMigrations() {
       ALTER TABLE empresas ADD COLUMN IF NOT EXISTS mp_subscription_status TEXT
     `);
 
+    // Migration: proprietário da empresa (registrante original) — task #53
+    await client.query(`
+      ALTER TABLE empresas ADD COLUMN IF NOT EXISTS proprietario_usuario_id VARCHAR
+    `);
+    // Backfill: para empresas sem proprietário, usar o usuário admin mais antigo
+    await client.query(`
+      UPDATE empresas e
+      SET proprietario_usuario_id = sub.usuario_id
+      FROM (
+        SELECT DISTINCT ON (u.empresa_id) u.empresa_id, u.id AS usuario_id
+        FROM usuarios u
+        WHERE u.role = 'admin'
+        ORDER BY u.empresa_id, u.created_at ASC
+      ) sub
+      WHERE e.id = sub.empresa_id AND e.proprietario_usuario_id IS NULL
+    `);
+    // Caso raro: empresa sem nenhum admin — usar usuário mais antigo qualquer
+    await client.query(`
+      UPDATE empresas e
+      SET proprietario_usuario_id = sub.usuario_id
+      FROM (
+        SELECT DISTINCT ON (u.empresa_id) u.empresa_id, u.id AS usuario_id
+        FROM usuarios u
+        ORDER BY u.empresa_id, u.created_at ASC
+      ) sub
+      WHERE e.id = sub.empresa_id AND e.proprietario_usuario_id IS NULL
+    `);
+
     // Migration: auditoria de eventos Mercado Pago (task #52)
     await client.query(`
       CREATE TABLE IF NOT EXISTS pagamento_eventos (

@@ -35,6 +35,7 @@ export const empresas = pgTable("empresas", {
   planoAtivadoEm: timestamp("plano_ativado_em"),
   mpSubscriptionId: text("mp_subscription_id"),
   mpSubscriptionStatus: text("mp_subscription_status"),
+  proprietarioUsuarioId: varchar("proprietario_usuario_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

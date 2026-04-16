@@ -2,7 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { sendVerificationEmail, sendPasswordResetEmail } from "./email";
-import { criarAssinatura, buscarAssinatura, buscarPagamento, motivoLegivel, validarAssinaturaWebhook, PLANOS_MP, type PlanoTipo, type MpSubscription, type MpPayment } from "./mp";
+import { criarAssinatura, buscarAssinatura, cancelarAssinatura, buscarPagamento, motivoLegivel, validarAssinaturaWebhook, PLANOS_MP, type PlanoTipo, type MpSubscription, type MpPayment } from "./mp";
 import { randomBytes, createHash } from "crypto";
 import { 
   insertEmpresaSchema,
@@ -351,6 +351,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         emailVerificado: false,
         loginAttempts: 0,
       });
+
+      // Marca o registrante como proprietário da empresa (task #53)
+      await storage.setEmpresaProprietario(empresa.id, usuario.id);
 
       const token = generateSecureToken();
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -1027,7 +1030,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/empresa", async (req, res) => {
     try {
       const empresa = await storage.getEmpresa(req.session.empresaId!);
-      res.json(empresa || null);
+      if (!empresa) return res.json(null);
+      const souProprietario =
+        !!empresa.proprietarioUsuarioId && empresa.proprietarioUsuarioId === req.session.userId;
+      res.json({ ...empresa, souProprietario });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -5175,6 +5181,79 @@ Seja específico para o setor ${empresa.setor}.`,
     } catch (e: any) {
       console.error("[MP] Erro ao consultar status:", e?.message ?? e);
       res.status(500).json({ error: "Erro ao consultar status" });
+    }
+  });
+
+  // Cancelamento de assinatura — apenas o proprietário (registrante original) pode cancelar.
+  app.post("/api/pagamentos/cancelar-assinatura", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const userId = req.session.userId!;
+      const empresa = await storage.getEmpresa(empresaId);
+      if (!empresa) return res.status(404).json({ error: "Empresa não encontrada" });
+
+      if (!empresa.proprietarioUsuarioId || empresa.proprietarioUsuarioId !== userId) {
+        // Auditar tentativa negada (não-proprietário tentando cancelar).
+        await storage.createPagamentoEvento({
+          empresaId,
+          tipo: "cancelamento",
+          acao: "negado_nao_proprietario",
+          mpResourceId: empresa.mpSubscriptionId ?? null,
+          status: empresa.mpSubscriptionStatus ?? null,
+          statusDetail: null,
+          payload: JSON.stringify({ usuarioId: userId, proprietarioUsuarioId: empresa.proprietarioUsuarioId ?? null }),
+        }).catch(() => {});
+        return res.status(403).json({
+          error: "Apenas o proprietário da conta pode cancelar a assinatura.",
+        });
+      }
+
+      if (!empresa.mpSubscriptionId) {
+        return res.status(400).json({ error: "Nenhuma assinatura ativa para cancelar." });
+      }
+
+      // Idempotência: se já está cancelada localmente, retorna sucesso sem chamar o MP novamente.
+      if (empresa.mpSubscriptionStatus === "cancelled" || empresa.planoStatus === "cancelado") {
+        return res.json({ success: true, status: empresa.mpSubscriptionStatus ?? "cancelled", alreadyCancelled: true });
+      }
+
+      let mpResult: MpSubscription | null = null;
+      try {
+        mpResult = await cancelarAssinatura(empresa.mpSubscriptionId);
+      } catch (err: any) {
+        console.error("[MP] Falha ao cancelar assinatura:", err?.message ?? err);
+        await storage.createPagamentoEvento({
+          empresaId,
+          tipo: "cancelamento",
+          acao: "erro",
+          mpResourceId: empresa.mpSubscriptionId,
+          status: null,
+          statusDetail: null,
+          payload: JSON.stringify({ usuarioId: userId, erro: err?.message ?? String(err) }),
+        });
+        return res.status(502).json({ error: "Não foi possível cancelar no Mercado Pago. Tente novamente em instantes." });
+      }
+
+      const novoStatus = mpResult?.status ?? "cancelled";
+      await storage.updateEmpresaPlano(empresaId, {
+        planoStatus: "cancelado",
+        mpSubscriptionStatus: novoStatus,
+      });
+
+      await storage.createPagamentoEvento({
+        empresaId,
+        tipo: "cancelamento",
+        acao: "solicitado_pelo_proprietario",
+        mpResourceId: empresa.mpSubscriptionId,
+        status: novoStatus,
+        statusDetail: null,
+        payload: JSON.stringify({ usuarioId: userId, mpResult }),
+      });
+
+      res.json({ success: true, status: novoStatus });
+    } catch (e: any) {
+      console.error("[MP] Erro no endpoint de cancelamento:", e?.message ?? e);
+      res.status(500).json({ error: "Erro ao cancelar assinatura" });
     }
   });
 

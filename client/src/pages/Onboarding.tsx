@@ -8,7 +8,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ProgressBar } from "@/components/ProgressBar";
 import { ExampleCard } from "@/components/ExampleCard";
-import { ArrowRight, ArrowLeft, CheckCircle2, ChevronDown, ChevronUp, Lock, Globe, Sparkles, Loader2, ImagePlus, Trash2, FileText, Upload, X } from "lucide-react";
+import { ArrowRight, ArrowLeft, CheckCircle2, ChevronDown, ChevronUp, Lock, Globe, Sparkles, Loader2, ImagePlus, Trash2, FileText, Upload, X, AlertTriangle, CreditCard } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -68,8 +76,32 @@ export default function Onboarding() {
   const [perfilErrors, setPerfilErrors] = useState<Record<string, string>>({});
   const [senhaAberta, setSenhaAberta] = useState(false);
 
-  const { data: empresaExistente } = useQuery<Empresa | null>({
+  const { data: empresaExistente } = useQuery<(Empresa & { souProprietario?: boolean }) | null>({
     queryKey: ["/api/empresa"],
+  });
+
+  const [cancelarDialogOpen, setCancelarDialogOpen] = useState(false);
+
+  const cancelarAssinaturaMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("POST", "/api/pagamentos/cancelar-assinatura");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/empresa"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      setCancelarDialogOpen(false);
+      toast({
+        title: "Assinatura cancelada",
+        description: "Sua assinatura foi cancelada no Mercado Pago. O acesso permanecerá disponível até o fim do período pago.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Não foi possível cancelar",
+        description: error?.message || "Tente novamente em instantes.",
+        variant: "destructive",
+      });
+    },
   });
 
   const perfilCompleto = isProfileComplete(empresaExistente);
@@ -776,6 +808,92 @@ export default function Onboarding() {
               </div>
             )}
           </Card>
+
+          {/* Plano e assinatura — visível para todos; ações só para o proprietário */}
+          {empresaExistente?.planoTipo && (
+            <Card className="p-6">
+              <div className="flex items-start gap-3 mb-4">
+                <CreditCard className="h-5 w-5 text-muted-foreground mt-1" />
+                <div className="flex-1">
+                  <div className="font-semibold">Plano e assinatura</div>
+                  <div className="text-sm text-muted-foreground">
+                    Plano atual: <span className="font-medium" data-testid="text-plano-atual">{empresaExistente.planoTipo === "pro" ? "Pro" : empresaExistente.planoTipo === "start" ? "Start" : empresaExistente.planoTipo}</span>
+                    {" · "}
+                    Status: <span data-testid="text-plano-status">{empresaExistente.planoStatus}</span>
+                  </div>
+                </div>
+              </div>
+
+              {empresaExistente.planoStatus === "cancelado" || empresaExistente.mpSubscriptionStatus === "cancelled" ? (
+                <p className="text-sm text-muted-foreground" data-testid="text-assinatura-cancelada">
+                  Sua assinatura foi cancelada. O acesso permanece disponível até o fim do período já pago.
+                </p>
+              ) : empresaExistente.souProprietario ? (
+                empresaExistente.mpSubscriptionId ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-sm text-muted-foreground">
+                      Você é o proprietário desta conta. Pode cancelar a assinatura no Mercado Pago a qualquer momento.
+                    </p>
+                    <Button
+                      variant="outline"
+                      onClick={() => setCancelarDialogOpen(true)}
+                      data-testid="button-abrir-cancelar-assinatura"
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Cancelar assinatura
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground" data-testid="text-sem-assinatura-mp">
+                    Ainda não há uma assinatura ativa do Mercado Pago vinculada a esta conta.
+                  </p>
+                )
+              ) : (
+                <p className="text-sm text-muted-foreground" data-testid="text-sem-permissao-cancelar">
+                  Apenas o proprietário da conta pode cancelar a assinatura. Entre em contato com quem fez o cadastro inicial da empresa.
+                </p>
+              )}
+            </Card>
+          )}
+
+          <Dialog open={cancelarDialogOpen} onOpenChange={setCancelarDialogOpen}>
+            <DialogContent data-testid="dialog-cancelar-assinatura">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                  Cancelar assinatura?
+                </DialogTitle>
+                <DialogDescription>
+                  Sua assinatura será cancelada no Mercado Pago e nenhuma nova cobrança será feita. O acesso ao BizGuideAI permanecerá disponível até o fim do período já pago. Esta ação não pode ser desfeita.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setCancelarDialogOpen(false)}
+                  disabled={cancelarAssinaturaMutation.isPending}
+                  data-testid="button-cancelar-dialog"
+                >
+                  Manter assinatura
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => cancelarAssinaturaMutation.mutate()}
+                  disabled={cancelarAssinaturaMutation.isPending}
+                  data-testid="button-confirmar-cancelar-assinatura"
+                >
+                  {cancelarAssinaturaMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Cancelando...
+                    </>
+                  ) : (
+                    "Sim, cancelar"
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           <Card className="overflow-hidden">
             <button

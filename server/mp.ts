@@ -198,6 +198,17 @@ export async function buscarAssinatura(subscriptionId: string) {
   return preApproval.get({ id: subscriptionId });
 }
 
+export async function cancelarAssinatura(subscriptionId: string): Promise<MpSubscription> {
+  if (!mpClient) throw new Error("Mercado Pago não configurado");
+  const preApproval = new PreApproval(mpClient);
+  const result = (await preApproval.update({
+    id: subscriptionId,
+    body: { status: "cancelled" } as Parameters<typeof preApproval.update>[0]["body"],
+  })) as MpSubscription;
+  console.log("[MP] Assinatura cancelada:", JSON.stringify({ id: result.id, status: result.status }, null, 2));
+  return result;
+}
+
 export async function buscarPagamento(paymentId: string) {
   if (!mpClient) throw new Error("Mercado Pago não configurado");
   const payment = new Payment(mpClient);

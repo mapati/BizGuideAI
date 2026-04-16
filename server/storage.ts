@@ -93,6 +93,7 @@ export interface IStorage {
   updateUsuario(id: string, data: Partial<Pick<Usuario, "isAdmin" | "role" | "nome">>): Promise<Usuario>;
   deleteUsuario(id: string, empresaId: string): Promise<void>;
   updateEmpresaPlano(id: string, data: Partial<Pick<Empresa, "planoStatus" | "planoAtivadoEm" | "planoTipo" | "mpSubscriptionId" | "mpSubscriptionStatus">>): Promise<Empresa>;
+  setEmpresaProprietario(empresaId: string, usuarioId: string): Promise<void>;
   getEmpresaByMpSubscriptionId(subscriptionId: string): Promise<Empresa | undefined>;
   createPagamentoEvento(evento: InsertPagamentoEvento): Promise<PagamentoEvento>;
   getPagamentoEventosByEmpresa(empresaId: string, limit?: number): Promise<PagamentoEvento[]>;
@@ -289,6 +290,10 @@ export class DbStorage implements IStorage {
     const result = await db.update(empresas).set(data).where(eq(empresas.id, id)).returning();
     if (!result[0]) throw new Error("Empresa não encontrada");
     return result[0];
+  }
+
+  async setEmpresaProprietario(empresaId: string, usuarioId: string): Promise<void> {
+    await db.update(empresas).set({ proprietarioUsuarioId: usuarioId }).where(eq(empresas.id, empresaId));
   }
 
   async getEmpresaByMpSubscriptionId(subscriptionId: string): Promise<Empresa | undefined> {

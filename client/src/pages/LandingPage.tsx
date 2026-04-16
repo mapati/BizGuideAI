@@ -696,13 +696,64 @@ export default function LandingPage() {
         </div>
       </nav>
       {/* HERO */}
-      <section className="relative overflow-hidden bg-slate-950">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/30 via-primary/5 to-transparent pointer-events-none" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(var(--primary-rgb),0.3),rgba(255,255,255,0))] pointer-events-none" />
+      <section className="relative overflow-hidden bg-[#020817]">
+        {/* Aurora orb A — indigo/violet, superior esquerdo */}
         <div
-          className="absolute inset-0 pointer-events-none opacity-20"
+          className="absolute pointer-events-none rounded-full"
           style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.08'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            width: "58%",
+            height: "58%",
+            top: "-12%",
+            left: "-10%",
+            background: "radial-gradient(circle, rgba(99,102,241,0.22) 0%, transparent 70%)",
+            filter: "blur(72px)",
+            animation: "hero-orb-pulse 8s ease-in-out infinite",
+          }}
+        />
+        {/* Aurora orb B — sky/cyan, superior direito */}
+        <div
+          className="absolute pointer-events-none rounded-full"
+          style={{
+            width: "52%",
+            height: "52%",
+            top: "-15%",
+            right: "-8%",
+            background: "radial-gradient(circle, rgba(56,189,248,0.16) 0%, transparent 70%)",
+            filter: "blur(80px)",
+            animation: "hero-orb-pulse 9.5s ease-in-out infinite",
+            animationDelay: "2s",
+          }}
+        />
+        {/* Aurora orb C — purple, centro-baixo */}
+        <div
+          className="absolute pointer-events-none rounded-full"
+          style={{
+            width: "50%",
+            height: "50%",
+            bottom: "-15%",
+            left: "25%",
+            background: "radial-gradient(circle, rgba(168,85,247,0.14) 0%, transparent 70%)",
+            filter: "blur(90px)",
+            animation: "hero-orb-pulse 11s ease-in-out infinite",
+            animationDelay: "4s",
+          }}
+        />
+        {/* Dot grid sutil */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='28' height='28' viewBox='0 0 28 28' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='14' cy='14' r='1.5' fill='%23ffffff' fill-opacity='0.07'/%3E%3C/svg%3E")`,
+          }}
+        />
+        {/* Scan line horizontal */}
+        <div
+          className="absolute left-0 right-0 pointer-events-none"
+          style={{
+            height: "1px",
+            top: "0%",
+            background: "linear-gradient(90deg, transparent 0%, rgba(99,102,241,0.35) 30%, rgba(56,189,248,0.35) 70%, transparent 100%)",
+            animation: "hero-scan 10s ease-in-out infinite",
+            animationDelay: "1s",
           }}
         />
 

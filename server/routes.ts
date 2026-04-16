@@ -4889,7 +4889,12 @@ Seja específico para o setor ${empresa.setor}.`,
 
       // ── Evento: preapproval (assinatura) ─────────────────────────────
       if ((type === "preapproval" || action?.startsWith("preapproval")) && resourceId) {
-        const subscription: any = await buscarAssinatura(resourceId);
+        let subscription: any = null;
+        try {
+          subscription = await buscarAssinatura(resourceId);
+        } catch (err: any) {
+          console.warn("[MP] Falha ao buscar preapproval:", err?.message ?? err);
+        }
         const empresaId: string | undefined = subscription?.external_reference ?? undefined;
         const mpStatus: string | undefined = subscription?.status;
         auditStatus = mpStatus ?? null;
@@ -4923,10 +4928,10 @@ Seja específico para o setor ${empresa.setor}.`,
             });
           } else {
             // pending / etc — NÃO rebaixa planoStatus se já estiver ativo (out-of-order events)
+            void jaAtivo;
             await storage.updateEmpresaPlano(empresa.id, {
               mpSubscriptionId: resourceId,
               mpSubscriptionStatus: mpStatus ?? "pending",
-              ...(jaAtivo ? {} : {}), // não muda planoStatus em nenhum caso aqui
             });
           }
         }
@@ -4934,7 +4939,12 @@ Seja específico para o setor ${empresa.setor}.`,
 
       // ── Evento: payment (pagamento individual / primeira cobrança) ────
       else if ((type === "payment" || action?.startsWith("payment")) && resourceId) {
-        const payment: any = await buscarPagamento(resourceId);
+        let payment: any = null;
+        try {
+          payment = await buscarPagamento(resourceId);
+        } catch (err: any) {
+          console.warn("[MP] Falha ao buscar payment:", err?.message ?? err);
+        }
         auditStatus = payment?.status ?? null;
         auditStatusDetail = payment?.status_detail ?? null;
 
@@ -5050,8 +5060,13 @@ Seja específico para o setor ${empresa.setor}.`,
       const ultimoEvento = eventos[0];
 
       // Prioridade: query param → empresa.mpSubscriptionId
+      // Ownership: só aceitamos o query param se bater com a subscription da empresa.
       const subscriptionIdParam = (req.query.mpSubscriptionId as string | undefined) || undefined;
-      const subId = subscriptionIdParam ?? empresa.mpSubscriptionId ?? null;
+      const paramOk =
+        subscriptionIdParam &&
+        empresa.mpSubscriptionId &&
+        subscriptionIdParam === empresa.mpSubscriptionId;
+      const subId = paramOk ? subscriptionIdParam : empresa.mpSubscriptionId ?? null;
 
       let status: string | null = empresa.mpSubscriptionStatus ?? null;
       let statusDetail: string | null = null;

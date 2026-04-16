@@ -72,8 +72,7 @@ export default function PagamentoCancelado() {
   async function tentarNovamente() {
     setRetrying(true);
     try {
-      const resp = await apiRequest("POST", "/api/pagamentos/criar-assinatura", { planoTipo });
-      const data = await resp.json();
+      const data = await apiRequest("POST", "/api/pagamentos/criar-assinatura", { planoTipo });
       if (data?.checkoutUrl) {
         window.location.href = data.checkoutUrl;
         return;

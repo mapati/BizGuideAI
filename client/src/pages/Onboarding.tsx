@@ -810,51 +810,78 @@ export default function Onboarding() {
           </Card>
 
           {/* Plano e assinatura — visível para todos; ações só para o proprietário */}
-          {empresaExistente?.planoTipo && (
-            <Card className="p-6">
-              <div className="flex items-start gap-3 mb-4">
-                <CreditCard className="h-5 w-5 text-muted-foreground mt-1" />
-                <div className="flex-1">
-                  <div className="font-semibold">Plano e assinatura</div>
-                  <div className="text-sm text-muted-foreground">
-                    Plano atual: <span className="font-medium" data-testid="text-plano-atual">{empresaExistente.planoTipo === "pro" ? "Pro" : empresaExistente.planoTipo === "start" ? "Start" : empresaExistente.planoTipo}</span>
-                    {" · "}
-                    Status: <span data-testid="text-plano-status">{empresaExistente.planoStatus}</span>
+          {empresaExistente?.planoTipo && (() => {
+            const statusPermiteCancelar =
+              empresaExistente.planoStatus === "ativo" ||
+              empresaExistente.planoStatus === "pendente_pagamento";
+            const ativadoEm = empresaExistente.planoAtivadoEm
+              ? new Date(empresaExistente.planoAtivadoEm).toLocaleDateString("pt-BR", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                })
+              : null;
+            const planoLabel =
+              empresaExistente.planoTipo === "pro"
+                ? "Pro"
+                : empresaExistente.planoTipo === "start"
+                ? "Start"
+                : empresaExistente.planoTipo;
+            return (
+              <Card className="p-6">
+                <div className="flex items-start gap-3 mb-4">
+                  <CreditCard className="h-5 w-5 text-muted-foreground mt-1" />
+                  <div className="flex-1 space-y-1">
+                    <div className="font-semibold">Plano e assinatura</div>
+                    <div className="text-sm text-muted-foreground">
+                      Plano atual: <span className="font-medium" data-testid="text-plano-atual">{planoLabel}</span>
+                      {" · "}
+                      Status: <span data-testid="text-plano-status">{empresaExistente.planoStatus}</span>
+                    </div>
+                    {ativadoEm && (
+                      <div className="text-sm text-muted-foreground" data-testid="text-plano-ativado-em">
+                        Ativado em: <span className="font-medium">{ativadoEm}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
 
-              {empresaExistente.planoStatus === "cancelado" || empresaExistente.mpSubscriptionStatus === "cancelled" ? (
-                <p className="text-sm text-muted-foreground" data-testid="text-assinatura-cancelada">
-                  Sua assinatura foi cancelada. O acesso permanece disponível até o fim do período já pago.
-                </p>
-              ) : empresaExistente.souProprietario ? (
-                empresaExistente.mpSubscriptionId ? (
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <p className="text-sm text-muted-foreground">
-                      Você é o proprietário desta conta. Pode cancelar a assinatura no Mercado Pago a qualquer momento.
-                    </p>
-                    <Button
-                      variant="outline"
-                      onClick={() => setCancelarDialogOpen(true)}
-                      data-testid="button-abrir-cancelar-assinatura"
-                    >
-                      <X className="h-4 w-4 mr-2" />
-                      Cancelar assinatura
-                    </Button>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground" data-testid="text-sem-assinatura-mp">
-                    Ainda não há uma assinatura ativa do Mercado Pago vinculada a esta conta.
+                {empresaExistente.planoStatus === "cancelado" || empresaExistente.mpSubscriptionStatus === "cancelled" ? (
+                  <p className="text-sm text-muted-foreground" data-testid="text-assinatura-cancelada">
+                    Sua assinatura foi cancelada. O acesso permanece disponível até o fim do período já pago.
                   </p>
-                )
-              ) : (
-                <p className="text-sm text-muted-foreground" data-testid="text-sem-permissao-cancelar">
-                  Apenas o proprietário da conta pode cancelar a assinatura. Entre em contato com quem fez o cadastro inicial da empresa.
-                </p>
-              )}
-            </Card>
-          )}
+                ) : empresaExistente.souProprietario ? (
+                  statusPermiteCancelar && empresaExistente.mpSubscriptionId ? (
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="text-sm text-muted-foreground">
+                        Você é o proprietário desta conta. Pode cancelar a assinatura no Mercado Pago a qualquer momento.
+                      </p>
+                      <Button
+                        variant="outline"
+                        onClick={() => setCancelarDialogOpen(true)}
+                        data-testid="button-abrir-cancelar-assinatura"
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Cancelar assinatura
+                      </Button>
+                    </div>
+                  ) : !empresaExistente.mpSubscriptionId ? (
+                    <p className="text-sm text-muted-foreground" data-testid="text-sem-assinatura-mp">
+                      Ainda não há uma assinatura ativa do Mercado Pago vinculada a esta conta.
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground" data-testid="text-status-nao-cancelavel">
+                      A assinatura não está em um estado que permita cancelamento ({empresaExistente.planoStatus}).
+                    </p>
+                  )
+                ) : (
+                  <p className="text-sm text-muted-foreground" data-testid="text-sem-permissao-cancelar">
+                    Apenas o proprietário da conta pode cancelar a assinatura. Entre em contato com quem fez o cadastro inicial da empresa.
+                  </p>
+                )}
+              </Card>
+            );
+          })()}
 
           <Dialog open={cancelarDialogOpen} onOpenChange={setCancelarDialogOpen}>
             <DialogContent data-testid="dialog-cancelar-assinatura">

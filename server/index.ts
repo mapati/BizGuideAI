@@ -75,6 +75,21 @@ async function runStartupMigrations() {
       ) sub
       WHERE e.id = sub.empresa_id AND e.proprietario_usuario_id IS NULL
     `);
+    // FK proprietario_usuario_id -> usuarios.id (idempotente)
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.table_constraints
+          WHERE constraint_name = 'empresas_proprietario_usuario_id_fkey'
+            AND table_name = 'empresas'
+        ) THEN
+          ALTER TABLE empresas
+            ADD CONSTRAINT empresas_proprietario_usuario_id_fkey
+            FOREIGN KEY (proprietario_usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL;
+        END IF;
+      END$$;
+    `);
 
     // Migration: auditoria de eventos Mercado Pago (task #52)
     await client.query(`

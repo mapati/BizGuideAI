@@ -5196,7 +5196,7 @@ Seja específico para o setor ${empresa.setor}.`,
         // Auditar tentativa negada (não-proprietário tentando cancelar).
         await storage.createPagamentoEvento({
           empresaId,
-          tipo: "cancelamento",
+          tipo: "cancelamento_manual",
           acao: "negado_nao_proprietario",
           mpResourceId: empresa.mpSubscriptionId ?? null,
           status: empresa.mpSubscriptionStatus ?? null,
@@ -5205,6 +5205,14 @@ Seja específico para o setor ${empresa.setor}.`,
         }).catch(() => {});
         return res.status(403).json({
           error: "Apenas o proprietário da conta pode cancelar a assinatura.",
+        });
+      }
+
+      // Permitir cancelamento somente para planos ativos ou pendentes de pagamento.
+      const statusPermitidos = new Set(["ativo", "pendente_pagamento"]);
+      if (!statusPermitidos.has(empresa.planoStatus)) {
+        return res.status(400).json({
+          error: "A assinatura não está em um estado que permita cancelamento.",
         });
       }
 
@@ -5221,16 +5229,40 @@ Seja específico para o setor ${empresa.setor}.`,
       try {
         mpResult = await cancelarAssinatura(empresa.mpSubscriptionId);
       } catch (err: any) {
-        console.error("[MP] Falha ao cancelar assinatura:", err?.message ?? err);
+        const msg = String(err?.message ?? err ?? "");
+        const statusCode = err?.status ?? err?.statusCode ?? err?.cause?.status;
+        const isNotFound = statusCode === 404 || /not[\s_-]?found/i.test(msg);
+        const isAlreadyCancelled = /already.*cancel/i.test(msg) || /cancell?ed/i.test(msg);
+
+        if (isNotFound || isAlreadyCancelled) {
+          // Tratar como sucesso idempotente — sincronizar estado local.
+          console.warn("[MP] Cancelamento tratado como idempotente:", msg);
+          await storage.updateEmpresaPlano(empresaId, {
+            planoStatus: "cancelado",
+            mpSubscriptionStatus: "cancelled",
+          });
+          await storage.createPagamentoEvento({
+            empresaId,
+            tipo: "cancelamento_manual",
+            acao: "ja_cancelado_no_mp",
+            mpResourceId: empresa.mpSubscriptionId,
+            status: "cancelled",
+            statusDetail: null,
+            payload: JSON.stringify({ usuarioId: userId, erro: msg }),
+          }).catch(() => {});
+          return res.json({ success: true, status: "cancelled", alreadyCancelled: true });
+        }
+
+        console.error("[MP] Falha ao cancelar assinatura:", msg);
         await storage.createPagamentoEvento({
           empresaId,
-          tipo: "cancelamento",
+          tipo: "cancelamento_manual",
           acao: "erro",
           mpResourceId: empresa.mpSubscriptionId,
           status: null,
           statusDetail: null,
-          payload: JSON.stringify({ usuarioId: userId, erro: err?.message ?? String(err) }),
-        });
+          payload: JSON.stringify({ usuarioId: userId, erro: msg }),
+        }).catch(() => {});
         return res.status(502).json({ error: "Não foi possível cancelar no Mercado Pago. Tente novamente em instantes." });
       }
 
@@ -5242,7 +5274,7 @@ Seja específico para o setor ${empresa.setor}.`,
 
       await storage.createPagamentoEvento({
         empresaId,
-        tipo: "cancelamento",
+        tipo: "cancelamento_manual",
         acao: "solicitado_pelo_proprietario",
         mpResourceId: empresa.mpSubscriptionId,
         status: novoStatus,

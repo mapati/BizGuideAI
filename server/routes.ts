@@ -653,6 +653,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           planoTipo: e.planoTipo ?? null,
           diasRestantes,
           totalUsuarios: e.totalUsuarios,
+          userCount: e.totalUsuarios,
           trialStartedAt: e.trialStartedAt,
           planoAtivadoEm: e.planoAtivadoEm,
           createdAt: e.createdAt,
@@ -753,6 +754,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(fatura);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/admin/resumo", async (req, res) => {
+    try {
+      const empresasData = await storage.getEmpresasComContagem();
+      const faturas = await storage.getAllFaturas();
+      const now = Date.now();
+      const comStatus = empresasData.map(e => {
+        const trialStart = e.trialStartedAt ?? e.createdAt;
+        const days = Math.floor((now - trialStart.getTime()) / (1000 * 60 * 60 * 24));
+        const trialExpirado = e.planoStatus === "trial" && days >= 7;
+        return { ...e, planoStatus: trialExpirado ? "expirado" : e.planoStatus };
+      });
+
+      const countStart = comStatus.filter(e => e.planoStatus === "ativo" && e.planoTipo === "start").length;
+      const countPro = comStatus.filter(e => e.planoStatus === "ativo" && e.planoTipo === "pro").length;
+      const countEnterprise = comStatus.filter(e => e.planoStatus === "ativo" && e.planoTipo === "enterprise").length;
+
+      const receitaTotal = faturas.filter(f => f.status === "pago").reduce((acc, f) => acc + parseFloat(f.valor), 0);
+
+      res.json({
+        empresas: {
+          total: comStatus.length,
+          trial: comStatus.filter(e => e.planoStatus === "trial").length,
+          expirado: comStatus.filter(e => e.planoStatus === "expirado").length,
+          ativo: comStatus.filter(e => e.planoStatus === "ativo").length,
+          suspenso: comStatus.filter(e => e.planoStatus === "suspenso").length,
+        },
+        mrr: {
+          start: { count: countStart, total: countStart * 187 },
+          pro: { count: countPro, total: countPro * 490 },
+          enterprise: { count: countEnterprise, total: null },
+        },
+        mrrTotal: countStart * 187 + countPro * 490,
+        faturas: {
+          total: faturas.length,
+          pendentes: faturas.filter(f => f.status === "pendente").length,
+          pagas: faturas.filter(f => f.status === "pago").length,
+          receitaTotal,
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
     }
   });
 

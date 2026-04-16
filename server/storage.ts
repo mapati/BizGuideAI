@@ -185,6 +185,7 @@ export interface IStorage {
 
   getAllUsuarios(): Promise<(Usuario & { empresa: Empresa | undefined })[]>;
   getAllEmpresas(): Promise<(Empresa & { totalUsuarios: number })[]>;
+  getEmpresasComContagem(): Promise<(Empresa & { totalUsuarios: number })[]>;
   getAllFaturas(): Promise<(Fatura & { empresa: Empresa | undefined })[]>;
   createFatura(fatura: InsertFatura): Promise<Fatura>;
   updateFatura(id: string, data: Partial<Pick<Fatura, "status" | "dataPagamento">>): Promise<Fatura>;
@@ -707,6 +708,10 @@ export class DbStorage implements IStorage {
       ...e,
       totalUsuarios: allUsuarios.filter(u => u.empresaId === e.id).length,
     }));
+  }
+
+  async getEmpresasComContagem(): Promise<(Empresa & { totalUsuarios: number })[]> {
+    return this.getAllEmpresas();
   }
 
   async getAllFaturas(): Promise<(Fatura & { empresa: Empresa | undefined })[]> {

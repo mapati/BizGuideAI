@@ -40,14 +40,18 @@ export default function Login() {
   });
 
   const onSubmit = async (values: LoginForm) => {
+    const currentParams = new URLSearchParams(window.location.search);
+    const currentPlano = currentParams.get("plano");
+    const destino =
+      currentPlano === "start" || currentPlano === "pro"
+        ? `/assinar?plano=${currentPlano}`
+        : "/";
     setIsSubmitting(true);
     setUnverifiedEmail(null);
     setLockedMessage(null);
     try {
       await login(values.email, values.senha);
-      if (plano) {
-        navigate(`/assinar?plano=${plano}`);
-      }
+      window.location.href = destino;
     } catch (err: any) {
       if (err.code === "EMAIL_NAO_VERIFICADO") {
         setUnverifiedEmail(err.email || values.email);

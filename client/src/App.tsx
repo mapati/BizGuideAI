@@ -1,4 +1,4 @@
-import { Switch, Route, useLocation, Redirect, Link } from "wouter";
+import { Switch, Route, useLocation, useSearch, Redirect, Link } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -112,6 +112,8 @@ function UpgradeBanner() {
 function AppLayout() {
   const { user, trialInfo, empresa, isLoading } = useAuth();
   const [location] = useLocation();
+  const search = useSearch();
+  const searchParams = new URLSearchParams(search);
 
   const { data: empresaQuery, isLoading: loadingEmpresa } = useQuery<any | null>({
     queryKey: ["/api/empresa"],
@@ -134,7 +136,9 @@ function AppLayout() {
   }
 
   if (user && (location === "/login" || location === "/register")) {
-    return <Redirect to="/dashboard" />;
+    const planoParam = searchParams.get("plano");
+    const plano = planoParam === "start" || planoParam === "pro" ? planoParam : null;
+    return <Redirect to={plano ? `/assinar?plano=${plano}` : "/dashboard"} />;
   }
 
   const rotasPublicasApp = ["/onboarding", "/trial-expirado", "/plano-publico/"];

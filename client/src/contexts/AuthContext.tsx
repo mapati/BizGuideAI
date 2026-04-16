@@ -116,7 +116,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTrialInfo(data.trialInfo ?? null);
     setPlanoInfo(data.planoInfo ?? null);
     queryClient.clear();
-    navigate("/");
   };
 
   const logout = async () => {

@@ -1,5 +1,6 @@
 import { MercadoPagoConfig, PreApproval, PreApprovalPlan, Payment } from "mercadopago";
 import { createHmac, timingSafeEqual } from "crypto";
+import { storage } from "./storage";
 
 const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN;
 
@@ -51,6 +52,18 @@ async function getOrCreatePlanId(planoTipo: PlanoTipo, backUrl: string): Promise
 async function resolvePlanId(planoTipo: PlanoTipo, backUrl: string): Promise<string | null> {
   if (!mpClient) return null;
   const plano = PLANOS_MP[planoTipo];
+
+  // 1) Tentar ler do banco (persistido entre restarts)
+  try {
+    const stored = await storage.getMpPlanoId(planoTipo);
+    if (stored) {
+      planoIdCache[planoTipo] = stored;
+      return stored;
+    }
+  } catch (err: any) {
+    console.warn(`[MP] Falha ao ler plano do banco (${planoTipo}):`, err?.message ?? err);
+  }
+
   const preApprovalPlan = new PreApprovalPlan(mpClient);
 
   // Tentar encontrar plano existente pelo "reason" (nome) para evitar duplicatas ao reiniciar.
@@ -62,6 +75,7 @@ async function resolvePlanId(planoTipo: PlanoTipo, backUrl: string): Promise<str
     );
     if (match?.id) {
       planoIdCache[planoTipo] = match.id;
+      await storage.saveMpPlanoId(planoTipo, match.id).catch(() => {});
       console.log(`[MP] Plano existente encontrado (${planoTipo}): ${match.id}`);
       return match.id;
     }
@@ -87,6 +101,7 @@ async function resolvePlanId(planoTipo: PlanoTipo, backUrl: string): Promise<str
     const created = await preApprovalPlan.create({ body: body as any });
     if (created?.id) {
       planoIdCache[planoTipo] = created.id;
+      await storage.saveMpPlanoId(planoTipo, created.id).catch(() => {});
       console.log(`[MP] Plano criado (${planoTipo}): ${created.id}`);
       return created.id;
     }

@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import { Link, useSearch } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { Button } from "@/components/ui/button";
-import { XCircle, Target, ArrowLeft, RefreshCw, AlertCircle } from "lucide-react";
+import { XCircle, Target, ArrowLeft, RefreshCw, AlertCircle, Loader2 } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 const STATUS_DETAIL_MESSAGES: Record<string, string> = {
   cc_rejected_bad_filled_card_number: "Número do cartão informado está incorreto.",
@@ -37,28 +39,54 @@ function mensagemAmigavel(statusDetail: string | null, collectionStatus: string 
 
 export default function PagamentoCancelado() {
   const search = useSearch();
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
   const [motivo, setMotivo] = useState<string | null>(null);
   const [statusServidor, setStatusServidor] = useState<string | null>(null);
+  const [planoTipo, setPlanoTipo] = useState<"start" | "pro">("start");
+  const [retrying, setRetrying] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(search);
     const statusDetail = params.get("status_detail");
     const collectionStatus = params.get("collection_status") ?? params.get("status");
+    const mpSubscriptionId = params.get("preapproval_id") ?? undefined;
     setMotivo(mensagemAmigavel(statusDetail, collectionStatus));
 
-    // Busca status atualizado no servidor (se autenticado)
-    fetch("/api/pagamentos/status", { credentials: "include" })
+    const url = mpSubscriptionId
+      ? `/api/pagamentos/status?mpSubscriptionId=${encodeURIComponent(mpSubscriptionId)}`
+      : `/api/pagamentos/status`;
+
+    fetch(url, { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (!data) return;
-        if (data.motivoLegivel) {
-          setStatusServidor(data.motivoLegivel);
-        }
+        if (data.motivoLegivel) setStatusServidor(data.motivoLegivel);
+        if (data.planoTipo === "pro" || data.planoTipo === "start") setPlanoTipo(data.planoTipo);
       })
       .catch(() => {});
   }, [search]);
 
   const mensagemFinal = motivo ?? statusServidor;
+
+  async function tentarNovamente() {
+    setRetrying(true);
+    try {
+      const resp = await apiRequest("POST", "/api/pagamentos/criar-assinatura", { planoTipo });
+      const data = await resp.json();
+      if (data?.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+        return;
+      }
+      throw new Error("Não foi possível gerar um novo link de pagamento.");
+    } catch (err: any) {
+      const msg = err?.message ?? "Erro ao tentar novamente. Você pode ir para a página de assinatura.";
+      toast({ title: "Não foi possível gerar novo checkout", description: msg, variant: "destructive" });
+      setLocation("/assinar");
+    } finally {
+      setRetrying(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
@@ -106,12 +134,20 @@ export default function PagamentoCancelado() {
           )}
 
           <div className="flex flex-col sm:flex-row items-center gap-3 w-full justify-center">
-            <Link href="/assinar">
-              <Button size="lg" className="gap-2" data-testid="button-tentar-novamente">
+            <Button
+              size="lg"
+              className="gap-2"
+              onClick={tentarNovamente}
+              disabled={retrying}
+              data-testid="button-tentar-novamente"
+            >
+              {retrying ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
                 <RefreshCw className="h-4 w-4" />
-                Tentar novamente
-              </Button>
-            </Link>
+              )}
+              {retrying ? "Gerando novo checkout..." : "Tentar outro cartão"}
+            </Button>
             <Link href="/dashboard">
               <Button size="lg" variant="outline" className="gap-2" data-testid="button-voltar-dashboard">
                 <ArrowLeft className="h-4 w-4" />

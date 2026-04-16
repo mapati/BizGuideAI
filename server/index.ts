@@ -65,6 +65,15 @@ async function runStartupMigrations() {
     await client.query(`CREATE INDEX IF NOT EXISTS pagamento_eventos_empresa_idx ON pagamento_eventos (empresa_id, criado_em DESC)`);
     await client.query(`CREATE INDEX IF NOT EXISTS pagamento_eventos_resource_idx ON pagamento_eventos (mp_resource_id)`);
 
+    // Persistência dos IDs dos PreApprovalPlans do Mercado Pago (task #52)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS mp_planos (
+        tipo VARCHAR PRIMARY KEY,
+        mp_plan_id TEXT NOT NULL,
+        atualizado_em TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
     // Seed: ensure the platform admin from env vars exists and has the correct password
     const adminEmail = process.env.ADMIN_EMAIL;
     const adminSenha = process.env.ADMIN_SENHA;

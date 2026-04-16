@@ -4867,8 +4867,8 @@ Seja específico para o setor ${empresa.setor}.`,
       const dataId = (body.data?.id ?? (req.query?.["data.id"] as string) ?? resourceId) as string | undefined;
       const sig = validarAssinaturaWebhook(xSignature, xRequestId, dataId);
       if (!sig.valid) {
-        console.warn(`[MP] Webhook rejeitado — assinatura inválida (${sig.reason})`);
-        // Auditamos a tentativa rejeitada
+        // Auditamos a tentativa rejeitada mas respondemos 200 pra não gerar retry infinito do MP
+        console.warn(`[MP] Webhook com assinatura inválida (${sig.reason}) — auditado e ignorado`);
         await storage.createPagamentoEvento({
           tipo: type ?? "desconhecido",
           acao: action ?? null,
@@ -4877,7 +4877,7 @@ Seja específico para o setor ${empresa.setor}.`,
           statusDetail: sig.reason ?? null,
           payload: JSON.stringify({ body, headers: { xSignature, xRequestId } }).slice(0, 10000),
         }).catch(() => {});
-        return res.status(401).json({ error: "invalid signature" });
+        return res.status(200).json({ received: true, ignored: "invalid_signature" });
       }
       if (sig.reason === "sem_secret_configurado") {
         console.warn("[MP] MP_WEBHOOK_SECRET não configurado — webhook aceito sem validação (configure no painel MP em produção)");
@@ -4970,8 +4970,53 @@ Seja específico para o setor ${empresa.setor}.`,
         (type === "subscription_authorized_payment" || action?.startsWith("subscription_authorized_payment")) &&
         resourceId
       ) {
-        // Não buscamos o recurso específico (SDK não expõe diretamente); apenas auditamos.
-        auditStatus = body?.data?.status ?? null;
+        // O recurso "authorized_payment" não tem client direto no SDK, mas expõe
+        // um paymentId no corpo. Usamos a API de Payment via buscarPagamento pra
+        // capturar status_detail quando disponível.
+        const paymentId: string | undefined =
+          body?.data?.payment?.id ?? body?.data?.id ?? resourceId;
+        const preapprovalId: string | undefined =
+          body?.data?.preapproval_id ?? body?.preapproval_id ?? undefined;
+
+        let payment: any = null;
+        if (paymentId) {
+          try {
+            payment = await buscarPagamento(paymentId);
+          } catch (err: any) {
+            console.warn("[MP] Falha ao buscar pagamento recorrente:", err?.message ?? err);
+          }
+        }
+        auditStatus = payment?.status ?? body?.data?.status ?? null;
+        auditStatusDetail = payment?.status_detail ?? null;
+
+        let empresa = preapprovalId
+          ? await storage.getEmpresaByMpSubscriptionId(preapprovalId)
+          : undefined;
+        if (!empresa && payment?.external_reference) {
+          empresa = await storage.getEmpresa(payment.external_reference);
+        }
+        empresaIdForAudit = empresa?.id ?? null;
+
+        if (empresa) {
+          if (payment?.status === "approved") {
+            await storage.updateEmpresaPlano(empresa.id, {
+              planoStatus: "ativo",
+              ...(empresa.planoAtivadoEm ? {} : { planoAtivadoEm: new Date() }),
+              mpSubscriptionStatus: "authorized",
+            });
+          } else if (
+            payment?.status === "rejected" ||
+            payment?.status === "cancelled"
+          ) {
+            // Cobrança recorrente falhou — registra motivo sem derrubar plano ativo
+            if (empresa.planoStatus !== "ativo") {
+              await storage.updateEmpresaPlano(empresa.id, {
+                mpSubscriptionStatus:
+                  `${payment.status}:${payment.status_detail ?? ""}`.slice(0, 120),
+              });
+            }
+          }
+        }
       }
 
       // Grava auditoria sempre
@@ -4992,7 +5037,9 @@ Seja específico para o setor ${empresa.setor}.`,
     }
   });
 
-  // Endpoint de consulta do status atual da assinatura + último evento
+  // Endpoint de consulta do status atual da assinatura + último evento.
+  // Contrato: { status, statusDetail, motivoLegivel, planoStatus, planoTipo, ultimoEvento }
+  // Aceita ?mpSubscriptionId=... pra consultar uma assinatura específica (usada no callback do MP).
   app.get("/api/pagamentos/status", requireAuth, async (req: Request, res: Response) => {
     try {
       const empresaId = req.session.empresaId!;
@@ -5002,28 +5049,33 @@ Seja específico para o setor ${empresa.setor}.`,
       const eventos = await storage.getPagamentoEventosByEmpresa(empresaId, 5);
       const ultimoEvento = eventos[0];
 
-      // Se houver assinatura, tentamos buscar dados atualizados do MP
-      let mpStatus: string | null = empresa.mpSubscriptionStatus ?? null;
-      let mpStatusDetail: string | null = null;
-      if (empresa.mpSubscriptionId) {
+      // Prioridade: query param → empresa.mpSubscriptionId
+      const subscriptionIdParam = (req.query.mpSubscriptionId as string | undefined) || undefined;
+      const subId = subscriptionIdParam ?? empresa.mpSubscriptionId ?? null;
+
+      let status: string | null = empresa.mpSubscriptionStatus ?? null;
+      let statusDetail: string | null = null;
+      if (subId) {
         try {
-          const sub: any = await buscarAssinatura(empresa.mpSubscriptionId);
-          mpStatus = sub?.status ?? mpStatus;
-          mpStatusDetail = sub?.status_detail ?? null;
+          const sub: any = await buscarAssinatura(subId);
+          status = sub?.status ?? status;
+          statusDetail = sub?.status_detail ?? null;
         } catch (err: any) {
           console.warn("[MP] Falha ao consultar assinatura:", err?.message ?? err);
         }
       }
 
-      const motivo = motivoLegivel(ultimoEvento?.statusDetail ?? mpStatusDetail ?? undefined);
+      // Se o status_detail não veio na assinatura, caímos no último evento auditado
+      const detalheFinal = statusDetail ?? ultimoEvento?.statusDetail ?? null;
+      const motivo = motivoLegivel(detalheFinal ?? undefined);
 
       res.json({
+        status,
+        statusDetail: detalheFinal,
+        motivoLegivel: motivo,
         planoStatus: empresa.planoStatus,
         planoTipo: empresa.planoTipo,
-        mpSubscriptionId: empresa.mpSubscriptionId,
-        mpSubscriptionStatus: mpStatus,
-        mpStatusDetail: ultimoEvento?.statusDetail ?? mpStatusDetail,
-        motivoLegivel: motivo,
+        mpSubscriptionId: subId,
         ultimoEvento: ultimoEvento
           ? {
               tipo: ultimoEvento.tipo,

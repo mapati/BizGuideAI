@@ -26,6 +26,7 @@ import {
   faturas,
   configuracoesIa,
   pagamentoEventos,
+  mpPlanos,
   type PagamentoEvento,
   type InsertPagamentoEvento,
   type Empresa,
@@ -95,6 +96,8 @@ export interface IStorage {
   getEmpresaByMpSubscriptionId(subscriptionId: string): Promise<Empresa | undefined>;
   createPagamentoEvento(evento: InsertPagamentoEvento): Promise<PagamentoEvento>;
   getPagamentoEventosByEmpresa(empresaId: string, limit?: number): Promise<PagamentoEvento[]>;
+  getMpPlanoId(tipo: string): Promise<string | undefined>;
+  saveMpPlanoId(tipo: string, mpPlanId: string): Promise<void>;
   
   getFatoresPestel(empresaId: string): Promise<FatorPestel[]>;
   createFatorPestel(fator: InsertFatorPestel): Promise<FatorPestel>;
@@ -303,6 +306,21 @@ export class DbStorage implements IStorage {
       .where(eq(pagamentoEventos.empresaId, empresaId))
       .orderBy(desc(pagamentoEventos.criadoEm))
       .limit(limit);
+  }
+
+  async getMpPlanoId(tipo: string): Promise<string | undefined> {
+    const r = await db.select().from(mpPlanos).where(eq(mpPlanos.tipo, tipo)).limit(1);
+    return r[0]?.mpPlanId;
+  }
+
+  async saveMpPlanoId(tipo: string, mpPlanId: string): Promise<void> {
+    await db
+      .insert(mpPlanos)
+      .values({ tipo, mpPlanId })
+      .onConflictDoUpdate({
+        target: mpPlanos.tipo,
+        set: { mpPlanId, atualizadoEm: new Date() },
+      });
   }
 
   async getFatoresPestel(empresaId: string): Promise<FatorPestel[]> {

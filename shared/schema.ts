@@ -445,6 +445,13 @@ export const insertFaturaSchema = createInsertSchema(faturas).omit({
 export type InsertFatura = z.infer<typeof insertFaturaSchema>;
 export type Fatura = typeof faturas.$inferSelect;
 
+export const mpPlanos = pgTable("mp_planos", {
+  tipo: varchar("tipo").primaryKey(),
+  mpPlanId: text("mp_plan_id").notNull(),
+  atualizadoEm: timestamp("atualizado_em").defaultNow().notNull(),
+});
+export type MpPlano = typeof mpPlanos.$inferSelect;
+
 export const pagamentoEventos = pgTable("pagamento_eventos", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   empresaId: varchar("empresa_id").references(() => empresas.id, { onDelete: "set null" }),

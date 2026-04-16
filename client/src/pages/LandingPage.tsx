@@ -769,8 +769,14 @@ export default function LandingPage() {
                     <ArrowRight className="h-5 w-5" />
                   </Button>
                 </Link>
+                <a href="#precos" data-testid="link-hero-ver-planos">
+                  <Button size="lg" variant="outline" className="gap-2 text-base border-slate-600 text-slate-300 bg-transparent">
+                    Ver planos
+                    <ArrowRight className="h-5 w-5" />
+                  </Button>
+                </a>
                 <Link href="/login">
-                  <Button size="lg" variant="outline" className="gap-2 text-base border-slate-600 text-slate-300 bg-transparent" data-testid="button-hero-cta-login">
+                  <Button size="lg" variant="ghost" className="gap-2 text-base text-slate-400" data-testid="button-hero-cta-login">
                     Fazer Login
                   </Button>
                 </Link>
@@ -1199,6 +1205,149 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+      {/* PLANOS E PREÇOS */}
+      <section id="precos" className="py-20 bg-background border-t" data-testid="section-precos">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <Badge variant="outline" className="mb-4 text-sm px-4 py-1">Planos e Preços</Badge>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">Escolha o plano certo para o seu negócio</h2>
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">7 dias gratuitos em qualquer plano. Sem cartão de crédito.</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+            {/* Start */}
+            <Card className="flex flex-col" data-testid="card-plano-start">
+              <CardContent className="p-6 flex flex-col gap-5 flex-1">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <Badge variant="secondary" className="text-sm px-3 py-1">Start</Badge>
+                </div>
+                <div>
+                  <div className="flex items-end gap-1 mb-1">
+                    <span className="text-3xl font-bold" data-testid="text-preco-start">R$ 187</span>
+                    <span className="text-muted-foreground text-sm mb-1">/mês</span>
+                  </div>
+                  <p className="text-muted-foreground text-sm">Para empreendedores e empresas em fase inicial</p>
+                </div>
+                <ul className="flex flex-col gap-2.5 flex-1">
+                  {[
+                    "1 usuário por empresa",
+                    "Roteiro completo em 12 passos",
+                    "IA com custo-benefício otimizado",
+                    "SWOT, PESTEL, BMC, OKRs",
+                    "Relatórios estratégicos em PDF",
+                    "Suporte por e-mail",
+                  ].map(item => (
+                    <li key={item} className="flex items-start gap-2 text-sm">
+                      <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Link href="/register">
+                  <Button className="w-full gap-2" variant="outline" data-testid="button-plano-start-cta">
+                    Começar grátis
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+
+            {/* Pro — Highlighted */}
+            <Card className="flex flex-col border-primary relative" data-testid="card-plano-pro">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                <Badge className="px-3 py-1 text-xs font-semibold shadow-sm" data-testid="badge-mais-popular">Mais popular</Badge>
+              </div>
+              <CardContent className="p-6 flex flex-col gap-5 flex-1">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <Badge className="text-sm px-3 py-1 bg-primary text-primary-foreground">Pro</Badge>
+                </div>
+                <div>
+                  <div className="flex items-end gap-1 mb-1">
+                    <span className="text-3xl font-bold" data-testid="text-preco-pro">R$ 490</span>
+                    <span className="text-muted-foreground text-sm mb-1">/mês</span>
+                  </div>
+                  <p className="text-muted-foreground text-sm">Para empresas em crescimento com equipe</p>
+                </div>
+                <ul className="flex flex-col gap-2.5 flex-1">
+                  {[
+                    "Usuários ilimitados",
+                    "Tudo do plano Start",
+                    "Modelos de IA mais potentes (GPT-4 / análise profunda)",
+                    "Colaboração em equipe",
+                    "Benchmarking setorial avançado",
+                    "Suporte prioritário",
+                  ].map(item => (
+                    <li key={item} className="flex items-start gap-2 text-sm">
+                      <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Link href="/register">
+                  <Button className="w-full gap-2" size="lg" data-testid="button-plano-pro-cta">
+                    Começar grátis
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+
+            {/* Enterprise */}
+            <Card className="flex flex-col" data-testid="card-plano-enterprise">
+              <CardContent className="p-6 flex flex-col gap-5 flex-1">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <Badge variant="secondary" className="text-sm px-3 py-1">Enterprise</Badge>
+                </div>
+                <div>
+                  <div className="flex items-end gap-1 mb-1">
+                    <span className="text-3xl font-bold" data-testid="text-preco-enterprise">Sob consulta</span>
+                  </div>
+                  <p className="text-muted-foreground text-sm">Para corporações com requisitos avançados de segurança</p>
+                </div>
+                <ul className="flex flex-col gap-2.5 flex-1">
+                  {[
+                    "Usuários ilimitados",
+                    "Tudo do plano Pro",
+                    "Infraestrutura dedicada (on-premise)",
+                    "Segurança máxima de dados",
+                    "SLA personalizado",
+                    "Gerente de sucesso dedicado",
+                    "Treinamento e onboarding",
+                  ].map(item => (
+                    <li key={item} className="flex items-start gap-2 text-sm">
+                      <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+                <a href="https://wa.me/5511950377286?text=Ol%C3%A1%2C%20gostaria%20de%20saber%20mais%20sobre%20o%20plano%20Enterprise" target="_blank" rel="noopener noreferrer" data-testid="link-plano-enterprise-whatsapp">
+                  <Button className="w-full gap-2" variant="outline">
+                    Falar com especialista
+                    <MessageCircle className="h-4 w-4" />
+                  </Button>
+                </a>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="mt-8 text-center flex flex-col items-center gap-2">
+            <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+              <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0" />
+              Todos os planos incluem 7 dias gratuitos sem cartão de crédito
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Dúvidas?{" "}
+              <a href="#contato" className="underline underline-offset-4 hover:text-foreground transition-colors" data-testid="link-precos-faq">
+                Veja o FAQ
+              </a>
+              {" "}ou{" "}
+              <a href="#contato" className="underline underline-offset-4 hover:text-foreground transition-colors" data-testid="link-precos-fale-conosco">
+                fale conosco
+              </a>
+            </p>
+          </div>
+        </div>
+      </section>
       {/* CTA FINAL */}
       <section className="py-20 bg-gradient-to-br from-primary to-primary/80 relative overflow-hidden" data-testid="section-cta">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent pointer-events-none" />
@@ -1221,6 +1370,10 @@ export default function LandingPage() {
               </Button>
             </Link>
           </div>
+          <a href="#precos" className="text-primary-foreground/80 hover:text-primary-foreground text-sm flex items-center gap-1.5 transition-colors" data-testid="link-cta-ver-planos">
+            Ver todos os planos
+            <ArrowRight className="h-4 w-4" />
+          </a>
           <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-primary-foreground/70">
             <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" />Completo e fácil de usar</span>
             <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" />Configuração em minutos</span>
@@ -1229,7 +1382,7 @@ export default function LandingPage() {
         </div>
       </section>
       {/* CONTATO */}
-      <section className="py-16 bg-muted/30 border-t" data-testid="section-contato">
+      <section id="contato" className="py-16 bg-muted/30 border-t" data-testid="section-contato">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-2xl font-bold mb-3">Quer conversar antes de começar?</h2>
           <p className="text-muted-foreground mb-10">

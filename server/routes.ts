@@ -720,6 +720,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/admin/empresas/:id", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const empresa = await storage.getEmpresa(id);
+      if (!empresa) return res.status(404).json({ error: "Empresa não encontrada" });
+      await storage.deleteEmpresa(id);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[ADMIN] Erro ao deletar empresa:", error.message);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/admin/usuarios/:id/ativar-plano", async (req, res) => {
     try {
       const { id } = req.params;

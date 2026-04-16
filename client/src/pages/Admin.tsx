@@ -12,6 +12,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -37,6 +38,7 @@ import {
   Brain,
   Save,
   Info,
+  Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -369,12 +371,102 @@ function NovaFaturaDialog({
   );
 }
 
+function ConfirmarDeleteEmpresaDialog({
+  empresa,
+  open,
+  onClose,
+}: {
+  empresa: AdminEmpresa | null;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const { toast } = useToast();
+  const [confirmacaoNome, setConfirmacaoNome] = useState("");
+
+  const deletar = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/admin/empresas/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/empresas"] });
+      toast({ title: "Empresa excluída", description: "A empresa e todos os seus dados foram removidos permanentemente." });
+      setConfirmacaoNome("");
+      onClose();
+    },
+    onError: (error: Error) => toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" }),
+  });
+
+  const handleClose = () => {
+    setConfirmacaoNome("");
+    onClose();
+  };
+
+  const nomeCorreto = confirmacaoNome.trim().toLowerCase() === empresa?.nome.trim().toLowerCase();
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
+      <DialogContent data-testid="dialog-confirmar-delete-empresa">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-destructive">
+            <AlertTriangle className="h-5 w-5" />
+            Excluir empresa permanentemente
+          </DialogTitle>
+          <DialogDescription>
+            Esta ação é <strong>irreversível</strong>. Todos os dados serão apagados definitivamente,
+            incluindo usuários, análises PESTEL, SWOT, OKRs, KPIs, plano estratégico e todos os registros associados.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          <div className="rounded-md bg-destructive/10 border border-destructive/20 px-4 py-3 text-sm text-destructive">
+            <strong>Empresa:</strong> {empresa?.nome}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="input-confirmacao-nome">
+              Para confirmar, digite o nome da empresa exatamente como aparece acima:
+            </Label>
+            <Input
+              id="input-confirmacao-nome"
+              data-testid="input-confirmacao-delete-empresa"
+              value={confirmacaoNome}
+              onChange={(e) => setConfirmacaoNome(e.target.value)}
+              placeholder={empresa?.nome}
+              autoComplete="off"
+            />
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={handleClose} data-testid="button-cancelar-delete-empresa">
+            Cancelar
+          </Button>
+          <Button
+            variant="destructive"
+            disabled={!nomeCorreto || deletar.isPending}
+            onClick={() => empresa && deletar.mutate(empresa.id)}
+            data-testid="button-confirmar-delete-empresa"
+          >
+            {deletar.isPending ? (
+              "Excluindo..."
+            ) : (
+              <>
+                <Trash2 className="h-4 w-4 mr-1.5" />
+                Excluir permanentemente
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function TabEmpresas({ empresas, isLoading }: { empresas: AdminEmpresa[]; isLoading: boolean }) {
   const { toast } = useToast();
   const [filtro, setFiltro] = useState<FiltroUsuario>("todos");
   const [filtroPlan, setFiltroPlan] = useState<FiltroPlano>("todos");
   const [empresaSelecionada, setEmpresaSelecionada] = useState<AdminEmpresa | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteEmpresa, setDeleteEmpresa] = useState<AdminEmpresa | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const suspender = useMutation({
     mutationFn: (id: string) => apiRequest("POST", `/api/admin/empresas/${id}/suspender`),
@@ -513,6 +605,16 @@ function TabEmpresas({ empresas, isLoading }: { empresas: AdminEmpresa[]; isLoad
                       Suspender
                     </Button>
                   )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                    onClick={() => { setDeleteEmpresa(e); setDeleteDialogOpen(true); }}
+                    data-testid={`button-deletar-${e.id}`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1" />
+                    Excluir
+                  </Button>
                 </div>
               </div>
             );
@@ -524,6 +626,12 @@ function TabEmpresas({ empresas, isLoading }: { empresas: AdminEmpresa[]; isLoad
         empresa={empresaSelecionada}
         open={dialogOpen}
         onClose={() => { setDialogOpen(false); setEmpresaSelecionada(null); }}
+      />
+
+      <ConfirmarDeleteEmpresaDialog
+        empresa={deleteEmpresa}
+        open={deleteDialogOpen}
+        onClose={() => { setDeleteDialogOpen(false); setDeleteEmpresa(null); }}
       />
     </div>
   );

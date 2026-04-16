@@ -78,6 +78,7 @@ export interface IStorage {
   getEmpresa(id: string): Promise<Empresa | undefined>;
   createEmpresa(empresa: InsertEmpresa): Promise<Empresa>;
   updateEmpresa(id: string, empresa: Partial<InsertEmpresa>): Promise<Empresa>;
+  deleteEmpresa(id: string): Promise<void>;
 
   createUsuario(usuario: InsertUsuario): Promise<Usuario>;
   getUsuarioByEmail(email: string): Promise<Usuario | undefined>;
@@ -228,6 +229,10 @@ export class DbStorage implements IStorage {
   async updateEmpresa(id: string, empresa: Partial<InsertEmpresa>): Promise<Empresa> {
     const result = await db.update(empresas).set(omitTenantFields(empresa)).where(eq(empresas.id, id)).returning();
     return result[0];
+  }
+
+  async deleteEmpresa(id: string): Promise<void> {
+    await db.delete(empresas).where(eq(empresas.id, id));
   }
 
   async createUsuario(usuario: InsertUsuario): Promise<Usuario> {

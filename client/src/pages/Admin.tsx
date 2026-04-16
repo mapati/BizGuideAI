@@ -60,6 +60,7 @@ interface AdminEmpresa {
   setor: string;
   tamanho: string;
   planoStatus: string;
+  planoTipo: string | null;
   diasRestantes: number | null;
   totalUsuarios: number;
   trialStartedAt: string | null;
@@ -80,6 +81,11 @@ interface AdminFatura {
 }
 
 type FiltroUsuario = "todos" | "trial" | "expirado" | "ativo" | "suspenso";
+type FiltroPlano = "todos" | "start" | "pro" | "enterprise";
+
+const PLANO_PRECOS: Record<string, number> = { start: 187, pro: 490 };
+const PLANO_LIMITE: Record<string, string> = { start: "1", pro: "∞", enterprise: "∞" };
+const PLANO_LABELS: Record<string, string> = { start: "Start", pro: "Pro", enterprise: "Enterprise" };
 
 const statusBadge = (status: string, diasRestantes?: number | null) => {
   const map: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -102,6 +108,87 @@ const faturaStatusBadge = (status: string) => {
   return <Badge variant={cfg.variant}>{cfg.label}</Badge>;
 };
 
+const planoBadge = (planoTipo: string | null) => {
+  if (!planoTipo) return null;
+  const configs: Record<string, { label: string; className: string }> = {
+    start: { label: "Start", className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200 dark:border-blue-800" },
+    pro: { label: "Pro", className: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800" },
+    enterprise: { label: "Enterprise", className: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border-purple-200 dark:border-purple-800" },
+  };
+  const cfg = configs[planoTipo] ?? { label: planoTipo, className: "" };
+  return <Badge variant="outline" className={cfg.className} data-testid={`badge-plano-${planoTipo}`}>{cfg.label}</Badge>;
+};
+
+function AtivarPlanoDialog({
+  empresa,
+  open,
+  onClose,
+}: {
+  empresa: AdminEmpresa | null;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const { toast } = useToast();
+  const [planoTipo, setPlanoTipo] = useState<"start" | "pro" | "enterprise">("start");
+
+  const isAlteracao = empresa?.planoStatus === "ativo";
+
+  const ativar = useMutation({
+    mutationFn: () =>
+      apiRequest("POST", `/api/admin/empresas/${empresa!.id}/ativar-plano`, { planoTipo }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/empresas"] });
+      toast({ title: isAlteracao ? `Plano alterado para ${PLANO_LABELS[planoTipo]}` : `Plano ${PLANO_LABELS[planoTipo]} ativado` });
+      onClose();
+    },
+    onError: (error: Error) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
+  });
+
+  const descPlano: Record<string, string> = {
+    start: "1 usuário · IA custo-benefício · R$ 187/mês",
+    pro: "Usuários ilimitados · IA premium · R$ 490/mês",
+    enterprise: "Infraestrutura dedicada · Segurança máxima · Sob consulta",
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{isAlteracao ? "Alterar Plano" : "Ativar Plano"} — {empresa?.nome}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label>Tipo de Plano</Label>
+            <Select value={planoTipo} onValueChange={v => setPlanoTipo(v as typeof planoTipo)}>
+              <SelectTrigger data-testid="select-tipo-plano">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="start">Start — R$ 187/mês (1 usuário)</SelectItem>
+                <SelectItem value="pro">Pro — R$ 490/mês (usuários ilimitados)</SelectItem>
+                <SelectItem value="enterprise">Enterprise — Sob consulta</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="p-3 rounded-md bg-muted text-xs text-muted-foreground">
+            {descPlano[planoTipo]}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} data-testid="button-cancelar-ativar-plano">Cancelar</Button>
+          <Button
+            onClick={() => ativar.mutate()}
+            disabled={ativar.isPending}
+            data-testid="button-confirmar-ativar-plano"
+          >
+            {ativar.isPending ? "Salvando..." : `${isAlteracao ? "Alterar para" : "Ativar"} ${PLANO_LABELS[planoTipo]}`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function NovaFaturaDialog({
   open,
   onClose,
@@ -116,6 +203,21 @@ function NovaFaturaDialog({
   const [valor, setValor] = useState("");
   const [descricao, setDescricao] = useState("");
   const [dataVencimento, setDataVencimento] = useState("");
+
+  useEffect(() => {
+    if (!empresaId) return;
+    const emp = empresas.find(e => e.id === empresaId);
+    if (emp?.planoStatus === "ativo" && emp.planoTipo) {
+      const preco = PLANO_PRECOS[emp.planoTipo];
+      if (preco) {
+        setValor(preco.toFixed(2));
+        const mesAno = format(new Date(), "MMMM/yyyy", { locale: ptBR });
+        setDescricao(`Plano ${PLANO_LABELS[emp.planoTipo]} — ${mesAno}`);
+      } else if (emp.planoTipo === "enterprise") {
+        setDescricao(`Plano Enterprise — ${format(new Date(), "MMMM/yyyy", { locale: ptBR })}`);
+      }
+    }
+  }, [empresaId, empresas]);
 
   const criarFatura = useMutation({
     mutationFn: () =>
@@ -210,15 +312,9 @@ function NovaFaturaDialog({
 function TabEmpresas({ empresas, isLoading }: { empresas: AdminEmpresa[]; isLoading: boolean }) {
   const { toast } = useToast();
   const [filtro, setFiltro] = useState<FiltroUsuario>("todos");
-
-  const ativarPlano = useMutation({
-    mutationFn: (id: string) => apiRequest("POST", `/api/admin/empresas/${id}/ativar-plano`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/empresas"] });
-      toast({ title: "Plano ativado para a empresa" });
-    },
-    onError: (error: Error) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
-  });
+  const [filtroPlan, setFiltroPlan] = useState<FiltroPlano>("todos");
+  const [empresaSelecionada, setEmpresaSelecionada] = useState<AdminEmpresa | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const suspender = useMutation({
     mutationFn: (id: string) => apiRequest("POST", `/api/admin/empresas/${id}/suspender`),
@@ -230,15 +326,12 @@ function TabEmpresas({ empresas, isLoading }: { empresas: AdminEmpresa[]; isLoad
   });
 
   const filtradas = empresas.filter(e => {
-    if (filtro === "todos") return true;
-    if (filtro === "trial") return e.planoStatus === "trial";
-    if (filtro === "expirado") return e.planoStatus === "expirado";
-    if (filtro === "ativo") return e.planoStatus === "ativo";
-    if (filtro === "suspenso") return e.planoStatus === "suspenso";
+    if (filtro !== "todos" && e.planoStatus !== filtro) return false;
+    if (filtroPlan !== "todos" && e.planoTipo !== filtroPlan) return false;
     return true;
   });
 
-  const filtros: { key: FiltroUsuario; label: string }[] = [
+  const filtrosStatus: { key: FiltroUsuario; label: string }[] = [
     { key: "todos", label: "Todos" },
     { key: "trial", label: "Em Trial" },
     { key: "expirado", label: "Trial Vencido" },
@@ -246,20 +339,48 @@ function TabEmpresas({ empresas, isLoading }: { empresas: AdminEmpresa[]; isLoad
     { key: "suspenso", label: "Suspenso" },
   ];
 
+  const filtrosPlano: { key: FiltroPlano; label: string }[] = [
+    { key: "todos", label: "Todos os Planos" },
+    { key: "start", label: "Start" },
+    { key: "pro", label: "Pro" },
+    { key: "enterprise", label: "Enterprise" },
+  ];
+
+  const limiteUsuarios = (e: AdminEmpresa) => {
+    if (e.planoStatus !== "ativo" || !e.planoTipo) return null;
+    const limite = PLANO_LIMITE[e.planoTipo];
+    return limite ? `${e.totalUsuarios}/${limite}` : null;
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2" data-testid="filtros-empresas">
-        {filtros.map(f => (
-          <Button
-            key={f.key}
-            size="sm"
-            variant={filtro === f.key ? "default" : "outline"}
-            onClick={() => setFiltro(f.key)}
-            data-testid={`filtro-${f.key}`}
-          >
-            {f.label}
-          </Button>
-        ))}
+      <div className="space-y-2">
+        <div className="flex flex-wrap gap-2" data-testid="filtros-empresas-status">
+          {filtrosStatus.map(f => (
+            <Button
+              key={f.key}
+              size="sm"
+              variant={filtro === f.key ? "default" : "outline"}
+              onClick={() => setFiltro(f.key)}
+              data-testid={`filtro-status-${f.key}`}
+            >
+              {f.label}
+            </Button>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-2" data-testid="filtros-empresas-plano">
+          {filtrosPlano.map(f => (
+            <Button
+              key={f.key}
+              size="sm"
+              variant={filtroPlan === f.key ? "default" : "outline"}
+              onClick={() => setFiltroPlan(f.key)}
+              data-testid={`filtro-plano-${f.key}`}
+            >
+              {f.label}
+            </Button>
+          ))}
+        </div>
       </div>
 
       {isLoading ? (
@@ -268,56 +389,78 @@ function TabEmpresas({ empresas, isLoading }: { empresas: AdminEmpresa[]; isLoad
         <div className="text-muted-foreground text-sm py-8 text-center">Nenhuma empresa encontrada.</div>
       ) : (
         <div className="space-y-2">
-          {filtradas.map(e => (
-            <div
-              key={e.id}
-              className="flex flex-wrap items-center gap-3 p-4 rounded-md border bg-card"
-              data-testid={`row-empresa-${e.id}`}
-            >
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm truncate" data-testid={`text-nome-empresa-${e.id}`}>
-                  {e.nome}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {e.setor} · {e.tamanho}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {e.totalUsuarios} usuário{e.totalUsuarios !== 1 ? "s" : ""}
-                  <span className="mx-1.5 opacity-50">·</span>
-                  Desde {format(new Date(e.createdAt), "dd/MM/yyyy", { locale: ptBR })}
-                </p>
+          {filtradas.map(e => {
+            const limite = limiteUsuarios(e);
+            return (
+              <div
+                key={e.id}
+                className="flex flex-wrap items-center gap-3 p-4 rounded-md border bg-card"
+                data-testid={`row-empresa-${e.id}`}
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm truncate" data-testid={`text-nome-empresa-${e.id}`}>
+                    {e.nome}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {e.setor} · {e.tamanho}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {limite
+                      ? `${limite} usuário${e.totalUsuarios !== 1 ? "s" : ""}`
+                      : `${e.totalUsuarios} usuário${e.totalUsuarios !== 1 ? "s" : ""}`}
+                    <span className="mx-1.5 opacity-50">·</span>
+                    Desde {format(new Date(e.createdAt), "dd/MM/yyyy", { locale: ptBR })}
+                  </p>
+                </div>
+                <div className="flex items-center flex-wrap gap-2">
+                  {statusBadge(e.planoStatus, e.diasRestantes)}
+                  {e.planoStatus === "ativo" && planoBadge(e.planoTipo)}
+                  {e.planoStatus !== "ativo" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => { setEmpresaSelecionada(e); setDialogOpen(true); }}
+                      data-testid={`button-ativar-${e.id}`}
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                      Ativar Plano
+                    </Button>
+                  )}
+                  {e.planoStatus === "ativo" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => { setEmpresaSelecionada(e); setDialogOpen(true); }}
+                      data-testid={`button-alterar-plano-${e.id}`}
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                      Alterar Plano
+                    </Button>
+                  )}
+                  {e.planoStatus !== "suspenso" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => suspender.mutate(e.id)}
+                      disabled={suspender.isPending}
+                      data-testid={`button-suspender-${e.id}`}
+                    >
+                      <XCircle className="h-3.5 w-3.5 mr-1" />
+                      Suspender
+                    </Button>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                {statusBadge(e.planoStatus, e.diasRestantes)}
-                {e.planoStatus !== "ativo" && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => ativarPlano.mutate(e.id)}
-                    disabled={ativarPlano.isPending}
-                    data-testid={`button-ativar-${e.id}`}
-                  >
-                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                    Ativar Plano
-                  </Button>
-                )}
-                {e.planoStatus !== "suspenso" && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => suspender.mutate(e.id)}
-                    disabled={suspender.isPending}
-                    data-testid={`button-suspender-${e.id}`}
-                  >
-                    <XCircle className="h-3.5 w-3.5 mr-1" />
-                    Suspender
-                  </Button>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
+
+      <AtivarPlanoDialog
+        empresa={empresaSelecionada}
+        open={dialogOpen}
+        onClose={() => { setDialogOpen(false); setEmpresaSelecionada(null); }}
+      />
     </div>
   );
 }
@@ -449,6 +592,13 @@ function TabResumo({ empresas, faturas }: { empresas: AdminEmpresa[]; faturas: A
     .filter(f => f.status === "pago")
     .reduce((acc, f) => acc + parseFloat(f.valor), 0);
 
+  const ativosStart = empresas.filter(e => e.planoStatus === "ativo" && e.planoTipo === "start").length;
+  const ativosPro = empresas.filter(e => e.planoStatus === "ativo" && e.planoTipo === "pro").length;
+  const ativosEnterprise = empresas.filter(e => e.planoStatus === "ativo" && e.planoTipo === "enterprise").length;
+  const mrrEstimado = ativosStart * 187 + ativosPro * 490;
+
+  const formatBRL = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+
   const stats = [
     { label: "Empresas Cadastradas", value: total, icon: Users, color: "text-primary" },
     { label: "Em Trial", value: emTrial, icon: Clock, color: "text-yellow-600 dark:text-yellow-400" },
@@ -461,7 +611,7 @@ function TabResumo({ empresas, faturas }: { empresas: AdminEmpresa[]; faturas: A
     <div className="space-y-6">
       <div>
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-          Usuários
+          Empresas
         </h3>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
           {stats.map(s => {
@@ -476,6 +626,81 @@ function TabResumo({ empresas, faturas }: { empresas: AdminEmpresa[]; faturas: A
               </Card>
             );
           })}
+        </div>
+      </div>
+
+      <div>
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+          Receita Mensal Recorrente (MRR)
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Card data-testid="card-mrr-start">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-blue-600 dark:text-blue-400">Start</span>
+                <Badge variant="outline" className="text-[10px] bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800">
+                  {ativosStart} empresa{ativosStart !== 1 ? "s" : ""}
+                </Badge>
+              </div>
+              <p className="text-xl font-bold">{formatBRL(ativosStart * 187)}</p>
+              <p className="text-xs text-muted-foreground">{ativosStart} × R$ 187/mês</p>
+            </CardContent>
+          </Card>
+          <Card data-testid="card-mrr-pro">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-indigo-600 dark:text-indigo-400">Pro</span>
+                <Badge variant="outline" className="text-[10px] bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800">
+                  {ativosPro} empresa{ativosPro !== 1 ? "s" : ""}
+                </Badge>
+              </div>
+              <p className="text-xl font-bold">{formatBRL(ativosPro * 490)}</p>
+              <p className="text-xs text-muted-foreground">{ativosPro} × R$ 490/mês</p>
+            </CardContent>
+          </Card>
+          <Card data-testid="card-mrr-enterprise">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-purple-600 dark:text-purple-400">Enterprise</span>
+                <Badge variant="outline" className="text-[10px] bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800">
+                  {ativosEnterprise} empresa{ativosEnterprise !== 1 ? "s" : ""}
+                </Badge>
+              </div>
+              <p className="text-xl font-bold text-muted-foreground">Sob consulta</p>
+              <p className="text-xs text-muted-foreground">{ativosEnterprise} contrato{ativosEnterprise !== 1 ? "s" : ""} ativo{ativosEnterprise !== 1 ? "s" : ""}</p>
+            </CardContent>
+          </Card>
+          <Card data-testid="card-mrr-total">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-green-600 dark:text-green-400">MRR Total</span>
+                <LayoutDashboard className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+              </div>
+              <p className="text-xl font-bold text-green-600 dark:text-green-400">{formatBRL(mrrEstimado)}</p>
+              <p className="text-xs text-muted-foreground">Start + Pro estimado</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="mt-4 p-4 rounded-md border bg-card space-y-2" data-testid="distribuicao-planos">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Distribuição</p>
+          {[
+            { label: "Trial", count: emTrial, color: "bg-yellow-400 dark:bg-yellow-600", mrr: null },
+            { label: "Start", count: ativosStart, color: "bg-blue-500", mrr: ativosStart * 187 },
+            { label: "Pro", count: ativosPro, color: "bg-indigo-500", mrr: ativosPro * 490 },
+            { label: "Enterprise", count: ativosEnterprise, color: "bg-purple-500", mrr: null },
+            { label: "Expirado", count: trialVencido, color: "bg-red-400", mrr: null },
+            { label: "Suspenso", count: suspensos, color: "bg-muted-foreground/30", mrr: null },
+          ].map(row => (
+            <div key={row.label} className="flex items-center gap-3 text-sm">
+              <div className={`h-2.5 w-2.5 rounded-full shrink-0 ${row.color}`} />
+              <span className="w-24 text-sm">{row.label}</span>
+              <span className="text-muted-foreground text-xs">{row.count} empresa{row.count !== 1 ? "s" : ""}</span>
+              {row.mrr != null && (
+                <span className="ml-auto text-xs font-medium">{formatBRL(row.mrr)} MRR</span>
+              )}
+            </div>
+          ))}
         </div>
       </div>
 
@@ -511,7 +736,7 @@ function TabResumo({ empresas, faturas }: { empresas: AdminEmpresa[]; faturas: A
               <p className="text-2xl font-bold">
                 R$ {receitaTotal.toFixed(2).replace(".", ",")}
               </p>
-              <p className="text-xs text-muted-foreground">Receita Total</p>
+              <p className="text-xs text-muted-foreground">Receita Total (faturas)</p>
             </CardContent>
           </Card>
         </div>

@@ -30,6 +30,7 @@ export const empresas = pgTable("empresas", {
   documentoInterpretacao: text("documento_interpretacao"),
   documentoAnalisadoEm: timestamp("documento_analisado_em"),
   planoStatus: text("plano_status").notNull().default("trial"),
+  planoTipo: text("plano_tipo"),
   trialStartedAt: timestamp("trial_started_at").defaultNow(),
   planoAtivadoEm: timestamp("plano_ativado_em"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

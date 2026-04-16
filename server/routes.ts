@@ -650,6 +650,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           setor: e.setor,
           tamanho: e.tamanho,
           planoStatus: trialExpirado ? "expirado" : e.planoStatus,
+          planoTipo: e.planoTipo ?? null,
           diasRestantes,
           totalUsuarios: e.totalUsuarios,
           trialStartedAt: e.trialStartedAt,
@@ -666,8 +667,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/admin/empresas/:id/ativar-plano", async (req, res) => {
     try {
       const { id } = req.params;
-      const empresa = await storage.updateEmpresaPlano(id, { planoStatus: "ativo", planoAtivadoEm: new Date() });
-      res.json({ success: true, planoStatus: empresa.planoStatus });
+      const schema = z.object({
+        planoTipo: z.enum(["start", "pro", "enterprise"]).default("start"),
+      });
+      const { planoTipo } = schema.parse(req.body);
+      const empresa = await storage.updateEmpresaPlano(id, { planoStatus: "ativo", planoAtivadoEm: new Date(), planoTipo });
+      res.json({ success: true, planoStatus: empresa.planoStatus, planoTipo: empresa.planoTipo });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

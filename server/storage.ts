@@ -86,7 +86,7 @@ export interface IStorage {
   updateUsuarioSenha(id: string, senhaHash: string): Promise<void>;
   updateUsuario(id: string, data: Partial<Pick<Usuario, "isAdmin" | "role" | "nome">>): Promise<Usuario>;
   deleteUsuario(id: string, empresaId: string): Promise<void>;
-  updateEmpresaPlano(id: string, data: Partial<Pick<Empresa, "planoStatus" | "planoAtivadoEm">>): Promise<Empresa>;
+  updateEmpresaPlano(id: string, data: Partial<Pick<Empresa, "planoStatus" | "planoAtivadoEm" | "planoTipo">>): Promise<Empresa>;
   
   getFatoresPestel(empresaId: string): Promise<FatorPestel[]>;
   createFatorPestel(fator: InsertFatorPestel): Promise<FatorPestel>;
@@ -264,7 +264,7 @@ export class DbStorage implements IStorage {
     if (!result[0]) throw new Error("Usuário não encontrado");
   }
 
-  async updateEmpresaPlano(id: string, data: Partial<Pick<Empresa, "planoStatus" | "planoAtivadoEm">>): Promise<Empresa> {
+  async updateEmpresaPlano(id: string, data: Partial<Pick<Empresa, "planoStatus" | "planoAtivadoEm" | "planoTipo">>): Promise<Empresa> {
     const result = await db.update(empresas).set(data).where(eq(empresas.id, id)).returning();
     if (!result[0]) throw new Error("Empresa não encontrada");
     return result[0];

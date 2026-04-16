@@ -287,6 +287,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     cidade: z.string().optional(),
     estado: z.string().optional(),
     cep: z.string().optional(),
+    plano: z.enum(["start", "pro"]).optional(),
   });
 
   function generateSecureToken(): string {
@@ -341,7 +342,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.createEmailVerificationToken(usuario.id, hashToken(token), expiresAt);
 
       try {
-        await sendVerificationEmail(usuario.email, usuario.nome, token);
+        await sendVerificationEmail(usuario.email, usuario.nome, token, data.plano);
       } catch (emailErr) {
         console.error("[EMAIL] Falha ao enviar e-mail de verificação:", emailErr);
       }
@@ -355,17 +356,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/auth/verify-email", async (req, res) => {
     try {
       const token = req.query.token as string;
+      const plano = req.query.plano as string | undefined;
+      const planoSuffix = plano === "start" || plano === "pro" ? `&plano=${plano}` : "";
+
       if (!token) return res.redirect("/verify-email?error=token_invalido");
 
       const record = await storage.getEmailVerificationToken(hashToken(token));
       if (!record) return res.redirect("/verify-email?error=token_invalido");
-      if (record.usedAt) return res.redirect("/login?verified=1");
+      if (record.usedAt) return res.redirect(`/login?verified=1${planoSuffix}`);
       if (new Date() > record.expiresAt) return res.redirect("/verify-email?error=token_expirado");
 
       await storage.markEmailVerificationTokenUsed(record.id);
       await storage.updateUsuarioEmailVerificado(record.usuarioId, true);
 
-      res.redirect("/login?verified=1");
+      res.redirect(`/login?verified=1${planoSuffix}`);
     } catch (error: any) {
       res.redirect("/verify-email?error=erro_interno");
     }
@@ -4688,6 +4692,48 @@ Seja específico para o setor ${empresa.setor}.`,
       const data = insertConfiguracaoNotificacaoSchema.parse({ ...req.body, usuarioId: req.session.userId });
       res.json(await storage.upsertConfiguracaoNotificacao(data));
     } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+
+  // ── Contato Enterprise ───────────────────────────────────────────────────
+
+  app.post("/api/contact/enterprise", async (req: Request, res: Response) => {
+    try {
+      const schema = z.object({
+        nome: z.string().min(1, "Nome é obrigatório"),
+        empresa: z.string().min(1, "Empresa é obrigatória"),
+        email: z.string().email("E-mail inválido"),
+        telefone: z.string().min(1, "Telefone é obrigatório"),
+      });
+      const data = schema.parse(req.body);
+
+      const { Resend } = await import("resend");
+      const key = process.env.RESEND_API_KEY;
+      const fromEmail = process.env.EMAIL_FROM || "noreply@bizguideai.org";
+
+      if (key) {
+        const resend = new Resend(key);
+        await resend.emails.send({
+          from: `BizGuideAI <${fromEmail}>`,
+          to: "atendimento.jundiai@consultingnow.com.br",
+          subject: `Solicitação de contato Enterprise — ${data.nome}`,
+          html: `<h2>Nova solicitação de contato Enterprise</h2>
+<p><strong>Nome:</strong> ${data.nome}</p>
+<p><strong>Empresa:</strong> ${data.empresa}</p>
+<p><strong>E-mail:</strong> ${data.email}</p>
+<p><strong>Telefone:</strong> ${data.telefone}</p>`,
+        });
+      } else {
+        console.log(`[ENTERPRISE CONTACT] Nome: ${data.nome}, Empresa: ${data.empresa}, E-mail: ${data.email}, Telefone: ${data.telefone}`);
+      }
+
+      res.json({ ok: true });
+    } catch (e: any) {
+      if (e?.name === "ZodError") {
+        return res.status(400).json({ error: e.issues?.[0]?.message || "Dados inválidos" });
+      }
+      console.error("[ENTERPRISE CONTACT] Erro:", e);
+      res.status(500).json({ error: "Erro ao processar solicitação. Tente novamente." });
+    }
   });
 
   // ── Mercado Pago — Assinaturas ───────────────────────────────────────────

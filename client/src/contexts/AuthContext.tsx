@@ -51,6 +51,7 @@ interface RegisterData {
   nomeEmpresa: string;
   setor: string;
   tamanho: string;
+  plano?: "start" | "pro";
 }
 
 export class AuthError extends Error {

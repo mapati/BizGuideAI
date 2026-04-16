@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Target } from "lucide-react";
+import { Target, BadgeCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -53,9 +53,19 @@ const tamanhos = [
   { value: "grande", label: "Grande (250+ funcionários)" },
 ];
 
+const planoInfo: Record<string, { nome: string; preco: string }> = {
+  start: { nome: "Start", preco: "R$ 187/mês" },
+  pro: { nome: "Pro", preco: "R$ 490/mês" },
+};
+
 export default function Register() {
   const { register } = useAuth();
   const { toast } = useToast();
+  const search = useSearch();
+  const params = new URLSearchParams(search);
+  const planoParam = params.get("plano") as "start" | "pro" | null;
+  const plano = planoParam && planoInfo[planoParam] ? planoParam : null;
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<RegisterForm>({
@@ -81,6 +91,7 @@ export default function Register() {
         nomeEmpresa: values.nomeEmpresa,
         setor: values.setor,
         tamanho: values.tamanho,
+        ...(plano ? { plano } : {}),
       });
     } catch (err: any) {
       toast({
@@ -110,10 +121,33 @@ export default function Register() {
             <span className="text-2xl font-bold">BizGuideAI</span>
           </Link>
         </div>
+
+        {plano && (
+          <div
+            className="flex items-start gap-3 mb-4 rounded-md border border-primary/30 bg-primary/5 p-4"
+            data-testid="banner-plano-selecionado"
+          >
+            <BadgeCheck className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+            <div className="flex flex-col gap-0.5">
+              <p className="text-sm font-semibold text-foreground">
+                Você está criando uma conta para assinar o{" "}
+                <span className="text-primary">Plano {planoInfo[plano].nome}</span>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {planoInfo[plano].preco} — após verificar seu e-mail, você será direcionado ao pagamento.
+              </p>
+            </div>
+          </div>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle>Criar conta</CardTitle>
-            <CardDescription>Preencha os dados abaixo para começar</CardDescription>
+            <CardDescription>
+              {plano
+                ? `Preencha os dados abaixo para assinar o Plano ${planoInfo[plano].nome}`
+                : "Preencha os dados abaixo para começar"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...form}>

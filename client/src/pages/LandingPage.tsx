@@ -1,5 +1,6 @@
 import { Link } from "wouter";
 import { HeroDiagramaIA } from "@/components/HeroDiagramaIA";
+import { EnterpriseContactModal } from "@/components/EnterpriseContactModal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -665,6 +666,7 @@ const showcaseTabs = [
 
 export default function LandingPage() {
   const [activeTab, setActiveTab] = useState("jornada");
+  const [enterpriseOpen, setEnterpriseOpen] = useState(false);
   const ActiveMockup = showcaseTabs.find(t => t.id === activeTab)?.component ?? MockupHome;
 
   return (
@@ -1211,7 +1213,7 @@ export default function LandingPage() {
           <div className="text-center mb-12">
             <Badge variant="outline" className="mb-4 text-sm px-4 py-1">Planos e Preços</Badge>
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">Escolha o plano certo para o seu negócio</h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">7 dias gratuitos em qualquer plano. Sem cartão de crédito.</p>
+            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">Assine diretamente ou comece com 7 dias grátis. Sem cartão de crédito.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
@@ -1243,9 +1245,9 @@ export default function LandingPage() {
                     </li>
                   ))}
                 </ul>
-                <Link href="/register">
+                <Link href="/register?plano=start">
                   <Button className="w-full gap-2" variant="outline" data-testid="button-plano-start-cta">
-                    Começar grátis
+                    Assinar Start
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
@@ -1283,9 +1285,9 @@ export default function LandingPage() {
                     </li>
                   ))}
                 </ul>
-                <Link href="/register">
+                <Link href="/register?plano=pro">
                   <Button className="w-full gap-2" size="lg" data-testid="button-plano-pro-cta">
-                    Começar grátis
+                    Assinar Pro
                     <ArrowRight className="h-4 w-4" />
                   </Button>
                 </Link>
@@ -1320,12 +1322,15 @@ export default function LandingPage() {
                     </li>
                   ))}
                 </ul>
-                <a href="https://wa.me/5511950377286?text=Ol%C3%A1%2C%20gostaria%20de%20saber%20mais%20sobre%20o%20plano%20Enterprise" target="_blank" rel="noopener noreferrer" data-testid="link-plano-enterprise-whatsapp">
-                  <Button className="w-full gap-2" variant="outline">
-                    Falar com especialista
-                    <MessageCircle className="h-4 w-4" />
-                  </Button>
-                </a>
+                <Button
+                  className="w-full gap-2"
+                  variant="outline"
+                  onClick={() => setEnterpriseOpen(true)}
+                  data-testid="button-plano-enterprise-cta"
+                >
+                  <Phone className="h-4 w-4" />
+                  Falar com especialista
+                </Button>
               </CardContent>
             </Card>
           </div>
@@ -1333,7 +1338,7 @@ export default function LandingPage() {
           <div className="mt-8 text-center flex flex-col items-center gap-2">
             <p className="text-sm text-muted-foreground flex items-center gap-1.5">
               <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0" />
-              Todos os planos incluem 7 dias gratuitos sem cartão de crédito
+              Teste gratuito de 7 dias disponível ao criar uma conta — sem cartão de crédito
             </p>
             <p className="text-sm text-muted-foreground">
               Dúvidas?{" "}
@@ -1432,6 +1437,8 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+
+      <EnterpriseContactModal open={enterpriseOpen} onOpenChange={setEnterpriseOpen} />
     </div>
   );
 }

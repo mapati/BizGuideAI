@@ -12,9 +12,11 @@ function getResend(): Resend | null {
 export async function sendVerificationEmail(
   toEmail: string,
   nome: string,
-  token: string
+  token: string,
+  plano?: string
 ): Promise<void> {
-  const link = `${APP_URL}/api/auth/verify-email?token=${token}`;
+  const planoParam = plano ? `&plano=${encodeURIComponent(plano)}` : "";
+  const link = `${APP_URL}/api/auth/verify-email?token=${token}${planoParam}`;
 
   const resend = getResend();
   if (!resend) {

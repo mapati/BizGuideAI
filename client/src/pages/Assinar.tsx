@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { EnterpriseContactModal } from "@/components/EnterpriseContactModal";
 import {
   Target,
   Check,
@@ -16,6 +17,8 @@ import {
   Zap,
   Shield,
   ArrowLeft,
+  Building2,
+  Phone,
 } from "lucide-react";
 
 const planos = [
@@ -57,7 +60,12 @@ const planos = [
 
 export default function Assinar() {
   const [loadingPlano, setLoadingPlano] = useState<"start" | "pro" | null>(null);
+  const [enterpriseOpen, setEnterpriseOpen] = useState(false);
   const { toast } = useToast();
+  const search = useSearch();
+  const params = new URLSearchParams(search);
+  const planoParam = params.get("plano");
+  const planoPreSelecionado = planoParam === "start" || planoParam === "pro" ? planoParam : null;
 
   const handleAssinar = async (planoTipo: "start" | "pro") => {
     setLoadingPlano(planoTipo);
@@ -98,7 +106,7 @@ export default function Assinar() {
       </nav>
 
       <div className="flex-1 flex flex-col items-center px-4 py-12 sm:py-16">
-        <div className="max-w-4xl w-full flex flex-col items-center gap-10">
+        <div className="max-w-5xl w-full flex flex-col items-center gap-10">
           <div className="text-center flex flex-col gap-3">
             <Badge variant="secondary" className="mx-auto" data-testid="badge-assinar">
               Escolha seu plano
@@ -112,65 +120,121 @@ export default function Assinar() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full">
-            {planos.map((plano) => (
-              <Card
-                key={plano.id}
-                className={plano.destaque ? "border-primary shadow-sm" : ""}
-                data-testid={`card-plano-${plano.id}`}
-              >
-                <CardHeader className="pb-4">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <CardTitle className="text-xl">{plano.nome}</CardTitle>
-                    {plano.badge && (
-                      <Badge data-testid={`badge-popular-${plano.id}`}>
-                        {plano.badge}
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex items-end gap-1 mt-1">
-                    <span
-                      className="text-3xl font-bold"
-                      data-testid={`text-preco-${plano.id}`}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 w-full">
+            {planos.map((plano) => {
+              const selecionado = planoPreSelecionado === plano.id;
+              return (
+                <Card
+                  key={plano.id}
+                  className={`${plano.destaque || selecionado ? "border-primary shadow-sm" : ""} flex flex-col`}
+                  data-testid={`card-plano-${plano.id}`}
+                >
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <CardTitle className="text-xl">{plano.nome}</CardTitle>
+                      <div className="flex gap-2 flex-wrap">
+                        {selecionado && (
+                          <Badge variant="default" data-testid={`badge-selecionado-${plano.id}`}>
+                            Selecionado
+                          </Badge>
+                        )}
+                        {plano.badge && !selecionado && (
+                          <Badge data-testid={`badge-popular-${plano.id}`}>
+                            {plano.badge}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-end gap-1 mt-1">
+                      <span
+                        className="text-3xl font-bold"
+                        data-testid={`text-preco-${plano.id}`}
+                      >
+                        {plano.preco}
+                      </span>
+                      <span className="text-muted-foreground mb-1">{plano.periodo}</span>
+                    </div>
+                    <CardDescription>{plano.descricao}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-5 flex-1">
+                    <ul className="space-y-2.5 flex-1">
+                      {plano.features.map((f) => {
+                        const Icon = f.icon;
+                        return (
+                          <li key={f.texto} className="flex items-center gap-2.5 text-sm">
+                            <Check className="h-4 w-4 text-primary flex-shrink-0" />
+                            <span>{f.texto}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <Button
+                      size="lg"
+                      variant={plano.destaque || selecionado ? "default" : "outline"}
+                      className="w-full mt-2"
+                      onClick={() => handleAssinar(plano.id)}
+                      disabled={loadingPlano !== null}
+                      data-testid={`button-assinar-${plano.id}`}
                     >
-                      {plano.preco}
-                    </span>
-                    <span className="text-muted-foreground mb-1">{plano.periodo}</span>
-                  </div>
-                  <CardDescription>{plano.descricao}</CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-5">
-                  <ul className="space-y-2.5">
-                    {plano.features.map((f) => {
-                      const Icon = f.icon;
-                      return (
-                        <li key={f.texto} className="flex items-center gap-2.5 text-sm">
-                          <Check className="h-4 w-4 text-primary flex-shrink-0" />
-                          <span>{f.texto}</span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                  <Button
-                    size="lg"
-                    variant={plano.destaque ? "default" : "outline"}
-                    className="w-full mt-2"
-                    onClick={() => handleAssinar(plano.id)}
-                    disabled={loadingPlano !== null}
-                    data-testid={`button-assinar-${plano.id}`}
-                  >
-                    {loadingPlano === plano.id ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Aguarde...
-                      </>
-                    ) : (
-                      `Assinar ${plano.nome}`
-                    )}
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
+                      {loadingPlano === plano.id ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Aguarde...
+                        </>
+                      ) : (
+                        `Assinar ${plano.nome}`
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
+
+            {/* Enterprise */}
+            <Card className="flex flex-col" data-testid="card-plano-enterprise">
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <CardTitle className="text-xl">Enterprise</CardTitle>
+                </div>
+                <div className="flex items-end gap-1 mt-1">
+                  <span className="text-3xl font-bold" data-testid="text-preco-enterprise">
+                    Sob consulta
+                  </span>
+                </div>
+                <CardDescription>
+                  Para corporações com requisitos avançados de segurança e personalização.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-5 flex-1">
+                <ul className="space-y-2.5 flex-1">
+                  {[
+                    { icon: Users, texto: "Usuários ilimitados" },
+                    { icon: Building2, texto: "Infraestrutura dedicada (on-premise)" },
+                    { icon: Shield, texto: "Segurança máxima de dados" },
+                    { icon: FileText, texto: "SLA personalizado" },
+                    { icon: Zap, texto: "Gerente de sucesso dedicado" },
+                  ].map((f) => {
+                    const Icon = f.icon;
+                    return (
+                      <li key={f.texto} className="flex items-center gap-2.5 text-sm">
+                        <Check className="h-4 w-4 text-primary flex-shrink-0" />
+                        <span>{f.texto}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="w-full mt-2 gap-2"
+                  onClick={() => setEnterpriseOpen(true)}
+                  data-testid="button-enterprise-contato"
+                >
+                  <Phone className="h-4 w-4" />
+                  Falar com especialista
+                </Button>
+              </CardContent>
+            </Card>
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground">
@@ -195,6 +259,8 @@ export default function Assinar() {
           </p>
         </div>
       </div>
+
+      <EnterpriseContactModal open={enterpriseOpen} onOpenChange={setEnterpriseOpen} />
     </div>
   );
 }

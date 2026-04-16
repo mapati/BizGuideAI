@@ -1,28 +1,23 @@
+import { useState } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { EnterpriseContactModal } from "@/components/EnterpriseContactModal";
 import {
   Target,
   Clock,
   CheckCircle2,
-  Phone,
   Mail,
   Users,
   Zap,
   Building2,
   ArrowRight,
+  Phone,
+  AlertCircle,
 } from "lucide-react";
 
-const WHATSAPP_NUMBER = "5511950377286";
 const CONTACT_EMAIL = "atendimento.jundiai@consultingnow.com.br";
-
-function makeWhatsAppUrl(plano: string) {
-  const msg = encodeURIComponent(
-    `Olá! Meu período de testes do BizGuideAI encerrou e gostaria de contratar o plano ${plano}. Podem me ajudar?`
-  );
-  return `https://wa.me/${WHATSAPP_NUMBER}?text=${msg}`;
-}
 
 const planos = [
   {
@@ -78,6 +73,8 @@ const planos = [
 ];
 
 export default function TrialExpirado() {
+  const [enterpriseOpen, setEnterpriseOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -120,6 +117,18 @@ export default function TrialExpirado() {
               Escolha o plano ideal para sua empresa e continue usando o BizGuideAI com todos os recursos estratégicos.
             </p>
           </div>
+
+          <div
+            className="flex items-start gap-2.5 rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-sm text-amber-800 dark:text-amber-300 text-left w-full"
+            data-testid="alert-trial-renovacao"
+          >
+            <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+            <span>
+              Não é possível iniciar um novo período de testes com o mesmo e-mail.
+              Para continuar usando o BizGuideAI, escolha um dos planos abaixo.
+            </span>
+          </div>
+
           <div className="flex flex-wrap items-center justify-center gap-4 w-full">
             <Link href="/assinar">
               <Button
@@ -131,17 +140,16 @@ export default function TrialExpirado() {
                 <ArrowRight className="h-5 w-5" />
               </Button>
             </Link>
-            <a href={makeWhatsAppUrl("completo")} target="_blank" rel="noopener noreferrer">
-              <Button
-                size="lg"
-                variant="outline"
-                className="gap-2 text-base"
-                data-testid="button-whatsapp-contact"
-              >
-                <Phone className="h-5 w-5" />
-                Falar no WhatsApp
-              </Button>
-            </a>
+            <Button
+              size="lg"
+              variant="outline"
+              className="gap-2 text-base"
+              onClick={() => setEnterpriseOpen(true)}
+              data-testid="button-enterprise-contato"
+            >
+              <Phone className="h-5 w-5" />
+              Falar com especialista
+            </Button>
             <a href={`mailto:${CONTACT_EMAIL}`}>
               <Button
                 size="lg"
@@ -160,6 +168,7 @@ export default function TrialExpirado() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {planos.map((plano) => {
               const Icon = plano.icon;
+              const isEnterprise = plano.id === "enterprise";
               return (
                 <Card
                   key={plano.id}
@@ -200,32 +209,28 @@ export default function TrialExpirado() {
                       ))}
                     </ul>
                     <div className="flex flex-col gap-2 pt-2">
-                      <Link href="/assinar">
+                      {isEnterprise ? (
                         <Button
                           className="w-full gap-2"
-                          variant={plano.destaque ? "default" : "outline"}
+                          variant="outline"
+                          onClick={() => setEnterpriseOpen(true)}
                           data-testid={`button-contratar-${plano.id}`}
                         >
-                          <ArrowRight className="h-4 w-4" />
+                          <Phone className="h-4 w-4" />
                           {plano.cta}
                         </Button>
-                      </Link>
-                      <a
-                        href={makeWhatsAppUrl(plano.nome)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-full"
-                      >
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="w-full gap-2 text-muted-foreground"
-                          data-testid={`button-whatsapp-${plano.id}`}
-                        >
-                          <Phone className="h-3 w-3" />
-                          Tirar dúvidas
-                        </Button>
-                      </a>
+                      ) : (
+                        <Link href={`/assinar?plano=${plano.id}`}>
+                          <Button
+                            className="w-full gap-2"
+                            variant={plano.destaque ? "default" : "outline"}
+                            data-testid={`button-contratar-${plano.id}`}
+                          >
+                            <ArrowRight className="h-4 w-4" />
+                            {plano.cta}
+                          </Button>
+                        </Link>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -249,12 +254,16 @@ export default function TrialExpirado() {
           </div>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-            <a href={makeWhatsAppUrl("completo")} target="_blank" rel="noopener noreferrer">
-              <Button size="sm" variant="ghost" className="gap-2 text-muted-foreground" data-testid="button-whatsapp-footer">
-                <Phone className="h-4 w-4" />
-                Falar via WhatsApp
-              </Button>
-            </a>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="gap-2 text-muted-foreground"
+              onClick={() => setEnterpriseOpen(true)}
+              data-testid="button-enterprise-footer"
+            >
+              <Phone className="h-4 w-4" />
+              Falar com especialista
+            </Button>
             <a href={`mailto:${CONTACT_EMAIL}`}>
               <Button size="sm" variant="ghost" className="gap-2 text-muted-foreground" data-testid="button-email-footer">
                 <Mail className="h-4 w-4" />
@@ -273,6 +282,8 @@ export default function TrialExpirado() {
           </p>
         </div>
       </div>
+
+      <EnterpriseContactModal open={enterpriseOpen} onOpenChange={setEnterpriseOpen} />
     </div>
   );
 }

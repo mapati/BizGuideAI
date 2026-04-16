@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useSearch } from "wouter";
+import { Link, useSearch, useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -22,8 +22,11 @@ export default function Login() {
   const { login } = useAuth();
   const { toast } = useToast();
   const search = useSearch();
+  const [, navigate] = useLocation();
   const params = new URLSearchParams(search);
   const verified = params.get("verified") === "1";
+  const planoParam = params.get("plano");
+  const plano = planoParam === "start" || planoParam === "pro" ? planoParam : null;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
@@ -42,6 +45,9 @@ export default function Login() {
     setLockedMessage(null);
     try {
       await login(values.email, values.senha);
+      if (plano) {
+        navigate(`/assinar?plano=${plano}`);
+      }
     } catch (err: any) {
       if (err.code === "EMAIL_NAO_VERIFICADO") {
         setUnverifiedEmail(err.email || values.email);
@@ -107,7 +113,12 @@ export default function Login() {
             {verified && (
               <div className="flex items-start gap-2 rounded-md bg-green-500/10 border border-green-500/20 p-3 text-sm text-green-700 dark:text-green-400" data-testid="alert-email-verified">
                 <CheckCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <span>E-mail verificado com sucesso! Faça login para continuar.</span>
+                <span>
+                  E-mail verificado com sucesso!{" "}
+                  {plano
+                    ? `Faça login para prosseguir com o pagamento do Plano ${plano === "start" ? "Start" : "Pro"}.`
+                    : "Faça login para continuar."}
+                </span>
               </div>
             )}
 

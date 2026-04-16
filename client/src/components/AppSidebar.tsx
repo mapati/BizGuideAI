@@ -1,4 +1,4 @@
-import { Home, Map, Target, TrendingUp, CheckCircle, FileText, Compass, Layers, Grid3x3, ListChecks, Briefcase, LogOut, BarChart3, ShieldCheck, Users, CheckCircle2, Circle, ArrowRight, ClipboardList, CloudLightning, ShieldAlert, Network, Share2, GitBranch, Bell } from "lucide-react";
+import { Home, Map, Target, TrendingUp, CheckCircle, FileText, Compass, Layers, Grid3x3, ListChecks, Briefcase, LogOut, BarChart3, ShieldCheck, Users, CheckCircle2, Circle, ArrowRight, ClipboardList, CloudLightning, ShieldAlert, Network, Share2, GitBranch, Bell, Zap } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -13,6 +13,7 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
@@ -54,7 +55,7 @@ function EtapaIndicador({ jornadaId, etapas, proximaEtapaId }: { jornadaId: stri
 
 export function AppSidebar() {
   const [location] = useLocation();
-  const { user, empresa, logout } = useAuth();
+  const { user, empresa, trialInfo, logout } = useAuth();
   const { etapas, isLoading: jornadaLoading, jornadaConcluida } = useJornadaProgresso();
 
   const initials = user?.nome
@@ -284,6 +285,18 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="border-t p-4">
+        {trialInfo?.planoStatus === "ativo" && empresa?.planoTipo && !user?.isAdmin && (
+          <div className="mb-3 px-1" data-testid="badge-plano-ativo-container">
+            <Badge
+              variant="secondary"
+              className="w-full justify-center gap-1.5 py-1"
+              data-testid="badge-plano-ativo"
+            >
+              <Zap className="h-3 w-3" />
+              Plano {empresa.planoTipo.charAt(0).toUpperCase() + empresa.planoTipo.slice(1)} ativo
+            </Badge>
+          </div>
+        )}
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8 shrink-0">
             <AvatarFallback className="text-xs">{initials}</AvatarFallback>

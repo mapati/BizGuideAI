@@ -39,7 +39,7 @@ interface AuthContextType {
   trialInfo: TrialInfo | null;
   planoInfo: PlanoInfo | null;
   isLoading: boolean;
-  login: (email: string, senha: string) => Promise<void>;
+  login: (email: string, senha: string) => Promise<{ trialInfo: TrialInfo | null; empresa: Empresa | null }>;
   logout: () => Promise<void>;
   register: (data: RegisterData) => Promise<{ checkoutUrl?: string | null; planoTipo?: string }>;
 }
@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const login = async (email: string, senha: string) => {
+  const login = async (email: string, senha: string): Promise<{ trialInfo: TrialInfo | null; empresa: Empresa | null }> => {
     const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -116,6 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTrialInfo(data.trialInfo ?? null);
     setPlanoInfo(data.planoInfo ?? null);
     queryClient.clear();
+    return { trialInfo: data.trialInfo ?? null, empresa: data.empresa ?? null };
   };
 
   const logout = async () => {

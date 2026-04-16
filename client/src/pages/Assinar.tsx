@@ -153,22 +153,25 @@ export default function Assinar() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 w-full">
             {planos.map((plano) => {
               const selecionado = planoPreSelecionado === plano.id;
+              // When pendente_pagamento, lock the plan to empresa.planoTipo
+              const isPlanoLocked = isPendentePagamento && planoTipoEmpresa && plano.id !== planoTipoEmpresa;
+              const isPlanoAtivo = isPendentePagamento && plano.id === planoTipoEmpresa;
               return (
                 <Card
                   key={plano.id}
-                  className={`${plano.destaque || selecionado ? "border-primary shadow-sm" : ""} flex flex-col`}
+                  className={`${plano.destaque || selecionado || isPlanoAtivo ? "border-primary shadow-sm" : ""} ${isPlanoLocked ? "opacity-50" : ""} flex flex-col`}
                   data-testid={`card-plano-${plano.id}`}
                 >
                   <CardHeader className="pb-4">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <CardTitle className="text-xl">{plano.nome}</CardTitle>
                       <div className="flex gap-2 flex-wrap">
-                        {selecionado && (
+                        {(selecionado || isPlanoAtivo) && (
                           <Badge variant="default" data-testid={`badge-selecionado-${plano.id}`}>
-                            Selecionado
+                            {isPendentePagamento ? "Seu plano" : "Selecionado"}
                           </Badge>
                         )}
-                        {plano.badge && !selecionado && (
+                        {plano.badge && !selecionado && !isPlanoAtivo && (
                           <Badge data-testid={`badge-popular-${plano.id}`}>
                             {plano.badge}
                           </Badge>
@@ -200,10 +203,10 @@ export default function Assinar() {
                     </ul>
                     <Button
                       size="lg"
-                      variant={plano.destaque || selecionado ? "default" : "outline"}
+                      variant={plano.destaque || selecionado || isPlanoAtivo ? "default" : "outline"}
                       className="w-full mt-2"
-                      onClick={() => handleAssinar(plano.id)}
-                      disabled={loadingPlano !== null}
+                      onClick={() => !isPlanoLocked && handleAssinar(plano.id)}
+                      disabled={loadingPlano !== null || !!isPlanoLocked}
                       data-testid={`button-assinar-${plano.id}`}
                     >
                       {loadingPlano === plano.id ? (
@@ -211,6 +214,8 @@ export default function Assinar() {
                           <Loader2 className="h-4 w-4 animate-spin" />
                           Aguarde...
                         </>
+                      ) : isPlanoAtivo ? (
+                        "Ir para o pagamento"
                       ) : (
                         `Assinar ${plano.nome}`
                       )}

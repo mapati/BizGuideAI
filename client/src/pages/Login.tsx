@@ -50,11 +50,13 @@ export default function Login() {
     setUnverifiedEmail(null);
     setLockedMessage(null);
     try {
-      await login(values.email, values.senha);
-      // Check if this user has pendente_pagamento — handled by AuthContext trialInfo
-      // The login response sets trialInfo, but we redirect before React re-renders.
-      // We detect pendente_pagamento from the login response via the me endpoint.
-      // The App.tsx pendente_pagamento redirect logic will handle it on navigation.
+      const loginResult = await login(values.email, values.senha);
+      // Detect pendente_pagamento directly from login response to redirect immediately
+      if (loginResult?.trialInfo?.planoStatus === "pendente_pagamento") {
+        const planoTipo = loginResult.empresa?.planoTipo ?? "start";
+        window.location.href = `/assinar?plano=${planoTipo}`;
+        return;
+      }
       window.location.href = destino;
     } catch (err: any) {
       if (err.code === "EMAIL_NAO_VERIFICADO") {

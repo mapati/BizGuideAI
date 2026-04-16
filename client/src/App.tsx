@@ -141,6 +141,25 @@ function AppLayout() {
     return <Redirect to={plano ? `/assinar?plano=${plano}` : "/dashboard"} />;
   }
 
+  const PAYMENT_ROUTES = ["/assinar", "/pagamento/sucesso", "/pagamento/cancelado"];
+
+  // PENDENTE_PAGAMENTO must run BEFORE semEmpresa/onboarding check to avoid redirect loop
+  // (pendente_pagamento users have /api/empresa blocked by requireAuth → empresaQuery undefined)
+  const isPendentePagamento = !user?.isAdmin && trialInfo?.planoStatus === "pendente_pagamento";
+  if (user && isPendentePagamento && !PAYMENT_ROUTES.includes(location)) {
+    const planoTipo = empresa?.planoTipo ?? "start";
+    return <Redirect to={`/assinar?plano=${planoTipo}`} />;
+  }
+  if (user && isPendentePagamento && PAYMENT_ROUTES.includes(location)) {
+    return (
+      <Switch>
+        <Route path="/assinar" component={Assinar} />
+        <Route path="/pagamento/sucesso" component={PagamentoSucesso} />
+        <Route path="/pagamento/cancelado" component={PagamentoCancelado} />
+      </Switch>
+    );
+  }
+
   const rotasPublicasApp = ["/onboarding", "/trial-expirado", "/plano-publico/"];
   const naRotaRestrita = !rotasPublicasApp.some((r) => location.startsWith(r));
   const isAdminRoute = location.startsWith("/admin");
@@ -160,24 +179,6 @@ function AppLayout() {
         <Route path="/reset-password" component={ResetPassword} />
         <Route path="/trial-expirado" component={TrialExpirado} />
         <Route path="/plano-publico/:token" component={PlanoPublico} />
-        <Route path="/pagamento/sucesso" component={PagamentoSucesso} />
-        <Route path="/pagamento/cancelado" component={PagamentoCancelado} />
-      </Switch>
-    );
-  }
-
-  const PAYMENT_ROUTES = ["/assinar", "/pagamento/sucesso", "/pagamento/cancelado"];
-
-  // Block users with pendente_pagamento: redirect to /assinar
-  const isPendentePagamento = !user?.isAdmin && trialInfo?.planoStatus === "pendente_pagamento";
-  if (isPendentePagamento && !PAYMENT_ROUTES.includes(location)) {
-    const planoTipo = empresa?.planoTipo ?? "start";
-    return <Redirect to={`/assinar?plano=${planoTipo}`} />;
-  }
-  if (isPendentePagamento && PAYMENT_ROUTES.includes(location)) {
-    return (
-      <Switch>
-        <Route path="/assinar" component={Assinar} />
         <Route path="/pagamento/sucesso" component={PagamentoSucesso} />
         <Route path="/pagamento/cancelado" component={PagamentoCancelado} />
       </Switch>

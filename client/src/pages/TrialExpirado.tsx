@@ -28,7 +28,7 @@ const planos = [
   {
     id: "start",
     nome: "Start",
-    preco: "R$ 97",
+    preco: "R$ 187",
     periodo: "/mês",
     descricao: "Para empreendedores individuais que querem estruturar sua estratégia.",
     icon: Target,
@@ -44,7 +44,7 @@ const planos = [
   {
     id: "pro",
     nome: "Pro",
-    preco: "R$ 297",
+    preco: "R$ 490",
     periodo: "/mês",
     descricao: "Para equipes que querem planejamento estratégico colaborativo com IA avançada.",
     icon: Zap,

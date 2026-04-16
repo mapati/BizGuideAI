@@ -59,7 +59,7 @@ export default function PagamentoSucesso() {
           </div>
 
           <p className="text-sm text-muted-foreground">
-            Redirecionando automaticamente em 5 segundos...
+            Redirecionando automaticamente em alguns segundos...
           </p>
         </div>
       </div>

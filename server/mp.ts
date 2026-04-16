@@ -32,6 +32,7 @@ export async function criarAssinatura(params: {
   payerEmail: string;
   externalReference: string;
   successUrl: string;
+  notificationUrl: string;
 }) {
   if (!mpClient) throw new Error("Mercado Pago não configurado");
 
@@ -49,6 +50,7 @@ export async function criarAssinatura(params: {
       },
       payer_email: params.payerEmail,
       back_url: params.successUrl,
+      notification_url: params.notificationUrl,
       external_reference: params.externalReference,
       status: "pending",
     },

@@ -373,6 +373,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             payerEmail: usuario.email,
             externalReference: empresa.id,
             successUrl: `${baseUrl}/pagamento/sucesso`,
+            notificationUrl: `${baseUrl}/api/pagamentos/webhook`,
           });
 
           if (result.id) {
@@ -4827,6 +4828,7 @@ Seja específico para o setor ${empresa.setor}.`,
         payerEmail: usuario.email,
         externalReference: empresaId,
         successUrl: `${baseUrl}/pagamento/sucesso`,
+        notificationUrl: `${baseUrl}/api/pagamentos/webhook`,
       });
 
       if (!result.init_point) {

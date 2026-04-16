@@ -1,4 +1,4 @@
-import { Switch, Route, useLocation, Redirect } from "wouter";
+import { Switch, Route, useLocation, Redirect, Link } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -41,6 +41,9 @@ import Equipe from "@/pages/Equipe";
 import VerifyEmail from "@/pages/VerifyEmail";
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
+import Assinar from "@/pages/Assinar";
+import PagamentoSucesso from "@/pages/PagamentoSucesso";
+import PagamentoCancelado from "@/pages/PagamentoCancelado";
 import NotFound from "@/pages/not-found";
 
 const PUBLIC_ROUTES = ["/", "/login", "/register", "/trial-expirado", "/verify-email", "/forgot-password", "/reset-password"];
@@ -63,12 +66,12 @@ function TrialBanner({ diasRestantes }: { diasRestantes: number }) {
       <Clock className="h-4 w-4 flex-shrink-0" />
       <span>
         {msg}{" "}
-        <a
-          href="/#precos"
+        <Link
+          href="/assinar"
           className="font-semibold underline hover:text-amber-900 dark:hover:text-amber-300"
         >
-          Solicitar plano completo
-        </a>
+          Assinar agora
+        </Link>
       </span>
     </div>
   );
@@ -140,17 +143,28 @@ function AppLayout() {
     );
   }
 
+  const PAYMENT_ROUTES = ["/assinar", "/pagamento/sucesso", "/pagamento/cancelado"];
   const isTrialBlocked =
     !user?.isAdmin &&
     (trialInfo?.trialExpirado === true ||
       trialInfo?.planoStatus === "expirado" ||
       trialInfo?.planoStatus === "suspenso");
 
-  if (isTrialBlocked) {
+  if (isTrialBlocked && !PAYMENT_ROUTES.includes(location)) {
     if (location !== "/trial-expirado") {
       return <Redirect to="/trial-expirado" />;
     }
     return <TrialExpirado />;
+  }
+
+  if (isTrialBlocked && PAYMENT_ROUTES.includes(location)) {
+    return (
+      <Switch>
+        <Route path="/assinar" component={Assinar} />
+        <Route path="/pagamento/sucesso" component={PagamentoSucesso} />
+        <Route path="/pagamento/cancelado" component={PagamentoCancelado} />
+      </Switch>
+    );
   }
 
   const style = {
@@ -200,6 +214,9 @@ function AppLayout() {
                 <Route path="/trial-expirado" component={TrialExpirado} />
                 <Route path="/admin" component={Admin} />
                 <Route path="/equipe" component={Equipe} />
+                <Route path="/assinar" component={Assinar} />
+                <Route path="/pagamento/sucesso" component={PagamentoSucesso} />
+                <Route path="/pagamento/cancelado" component={PagamentoCancelado} />
                 {/* Auth routes: must remain accessible even when logged in */}
                 <Route path="/reset-password" component={ResetPassword} />
                 <Route path="/verify-email" component={VerifyEmail} />

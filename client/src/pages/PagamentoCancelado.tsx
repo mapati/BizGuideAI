@@ -1,0 +1,57 @@
+import { Link } from "wouter";
+import { Button } from "@/components/ui/button";
+import { XCircle, Target, ArrowLeft, RefreshCw } from "lucide-react";
+
+export default function PagamentoCancelado() {
+  return (
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center h-16 gap-4">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center">
+              <Target className="h-5 w-5 text-primary-foreground" />
+            </div>
+            <span className="text-lg font-bold">BizGuideAI</span>
+          </div>
+        </div>
+      </nav>
+
+      <div className="flex-1 flex flex-col items-center justify-center px-4 py-16">
+        <div className="max-w-lg w-full text-center flex flex-col items-center gap-8">
+          <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center">
+            <XCircle className="h-10 w-10 text-muted-foreground" />
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <h1
+              className="text-3xl sm:text-4xl font-bold leading-tight"
+              data-testid="heading-pagamento-cancelado"
+            >
+              Pagamento não concluído
+            </h1>
+            <p className="text-muted-foreground text-lg leading-relaxed">
+              O processo de pagamento foi cancelado ou não pôde ser concluído.
+              Você pode tentar novamente a qualquer momento — seu acesso de
+              testes permanece ativo.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full justify-center">
+            <Link href="/assinar">
+              <Button size="lg" className="gap-2" data-testid="button-tentar-novamente">
+                <RefreshCw className="h-4 w-4" />
+                Tentar novamente
+              </Button>
+            </Link>
+            <Link href="/dashboard">
+              <Button size="lg" variant="outline" className="gap-2" data-testid="button-voltar-dashboard">
+                <ArrowLeft className="h-4 w-4" />
+                Voltar ao Dashboard
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

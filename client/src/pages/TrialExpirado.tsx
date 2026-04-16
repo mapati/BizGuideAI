@@ -93,20 +93,31 @@ export default function TrialExpirado() {
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-4 w-full">
+            <Link href="/assinar">
+              <Button
+                size="lg"
+                className="gap-2 text-base"
+                data-testid="button-assinar-plano"
+              >
+                Escolher meu plano
+                <ArrowRight className="h-5 w-5" />
+              </Button>
+            </Link>
             <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">
               <Button
                 size="lg"
+                variant="outline"
                 className="gap-2 text-base"
                 data-testid="button-whatsapp-contact"
               >
                 <Phone className="h-5 w-5" />
-                Solicitar contato via WhatsApp
+                Falar no WhatsApp
               </Button>
             </a>
             <a href={`mailto:${CONTACT_EMAIL}`}>
               <Button
                 size="lg"
-                variant="outline"
+                variant="ghost"
                 className="gap-2 text-base"
                 data-testid="button-email-contact"
               >

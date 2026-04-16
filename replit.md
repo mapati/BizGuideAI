@@ -42,7 +42,7 @@ Preferred communication style: Simple, everyday language.
 **Schema Validation:** Zod schemas generated from Drizzle tables.
 
 **Key Database Tables:**
-- `empresas`: Company profiles — includes `planoStatus`, trial fields, 7 new strategic context fields (`modeloNegocio`, `areaAtuacao`, `publicoAlvo`, `principaisProdutos`, `concorrentesConhecidos`, `diferenciaisCompetitivos`, `anoFundacao`), and 4 PDF document fields (`documentoNome`, `documentoTamanhoKb`, `documentoInterpretacao`, `documentoAnalisadoEm`)
+- `empresas`: Company profiles — includes `planoStatus`, `planoTipo`, trial fields, `mpSubscriptionId`, `mpSubscriptionStatus` (Mercado Pago), 7 strategic context fields, and 4 PDF document fields
 - `usuarios`: User accounts (includes `role` ['admin'/'membro'], `isAdmin` for platform admin; `empresaId` FK links to empresa)
 - `fatores_pestel`, `cinco_forcas`, `analise_swot`, `modelo_negocio`: Strategic analysis data
 - `estrategias`, `oportunidades_crescimento`, `iniciativas`: Strategic planning and growth

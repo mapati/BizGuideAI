@@ -2,6 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { sendVerificationEmail, sendPasswordResetEmail } from "./email";
+import { criarAssinatura, buscarAssinatura, PLANOS_MP, type PlanoTipo } from "./mp";
 import { randomBytes, createHash } from "crypto";
 import { 
   insertEmpresaSchema,
@@ -4649,6 +4650,111 @@ Seja específico para o setor ${empresa.setor}.`,
       const data = insertConfiguracaoNotificacaoSchema.parse({ ...req.body, usuarioId: req.session.userId });
       res.json(await storage.upsertConfiguracaoNotificacao(data));
     } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+
+  // ── Mercado Pago — Assinaturas ───────────────────────────────────────────
+
+  app.post("/api/pagamentos/criar-assinatura", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const schema = z.object({ planoTipo: z.enum(["start", "pro"]) });
+      const { planoTipo } = schema.parse(req.body);
+
+      const empresaId = req.session.empresaId!;
+      const empresa = await storage.getEmpresa(empresaId);
+      if (!empresa) return res.status(404).json({ error: "Empresa não encontrada" });
+
+      const usuario = await storage.getUsuarioById(req.session.userId!);
+      if (!usuario) return res.status(404).json({ error: "Usuário não encontrado" });
+
+      const baseUrl = process.env.REPLIT_DOMAINS
+        ? `https://${process.env.REPLIT_DOMAINS.split(",")[0]}`
+        : "http://localhost:5000";
+
+      const result = await criarAssinatura({
+        planoTipo: planoTipo as PlanoTipo,
+        payerEmail: usuario.email,
+        externalReference: empresaId,
+        successUrl: `${baseUrl}/pagamento/sucesso`,
+      });
+
+      if (!result.init_point) {
+        return res.status(500).json({ error: "Não foi possível gerar o link de pagamento" });
+      }
+
+      await storage.updateEmpresaPlano(empresaId, {
+        mpSubscriptionId: result.id,
+        mpSubscriptionStatus: "pending",
+      });
+
+      res.json({ checkoutUrl: result.init_point, subscriptionId: result.id });
+    } catch (e: any) {
+      console.error("[MP] Erro ao criar assinatura:", e?.message ?? e);
+      res.status(500).json({ error: e?.message ?? "Erro interno" });
+    }
+  });
+
+  app.post("/api/pagamentos/webhook", async (req: Request, res: Response) => {
+    try {
+      const { type, action, data } = req.body;
+
+      const subscriptionId: string | undefined =
+        data?.id ??
+        req.query?.id as string ??
+        req.query?.["data.id"] as string;
+
+      if ((type === "preapproval" || action === "preapproval") && subscriptionId) {
+        const subscription = await buscarAssinatura(subscriptionId);
+
+        const empresaId = subscription.external_reference;
+        if (!empresaId) {
+          return res.status(200).json({ received: true });
+        }
+
+        const empresa = await storage.getEmpresa(empresaId);
+        if (!empresa) return res.status(200).json({ received: true });
+
+        const mpStatus = subscription.status;
+        const planoTipo = subscription.reason?.toLowerCase().includes("pro") ? "pro" : "start";
+
+        if (mpStatus === "authorized") {
+          await storage.updateEmpresaPlano(empresaId, {
+            planoStatus: "ativo",
+            planoTipo,
+            planoAtivadoEm: new Date(),
+            mpSubscriptionId: subscriptionId,
+            mpSubscriptionStatus: "authorized",
+          });
+        } else if (mpStatus === "cancelled" || mpStatus === "paused") {
+          await storage.updateEmpresaPlano(empresaId, {
+            planoStatus: mpStatus === "cancelled" ? "suspenso" : "suspenso",
+            mpSubscriptionStatus: mpStatus,
+          });
+        } else {
+          await storage.updateEmpresaPlano(empresaId, {
+            mpSubscriptionId: subscriptionId,
+            mpSubscriptionStatus: mpStatus ?? "pending",
+          });
+        }
+      }
+
+      res.status(200).json({ received: true });
+    } catch (e: any) {
+      console.error("[MP] Erro no webhook:", e?.message ?? e);
+      res.status(200).json({ received: true });
+    }
+  });
+
+  app.get("/api/pagamentos/planos", requireAuth, async (_req: Request, res: Response) => {
+    res.json({
+      planos: Object.entries(PLANOS_MP).map(([key, p]) => ({
+        id: key,
+        nome: p.nome,
+        descricao: p.descricao,
+        valor: p.valor,
+        frequencia: p.frequencia,
+      })),
+      publicKey: process.env.MP_PUBLIC_KEY ?? null,
+    });
   });
 
   const httpServer = createServer(app);

@@ -33,6 +33,8 @@ export const empresas = pgTable("empresas", {
   planoTipo: text("plano_tipo"),
   trialStartedAt: timestamp("trial_started_at").defaultNow(),
   planoAtivadoEm: timestamp("plano_ativado_em"),
+  mpSubscriptionId: text("mp_subscription_id"),
+  mpSubscriptionStatus: text("mp_subscription_status"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

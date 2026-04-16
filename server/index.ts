@@ -40,6 +40,14 @@ async function runStartupMigrations() {
       ALTER TABLE empresas ADD COLUMN IF NOT EXISTS plano_tipo TEXT
     `);
 
+    // Migration: add Mercado Pago subscription tracking columns (added in task #48)
+    await client.query(`
+      ALTER TABLE empresas ADD COLUMN IF NOT EXISTS mp_subscription_id TEXT
+    `);
+    await client.query(`
+      ALTER TABLE empresas ADD COLUMN IF NOT EXISTS mp_subscription_status TEXT
+    `);
+
     // Seed: ensure the platform admin from env vars exists and has the correct password
     const adminEmail = process.env.ADMIN_EMAIL;
     const adminSenha = process.env.ADMIN_SENHA;

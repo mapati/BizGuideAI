@@ -2,7 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { sendVerificationEmail, sendPasswordResetEmail } from "./email";
-import { criarAssinatura, buscarAssinatura, buscarPagamento, motivoLegivel, validarAssinaturaWebhook, PLANOS_MP, type PlanoTipo } from "./mp";
+import { criarAssinatura, buscarAssinatura, buscarPagamento, motivoLegivel, validarAssinaturaWebhook, PLANOS_MP, type PlanoTipo, type MpSubscription, type MpPayment } from "./mp";
 import { randomBytes, createHash } from "crypto";
 import { 
   insertEmpresaSchema,
@@ -4889,14 +4889,14 @@ Seja específico para o setor ${empresa.setor}.`,
 
       // ── Evento: preapproval (assinatura) ─────────────────────────────
       if ((type === "preapproval" || action?.startsWith("preapproval")) && resourceId) {
-        let subscription: any = null;
+        let subscription: MpSubscription | null = null;
         try {
-          subscription = await buscarAssinatura(resourceId);
-        } catch (err: any) {
-          console.warn("[MP] Falha ao buscar preapproval:", err?.message ?? err);
+          subscription = (await buscarAssinatura(resourceId)) as MpSubscription;
+        } catch (err) {
+          console.warn("[MP] Falha ao buscar preapproval:", (err as Error)?.message ?? err);
         }
-        const empresaId: string | undefined = subscription?.external_reference ?? undefined;
-        const mpStatus: string | undefined = subscription?.status;
+        const empresaId = subscription?.external_reference ?? undefined;
+        const mpStatus = subscription?.status;
         auditStatus = mpStatus ?? null;
         auditStatusDetail = subscription?.status_detail ?? subscription?.reason ?? null;
 
@@ -4909,8 +4909,6 @@ Seja específico para o setor ${empresa.setor}.`,
         if (empresa) {
           const reason: string = subscription?.reason ?? "";
           const planoTipo = reason.toLowerCase().includes("pro") ? "pro" : "start";
-          const jaAtivo = empresa.planoStatus === "ativo";
-
           if (mpStatus === "authorized") {
             await storage.updateEmpresaPlano(empresa.id, {
               planoStatus: "ativo",
@@ -4927,8 +4925,8 @@ Seja específico para o setor ${empresa.setor}.`,
               mpSubscriptionStatus: mpStatus,
             });
           } else {
-            // pending / etc — NÃO rebaixa planoStatus se já estiver ativo (out-of-order events)
-            void jaAtivo;
+            // pending / outros status sem decisão clara: só atualizamos o tracking
+            // do MP sem tocar em planoStatus (evita rebaixar plano já ativo).
             await storage.updateEmpresaPlano(empresa.id, {
               mpSubscriptionId: resourceId,
               mpSubscriptionStatus: mpStatus ?? "pending",
@@ -4939,20 +4937,22 @@ Seja específico para o setor ${empresa.setor}.`,
 
       // ── Evento: payment (pagamento individual / primeira cobrança) ────
       else if ((type === "payment" || action?.startsWith("payment")) && resourceId) {
-        let payment: any = null;
+        let payment: MpPayment | null = null;
         try {
-          payment = await buscarPagamento(resourceId);
-        } catch (err: any) {
-          console.warn("[MP] Falha ao buscar payment:", err?.message ?? err);
+          payment = (await buscarPagamento(resourceId)) as MpPayment;
+        } catch (err) {
+          console.warn("[MP] Falha ao buscar payment:", (err as Error)?.message ?? err);
         }
         auditStatus = payment?.status ?? null;
         auditStatusDetail = payment?.status_detail ?? null;
 
-        const extRef: string | undefined = payment?.external_reference ?? undefined;
+        const extRef = payment?.external_reference ?? undefined;
         let empresa = extRef ? await storage.getEmpresa(extRef) : undefined;
         // Pagamentos ligados a uma assinatura carregam metadata.preapproval_id em alguns casos
-        const preapprovalId: string | undefined =
-          payment?.metadata?.preapproval_id ?? payment?.point_of_interaction?.transaction_data?.preapproval_id ?? undefined;
+        const preapprovalId =
+          payment?.metadata?.preapproval_id ??
+          payment?.point_of_interaction?.transaction_data?.preapproval_id ??
+          undefined;
         if (!empresa && preapprovalId) {
           empresa = await storage.getEmpresaByMpSubscriptionId(preapprovalId);
         }
@@ -4983,20 +4983,24 @@ Seja específico para o setor ${empresa.setor}.`,
         // O recurso "authorized_payment" não tem client direto no SDK, mas expõe
         // um paymentId no corpo. Usamos a API de Payment via buscarPagamento pra
         // capturar status_detail quando disponível.
+        const webhookBody = body as {
+          data?: { id?: string; status?: string; payment?: { id?: string }; preapproval_id?: string };
+          preapproval_id?: string;
+        };
         const paymentId: string | undefined =
-          body?.data?.payment?.id ?? body?.data?.id ?? resourceId;
+          webhookBody.data?.payment?.id ?? webhookBody.data?.id ?? resourceId;
         const preapprovalId: string | undefined =
-          body?.data?.preapproval_id ?? body?.preapproval_id ?? undefined;
+          webhookBody.data?.preapproval_id ?? webhookBody.preapproval_id ?? undefined;
 
-        let payment: any = null;
+        let payment: MpPayment | null = null;
         if (paymentId) {
           try {
-            payment = await buscarPagamento(paymentId);
-          } catch (err: any) {
-            console.warn("[MP] Falha ao buscar pagamento recorrente:", err?.message ?? err);
+            payment = (await buscarPagamento(paymentId)) as MpPayment;
+          } catch (err) {
+            console.warn("[MP] Falha ao buscar pagamento recorrente:", (err as Error)?.message ?? err);
           }
         }
-        auditStatus = payment?.status ?? body?.data?.status ?? null;
+        auditStatus = payment?.status ?? webhookBody.data?.status ?? null;
         auditStatusDetail = payment?.status_detail ?? null;
 
         let empresa = preapprovalId
@@ -5072,11 +5076,11 @@ Seja específico para o setor ${empresa.setor}.`,
       let statusDetail: string | null = null;
       if (subId) {
         try {
-          const sub: any = await buscarAssinatura(subId);
+          const sub = (await buscarAssinatura(subId)) as MpSubscription;
           status = sub?.status ?? status;
           statusDetail = sub?.status_detail ?? null;
-        } catch (err: any) {
-          console.warn("[MP] Falha ao consultar assinatura:", err?.message ?? err);
+        } catch (err) {
+          console.warn("[MP] Falha ao consultar assinatura:", (err as Error)?.message ?? err);
         }
       }
 

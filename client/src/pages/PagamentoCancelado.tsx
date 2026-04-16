@@ -67,7 +67,9 @@ export default function PagamentoCancelado() {
       .catch(() => {});
   }, [search]);
 
-  const mensagemFinal = motivo ?? statusServidor;
+  // Preferência: mensagem enriquecida do backend (baseada no status_detail real do MP)
+  // Só cai na mensagem derivada da URL se o servidor não souber de nada.
+  const mensagemFinal = statusServidor ?? motivo;
 
   async function tentarNovamente() {
     setRetrying(true);

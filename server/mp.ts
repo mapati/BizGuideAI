@@ -33,6 +33,28 @@ export type PlanoTipo = keyof typeof PLANOS_MP;
 // re-resolvido via busca por reason no MP antes de recriar. Usamos uma promise
 // cache para evitar corrida: múltiplas chamadas concorrentes aguardam a mesma
 // resolução em vez de criar planos duplicados.
+// ── Tipos mínimos para os campos das respostas do MP que realmente usamos ──
+export interface MpSubscription {
+  id?: string;
+  status?: string;
+  status_detail?: string;
+  reason?: string;
+  external_reference?: string;
+  init_point?: string;
+  sandbox_init_point?: string;
+}
+
+export interface MpPayment {
+  id?: string | number;
+  status?: string;
+  status_detail?: string;
+  external_reference?: string;
+  metadata?: { preapproval_id?: string } & Record<string, unknown>;
+  point_of_interaction?: {
+    transaction_data?: { preapproval_id?: string };
+  };
+}
+
 const planoIdCache: Partial<Record<PlanoTipo, string>> = {};
 const planoInflightCache: Partial<Record<PlanoTipo, Promise<string | null>>> = {};
 
@@ -68,10 +90,12 @@ async function resolvePlanId(planoTipo: PlanoTipo, backUrl: string): Promise<str
 
   // Tentar encontrar plano existente pelo "reason" (nome) para evitar duplicatas ao reiniciar.
   try {
-    const search = await preApprovalPlan.search({ options: { q: plano.nome, limit: 50 } as any });
-    const results: any[] = (search as any)?.results ?? [];
+    const search = await preApprovalPlan.search({
+      options: { q: plano.nome, limit: 50 } as { q: string; limit: number },
+    });
+    const results = (search.results ?? []) as Array<{ id?: string; reason?: string; status?: string }>;
     const match = results.find(
-      (r) => r?.reason === plano.nome && r?.status !== "cancelled",
+      (r) => r.reason === plano.nome && r.status !== "cancelled",
     );
     if (match?.id) {
       planoIdCache[planoTipo] = match.id;
@@ -98,7 +122,9 @@ async function resolvePlanId(planoTipo: PlanoTipo, backUrl: string): Promise<str
         payment_types: [{ id: "credit_card" }, { id: "debit_card" }],
       },
     };
-    const created = await preApprovalPlan.create({ body: body as any });
+    const created = await preApprovalPlan.create({
+      body: body as Parameters<typeof preApprovalPlan.create>[0]["body"],
+    });
     if (created?.id) {
       planoIdCache[planoTipo] = created.id;
       await storage.saveMpPlanoId(planoTipo, created.id).catch(() => {});
@@ -145,14 +171,19 @@ export async function criarAssinatura(params: {
 
   console.log("[MP] Criando assinatura:", JSON.stringify(body, null, 2));
 
-  const result = await preApproval.create({ body: body as any });
+  const result = (await preApproval.create({
+    body: body as Parameters<typeof preApproval.create>[0]["body"],
+  })) as MpSubscription & {
+    payer_email?: string;
+    preapproval_plan_id?: string;
+  };
 
   console.log("[MP] Resposta:", JSON.stringify({
     id: result.id,
     status: result.status,
     init_point: result.init_point,
     payer_email: result.payer_email,
-    preapproval_plan_id: (result as any).preapproval_plan_id,
+    preapproval_plan_id: result.preapproval_plan_id,
   }, null, 2));
 
   return result;

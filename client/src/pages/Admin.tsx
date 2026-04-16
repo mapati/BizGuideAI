@@ -119,6 +119,28 @@ const planoBadge = (planoTipo: string | null) => {
   return <Badge variant="outline" className={cfg.className} data-testid={`badge-plano-${planoTipo}`}>{cfg.label}</Badge>;
 };
 
+const planoColunaBadge = (planoStatus: string, planoTipo: string | null, diasRestantes?: number | null) => {
+  if (planoStatus === "ativo" && planoTipo) {
+    return planoBadge(planoTipo);
+  }
+  const configs: Record<string, { label: string; className: string }> = {
+    trial: {
+      label: diasRestantes != null ? `Trial — ${diasRestantes}d` : "Trial",
+      className: "bg-gray-100 text-gray-600 dark:bg-gray-800/50 dark:text-gray-400 border-gray-200 dark:border-gray-700",
+    },
+    expirado: {
+      label: "Expirado",
+      className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800",
+    },
+    suspenso: {
+      label: "Suspenso",
+      className: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 border-orange-200 dark:border-orange-800",
+    },
+  };
+  const cfg = configs[planoStatus] ?? { label: planoStatus, className: "" };
+  return <Badge variant="outline" className={cfg.className} data-testid={`badge-plano-col-${planoStatus}`}>{cfg.label}</Badge>;
+};
+
 const PLANO_VALOR_DEFAULT: Record<string, string> = { start: "187.00", pro: "490.00", enterprise: "" };
 
 function AtivarPlanoDialog({
@@ -188,7 +210,7 @@ function AtivarPlanoDialog({
             </Select>
           </div>
           <div>
-            <Label>Valor Mensal (R$)</Label>
+            <Label>Valor Mensal (R$) — referência</Label>
             <Input
               type="number"
               step="0.01"
@@ -197,19 +219,19 @@ function AtivarPlanoDialog({
               onChange={e => setValorMensal(e.target.value)}
               data-testid="input-valor-mensal-plano"
             />
-            {descPlano[planoTipo] && (
-              <p className="text-xs text-muted-foreground mt-1">{descPlano[planoTipo]}</p>
-            )}
+            <p className="text-xs text-muted-foreground mt-1">
+              {descPlano[planoTipo]} · Emita uma Fatura para registrar a cobrança financeira
+            </p>
           </div>
           <div>
-            <Label>Data de Vencimento (opcional)</Label>
+            <Label>Data de Vencimento (opcional, referência)</Label>
             <Input
               type="date"
               value={dataVencimento}
               onChange={e => setDataVencimento(e.target.value)}
               data-testid="input-vencimento-plano"
             />
-            <p className="text-xs text-muted-foreground mt-1">Deixe em branco para controle manual indefinido</p>
+            <p className="text-xs text-muted-foreground mt-1">Campo informativo — controle o vencimento via Faturas</p>
           </div>
         </div>
         <DialogFooter>
@@ -451,8 +473,7 @@ function TabEmpresas({ empresas, isLoading }: { empresas: AdminEmpresa[]; isLoad
                   </p>
                 </div>
                 <div className="flex items-center flex-wrap gap-2">
-                  {statusBadge(e.planoStatus, e.diasRestantes)}
-                  {e.planoStatus === "ativo" && planoBadge(e.planoTipo)}
+                  {planoColunaBadge(e.planoStatus, e.planoTipo, e.diasRestantes)}
                   {e.planoStatus !== "ativo" && (
                     <Button
                       size="sm"

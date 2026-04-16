@@ -406,10 +406,15 @@ function TabEmpresas({ empresas, isLoading }: { empresas: AdminEmpresa[]; isLoad
     { key: "enterprise", label: "Enterprise" },
   ];
 
-  const limiteUsuarios = (e: AdminEmpresa) => {
-    if (e.planoStatus !== "ativo" || !e.planoTipo) return null;
-    const limite = PLANO_LIMITE[e.planoTipo];
-    return limite ? `${e.totalUsuarios}/${limite}` : null;
+  const limiteUsuarios = (e: AdminEmpresa): string | null => {
+    if (e.planoStatus === "trial") {
+      return `${e.totalUsuarios}/1 (trial)`;
+    }
+    if (e.planoStatus === "ativo" && e.planoTipo) {
+      const limite = PLANO_LIMITE[e.planoTipo];
+      return limite ? `${e.totalUsuarios}/${limite}` : null;
+    }
+    return null;
   };
 
   return (
@@ -596,7 +601,7 @@ function TabFaturas({
               <div className="flex items-center flex-wrap gap-2">
                 {(() => {
                   const emp = empresas.find(e => e.id === f.empresaId);
-                  return emp?.planoStatus === "ativo" ? planoBadge(emp.planoTipo) : null;
+                  return emp?.planoTipo ? planoBadge(emp.planoTipo) : null;
                 })()}
                 <span className="font-semibold text-sm">
                   R$ {parseFloat(f.valor).toFixed(2).replace(".", ",")}

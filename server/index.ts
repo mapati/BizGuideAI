@@ -146,10 +146,15 @@ async function runStartupMigrations() {
             [adminEmpresaNome]
           );
           const empresaId = empresaRows[0].id;
-          await client.query(
+          const { rows: userRows } = await client.query(
             `INSERT INTO usuarios (nome, email, senha, empresa_id, is_admin, role, email_verificado, created_at)
-             VALUES ($1, $2, $3, $4, true, 'admin', true, NOW())`,
+             VALUES ($1, $2, $3, $4, true, 'admin', true, NOW())
+             RETURNING id`,
             [adminNome, adminEmail, senhaHash, empresaId]
+          );
+          await client.query(
+            `UPDATE empresas SET proprietario_usuario_id = $1 WHERE id = $2`,
+            [userRows[0].id, empresaId]
           );
           await client.query("COMMIT");
           log(`[SEED] Admin criado com sucesso: ${adminEmail}`);

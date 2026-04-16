@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useSearch } from "wouter";
+import { useSearch } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -81,6 +81,13 @@ export default function Assinar() {
     }
   }, [planoPreSelecionado]);
 
+  const handleVoltar = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    } catch {}
+    window.location.href = "/";
+  };
+
   const handleAssinar = async (planoTipo: "start" | "pro") => {
     setLoadingPlano(planoTipo);
     try {
@@ -110,12 +117,10 @@ export default function Assinar() {
             </div>
             <span className="text-lg font-bold">BizGuideAI</span>
           </div>
-          <Link href="/dashboard">
-            <Button variant="ghost" size="sm" className="gap-2" data-testid="button-voltar-dashboard-nav">
-              <ArrowLeft className="h-4 w-4" />
-              Voltar ao App
-            </Button>
-          </Link>
+          <Button variant="ghost" size="sm" className="gap-2" onClick={handleVoltar} data-testid="button-voltar-dashboard-nav">
+            <ArrowLeft className="h-4 w-4" />
+            Sair
+          </Button>
         </div>
       </nav>
 

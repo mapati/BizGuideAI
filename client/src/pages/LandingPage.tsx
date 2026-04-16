@@ -695,58 +695,25 @@ export default function LandingPage() {
           </div>
         </div>
       </nav>
-      {/* HERO — wrapper com overflow-hidden para conter os orbs */}
-      <div className="overflow-hidden">
-      <section className="relative bg-[#020817]">
-        {/* Orb A — indigo/violet, superior esquerdo */}
+      {/* HERO */}
+      <section className="relative overflow-hidden bg-[#020817]">
+        {/* Aurora gradients — radial-gradient direto, sem filter:blur (evita clip do overflow-hidden) */}
         <div
-          className="absolute pointer-events-none"
+          className="absolute inset-0 pointer-events-none"
           style={{
-            width: "500px",
-            height: "500px",
-            top: "-60px",
-            left: "-60px",
-            background: "radial-gradient(circle, rgba(99,102,241,0.9) 0%, rgba(99,102,241,0.5) 40%, transparent 70%)",
-            borderRadius: "50%",
-            filter: "blur(60px)",
-            animation: "hero-orb-pulse 8s ease-in-out infinite",
-          }}
-        />
-        {/* Orb B — sky/cyan, superior direito */}
-        <div
-          className="absolute pointer-events-none"
-          style={{
-            width: "460px",
-            height: "460px",
-            top: "-60px",
-            right: "-60px",
-            background: "radial-gradient(circle, rgba(56,189,248,0.85) 0%, rgba(56,189,248,0.4) 40%, transparent 70%)",
-            borderRadius: "50%",
-            filter: "blur(60px)",
-            animation: "hero-orb-pulse 9.5s ease-in-out infinite",
-            animationDelay: "2s",
-          }}
-        />
-        {/* Orb C — purple, centro-baixo */}
-        <div
-          className="absolute pointer-events-none"
-          style={{
-            width: "420px",
-            height: "420px",
-            bottom: "-60px",
-            left: "calc(50% - 210px)",
-            background: "radial-gradient(circle, rgba(168,85,247,0.8) 0%, rgba(168,85,247,0.35) 40%, transparent 70%)",
-            borderRadius: "50%",
-            filter: "blur(60px)",
-            animation: "hero-orb-pulse 11s ease-in-out infinite",
-            animationDelay: "4s",
+            background: `
+              radial-gradient(ellipse 75% 70% at 5% 5%, rgba(99,102,241,0.55) 0%, transparent 70%),
+              radial-gradient(ellipse 70% 65% at 95% 0%, rgba(56,189,248,0.45) 0%, transparent 70%),
+              radial-gradient(ellipse 60% 70% at 50% 100%, rgba(168,85,247,0.38) 0%, transparent 70%)
+            `,
+            animation: "hero-orb-pulse 9s ease-in-out infinite",
           }}
         />
         {/* Dot grid sutil */}
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='28' height='28' viewBox='0 0 28 28' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='14' cy='14' r='1.5' fill='%23ffffff' fill-opacity='0.05'/%3E%3C/svg%3E")`,
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='28' height='28' viewBox='0 0 28 28' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='14' cy='14' r='1.5' fill='%23ffffff' fill-opacity='0.04'/%3E%3C/svg%3E")`,
           }}
         />
         {/* Scan line horizontal */}
@@ -754,7 +721,7 @@ export default function LandingPage() {
           className="absolute left-0 right-0 pointer-events-none"
           style={{
             height: "1px",
-            background: "linear-gradient(90deg, transparent 0%, rgba(99,102,241,0.4) 30%, rgba(56,189,248,0.4) 70%, transparent 100%)",
+            background: "linear-gradient(90deg, transparent 0%, rgba(99,102,241,0.35) 30%, rgba(56,189,248,0.35) 70%, transparent 100%)",
             animation: "hero-scan 10s ease-in-out infinite",
             animationDelay: "1s",
           }}
@@ -844,7 +811,6 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-      </div>{/* end hero overflow-hidden wrapper */}
       {/* JORNADA ESTRATÉGICA */}
       <section className="py-20 bg-background" data-testid="section-jornada">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

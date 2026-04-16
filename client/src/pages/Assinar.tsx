@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useSearch } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -66,6 +66,15 @@ export default function Assinar() {
   const params = new URLSearchParams(search);
   const planoParam = params.get("plano");
   const planoPreSelecionado = planoParam === "start" || planoParam === "pro" ? planoParam : null;
+
+  useEffect(() => {
+    if (planoPreSelecionado) {
+      const btn = document.querySelector<HTMLButtonElement>(
+        `[data-testid="button-assinar-${planoPreSelecionado}"]`
+      );
+      btn?.focus();
+    }
+  }, [planoPreSelecionado]);
 
   const handleAssinar = async (planoTipo: "start" | "pro") => {
     setLoadingPlano(planoTipo);

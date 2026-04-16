@@ -48,6 +48,23 @@ async function runStartupMigrations() {
       ALTER TABLE empresas ADD COLUMN IF NOT EXISTS mp_subscription_status TEXT
     `);
 
+    // Migration: auditoria de eventos Mercado Pago (task #52)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS pagamento_eventos (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        empresa_id VARCHAR REFERENCES empresas(id) ON DELETE SET NULL,
+        tipo TEXT NOT NULL,
+        acao TEXT,
+        mp_resource_id TEXT,
+        status TEXT,
+        status_detail TEXT,
+        payload TEXT NOT NULL DEFAULT '',
+        criado_em TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS pagamento_eventos_empresa_idx ON pagamento_eventos (empresa_id, criado_em DESC)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS pagamento_eventos_resource_idx ON pagamento_eventos (mp_resource_id)`);
+
     // Seed: ensure the platform admin from env vars exists and has the correct password
     const adminEmail = process.env.ADMIN_EMAIL;
     const adminSenha = process.env.ADMIN_SENHA;

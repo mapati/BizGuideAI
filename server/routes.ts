@@ -2,7 +2,7 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { sendVerificationEmail, sendPasswordResetEmail } from "./email";
-import { criarAssinatura, buscarAssinatura, PLANOS_MP, type PlanoTipo } from "./mp";
+import { criarAssinatura, buscarAssinatura, buscarPagamento, motivoLegivel, validarAssinaturaWebhook, PLANOS_MP, type PlanoTipo } from "./mp";
 import { randomBytes, createHash } from "crypto";
 import { 
   insertEmpresaSchema,
@@ -4848,53 +4848,194 @@ Seja específico para o setor ${empresa.setor}.`,
   });
 
   app.post("/api/pagamentos/webhook", async (req: Request, res: Response) => {
+    // Sempre retornamos 200 rápido (MP penaliza 500+). Processamos em try/catch.
     try {
-      const { type, action, data } = req.body;
+      const body = req.body ?? {};
+      const type: string | undefined = body.type ?? body.topic ?? (req.query?.type as string);
+      const action: string | undefined = body.action;
+      const resourceId: string | undefined =
+        body.data?.id ??
+        body.id ??
+        (req.query?.id as string) ??
+        (req.query?.["data.id"] as string);
 
-      const subscriptionId: string | undefined =
-        data?.id ??
-        req.query?.id as string ??
-        req.query?.["data.id"] as string;
+      console.log(`[MP] Webhook recebido: type=${type} action=${action} id=${resourceId}`);
 
-      if ((type === "preapproval" || action === "preapproval") && subscriptionId) {
-        const subscription = await buscarAssinatura(subscriptionId);
+      // Validação da assinatura do webhook (MP_WEBHOOK_SECRET). Se não configurado, passa.
+      const xSignature = req.header("x-signature") ?? undefined;
+      const xRequestId = req.header("x-request-id") ?? undefined;
+      const dataId = (body.data?.id ?? (req.query?.["data.id"] as string) ?? resourceId) as string | undefined;
+      const sig = validarAssinaturaWebhook(xSignature, xRequestId, dataId);
+      if (!sig.valid) {
+        console.warn(`[MP] Webhook rejeitado — assinatura inválida (${sig.reason})`);
+        // Auditamos a tentativa rejeitada
+        await storage.createPagamentoEvento({
+          tipo: type ?? "desconhecido",
+          acao: action ?? null,
+          mpResourceId: resourceId ?? null,
+          status: "signature_invalid",
+          statusDetail: sig.reason ?? null,
+          payload: JSON.stringify({ body, headers: { xSignature, xRequestId } }).slice(0, 10000),
+        }).catch(() => {});
+        return res.status(401).json({ error: "invalid signature" });
+      }
+      if (sig.reason === "sem_secret_configurado") {
+        console.warn("[MP] MP_WEBHOOK_SECRET não configurado — webhook aceito sem validação (configure no painel MP em produção)");
+      }
 
-        const empresaId = subscription.external_reference;
-        if (!empresaId) {
-          return res.status(200).json({ received: true });
+      let empresaIdForAudit: string | null = null;
+      let auditStatus: string | null = null;
+      let auditStatusDetail: string | null = null;
+
+      // ── Evento: preapproval (assinatura) ─────────────────────────────
+      if ((type === "preapproval" || action?.startsWith("preapproval")) && resourceId) {
+        const subscription: any = await buscarAssinatura(resourceId);
+        const empresaId: string | undefined = subscription?.external_reference ?? undefined;
+        const mpStatus: string | undefined = subscription?.status;
+        auditStatus = mpStatus ?? null;
+        auditStatusDetail = subscription?.status_detail ?? subscription?.reason ?? null;
+
+        let empresa = empresaId ? await storage.getEmpresa(empresaId) : undefined;
+        if (!empresa && resourceId) {
+          empresa = await storage.getEmpresaByMpSubscriptionId(resourceId);
         }
+        empresaIdForAudit = empresa?.id ?? empresaId ?? null;
 
-        const empresa = await storage.getEmpresa(empresaId);
-        if (!empresa) return res.status(200).json({ received: true });
+        if (empresa) {
+          const reason: string = subscription?.reason ?? "";
+          const planoTipo = reason.toLowerCase().includes("pro") ? "pro" : "start";
+          const jaAtivo = empresa.planoStatus === "ativo";
 
-        const mpStatus = subscription.status;
-        const planoTipo = subscription.reason?.toLowerCase().includes("pro") ? "pro" : "start";
-
-        if (mpStatus === "authorized") {
-          await storage.updateEmpresaPlano(empresaId, {
-            planoStatus: "ativo",
-            planoTipo,
-            planoAtivadoEm: new Date(),
-            mpSubscriptionId: subscriptionId,
-            mpSubscriptionStatus: "authorized",
-          });
-        } else if (mpStatus === "cancelled" || mpStatus === "paused") {
-          await storage.updateEmpresaPlano(empresaId, {
-            planoStatus: mpStatus === "cancelled" ? "suspenso" : "suspenso",
-            mpSubscriptionStatus: mpStatus,
-          });
-        } else {
-          await storage.updateEmpresaPlano(empresaId, {
-            mpSubscriptionId: subscriptionId,
-            mpSubscriptionStatus: mpStatus ?? "pending",
-          });
+          if (mpStatus === "authorized") {
+            await storage.updateEmpresaPlano(empresa.id, {
+              planoStatus: "ativo",
+              planoTipo,
+              // só define planoAtivadoEm se ainda não tiver (idempotência)
+              ...(empresa.planoAtivadoEm ? {} : { planoAtivadoEm: new Date() }),
+              mpSubscriptionId: resourceId,
+              mpSubscriptionStatus: "authorized",
+            });
+          } else if (mpStatus === "cancelled" || mpStatus === "paused") {
+            await storage.updateEmpresaPlano(empresa.id, {
+              planoStatus: "suspenso",
+              mpSubscriptionId: resourceId,
+              mpSubscriptionStatus: mpStatus,
+            });
+          } else {
+            // pending / etc — NÃO rebaixa planoStatus se já estiver ativo (out-of-order events)
+            await storage.updateEmpresaPlano(empresa.id, {
+              mpSubscriptionId: resourceId,
+              mpSubscriptionStatus: mpStatus ?? "pending",
+              ...(jaAtivo ? {} : {}), // não muda planoStatus em nenhum caso aqui
+            });
+          }
         }
       }
+
+      // ── Evento: payment (pagamento individual / primeira cobrança) ────
+      else if ((type === "payment" || action?.startsWith("payment")) && resourceId) {
+        const payment: any = await buscarPagamento(resourceId);
+        auditStatus = payment?.status ?? null;
+        auditStatusDetail = payment?.status_detail ?? null;
+
+        const extRef: string | undefined = payment?.external_reference ?? undefined;
+        let empresa = extRef ? await storage.getEmpresa(extRef) : undefined;
+        // Pagamentos ligados a uma assinatura carregam metadata.preapproval_id em alguns casos
+        const preapprovalId: string | undefined =
+          payment?.metadata?.preapproval_id ?? payment?.point_of_interaction?.transaction_data?.preapproval_id ?? undefined;
+        if (!empresa && preapprovalId) {
+          empresa = await storage.getEmpresaByMpSubscriptionId(preapprovalId);
+        }
+        empresaIdForAudit = empresa?.id ?? extRef ?? null;
+
+        if (empresa && payment?.status === "approved") {
+          await storage.updateEmpresaPlano(empresa.id, {
+            planoStatus: "ativo",
+            // idempotência: só define data de ativação na primeira vez
+            ...(empresa.planoAtivadoEm ? {} : { planoAtivadoEm: new Date() }),
+            mpSubscriptionStatus: "authorized",
+          });
+        } else if (empresa && (payment?.status === "rejected" || payment?.status === "cancelled")) {
+          // só registra o detalhe se a empresa ainda não estiver com plano ativo
+          if (empresa.planoStatus !== "ativo") {
+            await storage.updateEmpresaPlano(empresa.id, {
+              mpSubscriptionStatus: `${payment.status}:${payment.status_detail ?? ""}`.slice(0, 120),
+            });
+          }
+        }
+      }
+
+      // ── Evento: subscription_authorized_payment (cobrança recorrente) ─
+      else if (
+        (type === "subscription_authorized_payment" || action?.startsWith("subscription_authorized_payment")) &&
+        resourceId
+      ) {
+        // Não buscamos o recurso específico (SDK não expõe diretamente); apenas auditamos.
+        auditStatus = body?.data?.status ?? null;
+      }
+
+      // Grava auditoria sempre
+      await storage.createPagamentoEvento({
+        empresaId: empresaIdForAudit ?? undefined,
+        tipo: type ?? "desconhecido",
+        acao: action ?? null,
+        mpResourceId: resourceId ?? null,
+        status: auditStatus,
+        statusDetail: auditStatusDetail,
+        payload: JSON.stringify(body).slice(0, 10000),
+      }).catch((err) => console.error("[MP] Falha ao gravar evento:", err?.message ?? err));
 
       res.status(200).json({ received: true });
     } catch (e: any) {
       console.error("[MP] Erro no webhook:", e?.message ?? e);
       res.status(200).json({ received: true });
+    }
+  });
+
+  // Endpoint de consulta do status atual da assinatura + último evento
+  app.get("/api/pagamentos/status", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const empresa = await storage.getEmpresa(empresaId);
+      if (!empresa) return res.status(404).json({ error: "Empresa não encontrada" });
+
+      const eventos = await storage.getPagamentoEventosByEmpresa(empresaId, 5);
+      const ultimoEvento = eventos[0];
+
+      // Se houver assinatura, tentamos buscar dados atualizados do MP
+      let mpStatus: string | null = empresa.mpSubscriptionStatus ?? null;
+      let mpStatusDetail: string | null = null;
+      if (empresa.mpSubscriptionId) {
+        try {
+          const sub: any = await buscarAssinatura(empresa.mpSubscriptionId);
+          mpStatus = sub?.status ?? mpStatus;
+          mpStatusDetail = sub?.status_detail ?? null;
+        } catch (err: any) {
+          console.warn("[MP] Falha ao consultar assinatura:", err?.message ?? err);
+        }
+      }
+
+      const motivo = motivoLegivel(ultimoEvento?.statusDetail ?? mpStatusDetail ?? undefined);
+
+      res.json({
+        planoStatus: empresa.planoStatus,
+        planoTipo: empresa.planoTipo,
+        mpSubscriptionId: empresa.mpSubscriptionId,
+        mpSubscriptionStatus: mpStatus,
+        mpStatusDetail: ultimoEvento?.statusDetail ?? mpStatusDetail,
+        motivoLegivel: motivo,
+        ultimoEvento: ultimoEvento
+          ? {
+              tipo: ultimoEvento.tipo,
+              status: ultimoEvento.status,
+              statusDetail: ultimoEvento.statusDetail,
+              criadoEm: ultimoEvento.criadoEm,
+            }
+          : null,
+      });
+    } catch (e: any) {
+      console.error("[MP] Erro ao consultar status:", e?.message ?? e);
+      res.status(500).json({ error: "Erro ao consultar status" });
     }
   });
 

@@ -25,6 +25,9 @@ import {
   eventos,
   faturas,
   configuracoesIa,
+  pagamentoEventos,
+  type PagamentoEvento,
+  type InsertPagamentoEvento,
   type Empresa,
   type InsertEmpresa,
   type Usuario,
@@ -89,6 +92,9 @@ export interface IStorage {
   updateUsuario(id: string, data: Partial<Pick<Usuario, "isAdmin" | "role" | "nome">>): Promise<Usuario>;
   deleteUsuario(id: string, empresaId: string): Promise<void>;
   updateEmpresaPlano(id: string, data: Partial<Pick<Empresa, "planoStatus" | "planoAtivadoEm" | "planoTipo" | "mpSubscriptionId" | "mpSubscriptionStatus">>): Promise<Empresa>;
+  getEmpresaByMpSubscriptionId(subscriptionId: string): Promise<Empresa | undefined>;
+  createPagamentoEvento(evento: InsertPagamentoEvento): Promise<PagamentoEvento>;
+  getPagamentoEventosByEmpresa(empresaId: string, limit?: number): Promise<PagamentoEvento[]>;
   
   getFatoresPestel(empresaId: string): Promise<FatorPestel[]>;
   createFatorPestel(fator: InsertFatorPestel): Promise<FatorPestel>;
@@ -280,6 +286,23 @@ export class DbStorage implements IStorage {
     const result = await db.update(empresas).set(data).where(eq(empresas.id, id)).returning();
     if (!result[0]) throw new Error("Empresa não encontrada");
     return result[0];
+  }
+
+  async getEmpresaByMpSubscriptionId(subscriptionId: string): Promise<Empresa | undefined> {
+    const result = await db.select().from(empresas).where(eq(empresas.mpSubscriptionId, subscriptionId)).limit(1);
+    return result[0];
+  }
+
+  async createPagamentoEvento(evento: InsertPagamentoEvento): Promise<PagamentoEvento> {
+    const result = await db.insert(pagamentoEventos).values(evento).returning();
+    return result[0];
+  }
+
+  async getPagamentoEventosByEmpresa(empresaId: string, limit: number = 50): Promise<PagamentoEvento[]> {
+    return db.select().from(pagamentoEventos)
+      .where(eq(pagamentoEventos.empresaId, empresaId))
+      .orderBy(desc(pagamentoEventos.criadoEm))
+      .limit(limit);
   }
 
   async getFatoresPestel(empresaId: string): Promise<FatorPestel[]> {

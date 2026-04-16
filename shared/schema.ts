@@ -445,6 +445,21 @@ export const insertFaturaSchema = createInsertSchema(faturas).omit({
 export type InsertFatura = z.infer<typeof insertFaturaSchema>;
 export type Fatura = typeof faturas.$inferSelect;
 
+export const pagamentoEventos = pgTable("pagamento_eventos", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  empresaId: varchar("empresa_id").references(() => empresas.id, { onDelete: "set null" }),
+  tipo: text("tipo").notNull(),
+  acao: text("acao"),
+  mpResourceId: text("mp_resource_id"),
+  status: text("status"),
+  statusDetail: text("status_detail"),
+  payload: text("payload").notNull().default(""),
+  criadoEm: timestamp("criado_em").defaultNow().notNull(),
+});
+export type PagamentoEvento = typeof pagamentoEventos.$inferSelect;
+export const insertPagamentoEventoSchema = createInsertSchema(pagamentoEventos).omit({ id: true, criadoEm: true });
+export type InsertPagamentoEvento = z.infer<typeof insertPagamentoEventoSchema>;
+
 export const configuracoesIa = pgTable("configuracoes_ia", {
   id: integer("id").primaryKey().default(1),
   modeloPadrao: text("modelo_padrao").notNull().default("gpt-4.1-mini"),

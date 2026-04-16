@@ -73,7 +73,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar>
-      <SidebarHeader className="flex flex-col gap-2 border-b p-6 text-[#000000] bg-[#ffffff]">
+      <SidebarHeader className="border-b p-6">
         <Link href="/" data-testid="link-home">
           <div className="flex items-center gap-2 cursor-pointer">
             <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center">
@@ -284,7 +284,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="flex flex-col gap-2 border-t p-4 text-[#000000] bg-[#ffffff]">
+      <SidebarFooter className="border-t p-4">
         {trialInfo?.planoStatus === "ativo" && empresa?.planoTipo && !user?.isAdmin && (
           <div className="mb-3 px-1" data-testid="badge-plano-ativo-container">
             <Badge

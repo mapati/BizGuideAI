@@ -5208,21 +5208,21 @@ Seja específico para o setor ${empresa.setor}.`,
         });
       }
 
-      // Permitir cancelamento somente para planos ativos ou pendentes de pagamento.
-      const statusPermitidos = new Set(["ativo", "pendente_pagamento"]);
-      if (!statusPermitidos.has(empresa.planoStatus)) {
-        return res.status(400).json({
-          error: "A assinatura não está em um estado que permita cancelamento.",
-        });
+      // Idempotência: se já está cancelada localmente, retorna sucesso sem chamar o MP novamente.
+      if (empresa.mpSubscriptionStatus === "cancelled" || empresa.planoStatus === "cancelado") {
+        return res.json({ success: true, status: empresa.mpSubscriptionStatus ?? "cancelled", alreadyCancelled: true });
       }
 
       if (!empresa.mpSubscriptionId) {
         return res.status(400).json({ error: "Nenhuma assinatura ativa para cancelar." });
       }
 
-      // Idempotência: se já está cancelada localmente, retorna sucesso sem chamar o MP novamente.
-      if (empresa.mpSubscriptionStatus === "cancelled" || empresa.planoStatus === "cancelado") {
-        return res.json({ success: true, status: empresa.mpSubscriptionStatus ?? "cancelled", alreadyCancelled: true });
+      // Permitir cancelamento somente para planos ativos ou pendentes de pagamento.
+      const statusPermitidos = new Set(["ativo", "pendente_pagamento"]);
+      if (!statusPermitidos.has(empresa.planoStatus)) {
+        return res.status(400).json({
+          error: "A assinatura não está em um estado que permita cancelamento.",
+        });
       }
 
       let mpResult: MpSubscription | null = null;

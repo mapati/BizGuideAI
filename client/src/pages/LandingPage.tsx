@@ -790,54 +790,6 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-      {/* PRODUTO EM AÇÃO */}
-      <section className="py-20 bg-slate-950 border-t border-white/5" data-testid="section-showcase">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <Badge variant="secondary" className="mb-4 text-sm px-4 py-1 bg-primary/10 text-primary border-primary/20">
-              <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-              Veja o produto em ação
-            </Badge>
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-              Simples de usar, poderoso nos resultados
-            </h2>
-            <p className="text-slate-400 text-lg max-w-2xl mx-auto">
-              O sistema te conduz passo a passo — você responde, a IA trabalha, e no final você tem um plano estratégico completo para sua empresa.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap justify-center gap-2 mb-8">
-            {showcaseTabs.map(tab => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all border ${
-                    activeTab === tab.id
-                      ? "bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/25"
-                      : "bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-500 hover:text-slate-300"
-                  }`}
-                  data-testid={`tab-showcase-${tab.id}`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="relative">
-            <div
-              className="absolute -inset-6 rounded-3xl opacity-20 blur-3xl pointer-events-none"
-              style={{ background: "radial-gradient(ellipse, hsl(var(--primary)) 0%, transparent 70%)" }}
-            />
-            <div className="relative max-w-3xl mx-auto" style={{ zoom: 0.7 }}>
-              <ActiveMockup />
-            </div>
-          </div>
-        </div>
-      </section>
       {/* JORNADA ESTRATÉGICA */}
       <section className="py-20 bg-background" data-testid="section-jornada">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1175,6 +1127,54 @@ export default function LandingPage() {
                 </Card>
               );
             })}
+          </div>
+        </div>
+      </section>
+      {/* PRODUTO EM AÇÃO */}
+      <section className="py-20 bg-slate-950 border-t border-white/5" data-testid="section-showcase">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <Badge variant="secondary" className="mb-4 text-sm px-4 py-1 bg-primary/10 text-primary border-primary/20">
+              <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+              Veja o produto em ação
+            </Badge>
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
+              Simples de usar, poderoso nos resultados
+            </h2>
+            <p className="text-slate-400 text-lg max-w-2xl mx-auto">
+              O sistema te conduz passo a passo — você responde, a IA trabalha, e no final você tem um plano estratégico completo para sua empresa.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap justify-center gap-2 mb-8">
+            {showcaseTabs.map(tab => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all border ${
+                    activeTab === tab.id
+                      ? "bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/25"
+                      : "bg-slate-900 text-slate-400 border-slate-700 hover:border-slate-500 hover:text-slate-300"
+                  }`}
+                  data-testid={`tab-showcase-${tab.id}`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="relative">
+            <div
+              className="absolute -inset-6 rounded-3xl opacity-20 blur-3xl pointer-events-none"
+              style={{ background: "radial-gradient(ellipse, hsl(var(--primary)) 0%, transparent 70%)" }}
+            />
+            <div className="relative max-w-3xl mx-auto" style={{ zoom: 0.7 }}>
+              <ActiveMockup />
+            </div>
           </div>
         </div>
       </section>

@@ -35,6 +35,11 @@ async function runStartupMigrations() {
       WHERE plano_status = 'ativo' AND plano_ativado_em IS NULL
     `);
 
+    // Migration: add plano_tipo column if missing (added in monetization task #47)
+    await client.query(`
+      ALTER TABLE empresas ADD COLUMN IF NOT EXISTS plano_tipo TEXT
+    `);
+
     // Seed: ensure the platform admin from env vars exists and has the correct password
     const adminEmail = process.env.ADMIN_EMAIL;
     const adminSenha = process.env.ADMIN_SENHA;

@@ -30,7 +30,7 @@ export const empresas = pgTable("empresas", {
   documentoInterpretacao: text("documento_interpretacao"),
   documentoAnalisadoEm: timestamp("documento_analisado_em"),
   planoStatus: text("plano_status").notNull().default("trial"),
-  planoTipo: text("plano_tipo"),
+  planoTipo: text("plano_tipo").default("start"),
   trialStartedAt: timestamp("trial_started_at").defaultNow(),
   planoAtivadoEm: timestamp("plano_ativado_em"),
   mpSubscriptionId: text("mp_subscription_id"),
@@ -44,6 +44,24 @@ export const insertEmpresaSchema = createInsertSchema(empresas).omit({
 });
 export type InsertEmpresa = z.infer<typeof insertEmpresaSchema>;
 export type Empresa = typeof empresas.$inferSelect;
+
+export const PLAN_LIMITS = {
+  start: {
+    maxUsuarios: 1,
+    aiTier: "economy" as const,
+    features: ["swot", "pestel", "bmc", "okr", "kpis", "relatorios"] as string[],
+  },
+  pro: {
+    maxUsuarios: Infinity,
+    aiTier: "premium" as const,
+    features: ["all"] as string[],
+  },
+  enterprise: {
+    maxUsuarios: Infinity,
+    aiTier: "max" as const,
+    features: ["all"] as string[],
+  },
+} as const;
 
 export const usuarios = pgTable("usuarios", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

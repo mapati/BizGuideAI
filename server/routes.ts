@@ -6,6 +6,7 @@ import { criarAssinatura, buscarAssinatura, PLANOS_MP, type PlanoTipo } from "./
 import { randomBytes, createHash } from "crypto";
 import { 
   insertEmpresaSchema,
+  PLAN_LIMITS,
   type InsertEmpresa,
   type Empresa,
   insertFatorPestelSchema, 
@@ -253,6 +254,19 @@ async function loadModelConfig() {
     AI_MODELS.relatorios = cfg.modeloRelatorios;
     AI_MODELS.busca      = cfg.modeloBusca;
   } catch { /* usa defaults se DB ainda não tiver a tabela */ }
+}
+
+function getPlanLimits(planoTipo: string | null | undefined) {
+  const tipo = (planoTipo ?? "start") as keyof typeof PLAN_LIMITS;
+  return PLAN_LIMITS[tipo] ?? PLAN_LIMITS.start;
+}
+
+function getModelForPlan(planoTipo: string | null | undefined, tier: "padrao" | "relatorios" | "busca"): string {
+  const limits = getPlanLimits(planoTipo);
+  if (limits.aiTier === "economy") {
+    return tier === "busca" ? AI_MODELS.busca : AI_MODELS.padrao;
+  }
+  return AI_MODELS[tier];
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -516,10 +530,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const empresa = await storage.getEmpresa(usuario.empresaId);
 
+      const loginPlanoLimits = empresa ? getPlanLimits(empresa.planoTipo) : PLAN_LIMITS.start;
       res.json({
         usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresaId: usuario.empresaId, isAdmin: usuario.isAdmin, role: usuario.role },
         empresa,
         trialInfo: empresa ? computeTrialInfo(empresa) : null,
+        planoInfo: {
+          planoTipo: empresa?.planoTipo ?? "start",
+          maxUsuarios: loginPlanoLimits.maxUsuarios === Infinity ? null : loginPlanoLimits.maxUsuarios,
+          aiTier: loginPlanoLimits.aiTier,
+        },
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -577,10 +597,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const empresa = await storage.getEmpresa(req.session.empresaId);
 
+      const planoLimits = empresa ? getPlanLimits(empresa.planoTipo) : PLAN_LIMITS.start;
       res.json({
         usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresaId: usuario.empresaId, isAdmin: usuario.isAdmin, role: usuario.role },
         empresa,
         trialInfo: empresa ? computeTrialInfo(empresa) : null,
+        planoInfo: {
+          planoTipo: empresa?.planoTipo ?? "start",
+          maxUsuarios: planoLimits.maxUsuarios === Infinity ? null : planoLimits.maxUsuarios,
+          aiTier: planoLimits.aiTier,
+        },
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -1015,6 +1041,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         role: z.enum(["admin", "membro"]).default("membro"),
       });
       const data = schema.parse(req.body);
+
+      const empresa = await storage.getEmpresa(req.session.empresaId!);
+      const planoTipo = empresa?.planoTipo ?? "start";
+      const limits = getPlanLimits(planoTipo);
+      if (limits.maxUsuarios !== Infinity) {
+        const count = await storage.countUsuariosByEmpresa(req.session.empresaId!);
+        if (count >= limits.maxUsuarios) {
+          return res.status(403).json({ error: `Limite de usuários do plano Start atingido. Faça upgrade para Pro para adicionar membros.` });
+        }
+      }
 
       const existing = await storage.getUsuarioByEmail(data.email);
       if (existing) {
@@ -1555,7 +1591,7 @@ Responda APENAS em JSON válido com exatamente este formato:
         const msg = searchError instanceof Error ? searchError.message : String(searchError);
         console.warn("[PESTEL] web_search_preview falhou, usando fallback:", msg);
         const fallback = await openai.chat.completions.create({
-          model: AI_MODELS.padrao,
+          model: getModelForPlan(empresaParaPestel?.planoTipo, "relatorios"),
           messages: [
             {
               role: "system",
@@ -1636,7 +1672,7 @@ Responda APENAS em JSON válido com exatamente este formato:
         : "";
       
       const completion = await openai.chat.completions.create({
-        model: AI_MODELS.padrao,
+        model: getModelForPlan(empresaCompleta?.planoTipo, "relatorios"),
         messages: [
           {
             role: "system",
@@ -1671,7 +1707,7 @@ Responda APENAS em JSON válido com exatamente este formato:
       const tipoLabel = tipo === "forca" ? "forças" : tipo === "fraqueza" ? "fraquezas" : tipo === "oportunidade" ? "oportunidades" : "ameaças";
       
       const completion = await openai.chat.completions.create({
-        model: AI_MODELS.padrao,
+        model: getModelForPlan(empresaCompleta?.planoTipo, "relatorios"),
         messages: [
           {
             role: "system",
@@ -1725,7 +1761,7 @@ Responda APENAS em JSON válido com exatamente este formato:
       const contextoBase = tipo === "forca" || tipo === "fraqueza" ? "MODELO DE NEGÓCIO" : "CENÁRIO EXTERNO (PESTEL) e MERCADO E CONCORRÊNCIA";
 
       const completion = await openai.chat.completions.create({
-        model: AI_MODELS.relatorios,
+        model: getModelForPlan(empresa.planoTipo, "relatorios"),
         messages: [
           {
             role: "system",
@@ -1928,7 +1964,7 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
 
       const makeExtracaoCall = async (guiaExtracao: string): Promise<string[]> => {
         const result = await openai.chat.completions.create({
-          model: AI_MODELS.relatorios,
+          model: getModelForPlan(empresa.planoTipo, "relatorios"),
           messages: [
             {
               role: "system",
@@ -2082,7 +2118,7 @@ Fontes disponíveis: ${todasFontesNomes}.`;
 
       // ── GENERATE SWOT ──────────────────────────────────────────────────────
       const completion = await openai.chat.completions.create({
-        model: AI_MODELS.relatorios,
+        model: getModelForPlan(empresa.planoTipo, "relatorios"),
         messages: [
           { role: "system", content: systemPrompt },
           {
@@ -2134,10 +2170,12 @@ Responda em JSON:
 
     // Enriquecer contexto com campos adicionais do perfil
     let contextoRico = "";
+    let planoTipoMercado: string | null = null;
     if (req.session?.empresaId) {
       const empresaCompleta = await storage.getEmpresa(req.session.empresaId);
       if (empresaCompleta) {
         contextoRico = buildEmpresaContextoIA(empresaCompleta);
+        planoTipoMercado = empresaCompleta.planoTipo ?? null;
       }
     }
     const perfilEmpresaMercado = contextoRico || `Empresa: ${nomeEmpresa}\nSetor: ${setor}\nDescrição: ${descricao}`;
@@ -2275,7 +2313,7 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
 
         // Passo 2 — estruturar o texto de pesquisa em JSON (modelo focado em formatar)
         const structureResponse = await openai.chat.completions.create({
-          model: AI_MODELS.padrao,
+          model: getModelForPlan(planoTipoMercado, "relatorios"),
           messages: [
             {
               role: "system",
@@ -2327,7 +2365,7 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
 }`;
 
         const fallback = await openai.chat.completions.create({
-          model: AI_MODELS.padrao,
+          model: getModelForPlan(planoTipoMercado, "relatorios"),
           messages: [
             {
               role: "system",
@@ -2412,7 +2450,7 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
         : "";
 
       const completion = await openai.chat.completions.create({
-        model: AI_MODELS.padrao,
+        model: getModelForPlan(empresaCompleta?.planoTipo, "relatorios"),
         messages: [
           {
             role: "system",
@@ -2446,7 +2484,7 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
       }
       
       const completion = await openai.chat.completions.create({
-        model: AI_MODELS.padrao,
+        model: getModelForPlan(empresaCompleta?.planoTipo, "relatorios"),
         messages: [
           {
             role: "system",
@@ -2479,7 +2517,7 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
       }
       
       const completion = await openai.chat.completions.create({
-        model: AI_MODELS.padrao,
+        model: getModelForPlan(empresaCompleta?.planoTipo, "relatorios"),
         messages: [
           {
             role: "system",
@@ -2633,7 +2671,7 @@ ${ctx.join("\n\n")}`;
       ];
 
       const completion = await openai.chat.completions.create({
-        model: AI_MODELS.padrao,
+        model: getModelForPlan(empresa?.planoTipo, "relatorios"),
         messages,
         temperature: 0.7,
         max_tokens: 700,
@@ -2737,7 +2775,7 @@ ${ctx.join("\n\n")}`;
       ).join("\n\n");
 
       const completion = await openai.chat.completions.create({
-        model: AI_MODELS.padrao,
+        model: getModelForPlan(empresa.planoTipo, "relatorios"),
         messages: [
           {
             role: "system",
@@ -2877,7 +2915,7 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
       ).join("\n\n");
 
       const completion = await openai.chat.completions.create({
-        model: AI_MODELS.padrao,
+        model: getModelForPlan(empresa.planoTipo, "relatorios"),
         messages: [
           {
             role: "system",
@@ -3013,7 +3051,7 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
       const oportunidadesResume = oportunidades.map(o => `${o.tipo}: ${o.titulo}`).join("\n");
 
       const completion = await openai.chat.completions.create({
-        model: AI_MODELS.padrao,
+        model: getModelForPlan(empresa.planoTipo, "relatorios"),
         messages: [
           {
             role: "system",
@@ -3144,7 +3182,7 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         const objetivosResume = objetivosDestaPerspectiva.map(o => `- ${o.titulo}`).join("\n");
 
         const completion = await openai.chat.completions.create({
-          model: AI_MODELS.padrao,
+          model: getModelForPlan(empresa.planoTipo, "relatorios"),
           messages: [
             {
               role: "system",
@@ -3269,7 +3307,7 @@ Responda em JSON:
       const iniciativasResume = iniciativas.map(i => i.titulo).join("\n");
 
       const completion = await openai.chat.completions.create({
-        model: AI_MODELS.padrao,
+        model: getModelForPlan(empresa.planoTipo, "relatorios"),
         messages: [
           {
             role: "system",
@@ -3605,7 +3643,7 @@ Responda em JSON:
       }
 
       const completion = await openai.chat.completions.create({
-        model: AI_MODELS.padrao,
+        model: getModelForPlan(empresa.planoTipo, "relatorios"),
         messages: [
           {
             role: "system",
@@ -3679,7 +3717,7 @@ Gere uma descrição completa e profissional desta empresa.`,
       const objetivosResume = objetivosList.map(o => o.titulo).join("\n");
 
       const completion = await openai.chat.completions.create({
-        model: AI_MODELS.padrao,
+        model: getModelForPlan(empresa.planoTipo, "relatorios"),
         messages: [
           {
             role: "system",
@@ -3787,7 +3825,7 @@ Responda em JSON:
         .map((i) => i.nome.toLowerCase().trim());
 
       const completion = await openai.chat.completions.create({
-        model: AI_MODELS.padrao,
+        model: getModelForPlan(empresa.planoTipo, "relatorios"),
         messages: [
           {
             role: "system",
@@ -3875,7 +3913,7 @@ Responda em JSON:
       for (const ind of indicadoresBsc) {
         try {
           const completion = await openai.chat.completions.create({
-            model: AI_MODELS.padrao,
+            model: getModelForPlan(empresa.planoTipo, "relatorios"),
             messages: [
               {
                 role: "system",
@@ -4291,7 +4329,7 @@ Responda em JSON:
           : "Sem alertas ativos no momento.";
 
       const completion = await openai.chat.completions.create({
-        model: AI_MODELS.padrao,
+        model: getModelForPlan(empresa.planoTipo, "relatorios"),
         messages: [
           {
             role: "system",
@@ -4423,7 +4461,7 @@ Inclua 3-5 itens em cada lista. Seja específico e cite os dados reais fornecido
       const pestelResume = pestels.map(p => `${p.tipo}: ${p.descricao} (impacto: ${p.impacto})`).join("\n");
       const estResume = estrategias.slice(0, 5).map(e => e.descricao).join("; ");
       const completion = await openai.chat.completions.create({
-        model: AI_MODELS.relatorios,
+        model: getModelForPlan(empresa.planoTipo, "relatorios"),
         messages: [{
           role: "user",
           content: `Você é consultor estratégico especializado em planejamento de cenários para PMEs brasileiras.
@@ -4478,7 +4516,7 @@ Responda APENAS com JSON no formato:
       let premList: string[] = [];
       try { premList = JSON.parse(premissas || "[]"); } catch { premList = []; }
       const completion = await openai.chat.completions.create({
-        model: AI_MODELS.relatorios,
+        model: getModelForPlan(empresa.planoTipo, "relatorios"),
         messages: [{
           role: "user",
           content: `Você é consultor estratégico de PMEs brasileiras.
@@ -4530,7 +4568,7 @@ Responda APENAS com JSON: { "respostaEstrategica": "..." }`,
       const ameacas = swots.filter(s => s.tipo === "ameaca").map(s => s.descricao).join("; ");
       const pestelNeg = pestels.filter(p => p.impacto === "negativo").map(p => `${p.categoria}: ${p.descricao}`).join("; ");
       const completion = await openai.chat.completions.create({
-        model: AI_MODELS.relatorios,
+        model: getModelForPlan(empresa.planoTipo, "relatorios"),
         messages: [{
           role: "user",
           content: `Você é especialista em gestão de riscos para PMEs brasileiras.

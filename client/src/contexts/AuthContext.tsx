@@ -23,12 +23,21 @@ interface Empresa {
   setor: string;
   tamanho: string;
   descricao?: string | null;
+  planoTipo?: string | null;
+  planoStatus?: string;
+}
+
+interface PlanoInfo {
+  planoTipo: string;
+  maxUsuarios: number | null;
+  aiTier: string;
 }
 
 interface AuthContextType {
   user: Usuario | null;
   empresa: Empresa | null;
   trialInfo: TrialInfo | null;
+  planoInfo: PlanoInfo | null;
   isLoading: boolean;
   login: (email: string, senha: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -63,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Usuario | null>(null);
   const [empresa, setEmpresa] = useState<Empresa | null>(null);
   const [trialInfo, setTrialInfo] = useState<TrialInfo | null>(null);
+  const [planoInfo, setPlanoInfo] = useState<PlanoInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [, navigate] = useLocation();
 
@@ -77,6 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(data.usuario);
           setEmpresa(data.empresa);
           setTrialInfo(data.trialInfo ?? null);
+          setPlanoInfo(data.planoInfo ?? null);
         }
       })
       .catch(() => {})
@@ -102,6 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data.usuario);
     setEmpresa(data.empresa);
     setTrialInfo(data.trialInfo ?? null);
+    setPlanoInfo(data.planoInfo ?? null);
     queryClient.clear();
     navigate("/");
   };
@@ -111,6 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setEmpresa(null);
     setTrialInfo(null);
+    setPlanoInfo(null);
     queryClient.clear();
     navigate("/login");
   };
@@ -130,7 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, empresa, trialInfo, isLoading, login, logout, register }}>
+    <AuthContext.Provider value={{ user, empresa, trialInfo, planoInfo, isLoading, login, logout, register }}>
       {children}
     </AuthContext.Provider>
   );

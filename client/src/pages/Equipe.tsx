@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { usePlano } from "@/hooks/usePlano";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -33,10 +35,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Users, Plus, Trash2, ShieldCheck, User, Key } from "lucide-react";
+import { Users, Plus, Trash2, ShieldCheck, User, Key, Zap } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 
 interface Membro {
   id: string;
@@ -61,6 +63,44 @@ function roleBadge(role: "admin" | "membro") {
       <User className="h-3 w-3" />
       Membro
     </Badge>
+  );
+}
+
+function UpgradeStartDialog({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  const whatsappUrl = `https://wa.me/5511950377286?text=${encodeURIComponent("Olá! Gostaria de fazer upgrade para o plano Pro do BizGuideAI para adicionar membros à minha equipe.")}`;
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Zap className="h-5 w-5 text-primary" />
+            Adicionar membros à equipe
+          </DialogTitle>
+          <DialogDescription>
+            Seu plano Start inclui apenas 1 usuário. Faça upgrade para Pro para adicionar membros ilimitados e usar IA mais poderosa.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-3 pt-2">
+          <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="w-full">
+            <Button className="w-full gap-2" data-testid="button-upgrade-whatsapp">
+              <Zap className="h-4 w-4" />
+              Upgrade para Pro via WhatsApp
+            </Button>
+          </a>
+          <Link href="/trial-expirado" onClick={onClose}>
+            <Button variant="outline" className="w-full" data-testid="button-ver-planos">
+              Ver todos os planos
+            </Button>
+          </Link>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -188,9 +228,11 @@ function NovoMembroDialog({
 
 export default function Equipe() {
   const { user } = useAuth();
+  const { canInviteUsers } = usePlano();
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [novoOpen, setNovoOpen] = useState(false);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [removerAlvo, setRemoverAlvo] = useState<Membro | null>(null);
 
   const isCompanyAdmin = user?.role === "admin" || user?.isAdmin;
@@ -242,7 +284,10 @@ export default function Equipe() {
             Gerencie os usuários que têm acesso ao perfil da sua empresa.
           </p>
         </div>
-        <Button onClick={() => setNovoOpen(true)} data-testid="button-novo-usuario">
+        <Button
+          onClick={() => canInviteUsers ? setNovoOpen(true) : setUpgradeOpen(true)}
+          data-testid="button-novo-usuario"
+        >
           <Plus className="h-4 w-4 mr-2" />
           Novo Usuário
         </Button>
@@ -331,6 +376,7 @@ export default function Equipe() {
       </Card>
 
       <NovoMembroDialog open={novoOpen} onClose={() => setNovoOpen(false)} />
+      <UpgradeStartDialog open={upgradeOpen} onClose={() => setUpgradeOpen(false)} />
 
       <AlertDialog open={!!removerAlvo} onOpenChange={() => setRemoverAlvo(null)}>
         <AlertDialogContent>

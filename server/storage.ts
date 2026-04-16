@@ -83,10 +83,11 @@ export interface IStorage {
   getUsuarioByEmail(email: string): Promise<Usuario | undefined>;
   getUsuarioById(id: string): Promise<Usuario | undefined>;
   getUsuariosByEmpresaId(empresaId: string): Promise<Usuario[]>;
+  countUsuariosByEmpresa(empresaId: string): Promise<number>;
   updateUsuarioSenha(id: string, senhaHash: string): Promise<void>;
   updateUsuario(id: string, data: Partial<Pick<Usuario, "isAdmin" | "role" | "nome">>): Promise<Usuario>;
   deleteUsuario(id: string, empresaId: string): Promise<void>;
-  updateEmpresaPlano(id: string, data: Partial<Pick<Empresa, "planoStatus" | "planoAtivadoEm" | "planoTipo">>): Promise<Empresa>;
+  updateEmpresaPlano(id: string, data: Partial<Pick<Empresa, "planoStatus" | "planoAtivadoEm" | "planoTipo" | "mpSubscriptionId" | "mpSubscriptionStatus">>): Promise<Empresa>;
   
   getFatoresPestel(empresaId: string): Promise<FatorPestel[]>;
   createFatorPestel(fator: InsertFatorPestel): Promise<FatorPestel>;
@@ -263,6 +264,11 @@ export class DbStorage implements IStorage {
       .where(and(eq(usuarios.id, id), eq(usuarios.empresaId, empresaId)))
       .returning();
     if (!result[0]) throw new Error("Usuário não encontrado");
+  }
+
+  async countUsuariosByEmpresa(empresaId: string): Promise<number> {
+    const result = await db.select().from(usuarios).where(eq(usuarios.empresaId, empresaId));
+    return result.length;
   }
 
   async updateEmpresaPlano(id: string, data: Partial<Pick<Empresa, "planoStatus" | "planoAtivadoEm" | "planoTipo" | "mpSubscriptionId" | "mpSubscriptionStatus">>): Promise<Empresa> {

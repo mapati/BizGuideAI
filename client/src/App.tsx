@@ -9,7 +9,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AIAssistant } from "@/components/AIAssistant";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { Clock } from "lucide-react";
+import { Clock, Zap } from "lucide-react";
 
 import Home from "@/pages/Home";
 import Onboarding from "@/pages/Onboarding";
@@ -92,8 +92,25 @@ function TrialStatusBanner({ diasRestantes }: { diasRestantes: number }) {
   return <TrialBanner diasRestantes={diasRestantes} />;
 }
 
+function UpgradeBanner() {
+  return (
+    <div
+      className="w-full bg-primary/5 border-b border-primary/20 px-4 py-1.5 text-center text-xs text-muted-foreground flex items-center justify-center gap-2"
+      data-testid="banner-upgrade-start"
+    >
+      <Zap className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
+      <span>
+        Upgrade para Pro: IA mais poderosa e equipe ilimitada.{" "}
+        <Link href="/trial-expirado" className="font-semibold text-primary underline">
+          Ver planos
+        </Link>
+      </span>
+    </div>
+  );
+}
+
 function AppLayout() {
-  const { user, trialInfo, isLoading } = useAuth();
+  const { user, trialInfo, empresa, isLoading } = useAuth();
   const [location] = useLocation();
 
   const { data: empresaQuery, isLoading: loadingEmpresa } = useQuery<any | null>({
@@ -173,6 +190,7 @@ function AppLayout() {
   };
 
   const showTrialBanner = trialInfo?.planoStatus === "trial" && trialInfo?.diasRestantes !== null;
+  const showUpgradeBanner = trialInfo?.planoStatus === "ativo" && (empresa?.planoTipo === "start" || !empresa?.planoTipo);
 
   return (
     <SidebarProvider style={style as React.CSSProperties}>
@@ -180,6 +198,7 @@ function AppLayout() {
         {showTrialBanner && trialInfo.diasRestantes !== null && (
           <TrialStatusBanner diasRestantes={trialInfo.diasRestantes} />
         )}
+        {showUpgradeBanner && <UpgradeBanner />}
         <div className="flex flex-1 overflow-hidden">
           <AppSidebar />
           <div className="flex flex-col flex-1 overflow-hidden">

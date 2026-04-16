@@ -1,52 +1,83 @@
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Target,
   Clock,
   CheckCircle2,
-  ArrowRight,
   Phone,
   Mail,
   Users,
-  Brain,
-  BarChart3,
-  Shield,
+  Zap,
+  Building2,
+  ArrowRight,
 } from "lucide-react";
 
-const benefits = [
+const WHATSAPP_NUMBER = "5511950377286";
+const CONTACT_EMAIL = "atendimento.jundiai@consultingnow.com.br";
+
+function makeWhatsAppUrl(plano: string) {
+  const msg = encodeURIComponent(
+    `Olá! Meu período de testes do BizGuideAI encerrou e gostaria de contratar o plano ${plano}. Podem me ajudar?`
+  );
+  return `https://wa.me/${WHATSAPP_NUMBER}?text=${msg}`;
+}
+
+const planos = [
   {
-    icon: Brain,
-    title: "IA Estratégica completa",
-    desc: "PESTEL, SWOT, OKRs e BSC gerados automaticamente com inteligência artificial.",
+    id: "start",
+    nome: "Start",
+    preco: "R$ 97",
+    periodo: "/mês",
+    descricao: "Para empreendedores individuais que querem estruturar sua estratégia.",
+    icon: Target,
+    destaque: false,
+    features: [
+      "1 usuário",
+      "IA para SWOT, PESTEL, BMC, OKRs e KPIs",
+      "Dashboard executivo",
+      "Relatórios e exportações",
+    ],
+    cta: "Contratar Start",
   },
   {
-    icon: BarChart3,
-    title: "Dashboard executivo",
-    desc: "Acompanhe todos os seus indicadores, iniciativas e OKRs em tempo real.",
+    id: "pro",
+    nome: "Pro",
+    preco: "R$ 297",
+    periodo: "/mês",
+    descricao: "Para equipes que querem planejamento estratégico colaborativo com IA avançada.",
+    icon: Zap,
+    destaque: true,
+    features: [
+      "Usuários ilimitados",
+      "IA premium (GPT-4.1) em todas as análises",
+      "Todas as ferramentas de planejamento",
+      "Treinamento e suporte especializado",
+      "Consultoria estratégica incluída",
+    ],
+    cta: "Contratar Pro",
   },
   {
-    icon: Users,
-    title: "Treinamento e suporte",
-    desc: "Capacitação da equipe e suporte especializado para garantir a adoção e resultados.",
-  },
-  {
-    icon: Shield,
-    title: "Consultoria estratégica",
-    desc: "Acesso a consultores experientes para apoiar seu planejamento e execução.",
+    id: "enterprise",
+    nome: "Enterprise",
+    preco: "Sob consulta",
+    periodo: "",
+    descricao: "Para empresas que precisam de personalização e suporte dedicado.",
+    icon: Building2,
+    destaque: false,
+    features: [
+      "Tudo do plano Pro",
+      "IA com máxima capacidade",
+      "Onboarding dedicado",
+      "SLA personalizado",
+      "Integração sob medida",
+    ],
+    cta: "Falar com consultor",
   },
 ];
 
-const WHATSAPP_NUMBER = "5511950377286";
-const WHATSAPP_MESSAGE = encodeURIComponent(
-  "Olá! Meu período de testes do BizGuideAI encerrou e gostaria de contratar o plano completo. Podem me ajudar?"
-);
-const CONTACT_EMAIL = "atendimento.jundiai@consultingnow.com.br";
-
 export default function TrialExpirado() {
-  const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${WHATSAPP_MESSAGE}`;
-
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -65,13 +96,13 @@ export default function TrialExpirado() {
         </div>
       </nav>
 
-      <div className="flex-1 flex flex-col items-center justify-center px-4 py-16 sm:py-24">
-        <div className="max-w-2xl w-full text-center flex flex-col items-center gap-8">
-          <div className="h-20 w-20 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-            <Clock className="h-10 w-10 text-amber-600 dark:text-amber-400" />
+      <div className="flex-1 flex flex-col items-center px-4 py-12 sm:py-16">
+        <div className="max-w-2xl w-full text-center flex flex-col items-center gap-6 mb-12">
+          <div className="h-16 w-16 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+            <Clock className="h-8 w-8 text-amber-600 dark:text-amber-400" />
           </div>
 
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3">
             <Badge
               variant="secondary"
               className="mx-auto text-sm px-4 py-1"
@@ -86,12 +117,9 @@ export default function TrialExpirado() {
               Seu período de testes chegou ao fim
             </h1>
             <p className="text-muted-foreground text-lg leading-relaxed">
-              Os seus 7 dias de acesso completo encerraram. Para continuar usando
-              o BizGuideAI com todos os recursos, basta contratar o plano
-              completo — com treinamento, suporte e consultoria incluídos.
+              Escolha o plano ideal para sua empresa e continue usando o BizGuideAI com todos os recursos estratégicos.
             </p>
           </div>
-
           <div className="flex flex-wrap items-center justify-center gap-4 w-full">
             <Link href="/assinar">
               <Button
@@ -103,7 +131,7 @@ export default function TrialExpirado() {
                 <ArrowRight className="h-5 w-5" />
               </Button>
             </Link>
-            <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">
+            <a href={makeWhatsAppUrl("completo")} target="_blank" rel="noopener noreferrer">
               <Button
                 size="lg"
                 variant="outline"
@@ -128,27 +156,76 @@ export default function TrialExpirado() {
           </div>
         </div>
 
-        <div className="max-w-3xl w-full mt-16">
-          <h2 className="text-xl font-semibold text-center mb-8">
-            O que está incluído no plano completo
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {benefits.map((benefit) => {
-              const Icon = benefit.icon;
+        <div className="max-w-5xl w-full">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {planos.map((plano) => {
+              const Icon = plano.icon;
               return (
                 <Card
-                  key={benefit.title}
-                  data-testid={`card-benefit-${benefit.title.replace(/\s/g, "-").toLowerCase()}`}
+                  key={plano.id}
+                  className={plano.destaque ? "border-primary shadow-md" : ""}
+                  data-testid={`card-plano-${plano.id}`}
                 >
-                  <CardContent className="p-5 flex gap-4">
-                    <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <Icon className="h-5 w-5 text-primary" />
+                  {plano.destaque && (
+                    <div className="flex justify-center -mb-3 pt-4">
+                      <Badge className="text-xs px-3" data-testid={`badge-recomendado-${plano.id}`}>
+                        Mais popular
+                      </Badge>
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-sm mb-1">{benefit.title}</h3>
-                      <p className="text-xs text-muted-foreground leading-relaxed">
-                        {benefit.desc}
-                      </p>
+                  )}
+                  <CardHeader className="pb-3 pt-6">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <Icon className="h-4 w-4 text-primary" />
+                      </div>
+                      <CardTitle className="text-xl">{plano.nome}</CardTitle>
+                    </div>
+                    <div className="flex items-baseline gap-1 mt-2 mb-1" data-testid={`preco-plano-${plano.id}`}>
+                      <span className="text-2xl font-bold">{plano.preco}</span>
+                      {plano.periodo && (
+                        <span className="text-sm text-muted-foreground">{plano.periodo}</span>
+                      )}
+                    </div>
+                    <CardDescription className="text-sm leading-relaxed mt-1">
+                      {plano.descricao}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-4">
+                    <ul className="space-y-2">
+                      {plano.features.map((feat) => (
+                        <li key={feat} className="flex items-start gap-2 text-sm">
+                          <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                          <span>{feat}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="flex flex-col gap-2 pt-2">
+                      <Link href="/assinar">
+                        <Button
+                          className="w-full gap-2"
+                          variant={plano.destaque ? "default" : "outline"}
+                          data-testid={`button-contratar-${plano.id}`}
+                        >
+                          <ArrowRight className="h-4 w-4" />
+                          {plano.cta}
+                        </Button>
+                      </Link>
+                      <a
+                        href={makeWhatsAppUrl(plano.nome)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full"
+                      >
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full gap-2 text-muted-foreground"
+                          data-testid={`button-whatsapp-${plano.id}`}
+                        >
+                          <Phone className="h-3 w-3" />
+                          Tirar dúvidas
+                        </Button>
+                      </a>
                     </div>
                   </CardContent>
                 </Card>
@@ -156,23 +233,38 @@ export default function TrialExpirado() {
             })}
           </div>
 
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground">
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground">
             <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="h-4 w-4 text-primary" />
-              Acesso a todas as ferramentas
-            </span>
-            <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="h-4 w-4 text-primary" />
+              <Users className="h-4 w-4 text-primary" />
               Treinamento para a equipe
             </span>
             <span className="flex items-center gap-1.5">
               <CheckCircle2 className="h-4 w-4 text-primary" />
               Suporte especializado
             </span>
+            <span className="flex items-center gap-1.5">
+              <Zap className="h-4 w-4 text-primary" />
+              IA estratégica completa
+            </span>
+          </div>
+
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
+            <a href={makeWhatsAppUrl("completo")} target="_blank" rel="noopener noreferrer">
+              <Button size="sm" variant="ghost" className="gap-2 text-muted-foreground" data-testid="button-whatsapp-footer">
+                <Phone className="h-4 w-4" />
+                Falar via WhatsApp
+              </Button>
+            </a>
+            <a href={`mailto:${CONTACT_EMAIL}`}>
+              <Button size="sm" variant="ghost" className="gap-2 text-muted-foreground" data-testid="button-email-footer">
+                <Mail className="h-4 w-4" />
+                Enviar e-mail
+              </Button>
+            </a>
           </div>
         </div>
 
-        <div className="mt-12 text-center">
+        <div className="mt-10 text-center">
           <p className="text-sm text-muted-foreground">
             Já tem uma conta ativa?{" "}
             <Link href="/login" className="text-primary hover:underline">

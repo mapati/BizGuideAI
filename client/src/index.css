@@ -357,7 +357,7 @@
 
 @keyframes hero-scan {
   0% {
-    transform: translateY(0%);
+    top: -1px;
     opacity: 0;
   }
   5% {
@@ -367,7 +367,7 @@
     opacity: 1;
   }
   100% {
-    transform: translateY(6000%);
+    top: 100%;
     opacity: 0;
   }
 }

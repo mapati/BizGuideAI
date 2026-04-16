@@ -706,7 +706,7 @@ export default function LandingPage() {
             top: "-12%",
             left: "-10%",
             background: "radial-gradient(circle, rgba(99,102,241,0.22) 0%, transparent 70%)",
-            filter: "blur(72px)",
+            filter: "blur(120px)",
             animation: "hero-orb-pulse 8s ease-in-out infinite",
           }}
         />
@@ -719,7 +719,7 @@ export default function LandingPage() {
             top: "-15%",
             right: "-8%",
             background: "radial-gradient(circle, rgba(56,189,248,0.16) 0%, transparent 70%)",
-            filter: "blur(80px)",
+            filter: "blur(120px)",
             animation: "hero-orb-pulse 9.5s ease-in-out infinite",
             animationDelay: "2s",
           }}
@@ -733,7 +733,7 @@ export default function LandingPage() {
             bottom: "-15%",
             left: "25%",
             background: "radial-gradient(circle, rgba(168,85,247,0.14) 0%, transparent 70%)",
-            filter: "blur(90px)",
+            filter: "blur(120px)",
             animation: "hero-orb-pulse 11s ease-in-out infinite",
             animationDelay: "4s",
           }}
@@ -742,7 +742,7 @@ export default function LandingPage() {
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='28' height='28' viewBox='0 0 28 28' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='14' cy='14' r='1.5' fill='%23ffffff' fill-opacity='0.07'/%3E%3C/svg%3E")`,
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='28' height='28' viewBox='0 0 28 28' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='14' cy='14' r='1.5' fill='%23ffffff' fill-opacity='0.04'/%3E%3C/svg%3E")`,
           }}
         />
         {/* Scan line horizontal */}
@@ -750,7 +750,6 @@ export default function LandingPage() {
           className="absolute left-0 right-0 pointer-events-none"
           style={{
             height: "1px",
-            top: "0%",
             background: "linear-gradient(90deg, transparent 0%, rgba(99,102,241,0.35) 30%, rgba(56,189,248,0.35) 70%, transparent 100%)",
             animation: "hero-scan 10s ease-in-out infinite",
             animationDelay: "1s",

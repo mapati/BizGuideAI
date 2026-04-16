@@ -4710,28 +4710,29 @@ Seja específico para o setor ${empresa.setor}.`,
       const key = process.env.RESEND_API_KEY;
       const fromEmail = process.env.EMAIL_FROM || "noreply@bizguideai.org";
 
-      if (key) {
-        const resend = new Resend(key);
-        await resend.emails.send({
-          from: `BizGuideAI <${fromEmail}>`,
-          to: "atendimento.jundiai@consultingnow.com.br",
-          subject: `Solicitação de contato Enterprise — ${data.nome}`,
-          html: `<h2>Nova solicitação de contato Enterprise</h2>
+      if (!key) {
+        console.error("[ENTERPRISE CONTACT] RESEND_API_KEY não configurada — lead não enviado");
+        return res.status(500).json({ error: "Serviço de e-mail não disponível. Tente novamente mais tarde." });
+      }
+
+      const resend = new Resend(key);
+      await resend.emails.send({
+        from: `BizGuideAI <${fromEmail}>`,
+        to: "atendimento.jundiai@consultingnow.com.br",
+        subject: `Solicitação de contato Enterprise — ${data.nome}`,
+        html: `<h2>Nova solicitação de contato Enterprise</h2>
 <p><strong>Nome:</strong> ${data.nome}</p>
 <p><strong>Empresa:</strong> ${data.empresa}</p>
 <p><strong>E-mail:</strong> ${data.email}</p>
 <p><strong>Telefone:</strong> ${data.telefone}</p>`,
-        });
-      } else {
-        console.log(`[ENTERPRISE CONTACT] Nome: ${data.nome}, Empresa: ${data.empresa}, E-mail: ${data.email}, Telefone: ${data.telefone}`);
-      }
+      });
 
       res.json({ ok: true });
     } catch (e: any) {
       if (e?.name === "ZodError") {
         return res.status(400).json({ error: e.issues?.[0]?.message || "Dados inválidos" });
       }
-      console.error("[ENTERPRISE CONTACT] Erro:", e);
+      console.error("[ENTERPRISE CONTACT] Erro ao enviar e-mail");
       res.status(500).json({ error: "Erro ao processar solicitação. Tente novamente." });
     }
   });

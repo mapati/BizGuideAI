@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -45,6 +45,25 @@ export function EnterpriseContactModal({ open, onOpenChange }: EnterpriseContact
     defaultValues: { nome: "", empresa: "", email: "", telefone: "" },
   });
 
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      setSubmitted(false);
+      form.reset();
+    }
+    onOpenChange(open);
+  };
+
+  useEffect(() => {
+    if (submitted) {
+      const timer = setTimeout(() => {
+        onOpenChange(false);
+        setSubmitted(false);
+        form.reset();
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [submitted, onOpenChange]);
+
   const onSubmit = async (values: FormData) => {
     try {
       const res = await fetch("/api/contact/enterprise", {
@@ -64,14 +83,6 @@ export function EnterpriseContactModal({ open, onOpenChange }: EnterpriseContact
         variant: "destructive",
       });
     }
-  };
-
-  const handleOpenChange = (open: boolean) => {
-    if (!open) {
-      setSubmitted(false);
-      form.reset();
-    }
-    onOpenChange(open);
   };
 
   return (

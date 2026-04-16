@@ -89,6 +89,7 @@ export default function Onboarding() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/empresa"] });
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/pagamentos/status"] });
       setCancelarDialogOpen(false);
       toast({
         title: "Assinatura cancelada",

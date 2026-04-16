@@ -284,7 +284,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="border-t p-4">
+      <SidebarFooter className="flex flex-col gap-2 border-t p-4 text-[#000000] bg-[#ffffff]">
         {trialInfo?.planoStatus === "ativo" && empresa?.planoTipo && !user?.isAdmin && (
           <div className="mb-3 px-1" data-testid="badge-plano-ativo-container">
             <Badge

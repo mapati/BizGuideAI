@@ -36,7 +36,10 @@ import { Link } from "wouter";
 import type { Empresa, Objetivo, ResultadoChave, Indicador, Evento } from "@shared/schema";
 
 const INTRO_DISMISSED_KEY = (userId: string) => `biz-guide-intro-dismissed-${userId}`;
-// Usuários criados antes desta data são considerados legados e nunca verão o painel.
+// Data de lançamento desta feature de boas-vindas (17/04/2026).
+// Usuários cujo createdAt é anterior a esta data são tratados como "legados":
+// o painel nunca é exibido para eles (a chave de dismissal é gravada automaticamente).
+// Não altere esta data — ela garante que usuários já ativos não vejam o painel retroativamente.
 const INTRO_FEATURE_RELEASE_DATE = new Date("2026-04-17T00:00:00.000Z");
 
 interface Alerta {

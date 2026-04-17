@@ -175,6 +175,13 @@ async function runStartupMigrations() {
       ON contexto_macro_logs (categoria, executado_em DESC)
     `);
 
+    // Migration: update web search model from deprecated gpt-4o-mini-search-preview
+    await client.query(`
+      UPDATE configuracoes_ia
+      SET modelo_busca = 'gpt-4o-search-preview'
+      WHERE modelo_busca = 'gpt-4o-mini-search-preview'
+    `);
+
     // Seed: ensure the platform admin from env vars exists and has the correct password
     const adminEmail = process.env.ADMIN_EMAIL;
     const adminSenha = process.env.ADMIN_SENHA;

@@ -305,7 +305,7 @@ function computeTrialInfo(empresa: { planoStatus: string; trialStartedAt: Date |
 const AI_MODELS = {
   padrao:     "gpt-4.1-mini",
   relatorios: "gpt-4.1",
-  busca:      "gpt-4o-mini-search-preview",
+  busca:      "gpt-4o-search-preview",
 };
 
 async function loadModelConfig() {

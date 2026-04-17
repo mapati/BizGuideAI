@@ -860,7 +860,7 @@ export class DbStorage implements IStorage {
     if (result[0]) {
       return { modeloPadrao: result[0].modeloPadrao, modeloRelatorios: result[0].modeloRelatorios, modeloBusca: result[0].modeloBusca };
     }
-    return { modeloPadrao: "gpt-4.1-mini", modeloRelatorios: "gpt-4.1", modeloBusca: "gpt-4o-mini-search-preview" };
+    return { modeloPadrao: "gpt-4.1-mini", modeloRelatorios: "gpt-4.1", modeloBusca: "gpt-4o-search-preview" };
   }
 
   async upsertConfiguracoesIA(config: { modeloPadrao?: string; modeloRelatorios?: string; modeloBusca?: string }): Promise<{ modeloPadrao: string; modeloRelatorios: string; modeloBusca: string }> {

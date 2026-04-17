@@ -77,8 +77,11 @@ import {
   type InsertFatura,
   contextoMacro,
   type ContextoMacro,
+  contextoMacroLogs,
+  type ContextoMacroLog,
+  type InsertContextoMacroLog,
 } from "@shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 
 export interface IStorage {
   getEmpresa(id: string): Promise<Empresa | undefined>;
@@ -224,6 +227,8 @@ export interface IStorage {
   getContextoMacroAtivos(): Promise<ContextoMacro[]>;
   getContextoMacroByCategoria(categoria: string): Promise<ContextoMacro | undefined>;
   updateContextoMacro(categoria: string, data: Partial<Omit<ContextoMacro, "categoria">>): Promise<ContextoMacro>;
+  addContextoMacroLog(log: InsertContextoMacroLog): Promise<void>;
+  getContextoMacroLogs(categoria: string): Promise<ContextoMacroLog[]>;
 }
 
 function omitTenantFields<T extends Record<string, unknown>>(data: T): Omit<T, "empresaId" | "objetivoId"> {
@@ -887,6 +892,29 @@ export class DbStorage implements IStorage {
   async updateContextoMacro(categoria: string, data: Partial<Omit<ContextoMacro, "categoria">>): Promise<ContextoMacro> {
     const result = await db.update(contextoMacro).set(data).where(eq(contextoMacro.categoria, categoria)).returning();
     return result[0];
+  }
+
+  async addContextoMacroLog(log: InsertContextoMacroLog): Promise<void> {
+    await db.insert(contextoMacroLogs).values(log);
+    // Enforce rolling buffer: keep only the 10 most recent entries per category
+    const rows = await db
+      .select({ id: contextoMacroLogs.id })
+      .from(contextoMacroLogs)
+      .where(eq(contextoMacroLogs.categoria, log.categoria))
+      .orderBy(desc(contextoMacroLogs.executadoEm));
+    if (rows.length > 10) {
+      const toDelete = rows.slice(10).map((r) => r.id);
+      await db.delete(contextoMacroLogs).where(inArray(contextoMacroLogs.id, toDelete));
+    }
+  }
+
+  async getContextoMacroLogs(categoria: string): Promise<ContextoMacroLog[]> {
+    return db
+      .select()
+      .from(contextoMacroLogs)
+      .where(eq(contextoMacroLogs.categoria, categoria))
+      .orderBy(desc(contextoMacroLogs.executadoEm))
+      .limit(10);
   }
 
 }

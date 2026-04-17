@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, decimal, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, decimal, boolean, serial } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -492,4 +492,16 @@ export const contextoMacro = pgTable("contexto_macro", {
   alertaDias: integer("alerta_dias").notNull().default(7),
 });
 export type ContextoMacro = typeof contextoMacro.$inferSelect;
+
+export const contextoMacroLogs = pgTable("contexto_macro_logs", {
+  id: serial("id").primaryKey(),
+  categoria: varchar("categoria").notNull(),
+  executadoEm: timestamp("executado_em").notNull().defaultNow(),
+  modo: text("modo").notNull(),
+  resultado: text("resultado").notNull(),
+  mensagem: text("mensagem").notNull(),
+});
+export const insertContextoMacroLogSchema = createInsertSchema(contextoMacroLogs).omit({ id: true });
+export type InsertContextoMacroLog = z.infer<typeof insertContextoMacroLogSchema>;
+export type ContextoMacroLog = typeof contextoMacroLogs.$inferSelect;
 

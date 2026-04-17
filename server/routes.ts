@@ -97,22 +97,7 @@ const openaiSearch = process.env.OPENAI_API_KEY
 /* ── Contexto Macro IA — cache 60s ── */
 let _macroCtxCache: { text: string; expiry: number } | null = null;
 
-/* ── Contexto Macro — scheduler execution log (in-memory, 10 entries/category) ── */
-interface ExecLog {
-  timestamp: string; // ISO string
-  modo: "web_search" | "fallback";
-  resultado: "sucesso" | "erro";
-  mensagem: string;
-}
-const _execLogs = new Map<string, ExecLog[]>();
-const EXEC_LOG_MAX = 10;
-
-function addExecLog(categoria: string, log: ExecLog): void {
-  const existing = _execLogs.get(categoria) ?? [];
-  existing.unshift(log);
-  if (existing.length > EXEC_LOG_MAX) existing.length = EXEC_LOG_MAX;
-  _execLogs.set(categoria, existing);
-}
+/* ── Contexto Macro — scheduler execution log (persisted in DB) ── */
 
 async function buildContextoMacroIA(): Promise<string> {
   const now = Date.now();
@@ -5463,9 +5448,21 @@ Seja específico para o setor ${empresa.setor}.`,
     }
   });
 
-  app.get("/api/admin/contexto-macro/:categoria/log", requireSuperAdmin, (_req, res) => {
-    const { categoria } = _req.params;
-    res.json(_execLogs.get(categoria) ?? []);
+  app.get("/api/admin/contexto-macro/:categoria/log", requireSuperAdmin, async (req, res) => {
+    try {
+      const { categoria } = req.params;
+      const logs = await storage.getContextoMacroLogs(categoria);
+      res.json(
+        logs.map((l) => ({
+          timestamp: l.executadoEm.toISOString(),
+          modo: l.modo,
+          resultado: l.resultado,
+          mensagem: l.mensagem,
+        }))
+      );
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
   });
 
   app.patch("/api/admin/contexto-macro/:categoria", requireSuperAdmin, async (req, res) => {
@@ -5515,8 +5512,9 @@ Seja específico para o setor ${empresa.setor}.`,
 
       const { texto, modo } = await gerarContextoCategoria(categoria);
 
-      addExecLog(categoria, {
-        timestamp: agora.toISOString(),
+      await storage.addContextoMacroLog({
+        categoria,
+        executadoEm: agora,
         modo,
         resultado: "sucesso",
         mensagem: modo === "web_search" ? "Gerado com busca na web" : "Gerado sem busca na web (fallback)",
@@ -5539,12 +5537,15 @@ Seja específico para o setor ${empresa.setor}.`,
         return res.json({ mode: "rascunho", record: updated });
       }
     } catch (e: any) {
-      addExecLog(categoria, {
-        timestamp: agora.toISOString(),
-        modo: openaiSearch ? "web_search" : "fallback",
-        resultado: "erro",
-        mensagem: e?.message ?? "Erro desconhecido",
-      });
+      try {
+        await storage.addContextoMacroLog({
+          categoria,
+          executadoEm: agora,
+          modo: openaiSearch ? "web_search" : "fallback",
+          resultado: "erro",
+          mensagem: e?.message ?? "Erro desconhecido",
+        });
+      } catch (_) {}
       res.status(500).json({ error: e.message });
     }
   });
@@ -5586,7 +5587,6 @@ Seja específico para o setor ${empresa.setor}.`,
       for (const cat of all) {
         if (!cat.agendadorAtivo || !cat.agendadorFrequencia || !cat.proximoAgendamento) continue;
         if (new Date(cat.proximoAgendamento) > now) continue;
-        const ts = now.toISOString();
         try {
           console.log(`[CONTEXTO_MACRO] Gerando: ${cat.categoria}`);
           const { texto, modo } = await gerarContextoCategoria(cat.categoria);
@@ -5598,20 +5598,24 @@ Seja específico para o setor ${empresa.setor}.`,
             rascunho: null,
           });
           _macroCtxCache = null;
-          addExecLog(cat.categoria, {
-            timestamp: ts,
+          await storage.addContextoMacroLog({
+            categoria: cat.categoria,
+            executadoEm: now,
             modo,
             resultado: "sucesso",
             mensagem: modo === "web_search" ? "Agendador: gerado com busca na web" : "Agendador: gerado sem busca na web (fallback)",
           });
           console.log(`[CONTEXTO_MACRO] OK: ${cat.categoria} — próximo: ${proxima.toISOString()}`);
         } catch (err: any) {
-          addExecLog(cat.categoria, {
-            timestamp: ts,
-            modo: openaiSearch ? "web_search" : "fallback",
-            resultado: "erro",
-            mensagem: err?.message ?? "Erro desconhecido",
-          });
+          try {
+            await storage.addContextoMacroLog({
+              categoria: cat.categoria,
+              executadoEm: now,
+              modo: openaiSearch ? "web_search" : "fallback",
+              resultado: "erro",
+              mensagem: err?.message ?? "Erro desconhecido",
+            });
+          } catch (_) {}
           console.error(`[CONTEXTO_MACRO] Erro em ${cat.categoria}:`, err?.message ?? err);
         }
       }

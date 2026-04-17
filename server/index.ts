@@ -159,6 +159,18 @@ async function runStartupMigrations() {
       ON CONFLICT (categoria) DO NOTHING
     `);
 
+    // Task #75 — Persist contexto_macro scheduler execution logs
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS contexto_macro_logs (
+        id SERIAL PRIMARY KEY,
+        categoria VARCHAR NOT NULL,
+        executado_em TIMESTAMP NOT NULL DEFAULT NOW(),
+        modo TEXT NOT NULL,
+        resultado TEXT NOT NULL,
+        mensagem TEXT NOT NULL
+      )
+    `);
+
     // Seed: ensure the platform admin from env vars exists and has the correct password
     const adminEmail = process.env.ADMIN_EMAIL;
     const adminSenha = process.env.ADMIN_SENHA;

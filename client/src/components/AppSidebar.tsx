@@ -20,7 +20,6 @@ import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
 
 const mapItems = [
   { title: "Cenário Externo", url: "/pestel", icon: Compass, jornadaId: "pestel" },
-  { title: "Cenários Estratégicos", url: "/cenarios", icon: CloudLightning, jornadaId: null },
   { title: "Mercado e Concorrência", url: "/cinco-forcas", icon: Layers, jornadaId: "cinco-forcas" },
   { title: "Modelo de Negócio", url: "/bmc", icon: Grid3x3, jornadaId: "bmc" },
   { title: "Forças e Fraquezas", url: "/swot", icon: Target, jornadaId: "swot" },
@@ -240,6 +239,14 @@ export function AppSidebar() {
           <SidebarGroupLabel>Análise Avançada</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location === "/cenarios"} data-testid="link-cenarios">
+                  <Link href="/cenarios">
+                    <CloudLightning />
+                    <span>Cenários Estratégicos</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={location === "/alertas"} data-testid="link-alertas">
                   <Link href="/alertas">

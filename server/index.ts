@@ -117,6 +117,11 @@ async function runStartupMigrations() {
       )
     `);
 
+    // Migration: intro_boas_vindas_dismissed column on usuarios (task #55)
+    await client.query(`
+      ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS intro_boas_vindas_dismissed BOOLEAN NOT NULL DEFAULT false
+    `);
+
     // Seed: ensure the platform admin from env vars exists and has the correct password
     const adminEmail = process.env.ADMIN_EMAIL;
     const adminSenha = process.env.ADMIN_SENHA;

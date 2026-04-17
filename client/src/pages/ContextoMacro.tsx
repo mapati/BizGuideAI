@@ -46,6 +46,13 @@ interface ContextoMacro {
   alertaDias: number;
 }
 
+interface ExecLog {
+  timestamp: string;
+  modo: "web_search" | "fallback";
+  resultado: "sucesso" | "erro";
+  mensagem: string;
+}
+
 const CATEGORIAS_ICONS: Record<string, string> = {
   cambio_politica_monetaria: "💱",
   inflacao_custos: "📈",
@@ -118,6 +125,13 @@ function CategoriaCard({
   const [editingRascunho, setEditingRascunho] = useState(false);
   const [rascunhoEdit, setRascunhoEdit] = useState(cat.rascunho ?? "");
 
+  const { data: execLogs } = useQuery<ExecLog[]>({
+    queryKey: ["/api/admin/contexto-macro", cat.categoria, "log"],
+    queryFn: () => apiRequest("GET", `/api/admin/contexto-macro/${cat.categoria}/log`),
+    enabled: expanded,
+    refetchInterval: expanded ? 30_000 : false,
+  });
+
   const patchMutation = useMutation({
     mutationFn: (data: Partial<ContextoMacro>) =>
       apiRequest("PATCH", `/api/admin/contexto-macro/${cat.categoria}`, data),
@@ -134,9 +148,13 @@ function CategoriaCard({
       const mode = data.mode === "auto_aprovado" ? "Auto-aprovado e ativado." : "Salvo como rascunho para revisão.";
       toast({ title: "Geração concluída", description: mode });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/contexto-macro"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/contexto-macro", cat.categoria, "log"] });
       onRefetch();
     },
-    onError: (e: any) => toast({ title: "Erro ao gerar", description: e.message, variant: "destructive" }),
+    onError: (e: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/contexto-macro", cat.categoria, "log"] });
+      toast({ title: "Erro ao gerar", description: e.message, variant: "destructive" });
+    },
   });
 
   const aprovarMutation = useMutation({
@@ -472,6 +490,61 @@ function CategoriaCard({
               </div>
             </div>
           </div>
+
+          {/* Execution log */}
+          {execLogs && execLogs.length > 0 && (
+            <>
+              <Separator />
+              <div className="space-y-2">
+                <Label className="text-sm font-medium flex items-center gap-1">
+                  <Clock className="h-3.5 w-3.5" />
+                  Histórico de execuções
+                </Label>
+                <div className="space-y-1" data-testid={`log-historico-${cat.categoria}`}>
+                  {execLogs.map((log, i) => (
+                    <div
+                      key={i}
+                      className="flex items-start gap-2 text-xs rounded-md px-2 py-1.5 bg-muted/40"
+                      data-testid={`log-entry-${cat.categoria}-${i}`}
+                    >
+                      <span className="mt-0.5 shrink-0">
+                        {log.resultado === "sucesso" ? (
+                          <CheckCircle2 className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+                        ) : (
+                          <AlertCircle className="h-3.5 w-3.5 text-red-500 dark:text-red-400" />
+                        )}
+                      </span>
+                      <span className="text-muted-foreground shrink-0 tabular-nums">
+                        {new Date(log.timestamp).toLocaleString("pt-BR", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                      <span className="shrink-0">
+                        {log.modo === "web_search" ? (
+                          <Globe className="h-3 w-3 text-green-600 dark:text-green-400" />
+                        ) : (
+                          <AlertTriangle className="h-3 w-3 text-amber-500 dark:text-amber-400" />
+                        )}
+                      </span>
+                      <span className="text-foreground/80 break-words min-w-0">{log.mensagem}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {execLogs && execLogs.length === 0 && (
+            <>
+              <Separator />
+              <p className="text-xs text-muted-foreground" data-testid={`log-vazio-${cat.categoria}`}>
+                Nenhuma execução registrada ainda. Use o botão "Gerar com IA" para registrar a primeira.
+              </p>
+            </>
+          )}
         </CardContent>
       )}
     </Card>

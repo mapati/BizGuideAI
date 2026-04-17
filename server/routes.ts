@@ -97,6 +97,23 @@ const openaiSearch = process.env.OPENAI_API_KEY
 /* ── Contexto Macro IA — cache 60s ── */
 let _macroCtxCache: { text: string; expiry: number } | null = null;
 
+/* ── Contexto Macro — scheduler execution log (in-memory, 10 entries/category) ── */
+interface ExecLog {
+  timestamp: string; // ISO string
+  modo: "web_search" | "fallback";
+  resultado: "sucesso" | "erro";
+  mensagem: string;
+}
+const _execLogs = new Map<string, ExecLog[]>();
+const EXEC_LOG_MAX = 10;
+
+function addExecLog(categoria: string, log: ExecLog): void {
+  const existing = _execLogs.get(categoria) ?? [];
+  existing.unshift(log);
+  if (existing.length > EXEC_LOG_MAX) existing.length = EXEC_LOG_MAX;
+  _execLogs.set(categoria, existing);
+}
+
 async function buildContextoMacroIA(): Promise<string> {
   const now = Date.now();
   if (_macroCtxCache && now < _macroCtxCache.expiry) return _macroCtxCache.text;
@@ -5404,7 +5421,9 @@ Seja específico para o setor ${empresa.setor}.`,
     return d;
   }
 
-  async function gerarContextoCategoria(categoria: string): Promise<string> {
+  async function gerarContextoCategoria(
+    categoria: string
+  ): Promise<{ texto: string; modo: "web_search" | "fallback" }> {
     const prompt = CATEGORIAS_PROMPTS[categoria];
     if (!prompt) throw new Error(`Categoria sem prompt: ${categoria}`);
 
@@ -5415,7 +5434,7 @@ Seja específico para o setor ${empresa.setor}.`,
         tools: [{ type: "web_search_preview" }],
         input: prompt,
       });
-      return (response.output_text ?? "").trim();
+      return { texto: (response.output_text ?? "").trim(), modo: "web_search" };
     }
 
     // Fallback: use Azure client with chat completions (no web search)
@@ -5432,7 +5451,7 @@ Seja específico para o setor ${empresa.setor}.`,
       temperature: 0.4,
       max_tokens: 800,
     });
-    return (completion.choices[0].message.content ?? "").trim();
+    return { texto: (completion.choices[0].message.content ?? "").trim(), modo: "fallback" };
   }
 
   app.get("/api/admin/contexto-macro", requireSuperAdmin, async (_req, res) => {
@@ -5442,6 +5461,11 @@ Seja específico para o setor ${empresa.setor}.`,
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
+  });
+
+  app.get("/api/admin/contexto-macro/:categoria/log", requireSuperAdmin, (_req, res) => {
+    const { categoria } = _req.params;
+    res.json(_execLogs.get(categoria) ?? []);
   });
 
   app.patch("/api/admin/contexto-macro/:categoria", requireSuperAdmin, async (req, res) => {
@@ -5483,13 +5507,20 @@ Seja específico para o setor ${empresa.setor}.`,
   });
 
   app.post("/api/admin/contexto-macro/:categoria/gerar", requireSuperAdmin, async (req, res) => {
+    const { categoria } = req.params;
+    const agora = new Date();
     try {
-      const { categoria } = req.params;
       const record = await storage.getContextoMacroByCategoria(categoria);
       if (!record) return res.status(404).json({ error: "Categoria não encontrada" });
 
-      const texto = await gerarContextoCategoria(categoria);
-      const agora = new Date();
+      const { texto, modo } = await gerarContextoCategoria(categoria);
+
+      addExecLog(categoria, {
+        timestamp: agora.toISOString(),
+        modo,
+        resultado: "sucesso",
+        mensagem: modo === "web_search" ? "Gerado com busca na web" : "Gerado sem busca na web (fallback)",
+      });
 
       if (record.agendadorAtivo && record.agendadorFrequencia) {
         await storage.updateContextoMacro(categoria, {
@@ -5508,6 +5539,12 @@ Seja específico para o setor ${empresa.setor}.`,
         return res.json({ mode: "rascunho", record: updated });
       }
     } catch (e: any) {
+      addExecLog(categoria, {
+        timestamp: agora.toISOString(),
+        modo: openaiSearch ? "web_search" : "fallback",
+        resultado: "erro",
+        mensagem: e?.message ?? "Erro desconhecido",
+      });
       res.status(500).json({ error: e.message });
     }
   });
@@ -5549,9 +5586,10 @@ Seja específico para o setor ${empresa.setor}.`,
       for (const cat of all) {
         if (!cat.agendadorAtivo || !cat.agendadorFrequencia || !cat.proximoAgendamento) continue;
         if (new Date(cat.proximoAgendamento) > now) continue;
+        const ts = now.toISOString();
         try {
           console.log(`[CONTEXTO_MACRO] Gerando: ${cat.categoria}`);
-          const texto = await gerarContextoCategoria(cat.categoria);
+          const { texto, modo } = await gerarContextoCategoria(cat.categoria);
           const proxima = calcularProximoAgendamento(cat.agendadorFrequencia, now);
           await storage.updateContextoMacro(cat.categoria, {
             textoAtivo: texto,
@@ -5560,8 +5598,20 @@ Seja específico para o setor ${empresa.setor}.`,
             rascunho: null,
           });
           _macroCtxCache = null;
+          addExecLog(cat.categoria, {
+            timestamp: ts,
+            modo,
+            resultado: "sucesso",
+            mensagem: modo === "web_search" ? "Agendador: gerado com busca na web" : "Agendador: gerado sem busca na web (fallback)",
+          });
           console.log(`[CONTEXTO_MACRO] OK: ${cat.categoria} — próximo: ${proxima.toISOString()}`);
         } catch (err: any) {
+          addExecLog(cat.categoria, {
+            timestamp: ts,
+            modo: openaiSearch ? "web_search" : "fallback",
+            resultado: "erro",
+            mensagem: err?.message ?? "Erro desconhecido",
+          });
           console.error(`[CONTEXTO_MACRO] Erro em ${cat.categoria}:`, err?.message ?? err);
         }
       }

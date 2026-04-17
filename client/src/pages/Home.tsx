@@ -7,6 +7,7 @@ import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { CircularProgress } from "@/components/CircularProgress";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -26,9 +27,15 @@ import {
   BarChart3,
   Activity,
   ChevronRight,
+  Compass,
+  Map,
+  Zap,
 } from "lucide-react";
+
 import { Link } from "wouter";
 import type { Empresa, Objetivo, ResultadoChave, Indicador, Evento } from "@shared/schema";
+
+const INTRO_DISMISSED_KEY = (userId: string) => `biz-guide-intro-dismissed-${userId}`;
 
 interface Alerta {
   tipo: string;
@@ -95,6 +102,7 @@ export default function Home() {
   const { toast } = useToast();
   const [diagnostico, setDiagnostico] = useState<Diagnostico | null>(null);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [showIntroPanel, setShowIntroPanel] = useState(false);
   const [, setLocation] = useLocation();
 
   useEffect(() => {
@@ -104,6 +112,20 @@ export default function Home() {
       setLocation("/dashboard", { replace: true });
     }
   }, []);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const key = INTRO_DISMISSED_KEY(user.id);
+    if (!localStorage.getItem(key)) {
+      setShowIntroPanel(true);
+    }
+  }, [user?.id]);
+
+  const dismissIntroPanel = () => {
+    if (!user?.id) return;
+    localStorage.setItem(INTRO_DISMISSED_KEY(user.id), "1");
+    setShowIntroPanel(false);
+  };
 
   const { data: empresa } = useQuery<Empresa>({ queryKey: ["/api/empresa"] });
   const empresaId = empresa?.id;
@@ -213,6 +235,96 @@ export default function Home() {
 
   return (
     <div className="space-y-6">
+      {showIntroPanel && (
+        <Card className="border-primary/20 bg-primary/5 dark:bg-primary/10" data-testid="card-intro-boas-vindas">
+          <div className="p-6 space-y-5">
+            {/* Saudação */}
+            <div className="flex items-start gap-3">
+              <div className="h-9 w-9 rounded-md bg-primary flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Sparkles className="h-5 w-5 text-primary-foreground" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold leading-tight">
+                  Bem-vindo ao BizGuideAI{user?.nome ? `, ${user.nome.split(" ")[0]}` : ""}!
+                </h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Você está a poucos passos de construir a estratégia completa da sua empresa — de forma guiada e com apoio de inteligência artificial em cada etapa.
+                </p>
+              </div>
+            </div>
+
+            {/* Jornada Estratégica */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <Target className="h-4 w-4 text-primary flex-shrink-0" />
+                <span>A Jornada Estratégica Guiada</span>
+              </div>
+              <p className="text-sm text-muted-foreground pl-6">
+                A jornada é composta por <span className="font-medium text-foreground">12 etapas sequenciais</span>, cada uma construindo sobre a anterior. As etapas se desbloqueiam progressivamente conforme você avança — assim você segue um caminho estruturado, sem perder o fio da meada. Em cada etapa, a IA sugere benchmarks, identifica lacunas e gera diagnósticos automáticos para acelerar o seu trabalho.
+              </p>
+              <p className="text-sm text-muted-foreground pl-6">
+                Você começa pelo <span className="font-medium text-foreground">Perfil da Empresa</span> e avança por diagnóstico, análise de mercado, modelo de negócio, estratégias, metas e acompanhamento. O painel de progresso acima da jornada mostra onde você está a qualquer momento.
+              </p>
+            </div>
+
+            {/* Grupos da sidebar */}
+            <div className="space-y-2">
+              <p className="text-sm font-semibold">O que você encontra nos menus da barra lateral:</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-0">
+                <div className="flex items-start gap-3 rounded-md bg-background/60 p-3">
+                  <Compass className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium">Mapa de Contexto</p>
+                    <p className="text-xs text-muted-foreground">Cenário externo, mercado e concorrência, modelo de negócio e forças &amp; fraquezas.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 rounded-md bg-background/60 p-3">
+                  <TrendingUp className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium">Apostas Estratégicas</p>
+                    <p className="text-xs text-muted-foreground">Estratégias definidas, oportunidades de crescimento e iniciativas prioritárias.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 rounded-md bg-background/60 p-3">
+                  <Map className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium">Execução e Marcha</p>
+                    <p className="text-xs text-muted-foreground">Metas e resultados (OKRs), indicadores de performance e rituais de acompanhamento.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 rounded-md bg-background/60 p-3">
+                  <Zap className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium">Análise Avançada</p>
+                    <p className="text-xs text-muted-foreground">Cenários estratégicos, gestão de riscos, rastreabilidade, alertas e exportação.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Checkbox "Não mostrar isso novamente" */}
+            <div className="pt-1 border-t">
+              <label
+                htmlFor="check-intro-dismiss"
+                className="flex items-center gap-2.5 cursor-pointer w-fit"
+                data-testid="label-nao-mostrar-novamente"
+              >
+                <Checkbox
+                  id="check-intro-dismiss"
+                  data-testid="checkbox-nao-mostrar-novamente"
+                  onCheckedChange={(checked) => {
+                    if (checked) dismissIntroPanel();
+                  }}
+                />
+                <span className="text-sm text-muted-foreground select-none">
+                  Não mostrar isso novamente
+                </span>
+              </label>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {showWelcome && (
         <Card className="p-5 border-primary/20 bg-primary/5 dark:bg-primary/10" data-testid="card-boas-vindas">
           <div className="flex items-start gap-4">

@@ -1867,8 +1867,9 @@ Responda APENAS em JSON válido com exatamente este formato:
 
       // Enriquecer contexto com campos adicionais do perfil
       let contextoRico = "";
+      let empresaCompleta: Awaited<ReturnType<typeof storage.getEmpresa>> | null = null;
       if (req.session?.empresaId) {
-        const empresaCompleta = await storage.getEmpresa(req.session.empresaId);
+        empresaCompleta = await storage.getEmpresa(req.session.empresaId);
         if (empresaCompleta) {
           contextoRico = buildEmpresaContextoIA(empresaCompleta);
         }
@@ -1930,15 +1931,16 @@ Responda APENAS em JSON válido com exatamente este formato:
       const { nomeEmpresa, setor, descricao, tipo } = req.body;
       
       let contextoPerfil = `Empresa: ${nomeEmpresa}\nSetor: ${setor}\nDescrição: ${descricao || "Não informada"}`;
+      let swotEmpresa: Awaited<ReturnType<typeof storage.getEmpresa>> | null = null;
       if (req.session?.empresaId) {
-        const empresaCompleta = await storage.getEmpresa(req.session.empresaId);
-        if (empresaCompleta) contextoPerfil = buildEmpresaContextoIA(empresaCompleta);
+        swotEmpresa = await storage.getEmpresa(req.session.empresaId);
+        if (swotEmpresa) contextoPerfil = buildEmpresaContextoIA(swotEmpresa);
       }
 
       const tipoLabel = tipo === "forca" ? "forças" : tipo === "fraqueza" ? "fraquezas" : tipo === "oportunidade" ? "oportunidades" : "ameaças";
       
       const completion = await openai.chat.completions.create({
-        model: getModelForPlan(empresaCompleta?.planoTipo, "relatorios"),
+        model: getModelForPlan(swotEmpresa?.planoTipo, "relatorios"),
         messages: await injectMacroCtx([
           {
             role: "system",

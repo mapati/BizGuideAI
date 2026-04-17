@@ -225,7 +225,7 @@ async function runStartupMigrations() {
         AND modelo_busca_pro_ent     = 'gpt-4o'
     `);
 
-    // Task #80 — Google Custom Search daily usage counter (persisted, restart-safe)
+    // Task #80/#86 — Web search usage counter (Serper.dev, persisted, restart-safe)
     await client.query(`
       CREATE TABLE IF NOT EXISTS google_search_usage (
         date VARCHAR PRIMARY KEY,

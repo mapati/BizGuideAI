@@ -88,7 +88,7 @@ const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
-// Serper.dev search helper — replaces Google Custom Search JSON API.
+// Serper.dev search helper — replaces the previous Google Custom Search integration.
 // Requires SERPER_API_KEY. Returns an empty array if the key is missing,
 // so all callers get a graceful fallback without web search.
 interface SerperSearchItem { title: string; snippet: string; link: string }

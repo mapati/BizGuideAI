@@ -5492,11 +5492,11 @@ Seja específico para o setor ${empresa.setor}.`,
     return d;
   }
 
-  // Short search queries per Contexto Macro category — optimised for Google CSE
+  // Short search queries per Contexto Macro category — optimised for Google CSE.
+  // Keys must match CATEGORIAS_PROMPTS above; missing keys fall back to a generic query.
   const CATEGORIAS_QUERIES: Record<string, string> = {
     cambio_politica_monetaria:    "câmbio real dólar Selic política monetária COPOM Brasil 2025",
-    selic_inflacao:               "Selic inflação IPCA juros Banco Central Brasil 2025",
-    politica_fiscal:              "política fiscal dívida pública déficit orçamento governo Brasil 2025",
+    inflacao_custos:              "inflação IPCA IGP-M combustíveis energia custos insumos Brasil 2025",
     cenario_politico_regulatorio: "cenário político regulatório governo reforma tributária Brasil 2025",
     geopolitica_comercio_exterior:"geopolítica comércio exterior exportações Brasil EUA China 2025",
     crises_setoriais:             "crises setoriais falências PME indústria varejo Brasil 2025",

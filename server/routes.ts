@@ -594,7 +594,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const loginPlanoLimits = empresa ? getPlanLimits(empresa.planoTipo) : PLAN_LIMITS.start;
       res.json({
-        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresaId: usuario.empresaId, isAdmin: usuario.isAdmin, role: usuario.role },
+        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresaId: usuario.empresaId, isAdmin: usuario.isAdmin, role: usuario.role, createdAt: usuario.createdAt },
         empresa,
         trialInfo: empresa ? computeTrialInfo(empresa) : null,
         planoInfo: {
@@ -661,7 +661,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const planoLimits = empresa ? getPlanLimits(empresa.planoTipo) : PLAN_LIMITS.start;
       res.json({
-        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresaId: usuario.empresaId, isAdmin: usuario.isAdmin, role: usuario.role },
+        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresaId: usuario.empresaId, isAdmin: usuario.isAdmin, role: usuario.role, createdAt: usuario.createdAt },
         empresa,
         trialInfo: empresa ? computeTrialInfo(empresa) : null,
         planoInfo: {

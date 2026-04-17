@@ -9,6 +9,7 @@ interface Usuario {
   empresaId: string | null;
   isAdmin: boolean;
   role: "admin" | "membro";
+  createdAt?: string | Date | null;
 }
 
 interface TrialInfo {

@@ -191,6 +191,26 @@ async function runStartupMigrations() {
     await client.query(`ALTER TABLE configuracoes_ia ADD COLUMN IF NOT EXISTS modelo_busca_pro_ent TEXT NOT NULL DEFAULT 'gpt-4o-search-preview'`);
     // Ensure the singleton config row always exists so DB is the only source of model defaults
     await client.query(`INSERT INTO configuracoes_ia (id) VALUES (1) ON CONFLICT (id) DO NOTHING`);
+    // Backfill: for existing installs that have customised the legacy 3-field config, inherit those
+    // values into the new per-plan columns — but only when the new columns still hold their initial
+    // defaults (i.e. have not yet been independently customised via the new admin UI).
+    await client.query(`
+      UPDATE configuracoes_ia
+      SET
+        modelo_padrao_start      = modelo_padrao,
+        modelo_relatorios_start  = modelo_padrao,
+        modelo_busca_start       = modelo_busca,
+        modelo_padrao_pro_ent    = modelo_padrao,
+        modelo_relatorios_pro_ent = modelo_relatorios,
+        modelo_busca_pro_ent     = modelo_busca
+      WHERE
+        modelo_padrao_start      = 'gpt-4.1-mini'
+        AND modelo_relatorios_start  = 'gpt-4.1-mini'
+        AND modelo_busca_start       = 'gpt-4o-search-preview'
+        AND modelo_padrao_pro_ent    = 'gpt-4.1-mini'
+        AND modelo_relatorios_pro_ent = 'gpt-4.1'
+        AND modelo_busca_pro_ent     = 'gpt-4o-search-preview'
+    `);
 
     // Seed: ensure the platform admin from env vars exists and has the correct password
     const adminEmail = process.env.ADMIN_EMAIL;

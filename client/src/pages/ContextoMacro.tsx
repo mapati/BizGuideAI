@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import {
   AlertCircle,
+  AlertTriangle,
   BrainCircuit,
   CalendarClock,
   CheckCircle2,
@@ -24,6 +25,7 @@ import {
   Clock,
   Eye,
   EyeOff,
+  Globe,
   Loader2,
   RefreshCw,
   ShieldAlert,
@@ -103,9 +105,11 @@ function StatusBadge({ cat }: { cat: ContextoMacro }) {
 function CategoriaCard({
   cat,
   onRefetch,
+  webSearchAtivo,
 }: {
   cat: ContextoMacro;
   onRefetch: () => void;
+  webSearchAtivo: boolean | undefined;
 }) {
   const { toast } = useToast();
   const [expanded, setExpanded] = useState(false);
@@ -355,7 +359,7 @@ function CategoriaCard({
           <Separator />
 
           {/* Actions */}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               size="sm"
               onClick={() => gerarMutation.mutate()}
@@ -369,6 +373,24 @@ function CategoriaCard({
               )}
               {gerarMutation.isPending ? "Gerando..." : "Gerar com IA"}
             </Button>
+            {webSearchAtivo === true && (
+              <span
+                className="flex items-center gap-1 text-[11px] text-green-700 dark:text-green-400"
+                data-testid={`badge-websearch-ativo-${cat.categoria}`}
+              >
+                <Globe className="h-3 w-3" />
+                busca na web ativa
+              </span>
+            )}
+            {webSearchAtivo === false && (
+              <span
+                className="flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-400"
+                data-testid={`badge-websearch-fallback-${cat.categoria}`}
+              >
+                <AlertTriangle className="h-3 w-3" />
+                fallback — sem web search
+              </span>
+            )}
           </div>
 
           <Separator />
@@ -465,6 +487,11 @@ export default function ContextoMacroPage() {
     enabled: !!user?.isAdmin,
   });
 
+  const { data: aiStatus } = useQuery<{ webSearchAtivo: boolean }>({
+    queryKey: ["/api/admin/ai-status"],
+    enabled: !!user?.isAdmin,
+  });
+
   if (!user?.isAdmin) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 px-4" data-testid="acesso-negado">
@@ -547,7 +574,12 @@ export default function ContextoMacroPage() {
       ) : (
         <div className="space-y-3">
           {(categorias ?? []).map((cat) => (
-            <CategoriaCard key={cat.categoria} cat={cat} onRefetch={() => refetch()} />
+            <CategoriaCard
+              key={cat.categoria}
+              cat={cat}
+              onRefetch={() => refetch()}
+              webSearchAtivo={aiStatus?.webSearchAtivo}
+            />
           ))}
         </div>
       )}

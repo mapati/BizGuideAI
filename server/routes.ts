@@ -114,23 +114,19 @@ async function buildContextoMacroIA(): Promise<string> {
   }
 }
 
-/* Auto-inject macro context into every openai.chat.completions.create call */
-const _origChatCreate = openai.chat.completions.create.bind(openai.chat.completions);
-(openai.chat.completions as any).create = async (params: any, options?: any) => {
+/* Typed helper — injects macro context into a messages array */
+async function injectMacroCtx(
+  messages: OpenAI.Chat.ChatCompletionMessageParam[]
+): Promise<OpenAI.Chat.ChatCompletionMessageParam[]> {
   const macroCtx = await buildContextoMacroIA();
-  if (macroCtx && Array.isArray(params.messages)) {
-    params = {
-      ...params,
-      messages: params.messages.map((msg: any) => {
-        if (msg.role === "system" && typeof msg.content === "string") {
-          return { ...msg, content: msg.content + macroCtx };
-        }
-        return msg;
-      }),
-    };
-  }
-  return _origChatCreate(params, options);
-};
+  if (!macroCtx) return messages;
+  return messages.map((msg) => {
+    if (msg.role === "system" && typeof msg.content === "string") {
+      return { ...msg, content: msg.content + macroCtx };
+    }
+    return msg;
+  });
+}
 
 function isPrivateIp(ip: string): boolean {
   // Handle IPv4-mapped IPv6 addresses (::ffff:x.x.x.x)
@@ -1880,7 +1876,7 @@ Responda APENAS em JSON válido com exatamente este formato:
       
       const completion = await openai.chat.completions.create({
         model: getModelForPlan(empresaCompleta?.planoTipo, "relatorios"),
-        messages: [
+        messages: await injectMacroCtx([
           {
             role: "system",
             content: `Você é um consultor estratégico especializado em análise de cenário externo para empresas brasileiras. Sua função é produzir análises CONCRETAS e ESPECÍFICAS com dados reais — nunca texto genérico. Use sempre linguagem simples e direta, sem jargões técnicos. Quando tiver contexto de pesquisa disponível, use-o obrigatoriamente: cite percentuais, nomes de leis, taxas e tendências reais.`,
@@ -1889,7 +1885,7 @@ Responda APENAS em JSON válido com exatamente este formato:
             role: "user",
             content: `${perfilEmpresa}${cenarioContext}${regrasEspecificidadePestel}\n\nCrie EXATAMENTE 6 fatores externos (um para cada categoria PESTEL):\n1. Um fator POLÍTICO (tipo: "politico")\n2. Um fator ECONÔMICO (tipo: "economico")\n3. Um fator SOCIAL (tipo: "social")\n4. Um fator TECNOLÓGICO (tipo: "tecnologico")\n5. Um fator AMBIENTAL (tipo: "ambiental")\n6. Um fator LEGAL (tipo: "legal")\n\nPara cada fator, forneça:\n- tipo: exatamente como indicado acima (politico, economico, social, tecnologico, ambiental, legal)\n- descricao: descrição ESPECÍFICA com dados concretos do contexto pesquisado (percentuais, nomes, datas, leis)\n- impacto: "alto", "médio" ou "baixo"\n- evidencia: explicação ESPECÍFICA de por que este fator importa para esta empresa, com consequências práticas concretas\n\nResponda OBRIGATORIAMENTE em JSON com este formato exato:\n{\n  "fatores": [\n    {"tipo": "politico", "descricao": "...", "impacto": "alto", "evidencia": "..."},\n    {"tipo": "economico", "descricao": "...", "impacto": "médio", "evidencia": "..."},\n    {"tipo": "social", "descricao": "...", "impacto": "...", "evidencia": "..."},\n    {"tipo": "tecnologico", "descricao": "...", "impacto": "...", "evidencia": "..."},\n    {"tipo": "ambiental", "descricao": "...", "impacto": "...", "evidencia": "..."},\n    {"tipo": "legal", "descricao": "...", "impacto": "...", "evidencia": "..."}\n  ]\n}`,
           },
-        ],
+        ]),
         response_format: { type: "json_object" },
         temperature: 0.4,
       });
@@ -1915,7 +1911,7 @@ Responda APENAS em JSON válido com exatamente este formato:
       
       const completion = await openai.chat.completions.create({
         model: getModelForPlan(empresaCompleta?.planoTipo, "relatorios"),
-        messages: [
+        messages: await injectMacroCtx([
           {
             role: "system",
             content: `Você é um consultor estratégico especializado em análise de negócios. Use sempre linguagem simples e direta, sem jargões técnicos.`
@@ -1924,7 +1920,7 @@ Responda APENAS em JSON válido com exatamente este formato:
             role: "user",
             content: `## PERFIL DA EMPRESA\n${contextoPerfil}\n\nSugira 4-5 ${tipoLabel} relevantes para esta empresa. Para cada item, forneça uma descrição clara e o nível de impacto (alto/médio/baixo). Responda em JSON com formato: [{descricao, impacto}]`
           }
-        ],
+        ]),
         response_format: { type: "json_object" },
         temperature: 0.7,
       });
@@ -1969,7 +1965,7 @@ Responda APENAS em JSON válido com exatamente este formato:
 
       const completion = await openai.chat.completions.create({
         model: getModelForPlan(empresa.planoTipo, "relatorios"),
-        messages: [
+        messages: await injectMacroCtx([
           {
             role: "system",
             content: `Você é um consultor estratégico sênior especializado em análise SWOT. Sua missão é identificar com precisão forças, fraquezas, oportunidades e ameaças relevantes e específicas da empresa. Use sempre linguagem simples e direta, sem jargões técnicos. IMPORTANTE: Nunca repita itens que já foram identificados anteriormente.
@@ -2007,7 +2003,7 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
   "impacto": "alto"
 }`
           }
-        ],
+        ]),
         response_format: { type: "json_object" },
         temperature: 0.8,
       });
@@ -2326,7 +2322,7 @@ Fontes disponíveis: ${todasFontesNomes}.`;
       // ── GENERATE SWOT ──────────────────────────────────────────────────────
       const completion = await openai.chat.completions.create({
         model: getModelForPlan(empresa.planoTipo, "relatorios"),
-        messages: [
+        messages: await injectMacroCtx([
           { role: "system", content: systemPrompt },
           {
             role: "user",
@@ -2355,7 +2351,7 @@ Responda em JSON:
   ]
 }`,
           },
-        ],
+        ]),
         response_format: { type: "json_object" },
         temperature: generationTemperature,
       });
@@ -2879,7 +2875,7 @@ ${ctx.join("\n\n")}`;
 
       const completion = await openai.chat.completions.create({
         model: getModelForPlan(empresa?.planoTipo, "relatorios"),
-        messages,
+        messages: await injectMacroCtx(messages),
         temperature: 0.7,
         max_tokens: 700,
       });
@@ -2896,7 +2892,7 @@ ${ctx.join("\n\n")}`;
       
       const completion = await openai.chat.completions.create({
         model: AI_MODELS.padrao,
-        messages: [
+        messages: await injectMacroCtx([
           {
             role: "system",
             content: `Você é um mentor de negócios que explica conceitos estratégicos de forma simples e acessível, como se estivesse conversando com alguém que não tem experiência em planejamento estratégico. Use exemplos práticos e linguagem do dia a dia.`
@@ -2905,7 +2901,7 @@ ${ctx.join("\n\n")}`;
             role: "user",
             content: `Explique em até 3 parágrafos curtos: ${conceito}${contexto ? `\n\nContexto: ${contexto}` : ""}`
           }
-        ],
+        ]),
         temperature: 0.7,
       });
 
@@ -2983,7 +2979,7 @@ ${ctx.join("\n\n")}`;
 
       const completion = await openai.chat.completions.create({
         model: getModelForPlan(empresa.planoTipo, "relatorios"),
-        messages: [
+        messages: await injectMacroCtx([
           {
             role: "system",
             content: `Você é um consultor estratégico sênior especializado em matriz TOWS (SWOT Cruzada). Sua missão é criar estratégias práticas e acionáveis combinando elementos internos e externos. Use sempre linguagem simples e direta, sem jargões técnicos.
@@ -3046,7 +3042,7 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
   ]
 }`
           }
-        ],
+        ]),
         response_format: { type: "json_object" },
         temperature: 0.8,
       });
@@ -5367,8 +5363,10 @@ Seja específico para o setor ${empresa.setor}.`,
 
   async function requireSuperAdmin(req: Request, res: Response, next: NextFunction) {
     if (!req.session?.userId) return res.status(401).json({ error: "Não autenticado" });
+    const adminEmail = process.env.ADMIN_EMAIL;
+    if (!adminEmail) return res.status(403).json({ error: "Acesso restrito" });
     const usuario = await storage.getUsuarioById(req.session.userId);
-    if (!usuario?.isAdmin) return res.status(403).json({ error: "Acesso restrito" });
+    if (!usuario || usuario.email !== adminEmail) return res.status(403).json({ error: "Acesso restrito" });
     next();
   }
 
@@ -5415,11 +5413,21 @@ Seja específico para o setor ${empresa.setor}.`,
     try {
       const { categoria } = req.params;
       const allowed = ["textoAtivo", "rascunho", "ativo", "agendadorAtivo", "agendadorFrequencia", "proximoAgendamento", "alertaDias"] as const;
-      const data: Record<string, any> = {};
+      const data: Record<string, unknown> = {};
       for (const key of allowed) {
         if (key in req.body) data[key] = req.body[key];
       }
-      if (data.proximoAgendamento) data.proximoAgendamento = new Date(data.proximoAgendamento);
+      if (data.proximoAgendamento) data.proximoAgendamento = new Date(data.proximoAgendamento as string);
+
+      // If agendadorAtivo is being turned on, ensure proximoAgendamento is set server-side
+      if (data.agendadorAtivo === true && !data.proximoAgendamento) {
+        const existing = await storage.getContextoMacroByCategoria(categoria);
+        if (existing && !existing.proximoAgendamento) {
+          const freq = (data.agendadorFrequencia as string | undefined) ?? existing.agendadorFrequencia ?? "semanal";
+          data.proximoAgendamento = calcularProximoAgendamento(freq, new Date());
+        }
+      }
+
       const updated = await storage.updateContextoMacro(categoria, data);
       _macroCtxCache = null;
       res.json(updated);

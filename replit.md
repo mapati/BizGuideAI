@@ -137,10 +137,11 @@ A guided onboarding journey implemented across the app:
 **Architecture:**
 - `contexto_macro` DB table with 7 fixed categories (natural varchar PK)
 - `buildContextoMacroIA()` in `server/routes.ts`: fetches active categories, caches for 60s
-- OpenAI `chat.completions.create` is monkey-patched to auto-inject macro context into the system message of EVERY AI call
+- Typed `injectMacroCtx(messages)` helper injects macro context into the system message of key AI routes (pestel, swot, swot-individual, swot-completo, assistente, explicar, gerar-estrategias)
 - Deep research uses `openai.responses.create` with `gpt-4o-mini-search-preview` and web search tool
 - `node-cron` scheduler (hourly) auto-generates and auto-approves categories on schedule
-- `requireSuperAdmin` middleware (checks `isAdmin=true`) guards all `/api/admin/contexto-macro/*` routes
+- `requireSuperAdmin` middleware (checks `email === process.env.ADMIN_EMAIL`) guards all `/api/admin/contexto-macro/*` routes
+- PATCH handler auto-computes `proximoAgendamento` server-side when `agendadorAtivo` is toggled on
 
 **Admin API routes:**
 - `GET /api/admin/contexto-macro` — list all 7 categories

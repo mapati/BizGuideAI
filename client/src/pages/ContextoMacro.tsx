@@ -75,6 +75,14 @@ function StatusBadge({ cat }: { cat: ContextoMacro }) {
       </Badge>
     );
   }
+  if (dias !== null && dias > cat.alertaDias * 2) {
+    return (
+      <Badge className="bg-red-500/15 text-red-700 dark:text-red-400 border border-red-500/30" data-testid={`badge-status-${cat.categoria}`}>
+        <AlertCircle className="h-3 w-3 mr-1" />
+        Crítico ({dias}d)
+      </Badge>
+    );
+  }
   if (dias !== null && dias > cat.alertaDias) {
     return (
       <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30" data-testid={`badge-status-${cat.categoria}`}>
@@ -183,6 +191,14 @@ function CategoriaCard({
           </Button>
         </div>
       </CardHeader>
+
+      {!expanded && cat.textoAtivo && (
+        <CardContent className="pt-0 pb-3">
+          <p className="text-xs text-muted-foreground line-clamp-3" data-testid={`preview-texto-${cat.categoria}`}>
+            {cat.textoAtivo}
+          </p>
+        </CardContent>
+      )}
 
       {expanded && (
         <CardContent className="space-y-4">
@@ -367,15 +383,7 @@ function CategoriaCard({
                 <Switch
                   checked={cat.agendadorAtivo}
                   onCheckedChange={(v) => {
-                    const updates: Partial<ContextoMacro> = { agendadorAtivo: v };
-                    if (v && cat.agendadorFrequencia && !cat.proximoAgendamento) {
-                      const next = new Date();
-                      if (cat.agendadorFrequencia === "diario") next.setDate(next.getDate() + 1);
-                      else if (cat.agendadorFrequencia === "semanal") next.setDate(next.getDate() + 7);
-                      else next.setMonth(next.getMonth() + 1);
-                      updates.proximoAgendamento = next.toISOString() as any;
-                    }
-                    patchMutation.mutate(updates);
+                    patchMutation.mutate({ agendadorAtivo: v });
                   }}
                   data-testid={`switch-agendador-${cat.categoria}`}
                   disabled={isAnyPending}
@@ -416,7 +424,7 @@ function CategoriaCard({
                   }
                   onChange={(e) =>
                     patchMutation.mutate({
-                      proximoAgendamento: e.target.value ? (new Date(e.target.value).toISOString() as any) : null,
+                      proximoAgendamento: e.target.value ? new Date(e.target.value).toISOString() : null,
                     })
                   }
                   data-testid={`input-proximo-agendamento-${cat.categoria}`}

@@ -430,9 +430,9 @@ export default function Onboarding() {
   };
 
   const wizardSteps = [
-    { label: "Informações", icon: Building2 },
-    { label: "Tamanho", icon: Users },
-    { label: "Sobre o Negócio", icon: Globe },
+    { label: "Informações" },
+    { label: "Tamanho" },
+    { label: "Sobre o Negócio" },
   ];
 
   return (
@@ -552,31 +552,19 @@ export default function Onboarding() {
                           </label>
                         </Button>
                         {formData.logoUrl && (
-                          <>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => atualizarEmpresaMutation.mutate({ ...formData })}
-                              disabled={atualizarEmpresaMutation.isPending}
-                              data-testid="button-salvar-logo"
-                            >
-                              {atualizarEmpresaMutation.isPending ? "Salvando..." : "Salvar Logotipo"}
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setFormData((prev) => ({ ...prev, logoUrl: "" }));
-                                atualizarEmpresaMutation.mutate({ ...formData, logoUrl: "" });
-                              }}
-                              data-testid="button-remove-logo"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Remover
-                            </Button>
-                          </>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setFormData((prev) => ({ ...prev, logoUrl: "" }));
+                              atualizarEmpresaMutation.mutate({ ...formData, logoUrl: "" });
+                            }}
+                            data-testid="button-remove-logo"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Remover
+                          </Button>
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground w-full">JPG ou PNG, máx. 2 MB.</p>

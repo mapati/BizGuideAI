@@ -5400,14 +5400,12 @@ Seja específico para o setor ${empresa.setor}.`,
 
     // Prefer web search via standard OpenAI API (api.openai.com) when available
     if (openaiSearch) {
-      type ResponsesToolParam = { type: "web_search_preview" };
       const response = await openaiSearch.responses.create({
         model: AI_MODELS.busca,
-        tools: [{ type: "web_search_preview" } as unknown as ResponsesToolParam],
+        tools: [{ type: "web_search_preview" }],
         input: prompt,
       });
-      const typed = response as unknown as { output_text?: string };
-      return (typed.output_text ?? "").trim();
+      return (response.output_text ?? "").trim();
     }
 
     // Fallback: use Azure client with chat completions (no web search)

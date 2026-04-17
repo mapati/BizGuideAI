@@ -182,6 +182,14 @@ async function runStartupMigrations() {
       WHERE modelo_busca = 'gpt-4o-mini-search-preview'
     `);
 
+    // Task #77 — Per-plan AI model configuration (Start / Pro)
+    await client.query(`ALTER TABLE configuracoes_ia ADD COLUMN IF NOT EXISTS modelo_padrao_start TEXT NOT NULL DEFAULT 'gpt-4.1-mini'`);
+    await client.query(`ALTER TABLE configuracoes_ia ADD COLUMN IF NOT EXISTS modelo_relatorios_start TEXT NOT NULL DEFAULT 'gpt-4.1-mini'`);
+    await client.query(`ALTER TABLE configuracoes_ia ADD COLUMN IF NOT EXISTS modelo_busca_start TEXT NOT NULL DEFAULT 'gpt-4o-search-preview'`);
+    await client.query(`ALTER TABLE configuracoes_ia ADD COLUMN IF NOT EXISTS modelo_padrao_pro_ent TEXT NOT NULL DEFAULT 'gpt-4.1-mini'`);
+    await client.query(`ALTER TABLE configuracoes_ia ADD COLUMN IF NOT EXISTS modelo_relatorios_pro_ent TEXT NOT NULL DEFAULT 'gpt-4.1'`);
+    await client.query(`ALTER TABLE configuracoes_ia ADD COLUMN IF NOT EXISTS modelo_busca_pro_ent TEXT NOT NULL DEFAULT 'gpt-4o-search-preview'`);
+
     // Seed: ensure the platform admin from env vars exists and has the correct password
     const adminEmail = process.env.ADMIN_EMAIL;
     const adminSenha = process.env.ADMIN_SENHA;

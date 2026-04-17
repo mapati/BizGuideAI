@@ -220,8 +220,8 @@ export interface IStorage {
   getPasswordResetToken(token: string): Promise<PasswordResetToken | undefined>;
   markPasswordResetTokenUsed(id: string): Promise<void>;
 
-  getConfiguracoesIA(): Promise<{ modeloPadrao: string; modeloRelatorios: string; modeloBusca: string }>;
-  upsertConfiguracoesIA(config: { modeloPadrao?: string; modeloRelatorios?: string; modeloBusca?: string }): Promise<{ modeloPadrao: string; modeloRelatorios: string; modeloBusca: string }>;
+  getConfiguracoesIA(): Promise<{ modeloPadrao: string; modeloRelatorios: string; modeloBusca: string; modeloPadraoStart: string; modeloRelatoriosStart: string; modeloBuscaStart: string; modeloPadraoProEnt: string; modeloRelatoriosProEnt: string; modeloBuscaProEnt: string }>;
+  upsertConfiguracoesIA(config: { modeloPadrao?: string; modeloRelatorios?: string; modeloBusca?: string; modeloPadraoStart?: string; modeloRelatoriosStart?: string; modeloBuscaStart?: string; modeloPadraoProEnt?: string; modeloRelatoriosProEnt?: string; modeloBuscaProEnt?: string }): Promise<{ modeloPadrao: string; modeloRelatorios: string; modeloBusca: string; modeloPadraoStart: string; modeloRelatoriosStart: string; modeloBuscaStart: string; modeloPadraoProEnt: string; modeloRelatoriosProEnt: string; modeloBuscaProEnt: string }>;
 
   getContextoMacroAll(): Promise<ContextoMacro[]>;
   getContextoMacroAtivos(): Promise<ContextoMacro[]>;
@@ -855,20 +855,46 @@ export class DbStorage implements IStorage {
     await db.update(passwordResetTokens).set({ usedAt: new Date() }).where(eq(passwordResetTokens.id, id));
   }
 
-  async getConfiguracoesIA(): Promise<{ modeloPadrao: string; modeloRelatorios: string; modeloBusca: string }> {
+  async getConfiguracoesIA(): Promise<{ modeloPadrao: string; modeloRelatorios: string; modeloBusca: string; modeloPadraoStart: string; modeloRelatoriosStart: string; modeloBuscaStart: string; modeloPadraoProEnt: string; modeloRelatoriosProEnt: string; modeloBuscaProEnt: string }> {
     const result = await db.select().from(configuracoesIa).where(eq(configuracoesIa.id, 1)).limit(1);
     if (result[0]) {
-      return { modeloPadrao: result[0].modeloPadrao, modeloRelatorios: result[0].modeloRelatorios, modeloBusca: result[0].modeloBusca };
+      return {
+        modeloPadrao:          result[0].modeloPadrao,
+        modeloRelatorios:      result[0].modeloRelatorios,
+        modeloBusca:           result[0].modeloBusca,
+        modeloPadraoStart:     result[0].modeloPadraoStart,
+        modeloRelatoriosStart: result[0].modeloRelatoriosStart,
+        modeloBuscaStart:      result[0].modeloBuscaStart,
+        modeloPadraoProEnt:    result[0].modeloPadraoProEnt,
+        modeloRelatoriosProEnt:result[0].modeloRelatoriosProEnt,
+        modeloBuscaProEnt:     result[0].modeloBuscaProEnt,
+      };
     }
-    return { modeloPadrao: "gpt-4.1-mini", modeloRelatorios: "gpt-4.1", modeloBusca: "gpt-4o-search-preview" };
+    return {
+      modeloPadrao:           "gpt-4.1-mini",
+      modeloRelatorios:       "gpt-4.1",
+      modeloBusca:            "gpt-4o-search-preview",
+      modeloPadraoStart:      "gpt-4.1-mini",
+      modeloRelatoriosStart:  "gpt-4.1-mini",
+      modeloBuscaStart:       "gpt-4o-search-preview",
+      modeloPadraoProEnt:     "gpt-4.1-mini",
+      modeloRelatoriosProEnt: "gpt-4.1",
+      modeloBuscaProEnt:      "gpt-4o-search-preview",
+    };
   }
 
-  async upsertConfiguracoesIA(config: { modeloPadrao?: string; modeloRelatorios?: string; modeloBusca?: string }): Promise<{ modeloPadrao: string; modeloRelatorios: string; modeloBusca: string }> {
+  async upsertConfiguracoesIA(config: { modeloPadrao?: string; modeloRelatorios?: string; modeloBusca?: string; modeloPadraoStart?: string; modeloRelatoriosStart?: string; modeloBuscaStart?: string; modeloPadraoProEnt?: string; modeloRelatoriosProEnt?: string; modeloBuscaProEnt?: string }): Promise<{ modeloPadrao: string; modeloRelatorios: string; modeloBusca: string; modeloPadraoStart: string; modeloRelatoriosStart: string; modeloBuscaStart: string; modeloPadraoProEnt: string; modeloRelatoriosProEnt: string; modeloBuscaProEnt: string }> {
     const defaults = await this.getConfiguracoesIA();
     const merged = {
-      modeloPadrao: config.modeloPadrao ?? defaults.modeloPadrao,
-      modeloRelatorios: config.modeloRelatorios ?? defaults.modeloRelatorios,
-      modeloBusca: config.modeloBusca ?? defaults.modeloBusca,
+      modeloPadrao:           config.modeloPadrao           ?? defaults.modeloPadrao,
+      modeloRelatorios:       config.modeloRelatorios       ?? defaults.modeloRelatorios,
+      modeloBusca:            config.modeloBusca            ?? defaults.modeloBusca,
+      modeloPadraoStart:      config.modeloPadraoStart      ?? defaults.modeloPadraoStart,
+      modeloRelatoriosStart:  config.modeloRelatoriosStart  ?? defaults.modeloRelatoriosStart,
+      modeloBuscaStart:       config.modeloBuscaStart       ?? defaults.modeloBuscaStart,
+      modeloPadraoProEnt:     config.modeloPadraoProEnt     ?? defaults.modeloPadraoProEnt,
+      modeloRelatoriosProEnt: config.modeloRelatoriosProEnt ?? defaults.modeloRelatoriosProEnt,
+      modeloBuscaProEnt:      config.modeloBuscaProEnt      ?? defaults.modeloBuscaProEnt,
     };
     await db.insert(configuracoesIa)
       .values({ id: 1, ...merged, atualizadoEm: new Date() })

@@ -960,6 +960,12 @@ interface ConfigIA {
   modeloPadrao: string;
   modeloRelatorios: string;
   modeloBusca: string;
+  modeloPadraoStart: string;
+  modeloRelatoriosStart: string;
+  modeloBuscaStart: string;
+  modeloPadraoProEnt: string;
+  modeloRelatoriosProEnt: string;
+  modeloBuscaProEnt: string;
 }
 
 const OPCOES_PADRAO = [
@@ -977,8 +983,8 @@ const OPCOES_RELATORIOS = [
 ];
 
 const OPCOES_BUSCA = [
-  { value: "gpt-4o-mini-search-preview", label: "GPT-4o Mini Search Preview", desc: "Web Search · Recomendado" },
-  { value: "gpt-4o-search-preview",      label: "GPT-4o Search Preview",      desc: "Web Search · Mais poderoso" },
+  { value: "gpt-4o-search-preview",      label: "GPT-4o Search Preview",      desc: "Web Search · Recomendado" },
+  { value: "gpt-4o-mini-search-preview", label: "GPT-4o Mini Search Preview", desc: "Web Search · Econômico · Legado" },
 ];
 
 function ModelSelector({
@@ -1036,21 +1042,34 @@ function TabConfigIA() {
     queryKey: ["/api/admin/ai-status"],
   });
 
-  const [modeloPadrao,     setModeloPadrao]     = useState("gpt-4.1-mini");
-  const [modeloRelatorios, setModeloRelatorios] = useState("gpt-4.1");
-  const [modeloBusca,      setModeloBusca]      = useState("gpt-4o-mini-search-preview");
+  const [startPadrao,      setStartPadrao]      = useState("");
+  const [startRelatorios,  setStartRelatorios]  = useState("");
+  const [startBusca,       setStartBusca]       = useState("");
+  const [proEntPadrao,     setProEntPadrao]     = useState("");
+  const [proEntRelatorios, setProEntRelatorios] = useState("");
+  const [proEntBusca,      setProEntBusca]      = useState("");
 
   useEffect(() => {
     if (config) {
-      setModeloPadrao(config.modeloPadrao);
-      setModeloRelatorios(config.modeloRelatorios);
-      setModeloBusca(config.modeloBusca);
+      setStartPadrao(config.modeloPadraoStart);
+      setStartRelatorios(config.modeloRelatoriosStart);
+      setStartBusca(config.modeloBuscaStart);
+      setProEntPadrao(config.modeloPadraoProEnt);
+      setProEntRelatorios(config.modeloRelatoriosProEnt);
+      setProEntBusca(config.modeloBuscaProEnt);
     }
   }, [config]);
 
   const salvar = useMutation({
     mutationFn: () =>
-      apiRequest("PATCH", "/api/admin/config-ia", { modeloPadrao, modeloRelatorios, modeloBusca }),
+      apiRequest("PATCH", "/api/admin/config-ia", {
+        modeloPadraoStart:      startPadrao,
+        modeloRelatoriosStart:  startRelatorios,
+        modeloBuscaStart:       startBusca,
+        modeloPadraoProEnt:     proEntPadrao,
+        modeloRelatoriosProEnt: proEntRelatorios,
+        modeloBuscaProEnt:      proEntBusca,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/config-ia"] });
       toast({ title: "Configuração salva", description: "Os modelos de IA foram atualizados com sucesso." });
@@ -1064,43 +1083,88 @@ function TabConfigIA() {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-8 max-w-2xl">
       <div className="flex items-start gap-3 p-4 rounded-md border bg-muted/40">
         <Brain className="h-5 w-5 text-primary shrink-0 mt-0.5" />
         <div>
-          <p className="text-sm font-medium">Modelos de Linguagem (LLM)</p>
+          <p className="text-sm font-medium">Modelos de Linguagem (LLM) por Plano</p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Escolha qual modelo OpenAI será usado em cada tipo de chamada. A mudança entra em vigor imediatamente e persiste entre reinicializações.
+            Configure qual modelo OpenAI será usado para cada tipo de chamada e plano. As mudanças entram em vigor imediatamente e persistem entre reinicializações.
           </p>
         </div>
       </div>
 
-      <ModelSelector
-        label="Modelo Padrão — Jornada Estratégica"
-        description="Usado nos ~25 passos da jornada guiada (diagnóstico, SWOT, OKRs, estratégias, metas, etc.)."
-        value={modeloPadrao}
-        onChange={setModeloPadrao}
-        opcoes={OPCOES_PADRAO}
-        testId="select-modelo-padrao"
-      />
+      {/* Plano Start */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-2">Plano Start</span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
 
-      <ModelSelector
-        label="Modelo de Relatórios — Análises Complexas"
-        description="Usado na geração de relatórios executivos, planos completos e sínteses estratégicas (~6 chamadas)."
-        value={modeloRelatorios}
-        onChange={setModeloRelatorios}
-        opcoes={OPCOES_RELATORIOS}
-        testId="select-modelo-relatorios"
-      />
+        <ModelSelector
+          label="Modelo Padrão — Jornada Estratégica (Start)"
+          description="Usado nos ~25 passos da jornada guiada para usuários Start (diagnóstico, SWOT, OKRs, etc.)."
+          value={startPadrao}
+          onChange={setStartPadrao}
+          opcoes={OPCOES_PADRAO}
+          testId="select-start-modelo-padrao"
+        />
 
-      <ModelSelector
-        label="Modelo de Busca Web — Cenário Externo e Mercado"
-        description="Usado nas etapas que consultam a internet para análise de mercado, concorrência e tendências."
-        value={modeloBusca}
-        onChange={setModeloBusca}
-        opcoes={OPCOES_BUSCA}
-        testId="select-modelo-busca"
-      />
+        <ModelSelector
+          label="Modelo de Relatórios — Análises Complexas (Start)"
+          description="Usado na geração de relatórios executivos e sínteses estratégicas para usuários Start."
+          value={startRelatorios}
+          onChange={setStartRelatorios}
+          opcoes={OPCOES_RELATORIOS}
+          testId="select-start-modelo-relatorios"
+        />
+
+        <ModelSelector
+          label="Modelo de Busca Web — Cenário Externo (Start)"
+          description="Usado nas etapas de pesquisa na internet (PESTEL, concorrência, mercado) para usuários Start."
+          value={startBusca}
+          onChange={setStartBusca}
+          opcoes={OPCOES_BUSCA}
+          testId="select-start-modelo-busca"
+        />
+      </div>
+
+      {/* Plano Pro & Enterprise */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-2">Plano Pro & Enterprise</span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+
+        <ModelSelector
+          label="Modelo Padrão — Jornada Estratégica (Pro/Enterprise)"
+          description="Usado nos ~25 passos da jornada guiada para usuários Pro e Enterprise."
+          value={proEntPadrao}
+          onChange={setProEntPadrao}
+          opcoes={OPCOES_PADRAO}
+          testId="select-pro-modelo-padrao"
+        />
+
+        <ModelSelector
+          label="Modelo de Relatórios — Análises Complexas (Pro/Enterprise)"
+          description="Usado na geração de relatórios executivos e sínteses estratégicas para usuários Pro e Enterprise."
+          value={proEntRelatorios}
+          onChange={setProEntRelatorios}
+          opcoes={OPCOES_RELATORIOS}
+          testId="select-pro-modelo-relatorios"
+        />
+
+        <ModelSelector
+          label="Modelo de Busca Web — Cenário Externo (Pro/Enterprise)"
+          description="Usado nas etapas de pesquisa na internet (PESTEL, concorrência, mercado) para usuários Pro e Enterprise."
+          value={proEntBusca}
+          onChange={setProEntBusca}
+          opcoes={OPCOES_BUSCA}
+          testId="select-pro-modelo-busca"
+        />
+      </div>
 
       {aiStatus && !aiStatus.webSearchAtivo && (
         <div
@@ -1113,7 +1177,7 @@ function TabConfigIA() {
               Busca na web indisponível — modo fallback ativo
             </p>
             <p className="text-xs text-yellow-700/80 dark:text-yellow-400/80">
-              O modelo de busca selecionado requer a variável de ambiente <code className="font-mono bg-yellow-500/20 px-1 rounded">OPENAI_API_KEY</code> (OpenAI padrão, não Azure). Enquanto não estiver configurada, a pesquisa PESTEL, análise competitiva e geração do Contexto Macro usarão o modelo de relatórios sem acesso à internet.
+              Os modelos de busca requerem a variável de ambiente <code className="font-mono bg-yellow-500/20 px-1 rounded">OPENAI_API_KEY</code> (OpenAI padrão, não Azure). Enquanto não estiver configurada, a pesquisa PESTEL, análise competitiva e geração do Contexto Macro usarão o modelo de relatórios sem acesso à internet.
             </p>
           </div>
         </div>

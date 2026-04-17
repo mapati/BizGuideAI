@@ -126,7 +126,8 @@ A guided onboarding journey implemented across the app:
 ## External Dependencies
 
 **AI Integration:**
-- OpenAI API (GPT-4o-mini) for generating strategic insights, suggestions, and contextual assistance. Configured via `OPENAI_API_KEY`. Uses temperature 0.8 for creative outputs.
+- OpenAI API for generating strategic insights, suggestions, and contextual assistance. All AI model names are fully configurable via the Admin panel — no hardcoded names in application logic.
+- **Per-plan AI model configuration (Task #77):** The `configuracoes_ia` DB table stores 6 independent model fields: `modeloPadraoStart`, `modeloRelatoriosStart`, `modeloBuscaStart`, `modeloPadraoProEnt`, `modeloRelatoriosProEnt`, `modeloBuscaProEnt`. The Admin super-admin page (Modelos IA tab) exposes two sections (Plano Start / Plano Pro & Enterprise), each with 3 selectors. `getModelForPlan(planoTipo, tier)` in `server/routes.ts` picks the correct model by plan; `AI_MODELS` object holds 6 in-memory keys (start_padrao, start_relatorios, start_busca, pro_padrao, pro_relatorios, pro_busca) loaded from DB at startup and updated live on PATCH. Changes take effect immediately without server restart.
 
 ### Motor de Contexto Macro para IA (Task #61)
 

@@ -303,17 +303,23 @@ function computeTrialInfo(empresa: { planoStatus: string; trialStartedAt: Date |
 
 /* ── Modelos de IA (configuráveis via painel Admin) ── */
 const AI_MODELS = {
-  padrao:     "gpt-4.1-mini",
-  relatorios: "gpt-4.1",
-  busca:      "gpt-4o-search-preview",
+  start_padrao:      "gpt-4.1-mini",
+  start_relatorios:  "gpt-4.1-mini",
+  start_busca:       "gpt-4o-search-preview",
+  pro_padrao:        "gpt-4.1-mini",
+  pro_relatorios:    "gpt-4.1",
+  pro_busca:         "gpt-4o-search-preview",
 };
 
 async function loadModelConfig() {
   try {
     const cfg = await storage.getConfiguracoesIA();
-    AI_MODELS.padrao     = cfg.modeloPadrao;
-    AI_MODELS.relatorios = cfg.modeloRelatorios;
-    AI_MODELS.busca      = cfg.modeloBusca;
+    AI_MODELS.start_padrao      = cfg.modeloPadraoStart;
+    AI_MODELS.start_relatorios  = cfg.modeloRelatoriosStart;
+    AI_MODELS.start_busca       = cfg.modeloBuscaStart;
+    AI_MODELS.pro_padrao        = cfg.modeloPadraoProEnt;
+    AI_MODELS.pro_relatorios    = cfg.modeloRelatoriosProEnt;
+    AI_MODELS.pro_busca         = cfg.modeloBuscaProEnt;
   } catch { /* usa defaults se DB ainda não tiver a tabela */ }
 }
 
@@ -323,11 +329,9 @@ function getPlanLimits(planoTipo: string | null | undefined) {
 }
 
 function getModelForPlan(planoTipo: string | null | undefined, tier: "padrao" | "relatorios" | "busca"): string {
-  const limits = getPlanLimits(planoTipo);
-  if (limits.aiTier === "economy") {
-    return tier === "busca" ? AI_MODELS.busca : AI_MODELS.padrao;
-  }
-  return AI_MODELS[tier];
+  const isPro = planoTipo === "pro" || planoTipo === "enterprise";
+  const prefix = isPro ? "pro" : "start";
+  return AI_MODELS[`${prefix}_${tier}` as keyof typeof AI_MODELS] ?? AI_MODELS.start_padrao;
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -1054,15 +1058,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/admin/config-ia", async (req, res) => {
     try {
       const schema = z.object({
-        modeloPadrao:     z.string().min(1).optional(),
-        modeloRelatorios: z.string().min(1).optional(),
-        modeloBusca:      z.string().min(1).optional(),
+        modeloPadrao:           z.string().min(1).optional(),
+        modeloRelatorios:       z.string().min(1).optional(),
+        modeloBusca:            z.string().min(1).optional(),
+        modeloPadraoStart:      z.string().min(1).optional(),
+        modeloRelatoriosStart:  z.string().min(1).optional(),
+        modeloBuscaStart:       z.string().min(1).optional(),
+        modeloPadraoProEnt:     z.string().min(1).optional(),
+        modeloRelatoriosProEnt: z.string().min(1).optional(),
+        modeloBuscaProEnt:      z.string().min(1).optional(),
       });
       const data = schema.parse(req.body);
       const config = await storage.upsertConfiguracoesIA(data);
-      if (data.modeloPadrao)     AI_MODELS.padrao     = data.modeloPadrao;
-      if (data.modeloRelatorios) AI_MODELS.relatorios = data.modeloRelatorios;
-      if (data.modeloBusca)      AI_MODELS.busca      = data.modeloBusca;
+      if (data.modeloPadraoStart)      AI_MODELS.start_padrao      = data.modeloPadraoStart;
+      if (data.modeloRelatoriosStart)  AI_MODELS.start_relatorios  = data.modeloRelatoriosStart;
+      if (data.modeloBuscaStart)       AI_MODELS.start_busca       = data.modeloBuscaStart;
+      if (data.modeloPadraoProEnt)     AI_MODELS.pro_padrao        = data.modeloPadraoProEnt;
+      if (data.modeloRelatoriosProEnt) AI_MODELS.pro_relatorios    = data.modeloRelatoriosProEnt;
+      if (data.modeloBuscaProEnt)      AI_MODELS.pro_busca         = data.modeloBuscaProEnt;
       res.json(config);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -1783,7 +1796,7 @@ Responda APENAS em JSON válido com exatamente este formato:
         // openaiSearch points to api.openai.com (not Azure) — required for this model/tool
         if (!openaiSearch) throw new Error("OPENAI_API_KEY não configurada — web search indisponível");
         const response = await openaiSearch.responses.create({
-          model: AI_MODELS.busca,
+          model: getModelForPlan(empresaParaPestel?.planoTipo, "busca"),
           tools: [{ type: "web_search_preview" }],
           input: prompt,
         });
@@ -2522,7 +2535,7 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
         // openaiSearch points to api.openai.com (not Azure) — required for this model/tool
         if (!openaiSearch) throw new Error("OPENAI_API_KEY não configurada — web search indisponível");
         const webResponse = await openaiSearch.responses.create({
-          model: AI_MODELS.busca,
+          model: getModelForPlan(planoTipoMercado, "busca"),
           tools: [{ type: "web_search_preview" }],
           input: searchPrompt,
         });
@@ -2909,7 +2922,7 @@ ${ctx.join("\n\n")}`;
       const { conceito, contexto } = req.body;
       
       const completion = await openai.chat.completions.create({
-        model: AI_MODELS.padrao,
+        model: AI_MODELS.start_padrao,
         messages: await injectMacroCtx([
           {
             role: "system",
@@ -5415,7 +5428,7 @@ Seja específico para o setor ${empresa.setor}.`,
     // Prefer web search via standard OpenAI API (api.openai.com) when available
     if (openaiSearch) {
       const response = await openaiSearch.responses.create({
-        model: AI_MODELS.busca,
+        model: AI_MODELS.pro_busca,
         tools: [{ type: "web_search_preview" }],
         input: prompt,
       });
@@ -5425,7 +5438,7 @@ Seja específico para o setor ${empresa.setor}.`,
     // Fallback: use Azure client with chat completions (no web search)
     console.warn("[contexto-macro] OPENAI_API_KEY não configurada — usando fallback sem busca na web.");
     const completion = await openai.chat.completions.create({
-      model: AI_MODELS.relatorios,
+      model: AI_MODELS.pro_relatorios,
       messages: [
         {
           role: "system",

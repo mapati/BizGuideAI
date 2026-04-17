@@ -473,7 +473,13 @@ export const configuracoesIa = pgTable("configuracoes_ia", {
   id: integer("id").primaryKey().default(1),
   modeloPadrao: text("modelo_padrao").notNull().default("gpt-4.1-mini"),
   modeloRelatorios: text("modelo_relatorios").notNull().default("gpt-4.1"),
-  modeloBusca: text("modelo_busca").notNull().default("gpt-4o-mini-search-preview"),
+  modeloBusca: text("modelo_busca").notNull().default("gpt-4o-search-preview"),
+  modeloPadraoStart: text("modelo_padrao_start").notNull().default("gpt-4.1-mini"),
+  modeloRelatoriosStart: text("modelo_relatorios_start").notNull().default("gpt-4.1-mini"),
+  modeloBuscaStart: text("modelo_busca_start").notNull().default("gpt-4o-search-preview"),
+  modeloPadraoProEnt: text("modelo_padrao_pro_ent").notNull().default("gpt-4.1-mini"),
+  modeloRelatoriosProEnt: text("modelo_relatorios_pro_ent").notNull().default("gpt-4.1"),
+  modeloBuscaProEnt: text("modelo_busca_pro_ent").notNull().default("gpt-4o-search-preview"),
   atualizadoEm: timestamp("atualizado_em").defaultNow().notNull(),
 });
 

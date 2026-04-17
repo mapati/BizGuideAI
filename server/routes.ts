@@ -88,11 +88,41 @@ const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
-// Separate client pointing to api.openai.com (not Azure) — needed for
-// gpt-4o-mini-search-preview + web_search_preview, which Azure doesn't support.
-const openaiSearch = process.env.OPENAI_API_KEY
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-  : null;
+// Google Custom Search JSON API helper — replaces OpenAI Responses API web_search_preview.
+// Requires GOOGLE_API_KEY (Google Cloud API key) + GOOGLE_CX (Programmable Search Engine ID).
+// Returns an empty array if either key is missing, so all callers get a graceful fallback.
+interface GoogleSearchItem { title: string; snippet: string; link: string }
+async function googleSearch(query: string, numResults = 8): Promise<GoogleSearchItem[]> {
+  const apiKey = process.env.GOOGLE_API_KEY;
+  const cx     = process.env.GOOGLE_CX;
+  if (!apiKey || !cx) return [];
+  try {
+    const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(apiKey)}&cx=${encodeURIComponent(cx)}&q=${encodeURIComponent(query)}&num=${numResults}&lr=lang_pt&gl=br`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.warn(`[googleSearch] HTTP ${res.status} para query: ${query}`);
+      return [];
+    }
+    const data = await res.json() as { items?: Array<{ title?: string; snippet?: string; link?: string }> };
+    return (data.items ?? []).map((it) => ({
+      title:   it.title   ?? "",
+      snippet: it.snippet ?? "",
+      link:    it.link    ?? "",
+    }));
+  } catch (err) {
+    console.warn("[googleSearch] Erro:", err);
+    return [];
+  }
+}
+
+// Format Google search results as a readable context block for LLM prompts
+function formatSearchContext(items: GoogleSearchItem[]): string {
+  if (!items.length) return "";
+  const lines = items.map((it, i) =>
+    `${i + 1}. "${it.title}" (${it.link})\n   ${it.snippet}`
+  );
+  return `[DADOS RECENTES DA INTERNET — use como contexto factual nas suas análises]\n\n${lines.join("\n\n")}\n\n[FIM DOS DADOS DA INTERNET]`;
+}
 
 /* ── Contexto Macro IA — cache 60s ── */
 let _macroCtxCache: { text: string; expiry: number } | null = null;
@@ -1056,10 +1086,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Returns whether the standard OpenAI API key (needed for web search) is configured.
-  // Never exposes the key value — boolean only.
+  // Returns whether Google Custom Search is configured (needed for web search).
+  // Never exposes key values — boolean only.
   app.get("/api/admin/ai-status", async (_req, res) => {
-    res.json({ webSearchAtivo: !!process.env.OPENAI_API_KEY });
+    res.json({ webSearchAtivo: !!(process.env.GOOGLE_API_KEY && process.env.GOOGLE_CX) });
   });
 
   app.patch("/api/admin/config-ia", async (req, res) => {
@@ -1807,18 +1837,30 @@ Responda APENAS em JSON válido com exatamente este formato:
       };
 
       try {
-        // Use Responses API with web_search_preview for real-time internet search
-        // openaiSearch points to api.openai.com (not Azure) — required for this model/tool
-        if (!openaiSearch) throw new Error("OPENAI_API_KEY não configurada — web search indisponível");
-        const response = await openaiSearch.responses.create({
-          model: getModelForPlan(empresaParaPestel?.planoTipo, "busca"),
-          tools: [{ type: "web_search_preview" }],
-          input: prompt,
+        // Step 1 — Google Custom Search: fetch recent snippets about this sector
+        const pestelQuery = `cenário externo ${setor || req.body.setor} Brasil 2025 regulação economia tendências mercado`;
+        const searchItems = await googleSearch(pestelQuery, 8);
+        const searchCtx = formatSearchContext(searchItems);
+
+        // Step 2 — Azure LLM synthesises PESTEL from web snippets + company context
+        const promptWithCtx = searchCtx ? `${searchCtx}\n\n${prompt}` : prompt;
+
+        const webRes = await openai.chat.completions.create({
+          model: getModelForPlan(empresaParaPestel?.planoTipo, "relatorios"),
+          messages: [
+            {
+              role: "system",
+              content: "Você é um analista estratégico especializado em cenário macroeconômico brasileiro. Baseie sua análise nos dados recentes fornecidos e no seu conhecimento do contexto brasileiro.",
+            },
+            { role: "user", content: promptWithCtx },
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0.3,
         });
 
-        const text: string = response.output_text || "";
+        const text: string = webRes.choices[0].message.content || "";
         const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error("JSON não encontrado na resposta de pesquisa");
+        if (!jsonMatch) throw new Error("JSON não encontrado na resposta");
         const parsed: Record<string, unknown> = JSON.parse(jsonMatch[0]);
 
         for (const dim of dims) {
@@ -1836,7 +1878,7 @@ Responda APENAS em JSON válido com exatamente este formato:
       } catch (searchError: unknown) {
         // Fallback: use regular chat completion with knowledge-based analysis
         const msg = searchError instanceof Error ? searchError.message : String(searchError);
-        console.warn("[PESTEL] web_search_preview falhou, usando fallback:", msg);
+        console.warn("[PESTEL] busca Google falhou, usando fallback:", msg);
         const fallback = await openai.chat.completions.create({
           model: getModelForPlan(empresaParaPestel?.planoTipo, "relatorios"),
           messages: [
@@ -2548,16 +2590,29 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
       let mercado: MercadoPesquisado;
 
       try {
-        // Passo 1 — pesquisa livre na web (modelo focado em buscar, não em formatar)
-        // openaiSearch points to api.openai.com (not Azure) — required for this model/tool
-        if (!openaiSearch) throw new Error("OPENAI_API_KEY não configurada — web search indisponível");
-        const webResponse = await openaiSearch.responses.create({
-          model: getModelForPlan(planoTipoMercado, "busca"),
-          tools: [{ type: "web_search_preview" }],
-          input: searchPrompt,
+        // Passo 1 — Google Custom Search: busca snippets sobre o mercado e concorrentes
+        const mercadoQuery = `${setor} Brasil concorrentes mercado análise 2025`;
+        const searchItems = await googleSearch(mercadoQuery, 8);
+        const searchCtx = formatSearchContext(searchItems);
+
+        // Combinar snippets do Google com o prompt de pesquisa como contexto para o LLM
+        const promptWithCtx = searchCtx ? `${searchCtx}\n\n${searchPrompt}` : searchPrompt;
+
+        // Passo 1b — LLM sintetiza o contexto em texto de pesquisa livre
+        const synthResponse = await openai.chat.completions.create({
+          model: getModelForPlan(planoTipoMercado, "relatorios"),
+          messages: [
+            {
+              role: "system",
+              content: "Você é um analista de inteligência competitiva especializado em mercado brasileiro. Use os dados recentes fornecidos para embasar a análise.",
+            },
+            { role: "user", content: promptWithCtx },
+          ],
+          temperature: 0.3,
+          max_tokens: 2000,
         });
 
-        const researchText: string = webResponse.output_text || "";
+        const researchText: string = synthResponse.choices[0].message.content || "";
         if (!researchText || researchText.trim().length < 100) {
           throw new Error("Pesquisa retornou resultado vazio ou muito curto");
         }
@@ -5437,25 +5492,52 @@ Seja específico para o setor ${empresa.setor}.`,
     return d;
   }
 
+  // Short search queries per Contexto Macro category — optimised for Google CSE
+  const CATEGORIAS_QUERIES: Record<string, string> = {
+    cambio_politica_monetaria:    "câmbio real dólar Selic política monetária COPOM Brasil 2025",
+    selic_inflacao:               "Selic inflação IPCA juros Banco Central Brasil 2025",
+    politica_fiscal:              "política fiscal dívida pública déficit orçamento governo Brasil 2025",
+    cenario_politico_regulatorio: "cenário político regulatório governo reforma tributária Brasil 2025",
+    geopolitica_comercio_exterior:"geopolítica comércio exterior exportações Brasil EUA China 2025",
+    crises_setoriais:             "crises setoriais falências PME indústria varejo Brasil 2025",
+    tendencias_mercado:           "tendências mercado consumidor e-commerce startups inovação Brasil 2025",
+    contexto_geral:               "economia brasileira PIB risco negócio PME perspectiva 2025",
+  };
+
   async function gerarContextoCategoria(
     categoria: string
   ): Promise<{ texto: string; modo: "web_search" | "fallback" }> {
     const prompt = CATEGORIAS_PROMPTS[categoria];
     if (!prompt) throw new Error(`Categoria sem prompt: ${categoria}`);
 
-    // Prefer web search via standard OpenAI API (api.openai.com) when available
-    // Contexto Macro is a platform-level background job — uses Pro-tier models
-    if (openaiSearch) {
-      const response = await openaiSearch.responses.create({
-        model: getModelForPlan("pro", "busca"),
-        tools: [{ type: "web_search_preview" }],
-        input: prompt,
+    const googleApiKey = process.env.GOOGLE_API_KEY;
+    const googleCx     = process.env.GOOGLE_CX;
+
+    if (googleApiKey && googleCx) {
+      // Step 1 — Google Custom Search
+      const query = CATEGORIAS_QUERIES[categoria] ?? `${categoria.replace(/_/g, " ")} Brasil 2025`;
+      const searchItems = await googleSearch(query, 8);
+      const searchCtx = formatSearchContext(searchItems);
+
+      // Step 2 — Azure LLM synthesises the category text using web snippets
+      const promptWithCtx = searchCtx ? `${searchCtx}\n\n${prompt}` : prompt;
+      const completion = await openai.chat.completions.create({
+        model: getModelForPlan("pro", "relatorios"),
+        messages: [
+          {
+            role: "system",
+            content: `Você é um analista macroeconômico especializado no Brasil. Sua função é redigir sínteses concisas e práticas do contexto econômico, político e regulatório brasileiro para ajudar gestores de pequenas e médias empresas a tomar melhores decisões estratégicas. Use linguagem direta e objetiva, com dados e referências concretas quando possível. Responda sempre em português do Brasil.`,
+          },
+          { role: "user", content: promptWithCtx },
+        ],
+        temperature: 0.4,
+        max_tokens: 800,
       });
-      return { texto: (response.output_text ?? "").trim(), modo: "web_search" };
+      return { texto: (completion.choices[0].message.content ?? "").trim(), modo: "web_search" };
     }
 
     // Fallback: use Azure client with chat completions (no web search)
-    console.warn("[contexto-macro] OPENAI_API_KEY não configurada — usando fallback sem busca na web.");
+    console.warn("[contexto-macro] GOOGLE_API_KEY/GOOGLE_CX não configuradas — usando fallback sem busca na web.");
     const completion = await openai.chat.completions.create({
       model: getModelForPlan("pro", "relatorios"),
       messages: [
@@ -5573,7 +5655,7 @@ Seja específico para o setor ${empresa.setor}.`,
         await storage.addContextoMacroLog({
           categoria,
           executadoEm: agora,
-          modo: openaiSearch ? "web_search" : "fallback",
+          modo: (process.env.GOOGLE_API_KEY && process.env.GOOGLE_CX) ? "web_search" : "fallback",
           resultado: "erro",
           mensagem: e?.message ?? "Erro desconhecido",
         });
@@ -5643,7 +5725,7 @@ Seja específico para o setor ${empresa.setor}.`,
             await storage.addContextoMacroLog({
               categoria: cat.categoria,
               executadoEm: now,
-              modo: openaiSearch ? "web_search" : "fallback",
+              modo: (process.env.GOOGLE_API_KEY && process.env.GOOGLE_CX) ? "web_search" : "fallback",
               resultado: "erro",
               mensagem: err?.message ?? "Erro desconhecido",
             });

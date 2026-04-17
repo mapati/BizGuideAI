@@ -1179,7 +1179,10 @@ function TabConfigIA() {
               Busca na web indisponível — modo fallback ativo
             </p>
             <p className="text-xs text-yellow-700/80 dark:text-yellow-400/80">
-              Os modelos de busca requerem a variável de ambiente <code className="font-mono bg-yellow-500/20 px-1 rounded">OPENAI_API_KEY</code> (OpenAI padrão, não Azure). Enquanto não estiver configurada, a pesquisa PESTEL, análise competitiva e geração do Contexto Macro usarão o modelo de relatórios sem acesso à internet.
+              A busca na web usa a Google Custom Search API. Configure os secrets{" "}
+              <code className="font-mono bg-yellow-500/20 px-1 rounded">GOOGLE_API_KEY</code> e{" "}
+              <code className="font-mono bg-yellow-500/20 px-1 rounded">GOOGLE_CX</code> para ativar.
+              Enquanto não estiverem configurados, a pesquisa PESTEL, análise competitiva e geração do Contexto Macro usarão o modelo de relatórios sem acesso à internet.
             </p>
           </div>
         </div>

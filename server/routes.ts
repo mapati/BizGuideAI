@@ -2737,8 +2737,9 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
 
       // Enriquecer contexto com campos adicionais do perfil
       let contextoRico = "";
+      let empresaCompleta: Awaited<ReturnType<typeof storage.getEmpresa>> | null = null;
       if (req.session?.empresaId) {
-        const empresaCompleta = await storage.getEmpresa(req.session.empresaId);
+        empresaCompleta = await storage.getEmpresa(req.session.empresaId);
         if (empresaCompleta) {
           contextoRico = buildEmpresaContextoIA(empresaCompleta);
         }

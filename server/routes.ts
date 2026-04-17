@@ -93,23 +93,13 @@ const openai = new OpenAI({
 // Returns an empty array if either key is missing, so all callers get a graceful fallback.
 interface GoogleSearchItem { title: string; snippet: string; link: string }
 
-// In-memory daily counter for Google Custom Search API calls.
-// Resets automatically when the calendar date changes (UTC).
-const _gsCounter = { date: "", count: 0 };
-function _incrementGsCounter() {
-  const today = new Date().toISOString().slice(0, 10);
-  if (_gsCounter.date !== today) { _gsCounter.date = today; _gsCounter.count = 0; }
-  _gsCounter.count++;
-}
-function getGoogleSearchCountToday(): number {
-  const today = new Date().toISOString().slice(0, 10);
-  return _gsCounter.date === today ? _gsCounter.count : 0;
-}
-
 async function googleSearch(query: string, numResults = 8): Promise<GoogleSearchItem[]> {
   const apiKey = process.env.GOOGLE_API_KEY;
   const cx     = process.env.GOOGLE_CX;
   if (!apiKey || !cx) return [];
+  // Increment counter on every outbound attempt (before res.ok check) so
+  // failed requests that still reach Google's servers are counted accurately.
+  storage.incrementGoogleSearchUsage().catch(() => {});
   try {
     const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(apiKey)}&cx=${encodeURIComponent(cx)}&q=${encodeURIComponent(query)}&num=${numResults}&lr=lang_pt&gl=br`;
     const res = await fetch(url);
@@ -118,7 +108,6 @@ async function googleSearch(query: string, numResults = 8): Promise<GoogleSearch
       return [];
     }
     const data = await res.json() as { items?: Array<{ title?: string; snippet?: string; link?: string }> };
-    _incrementGsCounter();
     return (data.items ?? []).map((it) => ({
       title:   it.title   ?? "",
       snippet: it.snippet ?? "",
@@ -1102,11 +1091,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Returns Google Custom Search status and today's call count (max 100 free/day).
+  // Count is persisted in DB (google_search_usage table) and survives server restarts.
   // Never exposes key values — booleans and numeric counts only.
   app.get("/api/admin/ai-status", async (_req, res) => {
+    const googleSearchUsageHoje = await storage.getGoogleSearchUsageToday();
     res.json({
       webSearchAtivo: !!(process.env.GOOGLE_API_KEY && process.env.GOOGLE_CX),
-      googleSearchUsageHoje: getGoogleSearchCountToday(),
+      googleSearchUsageHoje,
     });
   });
 

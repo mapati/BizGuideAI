@@ -511,3 +511,9 @@ export const insertContextoMacroLogSchema = createInsertSchema(contextoMacroLogs
 export type InsertContextoMacroLog = z.infer<typeof insertContextoMacroLogSchema>;
 export type ContextoMacroLog = typeof contextoMacroLogs.$inferSelect;
 
+// Daily counter for Google Custom Search API calls. Keyed by UTC date (YYYY-MM-DD).
+export const googleSearchUsage = pgTable("google_search_usage", {
+  date: varchar("date").primaryKey(), // YYYY-MM-DD UTC
+  count: integer("count").notNull().default(0),
+});
+

@@ -80,6 +80,7 @@ import {
   contextoMacroLogs,
   type ContextoMacroLog,
   type InsertContextoMacroLog,
+  googleSearchUsage,
 } from "@shared/schema";
 import { eq, and, desc, inArray, sql } from "drizzle-orm";
 
@@ -229,6 +230,8 @@ export interface IStorage {
   updateContextoMacro(categoria: string, data: Partial<Omit<ContextoMacro, "categoria">>): Promise<ContextoMacro>;
   addContextoMacroLog(log: InsertContextoMacroLog): Promise<void>;
   getContextoMacroLogs(categoria: string): Promise<ContextoMacroLog[]>;
+  incrementGoogleSearchUsage(): Promise<void>;
+  getGoogleSearchUsageToday(): Promise<number>;
 }
 
 function omitTenantFields<T extends Record<string, unknown>>(data: T): Omit<T, "empresaId" | "objetivoId"> {
@@ -934,6 +937,27 @@ export class DbStorage implements IStorage {
       .where(eq(contextoMacroLogs.categoria, categoria))
       .orderBy(desc(contextoMacroLogs.executadoEm), desc(contextoMacroLogs.id))
       .limit(10);
+  }
+
+  async incrementGoogleSearchUsage(): Promise<void> {
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD UTC
+    await db
+      .insert(googleSearchUsage)
+      .values({ date: today, count: 1 })
+      .onConflictDoUpdate({
+        target: googleSearchUsage.date,
+        set: { count: sql`${googleSearchUsage.count} + 1` },
+      });
+  }
+
+  async getGoogleSearchUsageToday(): Promise<number> {
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = await db
+      .select()
+      .from(googleSearchUsage)
+      .where(eq(googleSearchUsage.date, today))
+      .limit(1);
+    return rows[0]?.count ?? 0;
   }
 
 }

@@ -1043,6 +1043,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Returns whether the standard OpenAI API key (needed for web search) is configured.
+  // Never exposes the key value — boolean only.
+  app.get("/api/admin/ai-status", async (_req, res) => {
+    res.json({ webSearchAtivo: !!process.env.OPENAI_API_KEY });
+  });
+
   app.patch("/api/admin/config-ia", async (req, res) => {
     try {
       const schema = z.object({

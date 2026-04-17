@@ -1032,6 +1032,9 @@ function TabConfigIA() {
   const { data: config, isLoading } = useQuery<ConfigIA>({
     queryKey: ["/api/admin/config-ia"],
   });
+  const { data: aiStatus } = useQuery<{ webSearchAtivo: boolean }>({
+    queryKey: ["/api/admin/ai-status"],
+  });
 
   const [modeloPadrao,     setModeloPadrao]     = useState("gpt-4.1-mini");
   const [modeloRelatorios, setModeloRelatorios] = useState("gpt-4.1");
@@ -1098,6 +1101,23 @@ function TabConfigIA() {
         opcoes={OPCOES_BUSCA}
         testId="select-modelo-busca"
       />
+
+      {aiStatus && !aiStatus.webSearchAtivo && (
+        <div
+          className="flex items-start gap-3 p-4 rounded-md border border-yellow-500/30 bg-yellow-500/10"
+          data-testid="alert-web-search-inativo"
+        >
+          <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-yellow-700 dark:text-yellow-300">
+              Busca na web indisponível — modo fallback ativo
+            </p>
+            <p className="text-xs text-yellow-700/80 dark:text-yellow-400/80">
+              O modelo de busca selecionado requer a variável de ambiente <code className="font-mono bg-yellow-500/20 px-1 rounded">OPENAI_API_KEY</code> (OpenAI padrão, não Azure). Enquanto não estiver configurada, a pesquisa PESTEL, análise competitiva e geração do Contexto Macro usarão o modelo de relatórios sem acesso à internet.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="flex justify-end">
         <Button

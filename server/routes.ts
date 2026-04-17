@@ -5424,6 +5424,11 @@ Seja específico para o setor ${empresa.setor}.`,
       }
       if (data.proximoAgendamento) data.proximoAgendamento = new Date(data.proximoAgendamento as string);
 
+      // Auto-bump ultimaAtualizacao when textoAtivo is manually updated
+      if ("textoAtivo" in data && data.textoAtivo) {
+        data.ultimaAtualizacao = new Date();
+      }
+
       // Recalculate proximoAgendamento server-side when scheduler activates or frequency changes
       const schedulerTriggered = data.agendadorAtivo === true || data.agendadorFrequencia !== undefined;
       if (schedulerTriggered && !data.proximoAgendamento) {

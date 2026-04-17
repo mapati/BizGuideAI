@@ -138,6 +138,7 @@ async function runStartupMigrations() {
       )
     `);
     // Evolving-compatibility: add any columns that may be missing in existing tables
+    await client.query(`ALTER TABLE contexto_macro ADD COLUMN IF NOT EXISTS titulo TEXT`);
     await client.query(`ALTER TABLE contexto_macro ADD COLUMN IF NOT EXISTS texto_ativo TEXT`);
     await client.query(`ALTER TABLE contexto_macro ADD COLUMN IF NOT EXISTS rascunho TEXT`);
     await client.query(`ALTER TABLE contexto_macro ADD COLUMN IF NOT EXISTS ativo BOOLEAN NOT NULL DEFAULT false`);

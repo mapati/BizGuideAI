@@ -330,7 +330,15 @@ function getPlanLimits(planoTipo: string | null | undefined) {
 function getModelForPlan(planoTipo: string | null | undefined, tier: "padrao" | "relatorios" | "busca"): string {
   const isPro = planoTipo === "pro" || planoTipo === "enterprise";
   const prefix = isPro ? "pro" : "start";
-  return AI_MODELS[`${prefix}_${tier}`] || AI_MODELS["start_padrao"] || "";
+  const raw = AI_MODELS[`${prefix}_${tier}`] || AI_MODELS["start_padrao"] || "";
+  // Defensive: *-search-preview models are Chat-Completions-only and cause a 404 in the
+  // Responses API used by web search. If a stale config still has them, auto-map to a
+  // compatible model so the request never fails because of bad legacy data.
+  if (tier === "busca") {
+    if (raw === "gpt-4o-search-preview") return "gpt-4o";
+    if (raw === "gpt-4o-mini-search-preview") return isPro ? "gpt-4o" : "gpt-4o-mini";
+  }
+  return raw;
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -1056,16 +1064,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/admin/config-ia", async (req, res) => {
     try {
+      // *-search-preview models are Chat-Completions-only and break the Responses API
+      // (used for web search). Reject them on every busca field, regardless of the
+      // client version sending the payload (prevents stale browsers from re-introducing
+      // the broken value into the database).
+      const buscaModel = z.string().min(1).refine(
+        (v) => v !== "gpt-4o-search-preview" && v !== "gpt-4o-mini-search-preview",
+        { message: "Modelo *-search-preview não é compatível com a Responses API. Use gpt-4o, gpt-4o-mini, gpt-4.1 ou gpt-4.1-mini." }
+      );
       const schema = z.object({
         modeloPadrao:           z.string().min(1).optional(),
         modeloRelatorios:       z.string().min(1).optional(),
-        modeloBusca:            z.string().min(1).optional(),
+        modeloBusca:            buscaModel.optional(),
         modeloPadraoStart:      z.string().min(1).optional(),
         modeloRelatoriosStart:  z.string().min(1).optional(),
-        modeloBuscaStart:       z.string().min(1).optional(),
+        modeloBuscaStart:       buscaModel.optional(),
         modeloPadraoProEnt:     z.string().min(1).optional(),
         modeloRelatoriosProEnt: z.string().min(1).optional(),
-        modeloBuscaProEnt:      z.string().min(1).optional(),
+        modeloBuscaProEnt:      buscaModel.optional(),
       });
       const data = schema.parse(req.body);
       const config = await storage.upsertConfiguracoesIA(data);

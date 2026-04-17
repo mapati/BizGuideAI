@@ -485,21 +485,21 @@ export default function Onboarding() {
           {/* ── Tabs ── */}
           <Tabs defaultValue="empresa">
             <TabsList className="w-full grid grid-cols-4 mb-2">
-              <TabsTrigger value="empresa" data-testid="tab-empresa">
-                <Building2 className="h-4 w-4 mr-1.5" />
-                Empresa
+              <TabsTrigger value="empresa" data-testid="tab-empresa" aria-label="Empresa" className="min-h-[2.75rem] px-2">
+                <Building2 className="h-4 w-4 shrink-0 sm:mr-1.5" />
+                <span className="hidden sm:inline">Empresa</span>
               </TabsTrigger>
-              <TabsTrigger value="contexto" data-testid="tab-contexto">
-                <Target className="h-4 w-4 mr-1.5" />
-                Contexto
+              <TabsTrigger value="contexto" data-testid="tab-contexto" aria-label="Contexto" className="min-h-[2.75rem] px-2">
+                <Target className="h-4 w-4 shrink-0 sm:mr-1.5" />
+                <span className="hidden sm:inline">Contexto</span>
               </TabsTrigger>
-              <TabsTrigger value="documentos" data-testid="tab-documentos">
-                <FileText className="h-4 w-4 mr-1.5" />
-                Documentos
+              <TabsTrigger value="documentos" data-testid="tab-documentos" aria-label="Documentos" className="min-h-[2.75rem] px-2">
+                <FileText className="h-4 w-4 shrink-0 sm:mr-1.5" />
+                <span className="hidden sm:inline">Documentos</span>
               </TabsTrigger>
-              <TabsTrigger value="conta" data-testid="tab-conta">
-                <CreditCard className="h-4 w-4 mr-1.5" />
-                Conta
+              <TabsTrigger value="conta" data-testid="tab-conta" aria-label="Conta" className="min-h-[2.75rem] px-2">
+                <CreditCard className="h-4 w-4 shrink-0 sm:mr-1.5" />
+                <span className="hidden sm:inline">Conta</span>
               </TabsTrigger>
             </TabsList>
 

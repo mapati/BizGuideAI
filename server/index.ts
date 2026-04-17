@@ -223,6 +223,14 @@ async function runStartupMigrations() {
         AND modelo_busca_pro_ent     = 'gpt-4o'
     `);
 
+    // Task #80 — Google Custom Search daily usage counter (persisted, restart-safe)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS google_search_usage (
+        date VARCHAR PRIMARY KEY,
+        count INTEGER NOT NULL DEFAULT 0
+      )
+    `);
+
     // Seed: ensure the platform admin from env vars exists and has the correct password
     const adminEmail = process.env.ADMIN_EMAIL;
     const adminSenha = process.env.ADMIN_SENHA;

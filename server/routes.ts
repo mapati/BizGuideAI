@@ -1094,7 +1094,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Count is persisted in DB (google_search_usage table) and survives server restarts.
   // Never exposes key values — booleans and numeric counts only.
   app.get("/api/admin/ai-status", async (_req, res) => {
-    const googleSearchUsageHoje = await storage.getGoogleSearchUsageToday();
+    let googleSearchUsageHoje = 0;
+    try {
+      googleSearchUsageHoje = await storage.getGoogleSearchUsageToday();
+    } catch (err) {
+      console.warn("[ai-status] Não foi possível ler contagem do Google Search:", err);
+    }
     res.json({
       webSearchAtivo: !!(process.env.GOOGLE_API_KEY && process.env.GOOGLE_CX),
       googleSearchUsageHoje,

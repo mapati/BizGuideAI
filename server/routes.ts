@@ -1863,13 +1863,13 @@ Responda APENAS em JSON válido com exatamente este formato:
 
         const webRes = await openai.chat.completions.create({
           model: getModelForPlan(empresaParaPestel?.planoTipo, "relatorios"),
-          messages: [
+          messages: await injectMacroCtx([
             {
               role: "system",
-              content: "Você é um analista estratégico especializado em cenário macroeconômico brasileiro. Baseie sua análise nos dados recentes fornecidos e no seu conhecimento do contexto brasileiro.",
+              content: "Você é um analista estratégico especializado em cenário macroeconômico brasileiro. Baseie sua análise nos dados recentes fornecidos, no cenário macroeconômico atual do system message (quando disponível) e no seu conhecimento do contexto brasileiro.",
             },
             { role: "user", content: promptWithCtx },
-          ],
+          ]),
           response_format: { type: "json_object" },
           temperature: 0.3,
         });
@@ -1897,13 +1897,13 @@ Responda APENAS em JSON válido com exatamente este formato:
         console.warn("[PESTEL] busca Google falhou, usando fallback:", msg);
         const fallback = await openai.chat.completions.create({
           model: getModelForPlan(empresaParaPestel?.planoTipo, "relatorios"),
-          messages: [
+          messages: await injectMacroCtx([
             {
               role: "system",
-              content: "Você é um analista estratégico brasileiro especializado em cenário macroeconômico. Use seu conhecimento mais atualizado possível sobre o Brasil.",
+              content: "Você é um analista estratégico brasileiro especializado em cenário macroeconômico. Use o cenário macroeconômico atual do system message (quando disponível) e seu conhecimento mais atualizado possível sobre o Brasil.",
             },
             { role: "user", content: prompt },
-          ],
+          ]),
           response_format: { type: "json_object" },
           temperature: 0.5,
         });
@@ -1974,7 +1974,8 @@ Responda APENAS em JSON válido com exatamente este formato:
           `- Cada "descricao" deve mencionar dados ou tendências CONCRETOS do contexto pesquisado (percentuais, nomes de políticas, taxas, leis específicas).\n` +
           `- Cada "evidencia" deve explicar com fatos REAIS por que este fator importa para esta empresa específica — nunca escreva frases genéricas como "este fator pode impactar o negócio".\n` +
           `- PROIBIDO escrever análises vagas ou genéricas. Toda afirmação deve ser baseada nos dados do contexto acima.\n` +
-          `- As descrições devem ter pelo menos 2-3 frases com informações específicas e atuais.\n`
+          `- As descrições devem ter pelo menos 2-3 frases com informações específicas e atuais.\n` +
+          `- Incorpore também os dados do "Cenário Macroeconômico Atual" presentes no system message (quando disponíveis), integrando-os com os dados do contexto de pesquisa.\n`
         : "";
       
       const completion = await openai.chat.completions.create({
@@ -2617,13 +2618,13 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
         // Passo 1b — LLM sintetiza o contexto em texto de pesquisa livre
         const synthResponse = await openai.chat.completions.create({
           model: getModelForPlan(planoTipoMercado, "relatorios"),
-          messages: [
+          messages: await injectMacroCtx([
             {
               role: "system",
-              content: "Você é um analista de inteligência competitiva especializado em mercado brasileiro. Use os dados recentes fornecidos para embasar a análise.",
+              content: "Você é um analista de inteligência competitiva especializado em mercado brasileiro. Use os dados recentes fornecidos e o cenário macroeconômico atual do system message (quando disponível) para embasar a análise.",
             },
             { role: "user", content: promptWithCtx },
-          ],
+          ]),
           temperature: 0.3,
           max_tokens: 2000,
         });
@@ -2768,7 +2769,8 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
           `- FORNECEDORES: mencione os insumos ou serviços específicos e os fornecedores concretos identificados na pesquisa.\n` +
           `- Cada "descricao" deve ter PELO MENOS 3 frases com informações concretas e específicas do mercado.\n` +
           `- Cada "impacto" deve explicar COMO e POR QUÊ a força afeta este negócio específico, com detalhes concretos.\n` +
-          `- PROIBIDO escrever análises genéricas ou vagas. Toda afirmação deve ser baseada nos dados da pesquisa acima.\n`
+          `- PROIBIDO escrever análises genéricas ou vagas. Toda afirmação deve ser baseada nos dados da pesquisa acima.\n` +
+          `- Incorpore também os dados do "Cenário Macroeconômico Atual" presentes no system message (quando disponíveis), integrando-os com os dados da pesquisa de mercado.\n`
         : "";
 
       const completion = await openai.chat.completions.create({

@@ -36,6 +36,8 @@ import { Link } from "wouter";
 import type { Empresa, Objetivo, ResultadoChave, Indicador, Evento } from "@shared/schema";
 
 const INTRO_DISMISSED_KEY = (userId: string) => `biz-guide-intro-dismissed-${userId}`;
+// Usuários criados antes desta data são considerados legados e nunca verão o painel.
+const INTRO_FEATURE_RELEASE_DATE = new Date("2026-04-17T00:00:00.000Z");
 
 interface Alerta {
   tipo: string;
@@ -116,6 +118,14 @@ export default function Home() {
   useEffect(() => {
     if (!user?.id) return;
     const key = INTRO_DISMISSED_KEY(user.id);
+    // Usuários já existentes (criados antes do lançamento da feature) não veem o painel.
+    if (user.createdAt) {
+      const createdAt = new Date(user.createdAt);
+      if (createdAt < INTRO_FEATURE_RELEASE_DATE) {
+        localStorage.setItem(key, "1");
+        return;
+      }
+    }
     if (!localStorage.getItem(key)) {
       setShowIntroPanel(true);
     }

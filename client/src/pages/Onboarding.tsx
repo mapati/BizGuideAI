@@ -6,9 +6,30 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ProgressBar } from "@/components/ProgressBar";
 import { ExampleCard } from "@/components/ExampleCard";
-import { ArrowRight, ArrowLeft, CheckCircle2, ChevronDown, ChevronUp, Lock, Globe, Sparkles, Loader2, ImagePlus, Trash2, FileText, Upload, X, AlertTriangle, CreditCard } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  ArrowRight,
+  ArrowLeft,
+  ChevronDown,
+  ChevronUp,
+  Lock,
+  Globe,
+  Sparkles,
+  Loader2,
+  ImagePlus,
+  Trash2,
+  FileText,
+  Upload,
+  X,
+  AlertTriangle,
+  CreditCard,
+  Building2,
+  Users,
+  Target,
+  MapPin,
+  CheckCircle2,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -18,16 +39,23 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Empresa } from "@shared/schema";
-import { Badge } from "@/components/ui/badge";
 
 function isProfileComplete(empresa: Empresa | null | undefined): boolean {
   if (!empresa) return false;
   return !!(empresa.nome && empresa.setor && empresa.tamanho);
 }
+
+const TAMANHO_LABELS: Record<string, string> = {
+  micro: "Microempresa",
+  pequena: "Pequena",
+  media: "Média",
+  grande: "Grande",
+};
 
 export default function Onboarding() {
   const [, setLocation] = useLocation();
@@ -318,6 +346,10 @@ export default function Onboarding() {
     atualizarEmpresaMutation.mutate(payload);
   };
 
+  const handleSalvarContexto = () => {
+    atualizarEmpresaMutation.mutate(formData);
+  };
+
   const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -390,13 +422,19 @@ export default function Onboarding() {
     alterarSenhaMutation.mutate({ senhaAtual: senhaData.senhaAtual, novaSenha: senhaData.novaSenha });
   };
 
+  const wizardSteps = [
+    { label: "Informações", icon: Building2 },
+    { label: "Tamanho", icon: Users },
+    { label: "Sobre o Negócio", icon: Globe },
+  ];
+
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-4xl mx-auto">
       <PageHeader
-        title={empresaExistente ? "Editar Perfil da Empresa" : "Perfil da Empresa"}
+        title={empresaExistente ? "Perfil da Empresa" : "Perfil da Empresa"}
         description={
           empresaExistente
-            ? "Revise e edite as informações da sua empresa."
+            ? "Mantenha as informações da sua empresa sempre atualizadas para obter análises mais precisas."
             : "Conte-nos sobre seu negócio em linguagem simples. Não se preocupe com termos técnicos."
         }
         tooltip="Estas informações ajudarão a personalizar todas as análises e sugestões ao longo da jornada."
@@ -404,486 +442,768 @@ export default function Onboarding() {
 
       {perfilCompleto ? (
         <div className="space-y-6">
-          <Card className="p-8">
-            <h3 className="text-xl font-semibold mb-6">Informações da Empresa</h3>
-            <div className="space-y-5">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <Label htmlFor="edit-nome">Nome da Empresa *</Label>
-                  <Input
-                    id="edit-nome"
-                    placeholder="Ex: TechParts Indústria"
-                    value={formData.nome}
-                    onChange={(e) => {
-                      setFormData({ ...formData, nome: e.target.value });
-                      if (perfilErrors.nome) setPerfilErrors({ ...perfilErrors, nome: "" });
-                    }}
-                    data-testid="input-nome-empresa"
-                  />
-                  {perfilErrors.nome && (
-                    <p className="text-sm text-destructive mt-1" data-testid="error-nome">{perfilErrors.nome}</p>
-                  )}
-                </div>
-                <div>
-                  <Label htmlFor="edit-setor">Setor de Atuação *</Label>
-                  <Input
-                    id="edit-setor"
-                    placeholder="Ex: Indústria de autopeças"
-                    value={formData.setor}
-                    onChange={(e) => {
-                      setFormData({ ...formData, setor: e.target.value });
-                      if (perfilErrors.setor) setPerfilErrors({ ...perfilErrors, setor: "" });
-                    }}
-                    data-testid="input-setor"
-                  />
-                  {perfilErrors.setor && (
-                    <p className="text-sm text-destructive mt-1" data-testid="error-setor">{perfilErrors.setor}</p>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="edit-tamanho">Tamanho da Empresa *</Label>
-                <div className="grid grid-cols-2 gap-3 mt-1">
-                  {[
-                    { value: "micro", label: "Microempresa (até 19 func.)" },
-                    { value: "pequena", label: "Pequena (20-99 func.)" },
-                    { value: "media", label: "Média (100-499 func.)" },
-                    { value: "grande", label: "Grande (500+ func.)" },
-                  ].map((opcao) => (
-                    <Card
-                      key={opcao.value}
-                      className={`p-3 cursor-pointer hover-elevate ${
-                        formData.tamanho === opcao.value ? "border-primary bg-primary/5" : ""
-                      }`}
-                      onClick={() => {
-                        setFormData({ ...formData, tamanho: opcao.value });
-                        if (perfilErrors.tamanho) setPerfilErrors({ ...perfilErrors, tamanho: "" });
-                      }}
-                      data-testid={`card-tamanho-${opcao.value}`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div
-                          className={`h-3.5 w-3.5 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
-                            formData.tamanho === opcao.value
-                              ? "border-primary bg-primary"
-                              : "border-muted-foreground"
-                          }`}
-                        >
-                          {formData.tamanho === opcao.value && (
-                            <div className="h-1.5 w-1.5 rounded-full bg-white" />
-                          )}
-                        </div>
-                        <span className="text-sm font-medium">{opcao.label}</span>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-                {perfilErrors.tamanho && (
-                  <p className="text-sm text-destructive mt-1" data-testid="error-tamanho">{perfilErrors.tamanho}</p>
-                )}
-              </div>
-
-              <div>
-                <Label htmlFor="edit-website">Website da Empresa</Label>
-                <div className="flex gap-2 mt-1">
-                  <div className="relative flex-1">
-                    <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="edit-website"
-                      type="url"
-                      placeholder="https://www.suaempresa.com.br"
-                      value={formData.website}
-                      onChange={(e) => {
-                        setFormData({ ...formData, website: e.target.value });
-                        if (perfilErrors.website) setPerfilErrors({ ...perfilErrors, website: "" });
-                      }}
-                      className="pl-9"
-                      data-testid="input-website"
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => gerarDescricaoMutation.mutate(formData.website)}
-                    disabled={!formData.website.trim() || gerarDescricaoMutation.isPending}
-                    data-testid="button-gerar-descricao"
-                  >
-                    {gerarDescricaoMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    ) : (
-                      <Sparkles className="h-4 w-4 mr-2" />
-                    )}
-                    Gerar com IA
-                  </Button>
-                </div>
-                {perfilErrors.website ? (
-                  <p className="text-sm text-destructive mt-1" data-testid="error-website">{perfilErrors.website}</p>
-                ) : (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Nossa IA acessa o site e cria uma descrição profissional da empresa automaticamente.
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <Label htmlFor="edit-descricao">Descrição do Negócio</Label>
-                <Textarea
-                  id="edit-descricao"
-                  placeholder="Ex: Fabricamos peças metálicas usinadas de alta precisão para montadoras automotivas."
-                  value={formData.descricao}
-                  onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                  className="min-h-[100px]"
-                  data-testid="textarea-descricao"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="edit-cnpj">CNPJ</Label>
-                <Input
-                  id="edit-cnpj"
-                  placeholder="00.000.000/0000-00"
-                  value={formData.cnpj}
-                  onChange={(e) => {
-                    setFormData({ ...formData, cnpj: e.target.value });
-                    if (perfilErrors.cnpj) setPerfilErrors({ ...perfilErrors, cnpj: "" });
-                  }}
-                  data-testid="input-cnpj"
-                />
-                {perfilErrors.cnpj && (
-                  <p className="text-sm text-destructive mt-1" data-testid="error-cnpj">{perfilErrors.cnpj}</p>
-                )}
-              </div>
-
-              <div>
-                <Label htmlFor="edit-endereco">Endereço</Label>
-                <Input
-                  id="edit-endereco"
-                  placeholder="Ex: Rua das Indústrias, 1200"
-                  value={formData.endereco}
-                  onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
-                  data-testid="input-endereco"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <div className="sm:col-span-1">
-                  <Label htmlFor="edit-cidade">Cidade</Label>
-                  <Input
-                    id="edit-cidade"
-                    placeholder="Ex: São Paulo"
-                    value={formData.cidade}
-                    onChange={(e) => setFormData({ ...formData, cidade: e.target.value })}
-                    data-testid="input-cidade"
+          {/* ── Profile header card ── */}
+          <Card className="p-6">
+            <div className="flex flex-wrap items-center gap-5">
+              {formData.logoUrl ? (
+                <div className="h-16 w-32 rounded-md border bg-muted/30 flex items-center justify-center overflow-hidden flex-shrink-0">
+                  <img
+                    src={formData.logoUrl}
+                    alt="Logotipo"
+                    className="max-h-full max-w-full object-contain p-2"
+                    data-testid="img-logo-preview"
                   />
                 </div>
-                <div>
-                  <Label htmlFor="edit-estado">Estado</Label>
-                  <Input
-                    id="edit-estado"
-                    placeholder="Ex: SP"
-                    value={formData.estado}
-                    onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
-                    data-testid="input-estado"
-                    maxLength={2}
-                  />
+              ) : (
+                <div className="h-16 w-16 rounded-md border bg-muted/20 flex items-center justify-center flex-shrink-0">
+                  <Building2 className="h-7 w-7 text-muted-foreground" />
                 </div>
-                <div>
-                  <Label htmlFor="edit-cep">CEP</Label>
-                  <Input
-                    id="edit-cep"
-                    placeholder="00000-000"
-                    value={formData.cep}
-                    onChange={(e) => setFormData({ ...formData, cep: e.target.value })}
-                    data-testid="input-cep"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* ── Contexto Estratégico ── */}
-            <div className="border-t pt-6 mt-2 space-y-5">
-              <div>
-                <h4 className="font-semibold text-base mb-0.5">Contexto Estratégico</h4>
-                <p className="text-sm text-muted-foreground">Estas informações enriquecem significativamente as análises de IA. Quanto mais detalhes, mais precisas serão as sugestões.</p>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <Label htmlFor="edit-modeloNegocio">Modelo de Negócio</Label>
-                  <Select
-                    value={formData.modeloNegocio}
-                    onValueChange={(val) => setFormData({ ...formData, modeloNegocio: val })}
-                  >
-                    <SelectTrigger id="edit-modeloNegocio" data-testid="select-modelo-negocio">
-                      <SelectValue placeholder="Selecione o modelo..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="B2B">B2B (vende para empresas)</SelectItem>
-                      <SelectItem value="B2C">B2C (vende para pessoas físicas)</SelectItem>
-                      <SelectItem value="B2B2C">B2B2C (empresas e consumidores)</SelectItem>
-                      <SelectItem value="Marketplace">Marketplace</SelectItem>
-                      <SelectItem value="SaaS/Software">SaaS / Software</SelectItem>
-                      <SelectItem value="Franquia">Franquia</SelectItem>
-                      <SelectItem value="Outro">Outro</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="edit-anoFundacao">Ano de Fundação</Label>
-                  <Input
-                    id="edit-anoFundacao"
-                    placeholder="Ex: 2010"
-                    value={formData.anoFundacao}
-                    onChange={(e) => {
-                      setFormData({ ...formData, anoFundacao: e.target.value });
-                      if (perfilErrors.anoFundacao) setPerfilErrors({ ...perfilErrors, anoFundacao: "" });
-                    }}
-                    data-testid="input-ano-fundacao"
-                    maxLength={4}
-                  />
-                  {perfilErrors.anoFundacao && (
-                    <p className="text-sm text-destructive mt-1" data-testid="error-ano-fundacao">{perfilErrors.anoFundacao}</p>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="edit-areaAtuacao">Área de Atuação Geográfica</Label>
-                <Select
-                  value={formData.areaAtuacao}
-                  onValueChange={(val) => setFormData({ ...formData, areaAtuacao: val })}
-                >
-                  <SelectTrigger id="edit-areaAtuacao" data-testid="select-area-atuacao">
-                    <SelectValue placeholder="Selecione a abrangência..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Local (cidade)">Local (cidade)</SelectItem>
-                    <SelectItem value="Regional (estado)">Regional (estado)</SelectItem>
-                    <SelectItem value="Nacional">Nacional</SelectItem>
-                    <SelectItem value="Internacional/Exportação">Internacional / Exportação</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="edit-publicoAlvo">Público-Alvo / Cliente Ideal</Label>
-                <Textarea
-                  id="edit-publicoAlvo"
-                  placeholder="Ex: Pequenas indústrias do setor metal-mecânico com faturamento entre R$2M e R$20M..."
-                  value={formData.publicoAlvo}
-                  onChange={(e) => setFormData({ ...formData, publicoAlvo: e.target.value })}
-                  className="min-h-[80px]"
-                  data-testid="textarea-publico-alvo"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="edit-principaisProdutos">Principais Produtos / Serviços</Label>
-                <Textarea
-                  id="edit-principaisProdutos"
-                  placeholder="Ex: Usinagem CNC de alta precisão, injeção plástica, montagem de subconjuntos..."
-                  value={formData.principaisProdutos}
-                  onChange={(e) => setFormData({ ...formData, principaisProdutos: e.target.value })}
-                  className="min-h-[80px]"
-                  data-testid="textarea-principais-produtos"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="edit-concorrentesConhecidos">Concorrentes Conhecidos</Label>
-                <Textarea
-                  id="edit-concorrentesConhecidos"
-                  placeholder="Ex: Empresa X, Grupo Y, startup Z — cite nomes reais se souber"
-                  value={formData.concorrentesConhecidos}
-                  onChange={(e) => setFormData({ ...formData, concorrentesConhecidos: e.target.value })}
-                  className="min-h-[72px]"
-                  data-testid="textarea-concorrentes-conhecidos"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="edit-diferenciaisCompetitivos">Diferenciais Competitivos</Label>
-                <Textarea
-                  id="edit-diferenciaisCompetitivos"
-                  placeholder="Ex: Certificação ISO 9001, prazo de entrega 30% menor que o mercado, atendimento customizado..."
-                  value={formData.diferenciaisCompetitivos}
-                  onChange={(e) => setFormData({ ...formData, diferenciaisCompetitivos: e.target.value })}
-                  className="min-h-[80px]"
-                  data-testid="textarea-diferenciais-competitivos"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end mt-8">
-              <Button
-                onClick={handleSalvarPerfil}
-                disabled={atualizarEmpresaMutation.isPending}
-                data-testid="button-salvar-perfil"
-              >
-                {atualizarEmpresaMutation.isPending ? "Salvando..." : "Salvar Perfil"}
-              </Button>
-            </div>
-          </Card>
-
-          {/* ── Documento Estratégico ── */}
-          <Card className="p-8">
-            <div className="flex items-start justify-between gap-4 mb-4">
-              <div>
-                <h3 className="text-xl font-semibold mb-1">Documento Estratégico</h3>
-                <p className="text-sm text-muted-foreground">
-                  Envie um documento PDF relevante (plano de negócios, diagnóstico, relatório). O texto será incorporado ao perfil da empresa e usado como contexto em todas as análises de IA.
+              )}
+              <div className="flex-1 min-w-0">
+                <h2 className="text-xl font-semibold truncate" data-testid="text-header-nome">
+                  {formData.nome || "Empresa sem nome"}
+                </h2>
+                <p className="text-sm text-muted-foreground truncate" data-testid="text-header-setor">
+                  {formData.setor || "Setor não informado"}
                 </p>
+                {formData.tamanho && (
+                  <Badge variant="secondary" className="mt-1.5" data-testid="badge-header-tamanho">
+                    {TAMANHO_LABELS[formData.tamanho] ?? formData.tamanho}
+                  </Badge>
+                )}
               </div>
-              <FileText className="h-6 w-6 text-muted-foreground flex-shrink-0 mt-1" />
             </div>
-
-            {documentoInfo ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 p-4 rounded-md bg-muted/50">
-                  <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate" data-testid="text-documento-nome">{documentoInfo.nome}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {documentoInfo.tamanhoKb} KB · Enviado em {new Date(documentoInfo.analisadoEm).toLocaleDateString("pt-BR")}
-                    </p>
-                  </div>
-                  <Button size="icon" variant="ghost" onClick={handleRemoverDocumento} data-testid="button-remover-documento">
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                <div className="flex gap-2">
-                  <input
-                    ref={pdfInputRef}
-                    type="file"
-                    accept="application/pdf"
-                    className="hidden"
-                    onChange={handlePdfUpload}
-                  />
-                  <Button
-                    variant="outline"
-                    onClick={() => pdfInputRef.current?.click()}
-                    disabled={pdfUploading}
-                    data-testid="button-substituir-pdf"
-                  >
-                    {pdfUploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
-                    Substituir documento
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div>
-                <input
-                  ref={pdfInputRef}
-                  type="file"
-                  accept="application/pdf"
-                  className="hidden"
-                  onChange={handlePdfUpload}
-                />
-                <button
-                  type="button"
-                  onClick={() => pdfInputRef.current?.click()}
-                  disabled={pdfUploading}
-                  className="w-full border-2 border-dashed rounded-md p-8 flex flex-col items-center gap-3 text-center hover-elevate disabled:opacity-50"
-                  data-testid="button-upload-pdf"
-                >
-                  {pdfUploading ? (
-                    <>
-                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                      <div>
-                        <p className="text-sm font-medium">Processando documento...</p>
-                        <p className="text-xs text-muted-foreground">Isso pode levar alguns segundos.</p>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-8 w-8 text-muted-foreground" />
-                      <div>
-                        <p className="text-sm font-medium">Clique para enviar um PDF</p>
-                        <p className="text-xs text-muted-foreground">Máximo 5 MB. O texto do documento será incorporado ao contexto da empresa.</p>
-                      </div>
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
           </Card>
 
-          {/* Plano e assinatura — visível para todos; ações só para o proprietário */}
-          {empresaExistente?.planoTipo && (() => {
-            const statusPermiteCancelar =
-              empresaExistente.planoStatus === "ativo" ||
-              empresaExistente.planoStatus === "pendente_pagamento";
-            const ativadoEm = empresaExistente.planoAtivadoEm
-              ? new Date(empresaExistente.planoAtivadoEm).toLocaleDateString("pt-BR", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  year: "numeric",
-                })
-              : null;
-            const planoLabel =
-              empresaExistente.planoTipo === "pro"
-                ? "Pro"
-                : empresaExistente.planoTipo === "start"
-                ? "Start"
-                : empresaExistente.planoTipo;
-            return (
+          {/* ── Tabs ── */}
+          <Tabs defaultValue="empresa">
+            <TabsList className="w-full grid grid-cols-4 mb-2">
+              <TabsTrigger value="empresa" data-testid="tab-empresa">
+                <Building2 className="h-4 w-4 mr-1.5" />
+                Empresa
+              </TabsTrigger>
+              <TabsTrigger value="contexto" data-testid="tab-contexto">
+                <Target className="h-4 w-4 mr-1.5" />
+                Contexto
+              </TabsTrigger>
+              <TabsTrigger value="documentos" data-testid="tab-documentos">
+                <FileText className="h-4 w-4 mr-1.5" />
+                Documentos
+              </TabsTrigger>
+              <TabsTrigger value="conta" data-testid="tab-conta">
+                <CreditCard className="h-4 w-4 mr-1.5" />
+                Conta
+              </TabsTrigger>
+            </TabsList>
+
+            {/* ── Empresa tab ── */}
+            <TabsContent value="empresa" className="mt-0">
               <Card className="p-6">
-                <div className="flex items-start gap-3 mb-4">
-                  <CreditCard className="h-5 w-5 text-muted-foreground mt-1" />
-                  <div className="flex-1 space-y-1">
-                    <div className="font-semibold">Plano e assinatura</div>
-                    <div className="text-sm text-muted-foreground">
-                      Plano atual: <span className="font-medium" data-testid="text-plano-atual">{planoLabel}</span>
-                      {" · "}
-                      Status: <span data-testid="text-plano-status">{empresaExistente.planoStatus}</span>
-                    </div>
-                    {ativadoEm && (
-                      <div className="text-sm text-muted-foreground" data-testid="text-plano-ativado-em">
-                        Ativado em: <span className="font-medium">{ativadoEm}</span>
-                      </div>
-                    )}
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 flex-shrink-0">
+                    <Building2 className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-base leading-tight">Informações da Empresa</h3>
+                    <p className="text-xs text-muted-foreground">Dados de identificação e localização</p>
                   </div>
                 </div>
 
-                {empresaExistente.planoStatus === "cancelado" || empresaExistente.mpSubscriptionStatus === "cancelled" ? (
-                  <p className="text-sm text-muted-foreground" data-testid="text-assinatura-cancelada">
-                    Sua assinatura foi cancelada. O acesso permanece disponível até o fim do período já pago.
-                  </p>
-                ) : empresaExistente.souProprietario ? (
-                  statusPermiteCancelar && empresaExistente.mpSubscriptionId ? (
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <p className="text-sm text-muted-foreground">
-                        Você é o proprietário desta conta. Pode cancelar a assinatura no Mercado Pago a qualquer momento.
-                      </p>
+                <div className="space-y-5">
+                  {/* Logo inline */}
+                  <div>
+                    <Label className="mb-2 block">Logotipo</Label>
+                    <div className="flex flex-wrap items-center gap-4">
+                      {formData.logoUrl ? (
+                        <div className="h-14 w-28 rounded-md border bg-muted/30 flex items-center justify-center overflow-hidden flex-shrink-0">
+                          <img
+                            src={formData.logoUrl}
+                            alt="Logotipo"
+                            className="max-h-full max-w-full object-contain p-1.5"
+                          />
+                        </div>
+                      ) : (
+                        <div className="h-14 w-14 rounded-md border border-dashed bg-muted/20 flex flex-col items-center justify-center gap-1 text-muted-foreground flex-shrink-0">
+                          <ImagePlus className="h-5 w-5" />
+                        </div>
+                      )}
+                      <div className="flex flex-wrap gap-2">
+                        <input
+                          id="logo-file-input"
+                          ref={logoInputRef}
+                          type="file"
+                          accept="image/jpeg,image/png"
+                          className="sr-only"
+                          onChange={handleLogoChange}
+                          data-testid="input-logo-file"
+                        />
+                        <Button variant="outline" size="sm" asChild data-testid="button-upload-logo">
+                          <label htmlFor="logo-file-input" className="cursor-pointer">
+                            <ImagePlus className="h-4 w-4 mr-2" />
+                            {formData.logoUrl ? "Alterar" : "Enviar logotipo"}
+                          </label>
+                        </Button>
+                        {formData.logoUrl && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setFormData((prev) => ({ ...prev, logoUrl: "" }));
+                              atualizarEmpresaMutation.mutate({ ...formData, logoUrl: "" });
+                            }}
+                            data-testid="button-remove-logo"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Remover
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground w-full">JPG ou PNG, máx. 2 MB.</p>
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-5">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div>
+                        <Label htmlFor="edit-nome">Nome da Empresa *</Label>
+                        <Input
+                          id="edit-nome"
+                          placeholder="Ex: TechParts Indústria"
+                          value={formData.nome}
+                          onChange={(e) => {
+                            setFormData({ ...formData, nome: e.target.value });
+                            if (perfilErrors.nome) setPerfilErrors({ ...perfilErrors, nome: "" });
+                          }}
+                          data-testid="input-nome-empresa"
+                        />
+                        {perfilErrors.nome && (
+                          <p className="text-sm text-destructive mt-1" data-testid="error-nome">{perfilErrors.nome}</p>
+                        )}
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-setor">Setor de Atuação *</Label>
+                        <Input
+                          id="edit-setor"
+                          placeholder="Ex: Indústria de autopeças"
+                          value={formData.setor}
+                          onChange={(e) => {
+                            setFormData({ ...formData, setor: e.target.value });
+                            if (perfilErrors.setor) setPerfilErrors({ ...perfilErrors, setor: "" });
+                          }}
+                          data-testid="input-setor"
+                        />
+                        {perfilErrors.setor && (
+                          <p className="text-sm text-destructive mt-1" data-testid="error-setor">{perfilErrors.setor}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>Tamanho da Empresa *</Label>
+                    <div className="grid grid-cols-2 gap-3 mt-1.5">
+                      {[
+                        { value: "micro", label: "Microempresa", sub: "até 19 func." },
+                        { value: "pequena", label: "Pequena", sub: "20–99 func." },
+                        { value: "media", label: "Média", sub: "100–499 func." },
+                        { value: "grande", label: "Grande", sub: "500+ func." },
+                      ].map((opcao) => (
+                        <Card
+                          key={opcao.value}
+                          className={`p-3 cursor-pointer hover-elevate ${
+                            formData.tamanho === opcao.value ? "border-primary bg-primary/5" : ""
+                          }`}
+                          onClick={() => {
+                            setFormData({ ...formData, tamanho: opcao.value });
+                            if (perfilErrors.tamanho) setPerfilErrors({ ...perfilErrors, tamanho: "" });
+                          }}
+                          data-testid={`card-tamanho-${opcao.value}`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div
+                              className={`h-3.5 w-3.5 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
+                                formData.tamanho === opcao.value
+                                  ? "border-primary bg-primary"
+                                  : "border-muted-foreground"
+                              }`}
+                            >
+                              {formData.tamanho === opcao.value && (
+                                <div className="h-1.5 w-1.5 rounded-full bg-white" />
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium leading-tight">{opcao.label}</p>
+                              <p className="text-xs text-muted-foreground">{opcao.sub}</p>
+                            </div>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                    {perfilErrors.tamanho && (
+                      <p className="text-sm text-destructive mt-1" data-testid="error-tamanho">{perfilErrors.tamanho}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label htmlFor="edit-website">Website</Label>
+                    <div className="flex gap-2 mt-1">
+                      <div className="relative flex-1">
+                        <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="edit-website"
+                          type="url"
+                          placeholder="https://www.suaempresa.com.br"
+                          value={formData.website}
+                          onChange={(e) => {
+                            setFormData({ ...formData, website: e.target.value });
+                            if (perfilErrors.website) setPerfilErrors({ ...perfilErrors, website: "" });
+                          }}
+                          className="pl-9"
+                          data-testid="input-website"
+                        />
+                      </div>
                       <Button
+                        type="button"
                         variant="outline"
-                        onClick={() => setCancelarDialogOpen(true)}
-                        data-testid="button-abrir-cancelar-assinatura"
+                        onClick={() => gerarDescricaoMutation.mutate(formData.website)}
+                        disabled={!formData.website.trim() || gerarDescricaoMutation.isPending}
+                        data-testid="button-gerar-descricao"
                       >
-                        <X className="h-4 w-4 mr-2" />
-                        Cancelar assinatura
+                        {gerarDescricaoMutation.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : (
+                          <Sparkles className="h-4 w-4 mr-2" />
+                        )}
+                        Gerar com IA
                       </Button>
                     </div>
-                  ) : !empresaExistente.mpSubscriptionId ? (
-                    <p className="text-sm text-muted-foreground" data-testid="text-sem-assinatura-mp">
-                      Ainda não há uma assinatura ativa do Mercado Pago vinculada a esta conta.
+                    {perfilErrors.website ? (
+                      <p className="text-sm text-destructive mt-1" data-testid="error-website">{perfilErrors.website}</p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Nossa IA acessa o site e cria uma descrição profissional automaticamente.
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <Label htmlFor="edit-descricao">Descrição do Negócio</Label>
+                    <Textarea
+                      id="edit-descricao"
+                      placeholder="Ex: Fabricamos peças metálicas usinadas de alta precisão para montadoras automotivas."
+                      value={formData.descricao}
+                      onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
+                      className="min-h-[100px] mt-1"
+                      data-testid="textarea-descricao"
+                    />
+                  </div>
+
+                  {/* Dados Cadastrais */}
+                  <div className="border-t pt-5 space-y-4">
+                    <div className="flex items-center gap-2 mb-1">
+                      <MapPin className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">Dados Cadastrais</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div>
+                        <Label htmlFor="edit-cnpj">CNPJ</Label>
+                        <Input
+                          id="edit-cnpj"
+                          placeholder="00.000.000/0000-00"
+                          value={formData.cnpj}
+                          onChange={(e) => {
+                            setFormData({ ...formData, cnpj: e.target.value });
+                            if (perfilErrors.cnpj) setPerfilErrors({ ...perfilErrors, cnpj: "" });
+                          }}
+                          data-testid="input-cnpj"
+                        />
+                        {perfilErrors.cnpj && (
+                          <p className="text-sm text-destructive mt-1" data-testid="error-cnpj">{perfilErrors.cnpj}</p>
+                        )}
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-anoFundacao">Ano de Fundação</Label>
+                        <Input
+                          id="edit-anoFundacao"
+                          placeholder="Ex: 2010"
+                          value={formData.anoFundacao}
+                          onChange={(e) => {
+                            setFormData({ ...formData, anoFundacao: e.target.value });
+                            if (perfilErrors.anoFundacao) setPerfilErrors({ ...perfilErrors, anoFundacao: "" });
+                          }}
+                          data-testid="input-ano-fundacao"
+                          maxLength={4}
+                        />
+                        {perfilErrors.anoFundacao && (
+                          <p className="text-sm text-destructive mt-1" data-testid="error-ano-fundacao">{perfilErrors.anoFundacao}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="edit-endereco">Endereço</Label>
+                      <Input
+                        id="edit-endereco"
+                        placeholder="Ex: Rua das Indústrias, 1200"
+                        value={formData.endereco}
+                        onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
+                        data-testid="input-endereco"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                      <div className="sm:col-span-1">
+                        <Label htmlFor="edit-cidade">Cidade</Label>
+                        <Input
+                          id="edit-cidade"
+                          placeholder="Ex: São Paulo"
+                          value={formData.cidade}
+                          onChange={(e) => setFormData({ ...formData, cidade: e.target.value })}
+                          data-testid="input-cidade"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-estado">Estado</Label>
+                        <Input
+                          id="edit-estado"
+                          placeholder="Ex: SP"
+                          value={formData.estado}
+                          onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
+                          data-testid="input-estado"
+                          maxLength={2}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-cep">CEP</Label>
+                        <Input
+                          id="edit-cep"
+                          placeholder="00000-000"
+                          value={formData.cep}
+                          onChange={(e) => setFormData({ ...formData, cep: e.target.value })}
+                          data-testid="input-cep"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end mt-6 pt-4 border-t">
+                  <Button
+                    onClick={handleSalvarPerfil}
+                    disabled={atualizarEmpresaMutation.isPending}
+                    data-testid="button-salvar-perfil"
+                  >
+                    {atualizarEmpresaMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Salvando...
+                      </>
+                    ) : (
+                      "Salvar Informações"
+                    )}
+                  </Button>
+                </div>
+              </Card>
+            </TabsContent>
+
+            {/* ── Contexto tab ── */}
+            <TabsContent value="contexto" className="mt-0">
+              <Card className="p-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 flex-shrink-0">
+                    <Target className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-base leading-tight">Contexto Estratégico</h3>
+                    <p className="text-xs text-muted-foreground">Quanto mais detalhes, mais precisas serão as análises de IA</p>
+                  </div>
+                </div>
+
+                <div className="space-y-5">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <Label htmlFor="edit-modeloNegocio">Modelo de Negócio</Label>
+                      <Select
+                        value={formData.modeloNegocio}
+                        onValueChange={(val) => setFormData({ ...formData, modeloNegocio: val })}
+                      >
+                        <SelectTrigger id="edit-modeloNegocio" className="mt-1" data-testid="select-modelo-negocio">
+                          <SelectValue placeholder="Selecione o modelo..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="B2B">B2B (vende para empresas)</SelectItem>
+                          <SelectItem value="B2C">B2C (vende para pessoas físicas)</SelectItem>
+                          <SelectItem value="B2B2C">B2B2C (empresas e consumidores)</SelectItem>
+                          <SelectItem value="Marketplace">Marketplace</SelectItem>
+                          <SelectItem value="SaaS/Software">SaaS / Software</SelectItem>
+                          <SelectItem value="Franquia">Franquia</SelectItem>
+                          <SelectItem value="Outro">Outro</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="edit-areaAtuacao">Área de Atuação Geográfica</Label>
+                      <Select
+                        value={formData.areaAtuacao}
+                        onValueChange={(val) => setFormData({ ...formData, areaAtuacao: val })}
+                      >
+                        <SelectTrigger id="edit-areaAtuacao" className="mt-1" data-testid="select-area-atuacao">
+                          <SelectValue placeholder="Selecione a abrangência..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Local (cidade)">Local (cidade)</SelectItem>
+                          <SelectItem value="Regional (estado)">Regional (estado)</SelectItem>
+                          <SelectItem value="Nacional">Nacional</SelectItem>
+                          <SelectItem value="Internacional/Exportação">Internacional / Exportação</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="edit-publicoAlvo">Público-Alvo / Cliente Ideal</Label>
+                    <Textarea
+                      id="edit-publicoAlvo"
+                      placeholder="Ex: Pequenas indústrias do setor metal-mecânico com faturamento entre R$2M e R$20M..."
+                      value={formData.publicoAlvo}
+                      onChange={(e) => setFormData({ ...formData, publicoAlvo: e.target.value })}
+                      className="min-h-[80px] mt-1"
+                      data-testid="textarea-publico-alvo"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="edit-principaisProdutos">Principais Produtos / Serviços</Label>
+                    <Textarea
+                      id="edit-principaisProdutos"
+                      placeholder="Ex: Usinagem CNC de alta precisão, injeção plástica, montagem de subconjuntos..."
+                      value={formData.principaisProdutos}
+                      onChange={(e) => setFormData({ ...formData, principaisProdutos: e.target.value })}
+                      className="min-h-[80px] mt-1"
+                      data-testid="textarea-principais-produtos"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="edit-concorrentesConhecidos">Concorrentes Conhecidos</Label>
+                    <Textarea
+                      id="edit-concorrentesConhecidos"
+                      placeholder="Ex: Empresa X, Grupo Y, startup Z — cite nomes reais se souber"
+                      value={formData.concorrentesConhecidos}
+                      onChange={(e) => setFormData({ ...formData, concorrentesConhecidos: e.target.value })}
+                      className="min-h-[72px] mt-1"
+                      data-testid="textarea-concorrentes-conhecidos"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="edit-diferenciaisCompetitivos">Diferenciais Competitivos</Label>
+                    <Textarea
+                      id="edit-diferenciaisCompetitivos"
+                      placeholder="Ex: Certificação ISO 9001, prazo de entrega 30% menor que o mercado, atendimento customizado..."
+                      value={formData.diferenciaisCompetitivos}
+                      onChange={(e) => setFormData({ ...formData, diferenciaisCompetitivos: e.target.value })}
+                      className="min-h-[80px] mt-1"
+                      data-testid="textarea-diferenciais-competitivos"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end mt-6 pt-4 border-t">
+                  <Button
+                    onClick={handleSalvarContexto}
+                    disabled={atualizarEmpresaMutation.isPending}
+                    data-testid="button-salvar-contexto"
+                  >
+                    {atualizarEmpresaMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Salvando...
+                      </>
+                    ) : (
+                      "Salvar Contexto"
+                    )}
+                  </Button>
+                </div>
+              </Card>
+            </TabsContent>
+
+            {/* ── Documentos tab ── */}
+            <TabsContent value="documentos" className="mt-0">
+              <Card className="p-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 flex-shrink-0">
+                    <FileText className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-base leading-tight">Documento Estratégico</h3>
+                    <p className="text-xs text-muted-foreground">
+                      PDF com plano de negócios, diagnóstico ou relatório — a IA usa esse contexto em todas as análises
                     </p>
-                  ) : (
-                    <p className="text-sm text-muted-foreground" data-testid="text-status-nao-cancelavel">
-                      A assinatura não está em um estado que permita cancelamento ({empresaExistente.planoStatus}).
-                    </p>
-                  )
+                  </div>
+                </div>
+
+                {documentoInfo ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3 p-4 rounded-md bg-muted/50">
+                      <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate" data-testid="text-documento-nome">{documentoInfo.nome}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {documentoInfo.tamanhoKb} KB · Enviado em {new Date(documentoInfo.analisadoEm).toLocaleDateString("pt-BR")}
+                        </p>
+                      </div>
+                      <Button size="icon" variant="ghost" onClick={handleRemoverDocumento} data-testid="button-remover-documento">
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <input
+                        ref={pdfInputRef}
+                        type="file"
+                        accept="application/pdf"
+                        className="hidden"
+                        onChange={handlePdfUpload}
+                      />
+                      <Button
+                        variant="outline"
+                        onClick={() => pdfInputRef.current?.click()}
+                        disabled={pdfUploading}
+                        data-testid="button-substituir-pdf"
+                      >
+                        {pdfUploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+                        Substituir documento
+                      </Button>
+                    </div>
+                  </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground" data-testid="text-sem-permissao-cancelar">
-                    Apenas o proprietário da conta pode cancelar a assinatura. Entre em contato com quem fez o cadastro inicial da empresa.
-                  </p>
+                  <div>
+                    <input
+                      ref={pdfInputRef}
+                      type="file"
+                      accept="application/pdf"
+                      className="hidden"
+                      onChange={handlePdfUpload}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => pdfInputRef.current?.click()}
+                      disabled={pdfUploading}
+                      className="w-full border-2 border-dashed rounded-md p-10 flex flex-col items-center gap-3 text-center hover-elevate disabled:opacity-50"
+                      data-testid="button-upload-pdf"
+                    >
+                      {pdfUploading ? (
+                        <>
+                          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                          <div>
+                            <p className="text-sm font-medium">Processando documento...</p>
+                            <p className="text-xs text-muted-foreground">Isso pode levar alguns segundos.</p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-8 w-8 text-muted-foreground" />
+                          <div>
+                            <p className="text-sm font-medium">Clique para enviar um PDF</p>
+                            <p className="text-xs text-muted-foreground">Máximo 5 MB · O texto será incorporado ao contexto da empresa</p>
+                          </div>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 )}
               </Card>
-            );
-          })()}
+            </TabsContent>
 
+            {/* ── Conta tab ── */}
+            <TabsContent value="conta" className="mt-0 space-y-4">
+              {/* Plano e assinatura */}
+              {empresaExistente?.planoTipo && (() => {
+                const statusPermiteCancelar =
+                  empresaExistente.planoStatus === "ativo" ||
+                  empresaExistente.planoStatus === "pendente_pagamento";
+                const ativadoEm = empresaExistente.planoAtivadoEm
+                  ? new Date(empresaExistente.planoAtivadoEm).toLocaleDateString("pt-BR", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                    })
+                  : null;
+                const planoLabel =
+                  empresaExistente.planoTipo === "pro"
+                    ? "Pro"
+                    : empresaExistente.planoTipo === "start"
+                    ? "Start"
+                    : empresaExistente.planoTipo;
+                return (
+                  <Card className="p-6">
+                    <div className="flex items-center gap-3 mb-5">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 flex-shrink-0">
+                        <CreditCard className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-base leading-tight">Plano e Assinatura</h3>
+                        <p className="text-xs text-muted-foreground">Gerencie sua assinatura</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1 mb-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm text-muted-foreground">Plano atual:</span>
+                        <Badge variant="secondary" data-testid="text-plano-atual">{planoLabel}</Badge>
+                        <span className="text-sm text-muted-foreground">·</span>
+                        <span className="text-sm text-muted-foreground">Status:</span>
+                        <span className="text-sm font-medium" data-testid="text-plano-status">{empresaExistente.planoStatus}</span>
+                      </div>
+                      {ativadoEm && (
+                        <p className="text-sm text-muted-foreground" data-testid="text-plano-ativado-em">
+                          Ativado em: <span className="font-medium">{ativadoEm}</span>
+                        </p>
+                      )}
+                    </div>
+
+                    {empresaExistente.planoStatus === "cancelado" || empresaExistente.mpSubscriptionStatus === "cancelled" ? (
+                      <p className="text-sm text-muted-foreground" data-testid="text-assinatura-cancelada">
+                        Sua assinatura foi cancelada. O acesso permanece disponível até o fim do período já pago.
+                      </p>
+                    ) : empresaExistente.souProprietario ? (
+                      statusPermiteCancelar && empresaExistente.mpSubscriptionId ? (
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <p className="text-sm text-muted-foreground">
+                            Você é o proprietário desta conta. Pode cancelar a assinatura a qualquer momento.
+                          </p>
+                          <Button
+                            variant="outline"
+                            onClick={() => setCancelarDialogOpen(true)}
+                            data-testid="button-abrir-cancelar-assinatura"
+                          >
+                            <X className="h-4 w-4 mr-2" />
+                            Cancelar assinatura
+                          </Button>
+                        </div>
+                      ) : !empresaExistente.mpSubscriptionId ? (
+                        <p className="text-sm text-muted-foreground" data-testid="text-sem-assinatura-mp">
+                          Ainda não há uma assinatura ativa do Mercado Pago vinculada a esta conta.
+                        </p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground" data-testid="text-status-nao-cancelavel">
+                          A assinatura não está em um estado que permita cancelamento ({empresaExistente.planoStatus}).
+                        </p>
+                      )
+                    ) : (
+                      <p className="text-sm text-muted-foreground" data-testid="text-sem-permissao-cancelar">
+                        Apenas o proprietário da conta pode cancelar a assinatura. Entre em contato com quem fez o cadastro inicial da empresa.
+                      </p>
+                    )}
+                  </Card>
+                );
+              })()}
+
+              {/* Alterar Senha */}
+              <Card className="overflow-hidden">
+                <button
+                  type="button"
+                  className="w-full flex items-center justify-between p-6 text-left hover-elevate"
+                  onClick={() => setSenhaAberta(!senhaAberta)}
+                  data-testid="button-toggle-alterar-senha"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-md bg-muted flex-shrink-0">
+                      <Lock className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-base leading-tight">Alterar Senha</div>
+                      <div className="text-xs text-muted-foreground">Atualize sua senha de acesso</div>
+                    </div>
+                  </div>
+                  {senhaAberta ? (
+                    <ChevronUp className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                  ) : (
+                    <ChevronDown className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                  )}
+                </button>
+
+                {senhaAberta && (
+                  <div className="px-6 pb-6 border-t pt-6 space-y-4">
+                    <div>
+                      <Label htmlFor="senha-atual">Senha Atual</Label>
+                      <Input
+                        id="senha-atual"
+                        type="password"
+                        placeholder="Digite sua senha atual"
+                        value={senhaData.senhaAtual}
+                        onChange={(e) => {
+                          setSenhaData({ ...senhaData, senhaAtual: e.target.value });
+                          if (senhaErrors.senhaAtual) setSenhaErrors({ ...senhaErrors, senhaAtual: "" });
+                        }}
+                        data-testid="input-senha-atual"
+                      />
+                      {senhaErrors.senhaAtual && (
+                        <p className="text-sm text-destructive mt-1" data-testid="error-senha-atual">
+                          {senhaErrors.senhaAtual}
+                        </p>
+                      )}
+                    </div>
+
+                    <div>
+                      <Label htmlFor="nova-senha">Nova Senha</Label>
+                      <Input
+                        id="nova-senha"
+                        type="password"
+                        placeholder="Mínimo 6 caracteres"
+                        value={senhaData.novaSenha}
+                        onChange={(e) => {
+                          setSenhaData({ ...senhaData, novaSenha: e.target.value });
+                          if (senhaErrors.novaSenha) setSenhaErrors({ ...senhaErrors, novaSenha: "" });
+                        }}
+                        data-testid="input-nova-senha"
+                      />
+                      {senhaErrors.novaSenha && (
+                        <p className="text-sm text-destructive mt-1" data-testid="error-nova-senha">
+                          {senhaErrors.novaSenha}
+                        </p>
+                      )}
+                    </div>
+
+                    <div>
+                      <Label htmlFor="confirmar-senha">Confirmar Nova Senha</Label>
+                      <Input
+                        id="confirmar-senha"
+                        type="password"
+                        placeholder="Repita a nova senha"
+                        value={senhaData.confirmarSenha}
+                        onChange={(e) => {
+                          setSenhaData({ ...senhaData, confirmarSenha: e.target.value });
+                          if (senhaErrors.confirmarSenha) setSenhaErrors({ ...senhaErrors, confirmarSenha: "" });
+                        }}
+                        data-testid="input-confirmar-senha"
+                      />
+                      {senhaErrors.confirmarSenha && (
+                        <p className="text-sm text-destructive mt-1" data-testid="error-confirmar-senha">
+                          {senhaErrors.confirmarSenha}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex justify-end">
+                      <Button
+                        onClick={handleAlterarSenha}
+                        disabled={alterarSenhaMutation.isPending}
+                        data-testid="button-salvar-senha"
+                      >
+                        {alterarSenhaMutation.isPending ? "Salvando..." : "Alterar Senha"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </Card>
+            </TabsContent>
+          </Tabs>
+
+          {/* Cancel dialog */}
           <Dialog open={cancelarDialogOpen} onOpenChange={setCancelarDialogOpen}>
             <DialogContent data-testid="dialog-cancelar-assinatura">
               <DialogHeader>
@@ -922,185 +1242,67 @@ export default function Onboarding() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-
-          <Card className="overflow-hidden">
-            <button
-              type="button"
-              className="w-full flex items-center justify-between p-6 text-left hover-elevate"
-              onClick={() => setSenhaAberta(!senhaAberta)}
-              data-testid="button-toggle-alterar-senha"
-            >
-              <div className="flex items-center gap-3">
-                <Lock className="h-5 w-5 text-muted-foreground" />
-                <div>
-                  <div className="font-semibold">Alterar Senha</div>
-                  <div className="text-sm text-muted-foreground">Atualize sua senha de acesso</div>
-                </div>
-              </div>
-              {senhaAberta ? (
-                <ChevronUp className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-              ) : (
-                <ChevronDown className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-              )}
-            </button>
-
-            {senhaAberta && (
-              <div className="px-6 pb-6 border-t pt-6 space-y-4">
-                <div>
-                  <Label htmlFor="senha-atual">Senha Atual</Label>
-                  <Input
-                    id="senha-atual"
-                    type="password"
-                    placeholder="Digite sua senha atual"
-                    value={senhaData.senhaAtual}
-                    onChange={(e) => {
-                      setSenhaData({ ...senhaData, senhaAtual: e.target.value });
-                      if (senhaErrors.senhaAtual) setSenhaErrors({ ...senhaErrors, senhaAtual: "" });
-                    }}
-                    data-testid="input-senha-atual"
-                  />
-                  {senhaErrors.senhaAtual && (
-                    <p className="text-sm text-destructive mt-1" data-testid="error-senha-atual">
-                      {senhaErrors.senhaAtual}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <Label htmlFor="nova-senha">Nova Senha</Label>
-                  <Input
-                    id="nova-senha"
-                    type="password"
-                    placeholder="Mínimo 6 caracteres"
-                    value={senhaData.novaSenha}
-                    onChange={(e) => {
-                      setSenhaData({ ...senhaData, novaSenha: e.target.value });
-                      if (senhaErrors.novaSenha) setSenhaErrors({ ...senhaErrors, novaSenha: "" });
-                    }}
-                    data-testid="input-nova-senha"
-                  />
-                  {senhaErrors.novaSenha && (
-                    <p className="text-sm text-destructive mt-1" data-testid="error-nova-senha">
-                      {senhaErrors.novaSenha}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <Label htmlFor="confirmar-senha">Confirmar Nova Senha</Label>
-                  <Input
-                    id="confirmar-senha"
-                    type="password"
-                    placeholder="Repita a nova senha"
-                    value={senhaData.confirmarSenha}
-                    onChange={(e) => {
-                      setSenhaData({ ...senhaData, confirmarSenha: e.target.value });
-                      if (senhaErrors.confirmarSenha) setSenhaErrors({ ...senhaErrors, confirmarSenha: "" });
-                    }}
-                    data-testid="input-confirmar-senha"
-                  />
-                  {senhaErrors.confirmarSenha && (
-                    <p className="text-sm text-destructive mt-1" data-testid="error-confirmar-senha">
-                      {senhaErrors.confirmarSenha}
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex justify-end">
-                  <Button
-                    onClick={handleAlterarSenha}
-                    disabled={alterarSenhaMutation.isPending}
-                    data-testid="button-salvar-senha"
-                  >
-                    {alterarSenhaMutation.isPending ? "Salvando..." : "Alterar Senha"}
-                  </Button>
-                </div>
-              </div>
-            )}
-          </Card>
-
-          {/* Logo upload */}
-          <Card className="px-8 pt-8 pb-4">
-            <h3 className="text-xl font-semibold mb-1">Logotipo da Empresa</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Faça upload do logotipo em JPG ou PNG (máx. 2 MB). Ele será exibido na página Início.
-            </p>
-            <div className="flex flex-wrap items-center gap-5">
-              {formData.logoUrl ? (
-                <div className="h-20 w-40 rounded-md border bg-muted/30 flex items-center justify-center overflow-hidden flex-shrink-0">
-                  <img
-                    src={formData.logoUrl}
-                    alt="Logotipo"
-                    className="max-h-full max-w-full object-contain p-2"
-                    data-testid="img-logo-preview"
-                  />
-                </div>
-              ) : (
-                <div className="h-20 w-40 rounded-md border border-dashed bg-muted/20 flex flex-col items-center justify-center gap-1 text-muted-foreground flex-shrink-0">
-                  <ImagePlus className="h-6 w-6" />
-                  <span className="text-xs">Sem logotipo</span>
-                </div>
-              )}
-              <div className="flex flex-wrap gap-2">
-                <input
-                  id="logo-file-input"
-                  ref={logoInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png"
-                  className="sr-only"
-                  onChange={handleLogoChange}
-                  data-testid="input-logo-file"
-                />
-                <Button variant="outline" asChild data-testid="button-upload-logo">
-                  <label htmlFor="logo-file-input" className="cursor-pointer">
-                    <ImagePlus className="h-4 w-4 mr-2" />
-                    {formData.logoUrl ? "Alterar logotipo" : "Enviar logotipo"}
-                  </label>
-                </Button>
-                {formData.logoUrl && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setFormData((prev) => ({ ...prev, logoUrl: "" }));
-                      atualizarEmpresaMutation.mutate({ ...formData, logoUrl: "" });
-                    }}
-                    data-testid="button-remove-logo"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Remover
-                  </Button>
-                )}
-              </div>
-            </div>
-            {formData.logoUrl && (
-              <div className="flex justify-end mt-4">
-                <Button
-                  type="button"
-                  onClick={() => atualizarEmpresaMutation.mutate(formData)}
-                  disabled={atualizarEmpresaMutation.isPending}
-                  data-testid="button-salvar-logo"
-                >
-                  {atualizarEmpresaMutation.isPending ? "Salvando..." : "Salvar Logotipo"}
-                </Button>
-              </div>
-            )}
-          </Card>
         </div>
       ) : (
         <>
+          {/* ── Enhanced wizard step indicator ── */}
           <div className="mb-8">
-            <ProgressBar current={step} total={totalSteps} label="Etapa do perfil" />
+            <div className="flex items-center justify-center gap-0">
+              {wizardSteps.map((s, i) => {
+                const stepNum = i + 1;
+                const isCompleted = step > stepNum;
+                const isActive = step === stepNum;
+                return (
+                  <div key={s.label} className="flex items-center">
+                    <div className="flex flex-col items-center gap-1.5">
+                      <div
+                        className={`h-9 w-9 rounded-full border-2 flex items-center justify-center transition-colors ${
+                          isCompleted
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : isActive
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-muted-foreground/30 bg-muted/30 text-muted-foreground"
+                        }`}
+                        data-testid={`step-circle-${stepNum}`}
+                      >
+                        {isCompleted ? (
+                          <CheckCircle2 className="h-4 w-4" />
+                        ) : (
+                          <span className="text-sm font-semibold">{stepNum}</span>
+                        )}
+                      </div>
+                      <span
+                        className={`text-xs font-medium whitespace-nowrap ${
+                          isActive ? "text-primary" : "text-muted-foreground"
+                        }`}
+                      >
+                        {s.label}
+                      </span>
+                    </div>
+                    {i < wizardSteps.length - 1 && (
+                      <div
+                        className={`h-0.5 w-16 sm:w-24 mx-1 mb-5 transition-colors ${
+                          step > stepNum ? "bg-primary" : "bg-muted-foreground/20"
+                        }`}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
-          <Card className="p-8">
+          <Card className="p-6">
             {step === 1 && (
               <div className="space-y-6">
-                <div>
-                  <h3 className="text-xl font-semibold mb-4">Informações Básicas</h3>
-                  <p className="text-sm text-muted-foreground mb-6">
-                    Vamos começar conhecendo sua empresa.
-                  </p>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 flex-shrink-0">
+                    <Building2 className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold leading-tight">Informações Básicas</h3>
+                    <p className="text-sm text-muted-foreground">Vamos começar conhecendo sua empresa.</p>
+                  </div>
                 </div>
 
                 <div className="space-y-4">
@@ -1135,19 +1337,22 @@ export default function Onboarding() {
 
             {step === 2 && (
               <div className="space-y-6">
-                <div>
-                  <h3 className="text-xl font-semibold mb-4">Tamanho da Empresa</h3>
-                  <p className="text-sm text-muted-foreground mb-6">
-                    Isso nos ajuda a calibrar as análises e sugestões.
-                  </p>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 flex-shrink-0">
+                    <Users className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold leading-tight">Tamanho da Empresa</h3>
+                    <p className="text-sm text-muted-foreground">Isso nos ajuda a calibrar as análises e sugestões.</p>
+                  </div>
                 </div>
 
                 <div className="space-y-3">
                   {[
-                    { value: "micro", label: "Microempresa (até 19 funcionários)" },
-                    { value: "pequena", label: "Pequena empresa (20-99 funcionários)" },
-                    { value: "media", label: "Média empresa (100-499 funcionários)" },
-                    { value: "grande", label: "Grande empresa (500+ funcionários)" },
+                    { value: "micro", label: "Microempresa", sub: "até 19 funcionários" },
+                    { value: "pequena", label: "Pequena empresa", sub: "20–99 funcionários" },
+                    { value: "media", label: "Média empresa", sub: "100–499 funcionários" },
+                    { value: "grande", label: "Grande empresa", sub: "500+ funcionários" },
                   ].map((opcao) => (
                     <Card
                       key={opcao.value}
@@ -1159,7 +1364,7 @@ export default function Onboarding() {
                     >
                       <div className="flex items-center gap-3">
                         <div
-                          className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${
+                          className={`h-4 w-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${
                             formData.tamanho === opcao.value
                               ? "border-primary bg-primary"
                               : "border-muted-foreground"
@@ -1169,7 +1374,10 @@ export default function Onboarding() {
                             <div className="h-2 w-2 rounded-full bg-white" />
                           )}
                         </div>
-                        <span className="font-medium">{opcao.label}</span>
+                        <div>
+                          <p className="font-medium leading-tight">{opcao.label}</p>
+                          <p className="text-sm text-muted-foreground">{opcao.sub}</p>
+                        </div>
                       </div>
                     </Card>
                   ))}
@@ -1183,11 +1391,16 @@ export default function Onboarding() {
 
             {step === 3 && (
               <div className="space-y-6">
-                <div>
-                  <h3 className="text-xl font-semibold mb-4">Sobre o Negócio</h3>
-                  <p className="text-sm text-muted-foreground mb-6">
-                    Informe o site da sua empresa para gerarmos uma descrição automaticamente com IA, ou preencha manualmente.
-                  </p>
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 flex-shrink-0">
+                    <Globe className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold leading-tight">Sobre o Negócio</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Informe o site da sua empresa ou preencha a descrição manualmente.
+                    </p>
+                  </div>
                 </div>
 
                 <div>
@@ -1232,7 +1445,7 @@ export default function Onboarding() {
                     placeholder="Ex: Fabricamos peças metálicas usinadas de alta precisão para montadoras automotivas. Nossos principais produtos são componentes de motor e transmissão."
                     value={formData.descricao}
                     onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                    className="min-h-[150px]"
+                    className="min-h-[150px] mt-1"
                     data-testid="textarea-descricao"
                   />
                   <p className="text-xs text-muted-foreground mt-2">
@@ -1246,7 +1459,7 @@ export default function Onboarding() {
               </div>
             )}
 
-            <div className="flex justify-between mt-8">
+            <div className="flex justify-between mt-8 pt-4 border-t">
               <Button
                 variant="outline"
                 onClick={handleBack}
@@ -1261,8 +1474,17 @@ export default function Onboarding() {
                 disabled={criarEmpresaMutation.isPending || atualizarEmpresaMutation.isPending}
                 data-testid="button-proximo"
               >
-                {step === totalSteps ? "Finalizar" : "Próximo"}
-                <ArrowRight className="h-4 w-4 ml-2" />
+                {criarEmpresaMutation.isPending || atualizarEmpresaMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    {step === totalSteps ? "Salvando..." : "Próximo"}
+                  </>
+                ) : (
+                  <>
+                    {step === totalSteps ? "Finalizar" : "Próximo"}
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </>
+                )}
               </Button>
             </div>
           </Card>

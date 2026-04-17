@@ -5371,13 +5371,13 @@ Seja específico para o setor ${empresa.setor}.`,
   }
 
   const CATEGORIAS_PROMPTS: Record<string, string> = {
-    cambio_politica_monetaria: `Pesquise dados ATUAIS (últimas 2-4 semanas) sobre câmbio e política monetária no Brasil. Inclua: cotação atual do dólar (BRL/USD), decisão mais recente do Copom sobre a Selic, perspectivas de inflação do Banco Central, condições de crédito, e tendências cambiais. Use dados numéricos precisos e datas. Responda em português.`,
-    inflacao_custos: `Pesquise dados ATUAIS sobre inflação e custos no Brasil. Inclua: IPCA mensal e acumulado mais recentes, IGP-M, preço dos combustíveis (gasolina, diesel, etanol), variação de custos de insumos industriais, pressão inflacionária em alimentos, e impacto para pequenas e médias empresas. Use dados numéricos precisos e datas. Responda em português.`,
-    cenario_politico_regulatorio: `Pesquise o cenário político e regulatório ATUAL do Brasil. Inclua: principais pautas do Congresso e do Executivo com impacto para empresas, novas regulações em tramitação ou recém-aprovadas, mudanças tributárias, decisões do STF relevantes para negócios, e instabilidade ou estabilidade política recente. Responda em português.`,
-    geopolitica_comercio_exterior: `Pesquise o cenário geopolítico ATUAL e seu impacto no comércio exterior brasileiro. Inclua: tarifas e barreiras comerciais impactando exportações/importações do Brasil, conflitos ou tensões que afetam cadeias de suprimento, acordos comerciais em negociação, variação de preços de commodities exportadas pelo Brasil, e posição do Brasil no comércio global. Responda em português.`,
-    crises_setoriais: `Pesquise CRISES SETORIAIS ATUAIS no Brasil. Inclua: setores em dificuldade (varejo, indústria, agronegócio, serviços), falências ou reestruturações notáveis de empresas, problemas de cadeia de suprimento, greves ou paralisações, e escassez de insumos ou mão de obra qualificada. Responda em português.`,
-    tendencias_mercado: `Pesquise as principais TENDÊNCIAS DE MERCADO ATUAIS no Brasil. Inclua: mudanças no comportamento do consumidor, crescimento de setores emergentes, adoção de novas tecnologias por empresas brasileiras, tendências de e-commerce e digitalização, e oportunidades de negócio identificadas por analistas. Responda em português.`,
-    contexto_geral: `Faça um resumo estratégico do contexto macroeconômico ATUAL do Brasil. Inclua os pontos mais críticos para pequenas e médias empresas: perspectivas econômicas gerais, principais riscos e oportunidades do momento, sentimento do empresariado, e recomendações de posicionamento estratégico para PMEs. Responda em português.`,
+    cambio_politica_monetaria: `Escreva uma síntese concisa e objetiva sobre câmbio e política monetária no Brasil, com foco no que é relevante para gestores de pequenas e médias empresas. Aborde: tendências da taxa de câmbio (BRL/USD), postura do Banco Central em relação à Selic, perspectivas de inflação e crédito, e os principais impactos práticos para empresas que compram ou vendem em moeda estrangeira ou dependem de financiamento. Use linguagem direta e cite referências concretas quando possível. Máximo 400 palavras. Responda em português.`,
+    inflacao_custos: `Escreva uma síntese concisa sobre o cenário de inflação e custos no Brasil para gestores de PMEs. Aborde: tendências do IPCA e IGP-M, variações de custos de energia, combustíveis e insumos industriais, pressão inflacionária em alimentos e serviços, e os principais impactos na margem e no poder de compra do consumidor. Cite referências e dados concretos quando possível. Máximo 400 palavras. Responda em português.`,
+    cenario_politico_regulatorio: `Escreva uma síntese concisa sobre o cenário político e regulatório do Brasil com foco em impactos para empresas. Aborde: reformas tributárias em andamento (como a reforma do IVA/IBS), mudanças regulatórias relevantes para PMEs, pauta do Congresso e Executivo com impacto nos negócios, e estabilidade ou riscos políticos. Máximo 400 palavras. Responda em português.`,
+    geopolitica_comercio_exterior: `Escreva uma síntese concisa sobre geopolítica e comércio exterior com foco no Brasil. Aborde: tensões comerciais globais e seus efeitos nas exportações e importações brasileiras, posição do Brasil nos blocos comerciais (Mercosul, acordos com UE, relações com China e EUA), variações de preços de commodities exportadas (soja, minério, petróleo), e riscos de ruptura de cadeias de suprimento. Máximo 400 palavras. Responda em português.`,
+    crises_setoriais: `Escreva uma síntese sobre crises e riscos setoriais no Brasil relevantes para PMEs. Aborde: setores sob maior pressão (varejo, construção, indústria, agro, serviços), riscos de inadimplência, escassez de mão de obra qualificada, dificuldades logísticas, e oportunidades surgindo de reestruturações setoriais. Máximo 400 palavras. Responda em português.`,
+    tendencias_mercado: `Escreva uma síntese sobre as principais tendências de mercado no Brasil que gestores de PMEs devem acompanhar. Aborde: mudanças no comportamento do consumidor brasileiro, crescimento de setores emergentes (saúde, tecnologia, energia limpa, agritech), adoção de IA e digitalização, tendências de e-commerce e fintechs, e oportunidades identificadas por analistas. Máximo 400 palavras. Responda em português.`,
+    contexto_geral: `Escreva um resumo estratégico do contexto macroeconômico e de negócios do Brasil voltado para gestores de pequenas e médias empresas. Sintetize os pontos mais críticos: perspectivas econômicas, principais riscos operacionais e financeiros, oportunidades de crescimento, e 2 a 3 recomendações práticas de posicionamento estratégico para PMEs neste cenário. Máximo 450 palavras. Responda em português.`,
   };
 
   function calcularProximoAgendamento(frequencia: string, base: Date): Date {
@@ -5388,21 +5388,25 @@ Seja específico para o setor ${empresa.setor}.`,
     return d;
   }
 
-  type ResponsesCreateParams = Parameters<typeof openai.responses.create>[0];
-  type ResponsesToolParam = NonNullable<ResponsesCreateParams["tools"]>[number];
-
   async function gerarContextoCategoria(categoria: string): Promise<string> {
     const prompt = CATEGORIAS_PROMPTS[categoria];
     if (!prompt) throw new Error(`Categoria sem prompt: ${categoria}`);
-    const webSearchTool = { type: "web_search_preview" } as unknown as ResponsesToolParam;
-    const response = await openai.responses.create({
-      model: AI_MODELS.busca,
-      tools: [webSearchTool],
-      input: prompt,
+    const completion = await openai.chat.completions.create({
+      model: AI_MODELS.relatorios,
+      messages: [
+        {
+          role: "system",
+          content: `Você é um analista macroeconômico especializado no Brasil. Sua função é redigir sínteses concisas e práticas do contexto econômico, político e regulatório brasileiro para ajudar gestores de pequenas e médias empresas a tomar melhores decisões estratégicas. Use linguagem direta e objetiva, com dados e referências concretas quando possível. Responda sempre em português do Brasil.`,
+        },
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      temperature: 0.4,
+      max_tokens: 800,
     });
-    const typed = response as unknown as { output_text?: string };
-    const raw = typed.output_text ?? "";
-    return raw.trim();
+    return (completion.choices[0].message.content ?? "").trim();
   }
 
   app.get("/api/admin/contexto-macro", requireSuperAdmin, async (_req, res) => {

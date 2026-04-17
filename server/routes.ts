@@ -1772,7 +1772,9 @@ Responda APENAS em JSON válido com exatamente este formato:
 
       try {
         // Use Responses API with web_search_preview for real-time internet search
-        const response = await openai.responses.create({
+        // openaiSearch points to api.openai.com (not Azure) — required for this model/tool
+        if (!openaiSearch) throw new Error("OPENAI_API_KEY não configurada — web search indisponível");
+        const response = await openaiSearch.responses.create({
           model: AI_MODELS.busca,
           tools: [{ type: "web_search_preview" }],
           input: prompt,
@@ -2509,7 +2511,9 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
 
       try {
         // Passo 1 — pesquisa livre na web (modelo focado em buscar, não em formatar)
-        const webResponse = await openai.responses.create({
+        // openaiSearch points to api.openai.com (not Azure) — required for this model/tool
+        if (!openaiSearch) throw new Error("OPENAI_API_KEY não configurada — web search indisponível");
+        const webResponse = await openaiSearch.responses.create({
           model: AI_MODELS.busca,
           tools: [{ type: "web_search_preview" }],
           input: searchPrompt,

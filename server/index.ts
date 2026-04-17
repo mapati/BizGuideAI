@@ -175,14 +175,8 @@ async function runStartupMigrations() {
       ON contexto_macro_logs (categoria, executado_em DESC)
     `);
 
-    // Migration: update web search model from deprecated gpt-4o-mini-search-preview
-    await client.query(`
-      UPDATE configuracoes_ia
-      SET modelo_busca = 'gpt-4o-search-preview'
-      WHERE modelo_busca = 'gpt-4o-mini-search-preview'
-    `);
-
     // Task #77 — Per-plan AI model configuration (Start / Pro)
+    // ADD COLUMN first so all busca columns exist before the deprecation UPDATE below
     await client.query(`ALTER TABLE configuracoes_ia ADD COLUMN IF NOT EXISTS modelo_padrao_start TEXT NOT NULL DEFAULT 'gpt-4.1-mini'`);
     await client.query(`ALTER TABLE configuracoes_ia ADD COLUMN IF NOT EXISTS modelo_relatorios_start TEXT NOT NULL DEFAULT 'gpt-4.1-mini'`);
     await client.query(`ALTER TABLE configuracoes_ia ADD COLUMN IF NOT EXISTS modelo_busca_start TEXT NOT NULL DEFAULT 'gpt-4o-search-preview'`);
@@ -191,6 +185,20 @@ async function runStartupMigrations() {
     await client.query(`ALTER TABLE configuracoes_ia ADD COLUMN IF NOT EXISTS modelo_busca_pro_ent TEXT NOT NULL DEFAULT 'gpt-4o-search-preview'`);
     // Ensure the singleton config row always exists so DB is the only source of model defaults
     await client.query(`INSERT INTO configuracoes_ia (id) VALUES (1) ON CONFLICT (id) DO NOTHING`);
+
+    // Migration: replace deprecated gpt-4o-mini-search-preview in ALL busca fields
+    // Covers the legacy column AND the per-plan columns added above
+    await client.query(`
+      UPDATE configuracoes_ia
+      SET
+        modelo_busca         = CASE WHEN modelo_busca         = 'gpt-4o-mini-search-preview' THEN 'gpt-4o-search-preview' ELSE modelo_busca         END,
+        modelo_busca_start   = CASE WHEN modelo_busca_start   = 'gpt-4o-mini-search-preview' THEN 'gpt-4o-search-preview' ELSE modelo_busca_start   END,
+        modelo_busca_pro_ent = CASE WHEN modelo_busca_pro_ent = 'gpt-4o-mini-search-preview' THEN 'gpt-4o-search-preview' ELSE modelo_busca_pro_ent END
+      WHERE
+        modelo_busca         = 'gpt-4o-mini-search-preview'
+        OR modelo_busca_start   = 'gpt-4o-mini-search-preview'
+        OR modelo_busca_pro_ent = 'gpt-4o-mini-search-preview'
+    `);
     // Backfill: for existing installs that have customised the legacy 3-field config, inherit those
     // values into the new per-plan columns — but only when the new columns still hold their initial
     // defaults (i.e. have not yet been independently customised via the new admin UI).

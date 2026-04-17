@@ -256,6 +256,34 @@ export default function Home() {
 
   return (
     <div className="space-y-6">
+      {/* Header — sempre no topo */}
+      <div className="flex flex-wrap items-center gap-5">
+        {empresa?.logoUrl && (
+          <div className="flex-shrink-0">
+            <img
+              src={empresa.logoUrl}
+              alt={`Logotipo ${empresa.nome}`}
+              className="object-contain w-auto"
+              style={{ maxHeight: "56px", maxWidth: "160px" }}
+              data-testid="img-empresa-logo"
+            />
+          </div>
+        )}
+        <div>
+          <h1 className="text-3xl font-bold" data-testid="text-home-title">
+            {user ? `Olá, ${user.nome}` : "Início"}
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            {hoje.toLocaleDateString("pt-BR", {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            })}
+          </p>
+        </div>
+      </div>
+
       {showIntroPanel && (
         <Card className="border-primary/20 bg-primary/5 dark:bg-primary/10" data-testid="card-intro-boas-vindas">
           <div className="p-6 space-y-5">
@@ -370,33 +398,6 @@ export default function Home() {
         </Card>
       )}
       <JornadaEstrategicaCondicional />
-      {/* Header */}
-      <div className="flex flex-wrap items-center gap-5">
-        {empresa?.logoUrl && (
-          <div className="flex-shrink-0">
-            <img
-              src={empresa.logoUrl}
-              alt={`Logotipo ${empresa.nome}`}
-              className="object-contain w-auto"
-              style={{ maxHeight: "56px", maxWidth: "160px" }}
-              data-testid="img-empresa-logo"
-            />
-          </div>
-        )}
-        <div>
-          <h1 className="text-3xl font-bold" data-testid="text-home-title">
-            {user ? `Olá, ${user.nome}` : "Início"}
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            {hoje.toLocaleDateString("pt-BR", {
-              weekday: "long",
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            })}
-          </p>
-        </div>
-      </div>
 
       {/* Performance Geral + OKRs por Perspectiva */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">

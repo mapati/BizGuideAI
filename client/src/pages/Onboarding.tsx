@@ -347,7 +347,14 @@ export default function Onboarding() {
   };
 
   const handleSalvarContexto = () => {
-    atualizarEmpresaMutation.mutate(formData);
+    atualizarEmpresaMutation.mutate({
+      modeloNegocio: formData.modeloNegocio,
+      areaAtuacao: formData.areaAtuacao,
+      publicoAlvo: formData.publicoAlvo,
+      principaisProdutos: formData.principaisProdutos,
+      concorrentesConhecidos: formData.concorrentesConhecidos,
+      diferenciaisCompetitivos: formData.diferenciaisCompetitivos,
+    });
   };
 
   const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -442,16 +449,16 @@ export default function Onboarding() {
 
       {perfilCompleto ? (
         <div className="space-y-6">
-          {/* ── Profile header card ── */}
+          {/* ── Profile header card (shows persisted data — updates after save) ── */}
           <Card className="p-6">
             <div className="flex flex-wrap items-center gap-5">
-              {formData.logoUrl ? (
+              {empresaExistente?.logoUrl ? (
                 <div className="h-16 w-32 rounded-md border bg-muted/30 flex items-center justify-center overflow-hidden flex-shrink-0">
                   <img
-                    src={formData.logoUrl}
+                    src={empresaExistente.logoUrl}
                     alt="Logotipo"
                     className="max-h-full max-w-full object-contain p-2"
-                    data-testid="img-logo-preview"
+                    data-testid="img-header-logo"
                   />
                 </div>
               ) : (
@@ -461,14 +468,14 @@ export default function Onboarding() {
               )}
               <div className="flex-1 min-w-0">
                 <h2 className="text-xl font-semibold truncate" data-testid="text-header-nome">
-                  {formData.nome || "Empresa sem nome"}
+                  {empresaExistente?.nome || "Empresa sem nome"}
                 </h2>
                 <p className="text-sm text-muted-foreground truncate" data-testid="text-header-setor">
-                  {formData.setor || "Setor não informado"}
+                  {empresaExistente?.setor || "Setor não informado"}
                 </p>
-                {formData.tamanho && (
+                {empresaExistente?.tamanho && (
                   <Badge variant="secondary" className="mt-1.5" data-testid="badge-header-tamanho">
-                    {TAMANHO_LABELS[formData.tamanho] ?? formData.tamanho}
+                    {TAMANHO_LABELS[empresaExistente.tamanho] ?? empresaExistente.tamanho}
                   </Badge>
                 )}
               </div>
@@ -520,6 +527,7 @@ export default function Onboarding() {
                             src={formData.logoUrl}
                             alt="Logotipo"
                             className="max-h-full max-w-full object-contain p-1.5"
+                            data-testid="img-logo-preview"
                           />
                         </div>
                       ) : (
@@ -544,19 +552,31 @@ export default function Onboarding() {
                           </label>
                         </Button>
                         {formData.logoUrl && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setFormData((prev) => ({ ...prev, logoUrl: "" }));
-                              atualizarEmpresaMutation.mutate({ ...formData, logoUrl: "" });
-                            }}
-                            data-testid="button-remove-logo"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Remover
-                          </Button>
+                          <>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => atualizarEmpresaMutation.mutate({ ...formData })}
+                              disabled={atualizarEmpresaMutation.isPending}
+                              data-testid="button-salvar-logo"
+                            >
+                              {atualizarEmpresaMutation.isPending ? "Salvando..." : "Salvar Logotipo"}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setFormData((prev) => ({ ...prev, logoUrl: "" }));
+                                atualizarEmpresaMutation.mutate({ ...formData, logoUrl: "" });
+                              }}
+                              data-testid="button-remove-logo"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Remover
+                            </Button>
+                          </>
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground w-full">JPG ou PNG, máx. 2 MB.</p>

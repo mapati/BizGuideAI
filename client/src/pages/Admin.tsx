@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -40,6 +40,7 @@ import {
   Info,
   Trash2,
   RefreshCw,
+  BookOpen,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -1141,11 +1142,24 @@ export default function Admin() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold" data-testid="text-admin-titulo">Painel de Administração</h1>
-        <p className="text-muted-foreground text-sm">
-          Gerencie empresas, faturas e acompanhe métricas do sistema.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold" data-testid="text-admin-titulo">Painel de Administração</h1>
+          <p className="text-muted-foreground text-sm">
+            Gerencie empresas, faturas e acompanhe métricas do sistema.
+          </p>
+        </div>
+        <Link href="/admin/contexto-macro">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground"
+            data-testid="button-link-contexto-macro"
+          >
+            <BookOpen className="h-4 w-4 mr-2" />
+            Motor de Contexto
+          </Button>
+        </Link>
       </div>
 
       <Tabs defaultValue="resumo" data-testid="tabs-admin">

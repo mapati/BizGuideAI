@@ -501,7 +501,7 @@ function CategoriaCard({
                   Histórico de execuções
                 </Label>
                 <div className="space-y-1" data-testid={`log-historico-${cat.categoria}`}>
-                  {execLogs.map((log, i) => (
+                  {execLogs.slice(0, 5).map((log, i) => (
                     <div
                       key={i}
                       className="flex items-start gap-2 text-xs rounded-md px-2 py-1.5 bg-muted/40"
@@ -522,12 +522,13 @@ function CategoriaCard({
                           minute: "2-digit",
                         })}
                       </span>
-                      <span className="shrink-0">
+                      <span className={`flex items-center gap-0.5 shrink-0 font-medium ${log.modo === "web_search" ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}`}>
                         {log.modo === "web_search" ? (
-                          <Globe className="h-3 w-3 text-green-600 dark:text-green-400" />
+                          <Globe className="h-3 w-3" />
                         ) : (
-                          <AlertTriangle className="h-3 w-3 text-amber-500 dark:text-amber-400" />
+                          <AlertTriangle className="h-3 w-3" />
                         )}
+                        {log.modo === "web_search" ? "web search" : "fallback"}
                       </span>
                       <span className="text-foreground/80 break-words min-w-0">{log.mensagem}</span>
                     </div>

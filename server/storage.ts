@@ -230,8 +230,8 @@ export interface IStorage {
   updateContextoMacro(categoria: string, data: Partial<Omit<ContextoMacro, "categoria">>): Promise<ContextoMacro>;
   addContextoMacroLog(log: InsertContextoMacroLog): Promise<void>;
   getContextoMacroLogs(categoria: string): Promise<ContextoMacroLog[]>;
-  incrementGoogleSearchUsage(): Promise<void>;
-  getGoogleSearchUsageToday(): Promise<number>;
+  incrementSearchUsage(): Promise<void>;
+  getSearchUsageThisMonth(): Promise<number>;
 }
 
 function omitTenantFields<T extends Record<string, unknown>>(data: T): Omit<T, "empresaId" | "objetivoId"> {
@@ -939,7 +939,7 @@ export class DbStorage implements IStorage {
       .limit(10);
   }
 
-  async incrementGoogleSearchUsage(): Promise<void> {
+  async incrementSearchUsage(): Promise<void> {
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD UTC
     await db
       .insert(googleSearchUsage)
@@ -950,14 +950,14 @@ export class DbStorage implements IStorage {
       });
   }
 
-  async getGoogleSearchUsageToday(): Promise<number> {
-    const today = new Date().toISOString().slice(0, 10);
+  async getSearchUsageThisMonth(): Promise<number> {
+    const now = new Date();
+    const month = now.toISOString().slice(0, 7); // YYYY-MM UTC
     const rows = await db
       .select()
       .from(googleSearchUsage)
-      .where(eq(googleSearchUsage.date, today))
-      .limit(1);
-    return rows[0]?.count ?? 0;
+      .where(sql`${googleSearchUsage.date} LIKE ${month + "-%"}`);
+    return rows.reduce((sum, r) => sum + (r.count ?? 0), 0);
   }
 
 }

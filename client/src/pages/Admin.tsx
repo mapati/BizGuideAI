@@ -1036,10 +1036,10 @@ function ModelSelector({
   );
 }
 
-const GOOGLE_SEARCH_LIMIT = 100;
+const SERPER_SEARCH_LIMIT = 2500;
 
-function GoogleSearchUsageCard({ usage }: { usage: number }) {
-  const pct = Math.min(100, Math.round((usage / GOOGLE_SEARCH_LIMIT) * 100));
+function SerperUsageCard({ usage }: { usage: number }) {
+  const pct = Math.min(100, Math.round((usage / SERPER_SEARCH_LIMIT) * 100));
   const isWarning  = pct >= 80 && pct < 100;
   const isExceeded = pct >= 100;
 
@@ -1070,38 +1070,38 @@ function GoogleSearchUsageCard({ usage }: { usage: number }) {
   return (
     <div
       className={`flex items-start gap-3 p-4 rounded-md border ${containerClass}`}
-      data-testid="card-google-search-usage"
+      data-testid="card-serper-usage"
     >
       <Search className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
       <div className="flex-1 space-y-2">
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <p className={`text-sm font-medium ${textClass}`}>
-            Google Custom Search — uso hoje
+            Serper.dev — consultas este mês
           </p>
-          <span className={`text-sm font-mono font-semibold ${textClass}`} data-testid="text-google-search-count">
-            {usage} / {GOOGLE_SEARCH_LIMIT}
+          <span className={`text-sm font-mono font-semibold ${textClass}`} data-testid="text-serper-count">
+            {usage} / {SERPER_SEARCH_LIMIT}
           </span>
         </div>
         <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
           <div
             className={`h-full rounded-full transition-all ${barColor}`}
             style={{ width: `${pct}%` }}
-            data-testid="bar-google-search-usage"
+            data-testid="bar-serper-usage"
           />
         </div>
         {isExceeded && (
           <p className={`text-xs ${subTextClass}`}>
-            Limite diário atingido. Novas análises com busca na web retornarão erro até meia-noite UTC.
+            Limite mensal atingido. Novas análises com busca na web retornarão sem contexto externo até o próximo mês.
           </p>
         )}
         {isWarning && !isExceeded && (
           <p className={`text-xs ${subTextClass}`}>
-            Mais de 80% do limite diário utilizado. O plano gratuito permite 100 buscas/dia.
+            Mais de 80% do limite mensal utilizado. O plano gratuito permite 2.500 buscas/mês.
           </p>
         )}
         {!isWarning && !isExceeded && (
           <p className={`text-xs ${subTextClass}`}>
-            Plano gratuito: 100 buscas/dia. Reinicia à meia-noite UTC.
+            Plano gratuito: 2.500 buscas/mês. Renova todo dia 1 do mês.
           </p>
         )}
       </div>
@@ -1114,7 +1114,7 @@ function TabConfigIA() {
   const { data: config, isLoading } = useQuery<ConfigIA>({
     queryKey: ["/api/admin/config-ia"],
   });
-  const { data: aiStatus } = useQuery<{ webSearchAtivo: boolean; googleSearchUsageHoje: number }>({
+  const { data: aiStatus } = useQuery<{ webSearchAtivo: boolean; searchUsageMes: number }>({
     queryKey: ["/api/admin/ai-status"],
     refetchInterval: 60_000,
   });
@@ -1254,17 +1254,16 @@ function TabConfigIA() {
               Busca na web indisponível — modo fallback ativo
             </p>
             <p className="text-xs text-yellow-700/80 dark:text-yellow-400/80">
-              A busca na web usa a Google Custom Search API. Configure os secrets{" "}
-              <code className="font-mono bg-yellow-500/20 px-1 rounded">GOOGLE_API_KEY</code> e{" "}
-              <code className="font-mono bg-yellow-500/20 px-1 rounded">GOOGLE_CX</code> para ativar.
-              Enquanto não estiverem configurados, a pesquisa PESTEL, análise competitiva e geração do Contexto Macro usarão o modelo de relatórios sem acesso à internet.
+              A busca na web usa o Serper.dev. Configure o secret{" "}
+              <code className="font-mono bg-yellow-500/20 px-1 rounded">SERPER_API_KEY</code> para ativar.
+              Enquanto não estiver configurado, a pesquisa PESTEL, análise competitiva e geração do Contexto Macro usarão o modelo de relatórios sem acesso à internet.
             </p>
           </div>
         </div>
       )}
 
       {aiStatus && aiStatus.webSearchAtivo && (
-        <GoogleSearchUsageCard usage={aiStatus.googleSearchUsageHoje} />
+        <SerperUsageCard usage={aiStatus.searchUsageMes} />
       )}
 
       <div className="flex justify-end">

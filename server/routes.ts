@@ -88,39 +88,41 @@ const openai = new OpenAI({
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
 
-// Google Custom Search JSON API helper — replaces OpenAI Responses API web_search_preview.
-// Requires GOOGLE_API_KEY (Google Cloud API key) + GOOGLE_CX (Programmable Search Engine ID).
-// Returns an empty array if either key is missing, so all callers get a graceful fallback.
-interface GoogleSearchItem { title: string; snippet: string; link: string }
+// Serper.dev search helper — replaces Google Custom Search JSON API.
+// Requires SERPER_API_KEY. Returns an empty array if the key is missing,
+// so all callers get a graceful fallback without web search.
+interface SerperSearchItem { title: string; snippet: string; link: string }
 
-async function googleSearch(query: string, numResults = 8): Promise<GoogleSearchItem[]> {
-  const apiKey = process.env.GOOGLE_API_KEY;
-  const cx     = process.env.GOOGLE_CX;
-  if (!apiKey || !cx) return [];
+async function serperSearch(query: string, numResults = 8): Promise<SerperSearchItem[]> {
+  const apiKey = process.env.SERPER_API_KEY;
+  if (!apiKey) return [];
   // Increment counter on every outbound attempt (before res.ok check) so
-  // failed requests that still reach Google's servers are counted accurately.
-  storage.incrementGoogleSearchUsage().catch(() => {});
+  // failed requests that still reach Serper's servers are counted accurately.
+  storage.incrementSearchUsage().catch(() => {});
   try {
-    const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(apiKey)}&cx=${encodeURIComponent(cx)}&q=${encodeURIComponent(query)}&num=${numResults}&lr=lang_pt&gl=br`;
-    const res = await fetch(url);
+    const res = await fetch("https://google.serper.dev/search", {
+      method: "POST",
+      headers: { "X-API-KEY": apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ q: query, num: numResults, gl: "br", hl: "pt" }),
+    });
     if (!res.ok) {
-      console.warn(`[googleSearch] HTTP ${res.status} para query: ${query}`);
+      console.warn(`[serperSearch] HTTP ${res.status} para query: ${query}`);
       return [];
     }
-    const data = await res.json() as { items?: Array<{ title?: string; snippet?: string; link?: string }> };
-    return (data.items ?? []).map((it) => ({
+    const data = await res.json() as { organic?: Array<{ title?: string; snippet?: string; link?: string }> };
+    return (data.organic ?? []).map((it) => ({
       title:   it.title   ?? "",
       snippet: it.snippet ?? "",
       link:    it.link    ?? "",
     }));
   } catch (err) {
-    console.warn("[googleSearch] Erro:", err);
+    console.warn("[serperSearch] Erro:", err);
     return [];
   }
 }
 
-// Format Google search results as a readable context block for LLM prompts
-function formatSearchContext(items: GoogleSearchItem[]): string {
+// Format Serper search results as a readable context block for LLM prompts
+function formatSearchContext(items: SerperSearchItem[]): string {
   if (!items.length) return "";
   const lines = items.map((it, i) =>
     `${i + 1}. "${it.title}" (${it.link})\n   ${it.snippet}`
@@ -1090,19 +1092,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Returns Google Custom Search status and today's call count (max 100 free/day).
+  // Returns Serper.dev web search status and this month's call count (max 2500 free/month).
   // Count is persisted in DB (google_search_usage table) and survives server restarts.
   // Never exposes key values — booleans and numeric counts only.
   app.get("/api/admin/ai-status", async (_req, res) => {
-    let googleSearchUsageHoje = 0;
+    let searchUsageMes = 0;
     try {
-      googleSearchUsageHoje = await storage.getGoogleSearchUsageToday();
+      searchUsageMes = await storage.getSearchUsageThisMonth();
     } catch (err) {
-      console.warn("[ai-status] Não foi possível ler contagem do Google Search:", err);
+      console.warn("[ai-status] Não foi possível ler contagem do Serper Search:", err);
     }
     res.json({
-      webSearchAtivo: !!(process.env.GOOGLE_API_KEY && process.env.GOOGLE_CX),
-      googleSearchUsageHoje,
+      webSearchAtivo: !!process.env.SERPER_API_KEY,
+      searchUsageMes,
     });
   });
 
@@ -1851,9 +1853,9 @@ Responda APENAS em JSON válido com exatamente este formato:
       };
 
       try {
-        // Step 1 — Google Custom Search: fetch recent snippets about this sector
+        // Step 1 — Serper.dev: fetch recent snippets about this sector
         const pestelQuery = `cenário externo ${setor || req.body.setor} Brasil 2025 regulação economia tendências mercado`;
-        const searchItems = await googleSearch(pestelQuery, 8);
+        const searchItems = await serperSearch(pestelQuery, 8);
         const searchCtx = formatSearchContext(searchItems);
 
         // Step 2 — Azure LLM synthesises PESTEL from web snippets + company context
@@ -2604,9 +2606,9 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
       let mercado: MercadoPesquisado;
 
       try {
-        // Passo 1 — Google Custom Search: busca snippets sobre o mercado e concorrentes
+        // Passo 1 — Serper.dev: busca snippets sobre o mercado e concorrentes
         const mercadoQuery = `${setor} Brasil concorrentes mercado análise 2025`;
-        const searchItems = await googleSearch(mercadoQuery, 8);
+        const searchItems = await serperSearch(mercadoQuery, 8);
         const searchCtx = formatSearchContext(searchItems);
 
         // Combinar snippets do Google com o prompt de pesquisa como contexto para o LLM
@@ -5524,17 +5526,16 @@ Seja específico para o setor ${empresa.setor}.`,
     const prompt = CATEGORIAS_PROMPTS[categoria];
     if (!prompt) throw new Error(`Categoria sem prompt: ${categoria}`);
 
-    const googleApiKey = process.env.GOOGLE_API_KEY;
-    const googleCx     = process.env.GOOGLE_CX;
+    const serperApiKey = process.env.SERPER_API_KEY;
 
-    if (googleApiKey && googleCx) {
-      // Step 1 — Google Custom Search
+    if (serperApiKey) {
+      // Step 1 — Serper.dev search
       // Use custom queryBusca from DB if set, otherwise fall back to hardcoded map
       const record = await storage.getContextoMacroByCategoria(categoria);
       const query = (record?.queryBusca && record.queryBusca.trim())
         ? record.queryBusca.trim()
         : (CATEGORIAS_QUERIES[categoria] ?? `${categoria.replace(/_/g, " ")} Brasil 2025`);
-      const searchItems = await googleSearch(query, 8);
+      const searchItems = await serperSearch(query, 8);
       const searchCtx = formatSearchContext(searchItems);
 
       // Step 2 — Azure LLM synthesises the category text using web snippets
@@ -5555,7 +5556,7 @@ Seja específico para o setor ${empresa.setor}.`,
     }
 
     // Fallback: use Azure client with chat completions (no web search)
-    console.warn("[contexto-macro] GOOGLE_API_KEY/GOOGLE_CX não configuradas — usando fallback sem busca na web.");
+    console.warn("[contexto-macro] SERPER_API_KEY não configurada — usando fallback sem busca na web.");
     const completion = await openai.chat.completions.create({
       model: getModelForPlan("pro", "relatorios"),
       messages: [
@@ -5678,7 +5679,7 @@ Seja específico para o setor ${empresa.setor}.`,
         await storage.addContextoMacroLog({
           categoria,
           executadoEm: agora,
-          modo: (process.env.GOOGLE_API_KEY && process.env.GOOGLE_CX) ? "web_search" : "fallback",
+          modo: process.env.SERPER_API_KEY ? "web_search" : "fallback",
           resultado: "erro",
           mensagem: e?.message ?? "Erro desconhecido",
         });
@@ -5748,7 +5749,7 @@ Seja específico para o setor ${empresa.setor}.`,
             await storage.addContextoMacroLog({
               categoria: cat.categoria,
               executadoEm: now,
-              modo: (process.env.GOOGLE_API_KEY && process.env.GOOGLE_CX) ? "web_search" : "fallback",
+              modo: process.env.SERPER_API_KEY ? "web_search" : "fallback",
               resultado: "erro",
               mensagem: err?.message ?? "Erro desconhecido",
             });

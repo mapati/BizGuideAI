@@ -496,6 +496,7 @@ export const contextoMacro = pgTable("contexto_macro", {
   agendadorFrequencia: text("agendador_frequencia"),
   proximoAgendamento: timestamp("proximo_agendamento"),
   alertaDias: integer("alerta_dias").notNull().default(7),
+  queryBusca: text("query_busca"),
 });
 export type ContextoMacro = typeof contextoMacro.$inferSelect;
 

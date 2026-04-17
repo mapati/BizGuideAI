@@ -5529,7 +5529,11 @@ Seja específico para o setor ${empresa.setor}.`,
 
     if (googleApiKey && googleCx) {
       // Step 1 — Google Custom Search
-      const query = CATEGORIAS_QUERIES[categoria] ?? `${categoria.replace(/_/g, " ")} Brasil 2025`;
+      // Use custom queryBusca from DB if set, otherwise fall back to hardcoded map
+      const record = await storage.getContextoMacroByCategoria(categoria);
+      const query = (record?.queryBusca && record.queryBusca.trim())
+        ? record.queryBusca.trim()
+        : (CATEGORIAS_QUERIES[categoria] ?? `${categoria.replace(/_/g, " ")} Brasil 2025`);
       const searchItems = await googleSearch(query, 8);
       const searchCtx = formatSearchContext(searchItems);
 
@@ -5570,7 +5574,12 @@ Seja específico para o setor ${empresa.setor}.`,
   app.get("/api/admin/contexto-macro", requireSuperAdmin, async (_req, res) => {
     try {
       const all = await storage.getContextoMacroAll();
-      res.json(all);
+      res.json(all.map((cat) => ({
+        ...cat,
+        queryEfetiva: (cat.queryBusca && cat.queryBusca.trim())
+          ? cat.queryBusca.trim()
+          : (CATEGORIAS_QUERIES[cat.categoria] ?? `${cat.categoria.replace(/_/g, " ")} Brasil 2025`),
+      })));
     } catch (e: any) {
       res.status(500).json({ error: e.message });
     }
@@ -5596,7 +5605,7 @@ Seja específico para o setor ${empresa.setor}.`,
   app.patch("/api/admin/contexto-macro/:categoria", requireSuperAdmin, async (req, res) => {
     try {
       const { categoria } = req.params;
-      const allowed = ["textoAtivo", "rascunho", "ativo", "agendadorAtivo", "agendadorFrequencia", "proximoAgendamento", "alertaDias"] as const;
+      const allowed = ["textoAtivo", "rascunho", "ativo", "agendadorAtivo", "agendadorFrequencia", "proximoAgendamento", "alertaDias", "queryBusca"] as const;
       const data: Record<string, unknown> = {};
       for (const key of allowed) {
         if (key in req.body) data[key] = req.body[key];

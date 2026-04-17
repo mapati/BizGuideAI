@@ -43,6 +43,8 @@ interface ContextoMacro {
   agendadorFrequencia: string | null;
   proximoAgendamento: string | null;
   alertaDias: number;
+  queryBusca: string | null;
+  queryEfetiva: string;
 }
 
 interface ExecLog {
@@ -123,6 +125,8 @@ function CategoriaCard({
   const [textoEdit, setTextoEdit] = useState(cat.textoAtivo ?? "");
   const [editingRascunho, setEditingRascunho] = useState(false);
   const [rascunhoEdit, setRascunhoEdit] = useState(cat.rascunho ?? "");
+  const [editingQuery, setEditingQuery] = useState(false);
+  const [queryEdit, setQueryEdit] = useState(cat.queryBusca ?? "");
 
   const { data: execLogs } = useQuery<ExecLog[]>({
     queryKey: ["/api/admin/contexto-macro", cat.categoria, "log"],
@@ -372,6 +376,67 @@ function CategoriaCard({
               </div>
             </div>
           )}
+
+          <Separator />
+
+          {/* Query de busca */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <Label className="text-sm font-medium flex items-center gap-1">
+                <Globe className="h-3.5 w-3.5" />
+                Query de busca Google
+              </Label>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setQueryEdit(cat.queryBusca ?? "");
+                  setEditingQuery((v) => !v);
+                }}
+                data-testid={`button-edit-query-${cat.categoria}`}
+              >
+                {editingQuery ? <EyeOff className="h-3.5 w-3.5 mr-1" /> : <Eye className="h-3.5 w-3.5 mr-1" />}
+                {editingQuery ? "Cancelar" : "Editar"}
+              </Button>
+            </div>
+            {editingQuery ? (
+              <div className="space-y-2">
+                <Input
+                  value={queryEdit}
+                  onChange={(e) => setQueryEdit(e.target.value)}
+                  placeholder="Deixe em branco para usar a query padrão do código"
+                  className="text-sm font-mono"
+                  data-testid={`input-query-${cat.categoria}`}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      patchMutation.mutate({ queryBusca: queryEdit || null });
+                      setEditingQuery(false);
+                    }}
+                    disabled={isAnyPending}
+                    data-testid={`button-salvar-query-${cat.categoria}`}
+                  >
+                    Salvar
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setEditingQuery(false)}>
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div
+                className="rounded-md bg-muted/50 p-3 text-sm font-mono text-muted-foreground"
+                data-testid={`text-query-${cat.categoria}`}
+              >
+                <span>{cat.queryEfetiva}</span>
+                {!cat.queryBusca && (
+                  <span className="block text-xs mt-1 italic text-muted-foreground/60">(padrão do código — personalize acima)</span>
+                )}
+              </div>
+            )}
+          </div>
 
           <Separator />
 

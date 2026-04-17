@@ -134,7 +134,8 @@ async function runStartupMigrations() {
         agendador_ativo BOOLEAN NOT NULL DEFAULT false,
         agendador_frequencia TEXT,
         proximo_agendamento TIMESTAMP,
-        alerta_dias INTEGER NOT NULL DEFAULT 7
+        alerta_dias INTEGER NOT NULL DEFAULT 7,
+        query_busca TEXT
       )
     `);
     // Evolving-compatibility: add any columns that may be missing in existing tables
@@ -147,6 +148,7 @@ async function runStartupMigrations() {
     await client.query(`ALTER TABLE contexto_macro ADD COLUMN IF NOT EXISTS agendador_frequencia TEXT`);
     await client.query(`ALTER TABLE contexto_macro ADD COLUMN IF NOT EXISTS proximo_agendamento TIMESTAMP`);
     await client.query(`ALTER TABLE contexto_macro ADD COLUMN IF NOT EXISTS alerta_dias INTEGER NOT NULL DEFAULT 7`);
+    await client.query(`ALTER TABLE contexto_macro ADD COLUMN IF NOT EXISTS query_busca TEXT`);
     await client.query(`
       INSERT INTO contexto_macro (categoria, titulo) VALUES
         ('cambio_politica_monetaria', 'Câmbio & Política Monetária'),

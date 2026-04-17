@@ -1117,9 +1117,19 @@ export default function Admin() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
 
+  const { data: empresas = [], isLoading: loadingEmpresas } = useQuery<AdminEmpresa[]>({
+    queryKey: ["/api/admin/empresas"],
+    enabled: !!user?.isAdmin,
+  });
+
+  const { data: faturas = [], isLoading: loadingFaturas } = useQuery<AdminFatura[]>({
+    queryKey: ["/api/admin/faturas"],
+    enabled: !!user?.isAdmin,
+  });
+
   if (!user?.isAdmin) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 px-4">
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 px-4" data-testid="acesso-negado">
         <ShieldAlert className="h-12 w-12 text-destructive" />
         <h1 className="text-xl font-semibold">Acesso Negado</h1>
         <p className="text-muted-foreground text-center">
@@ -1131,14 +1141,6 @@ export default function Admin() {
       </div>
     );
   }
-
-  const { data: empresas = [], isLoading: loadingEmpresas } = useQuery<AdminEmpresa[]>({
-    queryKey: ["/api/admin/empresas"],
-  });
-
-  const { data: faturas = [], isLoading: loadingFaturas } = useQuery<AdminFatura[]>({
-    queryKey: ["/api/admin/faturas"],
-  });
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">

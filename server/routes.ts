@@ -5384,19 +5384,24 @@ Seja específico para o setor ${empresa.setor}.`,
     const d = new Date(base);
     if (frequencia === "diario") d.setDate(d.getDate() + 1);
     else if (frequencia === "semanal") d.setDate(d.getDate() + 7);
-    else if (frequencia === "mensal") d.setMonth(d.getMonth() + 1);
+    else if (frequencia === "mensal") d.setDate(d.getDate() + 30);
     return d;
   }
+
+  type ResponsesCreateParams = Parameters<typeof openai.responses.create>[0];
+  type ResponsesToolParam = NonNullable<ResponsesCreateParams["tools"]>[number];
 
   async function gerarContextoCategoria(categoria: string): Promise<string> {
     const prompt = CATEGORIAS_PROMPTS[categoria];
     if (!prompt) throw new Error(`Categoria sem prompt: ${categoria}`);
+    const webSearchTool = { type: "web_search_preview" } as unknown as ResponsesToolParam;
     const response = await openai.responses.create({
       model: AI_MODELS.busca,
-      tools: [{ type: "web_search_preview" as any }],
+      tools: [webSearchTool],
       input: prompt,
     });
-    const raw = (response as any).output_text || "";
+    const typed = response as unknown as { output_text?: string };
+    const raw = typed.output_text ?? "";
     return raw.trim();
   }
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { queryClient } from "@/lib/queryClient";
@@ -459,15 +459,24 @@ export default function ContextoMacroPage() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
 
-  if (user && !user.isAdmin) {
-    navigate("/dashboard");
-    return null;
-  }
-
-  const { data: categorias, isLoading, refetch } = useQuery<ContextoMacro[]>({
+  const { data: categorias, isLoading, error, refetch } = useQuery<ContextoMacro[]>({
     queryKey: ["/api/admin/contexto-macro"],
-    enabled: !!user?.isAdmin,
+    enabled: !!user,
   });
+
+  useEffect(() => {
+    if (!user) return;
+    if (!user.isAdmin) {
+      navigate("/dashboard");
+      return;
+    }
+    if (error) {
+      const msg = (error as Error).message ?? "";
+      if (msg.startsWith("403")) {
+        navigate("/dashboard");
+      }
+    }
+  }, [user, error, navigate]);
 
   const ativosCount = categorias?.filter((c) => c.ativo).length ?? 0;
   const pendentesCount = categorias?.filter((c) => c.rascunho).length ?? 0;

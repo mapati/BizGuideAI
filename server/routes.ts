@@ -1894,7 +1894,7 @@ Responda APENAS em JSON válido com exatamente este formato:
       } catch (searchError: unknown) {
         // Fallback: use regular chat completion with knowledge-based analysis
         const msg = searchError instanceof Error ? searchError.message : String(searchError);
-        console.warn("[PESTEL] busca Google falhou, usando fallback:", msg);
+        console.warn("[PESTEL] busca Serper falhou, usando fallback:", msg);
         const fallback = await openai.chat.completions.create({
           model: getModelForPlan(empresaParaPestel?.planoTipo, "relatorios"),
           messages: await injectMacroCtx([

@@ -106,7 +106,7 @@ async function buildContextoMacroIA(): Promise<string> {
         : "sem data";
       return `### ${c.titulo} (atualizado em ${dataStr})\n${c.textoAtivo}`;
     }).join("\n\n");
-    const text = `\n\n━━━ CENÁRIO MACROECONÔMICO ATUAL DO BRASIL ━━━\n(Use obrigatoriamente estes dados para embasar qualquer análise com contexto econômico ou político.)\n\n${linhas}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+    const text = `\n\n## Cenário Macroeconômico Atual\n\n${linhas}`;
     _macroCtxCache = { text, expiry: now + 60_000 };
     return text;
   } catch {
@@ -5424,12 +5424,18 @@ Seja específico para o setor ${empresa.setor}.`,
       }
       if (data.proximoAgendamento) data.proximoAgendamento = new Date(data.proximoAgendamento as string);
 
-      // If agendadorAtivo is being turned on, ensure proximoAgendamento is set server-side
-      if (data.agendadorAtivo === true && !data.proximoAgendamento) {
+      // Recalculate proximoAgendamento server-side when scheduler activates or frequency changes
+      const schedulerTriggered = data.agendadorAtivo === true || data.agendadorFrequencia !== undefined;
+      if (schedulerTriggered && !data.proximoAgendamento) {
         const existing = await storage.getContextoMacroByCategoria(categoria);
-        if (existing && !existing.proximoAgendamento) {
-          const freq = (data.agendadorFrequencia as string | undefined) ?? existing.agendadorFrequencia ?? "semanal";
-          data.proximoAgendamento = calcularProximoAgendamento(freq, new Date());
+        if (existing) {
+          const isNowActive =
+            data.agendadorAtivo === true ||
+            (data.agendadorAtivo !== false && existing.agendadorAtivo);
+          if (isNowActive) {
+            const freq = (data.agendadorFrequencia as string | undefined) ?? existing.agendadorFrequencia ?? "semanal";
+            data.proximoAgendamento = calcularProximoAgendamento(freq, new Date());
+          }
         }
       }
 

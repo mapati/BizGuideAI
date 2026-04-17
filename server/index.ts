@@ -137,6 +137,15 @@ async function runStartupMigrations() {
         alerta_dias INTEGER NOT NULL DEFAULT 7
       )
     `);
+    // Evolving-compatibility: add any columns that may be missing in existing tables
+    await client.query(`ALTER TABLE contexto_macro ADD COLUMN IF NOT EXISTS texto_ativo TEXT`);
+    await client.query(`ALTER TABLE contexto_macro ADD COLUMN IF NOT EXISTS rascunho TEXT`);
+    await client.query(`ALTER TABLE contexto_macro ADD COLUMN IF NOT EXISTS ativo BOOLEAN NOT NULL DEFAULT false`);
+    await client.query(`ALTER TABLE contexto_macro ADD COLUMN IF NOT EXISTS ultima_atualizacao TIMESTAMP`);
+    await client.query(`ALTER TABLE contexto_macro ADD COLUMN IF NOT EXISTS agendador_ativo BOOLEAN NOT NULL DEFAULT false`);
+    await client.query(`ALTER TABLE contexto_macro ADD COLUMN IF NOT EXISTS agendador_frequencia TEXT`);
+    await client.query(`ALTER TABLE contexto_macro ADD COLUMN IF NOT EXISTS proximo_agendamento TIMESTAMP`);
+    await client.query(`ALTER TABLE contexto_macro ADD COLUMN IF NOT EXISTS alerta_dias INTEGER NOT NULL DEFAULT 7`);
     await client.query(`
       INSERT INTO contexto_macro (categoria, titulo) VALUES
         ('cambio_politica_monetaria', 'Câmbio & Política Monetária'),

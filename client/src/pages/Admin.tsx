@@ -41,6 +41,7 @@ import {
   Trash2,
   RefreshCw,
   BookOpen,
+  Search,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -1035,13 +1036,87 @@ function ModelSelector({
   );
 }
 
+const GOOGLE_SEARCH_LIMIT = 100;
+
+function GoogleSearchUsageCard({ usage }: { usage: number }) {
+  const pct = Math.min(100, Math.round((usage / GOOGLE_SEARCH_LIMIT) * 100));
+  const isWarning  = pct >= 80 && pct < 100;
+  const isExceeded = pct >= 100;
+
+  const barColor = isExceeded
+    ? "bg-red-500"
+    : isWarning
+    ? "bg-yellow-500"
+    : "bg-green-500";
+
+  const containerClass = isExceeded
+    ? "border-red-500/30 bg-red-500/10"
+    : isWarning
+    ? "border-yellow-500/30 bg-yellow-500/10"
+    : "border bg-muted/40";
+
+  const textClass = isExceeded
+    ? "text-red-700 dark:text-red-300"
+    : isWarning
+    ? "text-yellow-700 dark:text-yellow-300"
+    : "text-foreground";
+
+  const subTextClass = isExceeded
+    ? "text-red-700/80 dark:text-red-400/80"
+    : isWarning
+    ? "text-yellow-700/80 dark:text-yellow-400/80"
+    : "text-muted-foreground";
+
+  return (
+    <div
+      className={`flex items-start gap-3 p-4 rounded-md border ${containerClass}`}
+      data-testid="card-google-search-usage"
+    >
+      <Search className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
+      <div className="flex-1 space-y-2">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <p className={`text-sm font-medium ${textClass}`}>
+            Google Custom Search — uso hoje
+          </p>
+          <span className={`text-sm font-mono font-semibold ${textClass}`} data-testid="text-google-search-count">
+            {usage} / {GOOGLE_SEARCH_LIMIT}
+          </span>
+        </div>
+        <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all ${barColor}`}
+            style={{ width: `${pct}%` }}
+            data-testid="bar-google-search-usage"
+          />
+        </div>
+        {isExceeded && (
+          <p className={`text-xs ${subTextClass}`}>
+            Limite diário atingido. Novas análises com busca na web retornarão erro até meia-noite UTC.
+          </p>
+        )}
+        {isWarning && !isExceeded && (
+          <p className={`text-xs ${subTextClass}`}>
+            Mais de 80% do limite diário utilizado. O plano gratuito permite 100 buscas/dia.
+          </p>
+        )}
+        {!isWarning && !isExceeded && (
+          <p className={`text-xs ${subTextClass}`}>
+            Plano gratuito: 100 buscas/dia. Reinicia à meia-noite UTC.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TabConfigIA() {
   const { toast } = useToast();
   const { data: config, isLoading } = useQuery<ConfigIA>({
     queryKey: ["/api/admin/config-ia"],
   });
-  const { data: aiStatus } = useQuery<{ webSearchAtivo: boolean }>({
+  const { data: aiStatus } = useQuery<{ webSearchAtivo: boolean; googleSearchUsageHoje: number }>({
     queryKey: ["/api/admin/ai-status"],
+    refetchInterval: 60_000,
   });
 
   const [startPadrao,      setStartPadrao]      = useState("");
@@ -1186,6 +1261,10 @@ function TabConfigIA() {
             </p>
           </div>
         </div>
+      )}
+
+      {aiStatus && aiStatus.webSearchAtivo && (
+        <GoogleSearchUsageCard usage={aiStatus.googleSearchUsageHoje} />
       )}
 
       <div className="flex justify-end">

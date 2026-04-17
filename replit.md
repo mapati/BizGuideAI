@@ -139,7 +139,7 @@ A guided onboarding journey implemented across the app:
 - `contexto_macro` DB table with 7 fixed categories (natural varchar PK)
 - `buildContextoMacroIA()` in `server/routes.ts`: fetches active categories, caches for 60s
 - Typed `injectMacroCtx(messages)` helper injects macro context into the system message of key AI routes (pestel, swot, swot-individual, swot-completo, assistente, explicar, gerar-estrategias)
-- Web search features (PESTEL, análise competitiva, Contexto Macro) use `openaiSearch` — a second OpenAI client pointing to `api.openai.com` (not Azure) initialized from `OPENAI_API_KEY`. Uses `responses.create` with `gpt-4o-search-preview` + `web_search_preview`. Falls back to Azure chat completions if `OPENAI_API_KEY` is absent.
+- Web search features (PESTEL, análise competitiva, Contexto Macro) use `openaiSearch` — a second OpenAI client pointing to `api.openai.com` (not Azure) initialized from `OPENAI_API_KEY`. Uses `responses.create` with a regular model (`gpt-4o`, `gpt-4o-mini`, `gpt-4.1`, etc.) plus the `web_search_preview` tool. **IMPORTANT**: `*-search-preview` model variants are Chat-Completions-only and CANNOT be used with the Responses API — they return 404. Falls back to Azure chat completions if `OPENAI_API_KEY` is absent.
 - `node-cron` scheduler (hourly) auto-generates and auto-approves categories on schedule
 - `requireSuperAdmin` middleware (checks `email === process.env.ADMIN_EMAIL`) guards all `/api/admin/contexto-macro/*` routes
 - PATCH handler auto-computes `proximoAgendamento` server-side when `agendadorAtivo` is toggled on

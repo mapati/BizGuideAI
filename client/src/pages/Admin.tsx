@@ -983,8 +983,10 @@ const OPCOES_RELATORIOS = [
 ];
 
 const OPCOES_BUSCA = [
-  { value: "gpt-4o-search-preview",      label: "GPT-4o Search Preview",      desc: "Web Search · Recomendado" },
-  { value: "gpt-4o-mini-search-preview", label: "GPT-4o Mini Search Preview", desc: "Web Search · Econômico · Legado" },
+  { value: "gpt-4o",      label: "GPT-4o",      desc: "Web Search · Recomendado" },
+  { value: "gpt-4o-mini", label: "GPT-4o Mini", desc: "Web Search · Econômico" },
+  { value: "gpt-4.1",     label: "GPT-4.1",     desc: "Web Search · Alta qualidade" },
+  { value: "gpt-4.1-mini",label: "GPT-4.1 Mini",desc: "Web Search · Rápido" },
 ];
 
 function ModelSelector({

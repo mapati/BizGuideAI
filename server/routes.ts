@@ -2775,16 +2775,16 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
 
       const completion = await openai.chat.completions.create({
         model: getModelForPlan(empresaCompleta?.planoTipo, "relatorios"),
-        messages: [
+        messages: await injectMacroCtx([
           {
             role: "system",
-            content: `Você é um consultor estratégico especializado em análise de mercado e concorrência para empresas brasileiras. Sua função é produzir análises CONCRETAS e ESPECÍFICAS, nunca genéricas. Use sempre linguagem simples e direta, sem jargões técnicos. Quando tiver dados de pesquisa disponíveis, use-os obrigatoriamente — cite nomes reais de empresas, dados de mercado e fatos específicos do setor.`,
+            content: `Você é um consultor estratégico especializado em análise de mercado e concorrência para empresas brasileiras. Sua função é produzir análises CONCRETAS e ESPECÍFICAS, nunca genéricas. Use sempre linguagem simples e direta, sem jargões técnicos. Quando tiver dados de pesquisa disponíveis, use-os obrigatoriamente — cite nomes reais de empresas, dados de mercado e fatos específicos do setor. Incorpore também o cenário macroeconômico atual presente no system message quando disponível.`,
           },
           {
             role: "user",
             content: `${perfilEmpresa}${contextoPesquisa}${regrasEspecificidade}\n\nAnalise o mercado desta empresa usando as Cinco Forças Competitivas e crie EXATAMENTE 5 análises (uma para cada força):\n1. Rivalidade entre Concorrentes (forca: "rivalidade_concorrentes")\n2. Poder de Negociação dos Fornecedores (forca: "poder_fornecedores")\n3. Poder de Negociação dos Clientes (forca: "poder_clientes")\n4. Ameaça de Novos Entrantes (forca: "ameaca_novos_entrantes")\n5. Ameaça de Produtos Substitutos (forca: "ameaca_substitutos")\n\nPara cada força, forneça:\n- forca: exatamente como indicado acima\n- descricao: descrição ESPECÍFICA com pelo menos 3 frases concretas, citando nomes e dados reais quando disponíveis\n- intensidade: "alta", "média" ou "baixa"\n- impacto: explicação específica de como esta força afeta o negócio desta empresa, com consequências práticas concretas\n\nResponda OBRIGATORIAMENTE em JSON com este formato exato:\n{\n  "forcas": [\n    {"forca": "rivalidade_concorrentes", "descricao": "...", "intensidade": "alta", "impacto": "..."},\n    {"forca": "poder_fornecedores", "descricao": "...", "intensidade": "média", "impacto": "..."},\n    {"forca": "poder_clientes", "descricao": "...", "intensidade": "...", "impacto": "..."},\n    {"forca": "ameaca_novos_entrantes", "descricao": "...", "intensidade": "...", "impacto": "..."},\n    {"forca": "ameaca_substitutos", "descricao": "...", "intensidade": "...", "impacto": "..."}\n  ]\n}`,
           },
-        ],
+        ]),
         response_format: { type: "json_object" },
         temperature: 0.4,
       });

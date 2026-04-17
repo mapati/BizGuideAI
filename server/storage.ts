@@ -857,29 +857,20 @@ export class DbStorage implements IStorage {
 
   async getConfiguracoesIA(): Promise<{ modeloPadrao: string; modeloRelatorios: string; modeloBusca: string; modeloPadraoStart: string; modeloRelatoriosStart: string; modeloBuscaStart: string; modeloPadraoProEnt: string; modeloRelatoriosProEnt: string; modeloBuscaProEnt: string }> {
     const result = await db.select().from(configuracoesIa).where(eq(configuracoesIa.id, 1)).limit(1);
-    if (result[0]) {
-      return {
-        modeloPadrao:          result[0].modeloPadrao,
-        modeloRelatorios:      result[0].modeloRelatorios,
-        modeloBusca:           result[0].modeloBusca,
-        modeloPadraoStart:     result[0].modeloPadraoStart,
-        modeloRelatoriosStart: result[0].modeloRelatoriosStart,
-        modeloBuscaStart:      result[0].modeloBuscaStart,
-        modeloPadraoProEnt:    result[0].modeloPadraoProEnt,
-        modeloRelatoriosProEnt:result[0].modeloRelatoriosProEnt,
-        modeloBuscaProEnt:     result[0].modeloBuscaProEnt,
-      };
+    if (!result[0]) {
+      // The startup migration seeds this row — if it's missing the DB setup failed
+      throw new Error("configuracoes_ia row (id=1) not found — verify startup migration ran");
     }
     return {
-      modeloPadrao:           "gpt-4.1-mini",
-      modeloRelatorios:       "gpt-4.1",
-      modeloBusca:            "gpt-4o-search-preview",
-      modeloPadraoStart:      "gpt-4.1-mini",
-      modeloRelatoriosStart:  "gpt-4.1-mini",
-      modeloBuscaStart:       "gpt-4o-search-preview",
-      modeloPadraoProEnt:     "gpt-4.1-mini",
-      modeloRelatoriosProEnt: "gpt-4.1",
-      modeloBuscaProEnt:      "gpt-4o-search-preview",
+      modeloPadrao:          result[0].modeloPadrao,
+      modeloRelatorios:      result[0].modeloRelatorios,
+      modeloBusca:           result[0].modeloBusca,
+      modeloPadraoStart:     result[0].modeloPadraoStart,
+      modeloRelatoriosStart: result[0].modeloRelatoriosStart,
+      modeloBuscaStart:      result[0].modeloBuscaStart,
+      modeloPadraoProEnt:    result[0].modeloPadraoProEnt,
+      modeloRelatoriosProEnt:result[0].modeloRelatoriosProEnt,
+      modeloBuscaProEnt:     result[0].modeloBuscaProEnt,
     };
   }
 

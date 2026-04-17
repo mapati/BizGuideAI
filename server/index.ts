@@ -189,6 +189,8 @@ async function runStartupMigrations() {
     await client.query(`ALTER TABLE configuracoes_ia ADD COLUMN IF NOT EXISTS modelo_padrao_pro_ent TEXT NOT NULL DEFAULT 'gpt-4.1-mini'`);
     await client.query(`ALTER TABLE configuracoes_ia ADD COLUMN IF NOT EXISTS modelo_relatorios_pro_ent TEXT NOT NULL DEFAULT 'gpt-4.1'`);
     await client.query(`ALTER TABLE configuracoes_ia ADD COLUMN IF NOT EXISTS modelo_busca_pro_ent TEXT NOT NULL DEFAULT 'gpt-4o-search-preview'`);
+    // Ensure the singleton config row always exists so DB is the only source of model defaults
+    await client.query(`INSERT INTO configuracoes_ia (id) VALUES (1) ON CONFLICT (id) DO NOTHING`);
 
     // Seed: ensure the platform admin from env vars exists and has the correct password
     const adminEmail = process.env.ADMIN_EMAIL;

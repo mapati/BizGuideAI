@@ -301,26 +301,25 @@ function computeTrialInfo(empresa: { planoStatus: string; trialStartedAt: Date |
   return { planoStatus, diasRestantes, trialExpirado };
 }
 
-/* ── Modelos de IA (configuráveis via painel Admin) ── */
-const AI_MODELS = {
-  start_padrao:      "gpt-4.1-mini",
-  start_relatorios:  "gpt-4.1-mini",
-  start_busca:       "gpt-4o-search-preview",
-  pro_padrao:        "gpt-4.1-mini",
-  pro_relatorios:    "gpt-4.1",
-  pro_busca:         "gpt-4o-search-preview",
+/* ── Modelos de IA — carregados do banco na inicialização, atualizados ao vivo via PATCH /api/admin/config-ia ── */
+const AI_MODELS: Record<string, string> = {
+  start_padrao:      "",
+  start_relatorios:  "",
+  start_busca:       "",
+  pro_padrao:        "",
+  pro_relatorios:    "",
+  pro_busca:         "",
 };
 
 async function loadModelConfig() {
-  try {
-    const cfg = await storage.getConfiguracoesIA();
-    AI_MODELS.start_padrao      = cfg.modeloPadraoStart;
-    AI_MODELS.start_relatorios  = cfg.modeloRelatoriosStart;
-    AI_MODELS.start_busca       = cfg.modeloBuscaStart;
-    AI_MODELS.pro_padrao        = cfg.modeloPadraoProEnt;
-    AI_MODELS.pro_relatorios    = cfg.modeloRelatoriosProEnt;
-    AI_MODELS.pro_busca         = cfg.modeloBuscaProEnt;
-  } catch { /* usa defaults se DB ainda não tiver a tabela */ }
+  // Throws if DB row missing — startup migration (server/index.ts) guarantees the row exists
+  const cfg = await storage.getConfiguracoesIA();
+  AI_MODELS.start_padrao      = cfg.modeloPadraoStart;
+  AI_MODELS.start_relatorios  = cfg.modeloRelatoriosStart;
+  AI_MODELS.start_busca       = cfg.modeloBuscaStart;
+  AI_MODELS.pro_padrao        = cfg.modeloPadraoProEnt;
+  AI_MODELS.pro_relatorios    = cfg.modeloRelatoriosProEnt;
+  AI_MODELS.pro_busca         = cfg.modeloBuscaProEnt;
 }
 
 function getPlanLimits(planoTipo: string | null | undefined) {
@@ -331,7 +330,7 @@ function getPlanLimits(planoTipo: string | null | undefined) {
 function getModelForPlan(planoTipo: string | null | undefined, tier: "padrao" | "relatorios" | "busca"): string {
   const isPro = planoTipo === "pro" || planoTipo === "enterprise";
   const prefix = isPro ? "pro" : "start";
-  return AI_MODELS[`${prefix}_${tier}` as keyof typeof AI_MODELS] ?? AI_MODELS.start_padrao;
+  return AI_MODELS[`${prefix}_${tier}`] || AI_MODELS["start_padrao"] || "";
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -2920,9 +2919,10 @@ ${ctx.join("\n\n")}`;
   app.post("/api/ai/explicar", async (req, res) => {
     try {
       const { conceito, contexto } = req.body;
+      const empresa = req.session?.empresaId ? await storage.getEmpresa(req.session.empresaId) : null;
       
       const completion = await openai.chat.completions.create({
-        model: AI_MODELS.start_padrao,
+        model: getModelForPlan(empresa?.planoTipo, "padrao"),
         messages: await injectMacroCtx([
           {
             role: "system",
@@ -5426,9 +5426,10 @@ Seja específico para o setor ${empresa.setor}.`,
     if (!prompt) throw new Error(`Categoria sem prompt: ${categoria}`);
 
     // Prefer web search via standard OpenAI API (api.openai.com) when available
+    // Contexto Macro is a platform-level background job — uses Pro-tier models
     if (openaiSearch) {
       const response = await openaiSearch.responses.create({
-        model: AI_MODELS.pro_busca,
+        model: getModelForPlan("pro", "busca"),
         tools: [{ type: "web_search_preview" }],
         input: prompt,
       });
@@ -5438,7 +5439,7 @@ Seja específico para o setor ${empresa.setor}.`,
     // Fallback: use Azure client with chat completions (no web search)
     console.warn("[contexto-macro] OPENAI_API_KEY não configurada — usando fallback sem busca na web.");
     const completion = await openai.chat.completions.create({
-      model: AI_MODELS.pro_relatorios,
+      model: getModelForPlan("pro", "relatorios"),
       messages: [
         {
           role: "system",

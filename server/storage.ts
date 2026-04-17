@@ -81,7 +81,7 @@ import {
   type ContextoMacroLog,
   type InsertContextoMacroLog,
 } from "@shared/schema";
-import { eq, and, desc, inArray } from "drizzle-orm";
+import { eq, and, desc, inArray, sql } from "drizzle-orm";
 
 export interface IStorage {
   getEmpresa(id: string): Promise<Empresa | undefined>;
@@ -896,16 +896,18 @@ export class DbStorage implements IStorage {
 
   async addContextoMacroLog(log: InsertContextoMacroLog): Promise<void> {
     await db.insert(contextoMacroLogs).values(log);
-    // Enforce rolling buffer: keep only the 10 most recent entries per category
-    const rows = await db
-      .select({ id: contextoMacroLogs.id })
-      .from(contextoMacroLogs)
-      .where(eq(contextoMacroLogs.categoria, log.categoria))
-      .orderBy(desc(contextoMacroLogs.executadoEm));
-    if (rows.length > 10) {
-      const toDelete = rows.slice(10).map((r) => r.id);
-      await db.delete(contextoMacroLogs).where(inArray(contextoMacroLogs.id, toDelete));
-    }
+    // Atomic rolling buffer: delete any entries beyond the 10 most recent.
+    // Ordering by (executado_em DESC, id DESC) is deterministic even on timestamp ties.
+    await db.execute(sql`
+      DELETE FROM contexto_macro_logs
+      WHERE categoria = ${log.categoria}
+        AND id NOT IN (
+          SELECT id FROM contexto_macro_logs
+          WHERE categoria = ${log.categoria}
+          ORDER BY executado_em DESC, id DESC
+          LIMIT 10
+        )
+    `);
   }
 
   async getContextoMacroLogs(categoria: string): Promise<ContextoMacroLog[]> {
@@ -913,7 +915,7 @@ export class DbStorage implements IStorage {
       .select()
       .from(contextoMacroLogs)
       .where(eq(contextoMacroLogs.categoria, categoria))
-      .orderBy(desc(contextoMacroLogs.executadoEm))
+      .orderBy(desc(contextoMacroLogs.executadoEm), desc(contextoMacroLogs.id))
       .limit(10);
   }
 

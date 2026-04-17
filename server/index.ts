@@ -170,6 +170,10 @@ async function runStartupMigrations() {
         mensagem TEXT NOT NULL
       )
     `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_contexto_macro_logs_categoria_executado
+      ON contexto_macro_logs (categoria, executado_em DESC)
+    `);
 
     // Seed: ensure the platform admin from env vars exists and has the correct password
     const adminEmail = process.env.ADMIN_EMAIL;

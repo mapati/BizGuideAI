@@ -129,15 +129,23 @@ export default function Home() {
         return;
       }
     }
+    // Se o DB já registrou o dismissal, sincroniza no localStorage como cache
+    if (user.introBoasVindasDismissed) {
+      localStorage.setItem(key, "1");
+      return;
+    }
     if (!localStorage.getItem(key)) {
       setShowIntroPanel(true);
     }
-  }, [user?.id]);
+  }, [user?.id, user?.introBoasVindasDismissed]);
 
   const dismissIntroPanel = () => {
     if (!user?.id) return;
     localStorage.setItem(INTRO_DISMISSED_KEY(user.id), "1");
     setShowIntroPanel(false);
+    apiRequest("PATCH", "/api/auth/preferencias", { introBoasVindasDismissed: true }).catch((err) => {
+      console.warn("[Home] Falha ao persistir dismissal do painel de boas-vindas:", err);
+    });
   };
 
   const { data: empresa } = useQuery<Empresa>({ queryKey: ["/api/empresa"] });

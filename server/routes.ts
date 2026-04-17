@@ -661,7 +661,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const planoLimits = empresa ? getPlanLimits(empresa.planoTipo) : PLAN_LIMITS.start;
       res.json({
-        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresaId: usuario.empresaId, isAdmin: usuario.isAdmin, role: usuario.role, createdAt: usuario.createdAt },
+        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresaId: usuario.empresaId, isAdmin: usuario.isAdmin, role: usuario.role, createdAt: usuario.createdAt, introBoasVindasDismissed: usuario.introBoasVindasDismissed },
         empresa,
         trialInfo: empresa ? computeTrialInfo(empresa) : null,
         planoInfo: {
@@ -672,6 +672,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/auth/preferencias", async (req, res) => {
+    try {
+      if (!req.session?.userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+      const schema = z.object({
+        introBoasVindasDismissed: z.boolean().optional(),
+      }).refine((d) => Object.keys(d).length > 0, { message: "Nenhuma preferência informada" });
+      const data = schema.parse(req.body);
+      await storage.updateUsuarioPreferencias(req.session.userId, data);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
     }
   });
 

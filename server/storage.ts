@@ -204,6 +204,7 @@ export interface IStorage {
 
   updateUsuarioEmailVerificado(id: string, emailVerificado: boolean): Promise<void>;
   updateUsuarioLoginAttempts(id: string, attempts: number, lockedUntil?: Date | null): Promise<void>;
+  updateUsuarioPreferencias(id: string, data: { introBoasVindasDismissed?: boolean }): Promise<void>;
 
   createEmailVerificationToken(usuarioId: string, token: string, expiresAt: Date): Promise<EmailVerificationToken>;
   getEmailVerificationToken(token: string): Promise<EmailVerificationToken | undefined>;
@@ -800,6 +801,10 @@ export class DbStorage implements IStorage {
       loginAttempts: attempts,
       ...(lockedUntil !== undefined ? { lockedUntil } : {}),
     }).where(eq(usuarios.id, id));
+  }
+
+  async updateUsuarioPreferencias(id: string, data: { introBoasVindasDismissed?: boolean }): Promise<void> {
+    await db.update(usuarios).set(data).where(eq(usuarios.id, id));
   }
 
   async createEmailVerificationToken(usuarioId: string, token: string, expiresAt: Date): Promise<EmailVerificationToken> {

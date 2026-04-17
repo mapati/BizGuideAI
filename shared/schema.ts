@@ -75,6 +75,7 @@ export const usuarios = pgTable("usuarios", {
   emailVerificado: boolean("email_verificado").notNull().default(false),
   loginAttempts: integer("login_attempts").notNull().default(0),
   lockedUntil: timestamp("locked_until"),
+  introBoasVindasDismissed: boolean("intro_boas_vindas_dismissed").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

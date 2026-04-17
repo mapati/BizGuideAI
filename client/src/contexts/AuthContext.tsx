@@ -10,6 +10,7 @@ interface Usuario {
   isAdmin: boolean;
   role: "admin" | "membro";
   createdAt?: string | Date | null;
+  introBoasVindasDismissed?: boolean;
 }
 
 interface TrialInfo {

@@ -51,6 +51,7 @@ Preferred communication style: Simple, everyday language.
 - `rituais`: Management rituals (tipo, dataUltimo, dataProximo, notas, decisoes, completado, checklist)
 - `eventos`: Custom strategic events (tipo, titulo, descricao, participantes, decisoes, anexos, dataEvento)
 - `faturas`: Invoice management (empresaId FK, valor decimal, descricao, status, dataVencimento, dataPagamento nullable)
+- `contexto_macro`: Super-admin curated macroeconomic context injected into all AI prompts (7 fixed categories: cambio_politica_monetaria, inflacao_custos, cenario_politico_regulatorio, geopolitica_comercio_exterior, crises_setoriais, tendencias_mercado, contexto_geral). Each row has textoAtivo, rascunho, ativo flag, scheduler fields, and alertaDias.
 
 **Data Flow:** Client requests via TanStack Query -> Express API -> Zod validation -> Drizzle ORM queries -> JSON response.
 
@@ -126,6 +127,29 @@ A guided onboarding journey implemented across the app:
 
 **AI Integration:**
 - OpenAI API (GPT-4o-mini) for generating strategic insights, suggestions, and contextual assistance. Configured via `OPENAI_API_KEY`. Uses temperature 0.8 for creative outputs.
+
+### Motor de Contexto Macro para IA (Task #61)
+
+**Hidden super-admin feature** that auto-injects curated macroeconomic context into every AI prompt.
+
+**Access:** Navigate directly to `/admin/contexto-macro` while logged in as the platform super-admin (isAdmin=true). The URL does NOT appear in any sidebar.
+
+**Architecture:**
+- `contexto_macro` DB table with 7 fixed categories (natural varchar PK)
+- `buildContextoMacroIA()` in `server/routes.ts`: fetches active categories, caches for 60s
+- OpenAI `chat.completions.create` is monkey-patched to auto-inject macro context into the system message of EVERY AI call
+- Deep research uses `openai.responses.create` with `gpt-4o-mini-search-preview` and web search tool
+- `node-cron` scheduler (hourly) auto-generates and auto-approves categories on schedule
+- `requireSuperAdmin` middleware (checks `isAdmin=true`) guards all `/api/admin/contexto-macro/*` routes
+
+**Admin API routes:**
+- `GET /api/admin/contexto-macro` — list all 7 categories
+- `PATCH /api/admin/contexto-macro/:categoria` — update any field
+- `POST /api/admin/contexto-macro/:categoria/gerar` — AI generation (auto-approves if scheduler ON, saves draft if OFF)
+- `POST /api/admin/contexto-macro/:categoria/aprovar` — approve draft → publish to textoAtivo
+- `DELETE /api/admin/contexto-macro/:categoria/rascunho` — discard draft
+
+**Scheduler logic:** When `agendadorAtivo=true AND proximoAgendamento <= NOW()`, the hourly cron generates fresh content, sets `textoAtivo`, and computes the next run based on frequency (diario/semanal/mensal).
 
 **Database Service:**
 - Neon serverless PostgreSQL, connected via `DATABASE_URL`.

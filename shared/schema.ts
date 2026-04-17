@@ -479,3 +479,17 @@ export const configuracoesIa = pgTable("configuracoes_ia", {
 
 export type ConfiguracaoIa = typeof configuracoesIa.$inferSelect;
 
+export const contextoMacro = pgTable("contexto_macro", {
+  categoria: varchar("categoria").primaryKey(),
+  titulo: text("titulo").notNull(),
+  textoAtivo: text("texto_ativo"),
+  rascunho: text("rascunho"),
+  ativo: boolean("ativo").notNull().default(false),
+  ultimaAtualizacao: timestamp("ultima_atualizacao"),
+  agendadorAtivo: boolean("agendador_ativo").notNull().default(false),
+  agendadorFrequencia: text("agendador_frequencia"),
+  proximoAgendamento: timestamp("proximo_agendamento"),
+  alertaDias: integer("alerta_dias").notNull().default(7),
+});
+export type ContextoMacro = typeof contextoMacro.$inferSelect;
+

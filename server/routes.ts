@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { sendVerificationEmail, sendPasswordResetEmail } from "./email";
 import { criarAssinatura, buscarAssinatura, cancelarAssinatura, buscarPagamento, motivoLegivel, validarAssinaturaWebhook, PLANOS_MP, type PlanoTipo, type MpSubscription, type MpPayment } from "./mp";
 import { randomBytes, createHash } from "crypto";
+import cron from "node-cron";
 import { 
   insertEmpresaSchema,
   PLAN_LIMITS,
@@ -86,6 +87,50 @@ const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
+
+/* ── Contexto Macro IA — cache 60s ── */
+let _macroCtxCache: { text: string; expiry: number } | null = null;
+
+async function buildContextoMacroIA(): Promise<string> {
+  const now = Date.now();
+  if (_macroCtxCache && now < _macroCtxCache.expiry) return _macroCtxCache.text;
+  try {
+    const ativos = await storage.getContextoMacroAtivos();
+    if (!ativos.length) {
+      _macroCtxCache = { text: "", expiry: now + 60_000 };
+      return "";
+    }
+    const linhas = ativos.map((c) => {
+      const dataStr = c.ultimaAtualizacao
+        ? new Date(c.ultimaAtualizacao).toLocaleDateString("pt-BR")
+        : "sem data";
+      return `### ${c.titulo} (atualizado em ${dataStr})\n${c.textoAtivo}`;
+    }).join("\n\n");
+    const text = `\n\n━━━ CENÁRIO MACROECONÔMICO ATUAL DO BRASIL ━━━\n(Use obrigatoriamente estes dados para embasar qualquer análise com contexto econômico ou político.)\n\n${linhas}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+    _macroCtxCache = { text, expiry: now + 60_000 };
+    return text;
+  } catch {
+    return "";
+  }
+}
+
+/* Auto-inject macro context into every openai.chat.completions.create call */
+const _origChatCreate = openai.chat.completions.create.bind(openai.chat.completions);
+(openai.chat.completions as any).create = async (params: any, options?: any) => {
+  const macroCtx = await buildContextoMacroIA();
+  if (macroCtx && Array.isArray(params.messages)) {
+    params = {
+      ...params,
+      messages: params.messages.map((msg: any) => {
+        if (msg.role === "system" && typeof msg.content === "string") {
+          return { ...msg, content: msg.content + macroCtx };
+        }
+        return msg;
+      }),
+    };
+  }
+  return _origChatCreate(params, options);
+};
 
 function isPrivateIp(ip: string): boolean {
   // Handle IPv4-mapped IPv6 addresses (::ffff:x.x.x.x)
@@ -5316,6 +5361,159 @@ Seja específico para o setor ${empresa.setor}.`,
       })),
       publicKey: process.env.MP_PUBLIC_KEY ?? null,
     });
+  });
+
+  // ==================== SUPER-ADMIN: CONTEXTO MACRO IA ====================
+
+  async function requireSuperAdmin(req: Request, res: Response, next: NextFunction) {
+    if (!req.session?.userId) return res.status(401).json({ error: "Não autenticado" });
+    const usuario = await storage.getUsuarioById(req.session.userId);
+    if (!usuario?.isAdmin) return res.status(403).json({ error: "Acesso restrito" });
+    next();
+  }
+
+  const CATEGORIAS_PROMPTS: Record<string, string> = {
+    cambio_politica_monetaria: `Pesquise dados ATUAIS (últimas 2-4 semanas) sobre câmbio e política monetária no Brasil. Inclua: cotação atual do dólar (BRL/USD), decisão mais recente do Copom sobre a Selic, perspectivas de inflação do Banco Central, condições de crédito, e tendências cambiais. Use dados numéricos precisos e datas. Responda em português.`,
+    inflacao_custos: `Pesquise dados ATUAIS sobre inflação e custos no Brasil. Inclua: IPCA mensal e acumulado mais recentes, IGP-M, preço dos combustíveis (gasolina, diesel, etanol), variação de custos de insumos industriais, pressão inflacionária em alimentos, e impacto para pequenas e médias empresas. Use dados numéricos precisos e datas. Responda em português.`,
+    cenario_politico_regulatorio: `Pesquise o cenário político e regulatório ATUAL do Brasil. Inclua: principais pautas do Congresso e do Executivo com impacto para empresas, novas regulações em tramitação ou recém-aprovadas, mudanças tributárias, decisões do STF relevantes para negócios, e instabilidade ou estabilidade política recente. Responda em português.`,
+    geopolitica_comercio_exterior: `Pesquise o cenário geopolítico ATUAL e seu impacto no comércio exterior brasileiro. Inclua: tarifas e barreiras comerciais impactando exportações/importações do Brasil, conflitos ou tensões que afetam cadeias de suprimento, acordos comerciais em negociação, variação de preços de commodities exportadas pelo Brasil, e posição do Brasil no comércio global. Responda em português.`,
+    crises_setoriais: `Pesquise CRISES SETORIAIS ATUAIS no Brasil. Inclua: setores em dificuldade (varejo, indústria, agronegócio, serviços), falências ou reestruturações notáveis de empresas, problemas de cadeia de suprimento, greves ou paralisações, e escassez de insumos ou mão de obra qualificada. Responda em português.`,
+    tendencias_mercado: `Pesquise as principais TENDÊNCIAS DE MERCADO ATUAIS no Brasil. Inclua: mudanças no comportamento do consumidor, crescimento de setores emergentes, adoção de novas tecnologias por empresas brasileiras, tendências de e-commerce e digitalização, e oportunidades de negócio identificadas por analistas. Responda em português.`,
+    contexto_geral: `Faça um resumo estratégico do contexto macroeconômico ATUAL do Brasil. Inclua os pontos mais críticos para pequenas e médias empresas: perspectivas econômicas gerais, principais riscos e oportunidades do momento, sentimento do empresariado, e recomendações de posicionamento estratégico para PMEs. Responda em português.`,
+  };
+
+  function calcularProximoAgendamento(frequencia: string, base: Date): Date {
+    const d = new Date(base);
+    if (frequencia === "diario") d.setDate(d.getDate() + 1);
+    else if (frequencia === "semanal") d.setDate(d.getDate() + 7);
+    else if (frequencia === "mensal") d.setMonth(d.getMonth() + 1);
+    return d;
+  }
+
+  async function gerarContextoCategoria(categoria: string): Promise<string> {
+    const prompt = CATEGORIAS_PROMPTS[categoria];
+    if (!prompt) throw new Error(`Categoria sem prompt: ${categoria}`);
+    const response = await openai.responses.create({
+      model: AI_MODELS.busca,
+      tools: [{ type: "web_search_preview" as any }],
+      input: prompt,
+    });
+    const raw = (response as any).output_text || "";
+    return raw.trim();
+  }
+
+  app.get("/api/admin/contexto-macro", requireSuperAdmin, async (_req, res) => {
+    try {
+      const all = await storage.getContextoMacroAll();
+      res.json(all);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.patch("/api/admin/contexto-macro/:categoria", requireSuperAdmin, async (req, res) => {
+    try {
+      const { categoria } = req.params;
+      const allowed = ["textoAtivo", "rascunho", "ativo", "agendadorAtivo", "agendadorFrequencia", "proximoAgendamento", "alertaDias"] as const;
+      const data: Record<string, any> = {};
+      for (const key of allowed) {
+        if (key in req.body) data[key] = req.body[key];
+      }
+      if (data.proximoAgendamento) data.proximoAgendamento = new Date(data.proximoAgendamento);
+      const updated = await storage.updateContextoMacro(categoria, data);
+      _macroCtxCache = null;
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/admin/contexto-macro/:categoria/gerar", requireSuperAdmin, async (req, res) => {
+    try {
+      const { categoria } = req.params;
+      const record = await storage.getContextoMacroByCategoria(categoria);
+      if (!record) return res.status(404).json({ error: "Categoria não encontrada" });
+
+      const texto = await gerarContextoCategoria(categoria);
+      const agora = new Date();
+
+      if (record.agendadorAtivo && record.agendadorFrequencia) {
+        await storage.updateContextoMacro(categoria, {
+          textoAtivo: texto,
+          ativo: record.ativo,
+          ultimaAtualizacao: agora,
+          proximoAgendamento: calcularProximoAgendamento(record.agendadorFrequencia, agora),
+          rascunho: null,
+        });
+        _macroCtxCache = null;
+        const updated = await storage.getContextoMacroByCategoria(categoria);
+        return res.json({ mode: "auto_aprovado", record: updated });
+      } else {
+        await storage.updateContextoMacro(categoria, { rascunho: texto });
+        const updated = await storage.getContextoMacroByCategoria(categoria);
+        return res.json({ mode: "rascunho", record: updated });
+      }
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/admin/contexto-macro/:categoria/aprovar", requireSuperAdmin, async (req, res) => {
+    try {
+      const { categoria } = req.params;
+      const record = await storage.getContextoMacroByCategoria(categoria);
+      if (!record) return res.status(404).json({ error: "Categoria não encontrada" });
+      if (!record.rascunho) return res.status(400).json({ error: "Nenhum rascunho para aprovar" });
+      const agora = new Date();
+      const updated = await storage.updateContextoMacro(categoria, {
+        textoAtivo: record.rascunho,
+        rascunho: null,
+        ultimaAtualizacao: agora,
+      });
+      _macroCtxCache = null;
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.delete("/api/admin/contexto-macro/:categoria/rascunho", requireSuperAdmin, async (req, res) => {
+    try {
+      const { categoria } = req.params;
+      const updated = await storage.updateContextoMacro(categoria, { rascunho: null });
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  /* ── Scheduler: verifica categorias vencidas a cada hora ── */
+  cron.schedule("0 * * * *", async () => {
+    try {
+      const all = await storage.getContextoMacroAll();
+      const now = new Date();
+      for (const cat of all) {
+        if (!cat.agendadorAtivo || !cat.agendadorFrequencia || !cat.proximoAgendamento) continue;
+        if (new Date(cat.proximoAgendamento) > now) continue;
+        try {
+          console.log(`[CONTEXTO_MACRO] Gerando: ${cat.categoria}`);
+          const texto = await gerarContextoCategoria(cat.categoria);
+          const proxima = calcularProximoAgendamento(cat.agendadorFrequencia, now);
+          await storage.updateContextoMacro(cat.categoria, {
+            textoAtivo: texto,
+            ultimaAtualizacao: now,
+            proximoAgendamento: proxima,
+            rascunho: null,
+          });
+          _macroCtxCache = null;
+          console.log(`[CONTEXTO_MACRO] OK: ${cat.categoria} — próximo: ${proxima.toISOString()}`);
+        } catch (err: any) {
+          console.error(`[CONTEXTO_MACRO] Erro em ${cat.categoria}:`, err?.message ?? err);
+        }
+      }
+    } catch (err: any) {
+      console.error("[CONTEXTO_MACRO] Erro no scheduler:", err?.message ?? err);
+    }
   });
 
   const httpServer = createServer(app);

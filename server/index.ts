@@ -122,6 +122,33 @@ async function runStartupMigrations() {
       ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS intro_boas_vindas_dismissed BOOLEAN NOT NULL DEFAULT false
     `);
 
+    // Task #61 — Motor de Contexto Macro para IA
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS contexto_macro (
+        categoria VARCHAR PRIMARY KEY,
+        titulo TEXT NOT NULL,
+        texto_ativo TEXT,
+        rascunho TEXT,
+        ativo BOOLEAN NOT NULL DEFAULT false,
+        ultima_atualizacao TIMESTAMP,
+        agendador_ativo BOOLEAN NOT NULL DEFAULT false,
+        agendador_frequencia TEXT,
+        proximo_agendamento TIMESTAMP,
+        alerta_dias INTEGER NOT NULL DEFAULT 7
+      )
+    `);
+    await client.query(`
+      INSERT INTO contexto_macro (categoria, titulo) VALUES
+        ('cambio_politica_monetaria', 'Câmbio & Política Monetária'),
+        ('inflacao_custos', 'Inflação & Custos'),
+        ('cenario_politico_regulatorio', 'Cenário Político & Regulatório'),
+        ('geopolitica_comercio_exterior', 'Geopolítica & Comércio Exterior'),
+        ('crises_setoriais', 'Crises Setoriais'),
+        ('tendencias_mercado', 'Tendências de Mercado'),
+        ('contexto_geral', 'Contexto Geral')
+      ON CONFLICT (categoria) DO NOTHING
+    `);
+
     // Seed: ensure the platform admin from env vars exists and has the correct password
     const adminEmail = process.env.ADMIN_EMAIL;
     const adminSenha = process.env.ADMIN_SENHA;

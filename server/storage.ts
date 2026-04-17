@@ -75,6 +75,8 @@ import {
   type InsertEvento,
   type Fatura,
   type InsertFatura,
+  contextoMacro,
+  type ContextoMacro,
 } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 
@@ -217,6 +219,11 @@ export interface IStorage {
 
   getConfiguracoesIA(): Promise<{ modeloPadrao: string; modeloRelatorios: string; modeloBusca: string }>;
   upsertConfiguracoesIA(config: { modeloPadrao?: string; modeloRelatorios?: string; modeloBusca?: string }): Promise<{ modeloPadrao: string; modeloRelatorios: string; modeloBusca: string }>;
+
+  getContextoMacroAll(): Promise<ContextoMacro[]>;
+  getContextoMacroAtivos(): Promise<ContextoMacro[]>;
+  getContextoMacroByCategoria(categoria: string): Promise<ContextoMacro | undefined>;
+  updateContextoMacro(categoria: string, data: Partial<Omit<ContextoMacro, "categoria">>): Promise<ContextoMacro>;
 }
 
 function omitTenantFields<T extends Record<string, unknown>>(data: T): Omit<T, "empresaId" | "objetivoId"> {
@@ -862,6 +869,24 @@ export class DbStorage implements IStorage {
       .values({ id: 1, ...merged, atualizadoEm: new Date() })
       .onConflictDoUpdate({ target: configuracoesIa.id, set: { ...merged, atualizadoEm: new Date() } });
     return merged;
+  }
+
+  async getContextoMacroAll(): Promise<ContextoMacro[]> {
+    return db.select().from(contextoMacro);
+  }
+
+  async getContextoMacroAtivos(): Promise<ContextoMacro[]> {
+    return db.select().from(contextoMacro).where(eq(contextoMacro.ativo, true));
+  }
+
+  async getContextoMacroByCategoria(categoria: string): Promise<ContextoMacro | undefined> {
+    const result = await db.select().from(contextoMacro).where(eq(contextoMacro.categoria, categoria)).limit(1);
+    return result[0];
+  }
+
+  async updateContextoMacro(categoria: string, data: Partial<Omit<ContextoMacro, "categoria">>): Promise<ContextoMacro> {
+    const result = await db.update(contextoMacro).set(data).where(eq(contextoMacro.categoria, categoria)).returning();
+    return result[0];
   }
 
 }

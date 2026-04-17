@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useLocation } from "wouter";
 import { queryClient } from "@/lib/queryClient";
 import { apiRequest } from "@/lib/queryClient";
+import AdminGuard from "@/components/AdminGuard";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +28,6 @@ import {
   Globe,
   Loader2,
   RefreshCw,
-  ShieldAlert,
   Trash2,
   Zap,
 } from "lucide-react";
@@ -554,7 +553,6 @@ function CategoriaCard({
 
 export default function ContextoMacroPage() {
   const { user } = useAuth();
-  const [, navigate] = useLocation();
 
   const { data: categorias, isLoading, refetch } = useQuery<ContextoMacro[]>({
     queryKey: ["/api/admin/contexto-macro"],
@@ -566,20 +564,6 @@ export default function ContextoMacroPage() {
     enabled: !!user?.isAdmin,
   });
 
-  if (!user?.isAdmin) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 px-4" data-testid="acesso-negado">
-        <ShieldAlert className="h-12 w-12 text-destructive" />
-        <h1 className="text-xl font-semibold">Acesso Negado</h1>
-        <p className="text-muted-foreground text-center">
-          Esta área é restrita a administradores do sistema.
-        </p>
-        <Button onClick={() => navigate("/")} data-testid="button-voltar-home">
-          Voltar ao início
-        </Button>
-      </div>
-    );
-  }
 
   const ativosCount = categorias?.filter((c) => c.ativo).length ?? 0;
   const pendentesCount = categorias?.filter((c) => c.rascunho).length ?? 0;
@@ -589,6 +573,7 @@ export default function ContextoMacroPage() {
   }).length ?? 0;
 
   return (
+    <AdminGuard>
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <div>
@@ -658,5 +643,6 @@ export default function ContextoMacroPage() {
         </div>
       )}
     </div>
+    </AdminGuard>
   );
 }

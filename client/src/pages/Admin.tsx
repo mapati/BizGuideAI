@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useLocation, Link } from "wouter";
+import { Link } from "wouter";
+import AdminGuard from "@/components/AdminGuard";
 import { useAuth } from "@/contexts/AuthContext";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -34,7 +35,6 @@ import {
   Clock,
   AlertTriangle,
   Plus,
-  ShieldAlert,
   Brain,
   Save,
   Info,
@@ -1135,7 +1135,6 @@ function TabConfigIA() {
 
 export default function Admin() {
   const { user } = useAuth();
-  const [, navigate] = useLocation();
 
   const { data: empresas = [], isLoading: loadingEmpresas } = useQuery<AdminEmpresa[]>({
     queryKey: ["/api/admin/empresas"],
@@ -1147,22 +1146,8 @@ export default function Admin() {
     enabled: !!user?.isAdmin,
   });
 
-  if (!user?.isAdmin) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 px-4" data-testid="acesso-negado">
-        <ShieldAlert className="h-12 w-12 text-destructive" />
-        <h1 className="text-xl font-semibold">Acesso Negado</h1>
-        <p className="text-muted-foreground text-center">
-          Esta área é restrita a administradores do sistema.
-        </p>
-        <Button onClick={() => navigate("/")} data-testid="button-voltar-home">
-          Voltar ao início
-        </Button>
-      </div>
-    );
-  }
-
   return (
+    <AdminGuard>
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -1221,5 +1206,6 @@ export default function Admin() {
         </TabsContent>
       </Tabs>
     </div>
+    </AdminGuard>
   );
 }

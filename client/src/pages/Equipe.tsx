@@ -93,7 +93,7 @@ function UpgradeStartDialog({
               Upgrade para Pro via WhatsApp
             </Button>
           </a>
-          <Link href="/trial-expirado" onClick={onClose}>
+          <Link href="/assinar?plano=pro" onClick={onClose}>
             <Button variant="outline" className="w-full" data-testid="button-ver-planos">
               Ver todos os planos
             </Button>

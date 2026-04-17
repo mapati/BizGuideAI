@@ -102,7 +102,7 @@ function UpgradeBanner() {
       <Zap className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
       <span>
         Upgrade para Pro: IA mais poderosa e equipe ilimitada.{" "}
-        <Link href="/trial-expirado" className="font-semibold text-primary underline">
+        <Link href="/assinar?plano=pro" className="font-semibold text-primary underline">
           Ver planos
         </Link>
       </span>

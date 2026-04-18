@@ -28,6 +28,7 @@ import {
   BarChart3,
   Activity,
   ChevronRight,
+  ChevronDown,
   Compass,
   Map,
   Zap,
@@ -214,6 +215,7 @@ export default function Home() {
   const [geradoEm, setGeradoEm] = useState<Date | null>(null);
   const [showWelcome, setShowWelcome] = useState(false);
   const [showIntroPanel, setShowIntroPanel] = useState(false);
+  const [cenarioOpen, setCenarioOpen] = useState(false);
   const [, setLocation] = useLocation();
 
   useEffect(() => {
@@ -520,6 +522,84 @@ export default function Home() {
         </Card>
       )}
       <PulseMercado />
+
+      {/* Análise do Cenário Brasileiro Atual — colapsável, fechado por padrão */}
+      <Card data-testid="card-cenario-brasileiro">
+        <button
+          type="button"
+          onClick={() => setCenarioOpen((v) => !v)}
+          className={`w-full flex items-center justify-between px-5 py-3 text-left hover-elevate active-elevate-2 ${cenarioOpen ? "rounded-t-lg" : "rounded-lg"}`}
+          data-testid="button-toggle-cenario"
+          aria-expanded={cenarioOpen}
+        >
+          <div className="flex items-center gap-2">
+            <Globe2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            <span className="font-medium text-sm">Análise do Cenário Brasileiro Atual</span>
+            <Badge
+              variant="secondary"
+              className="flex items-center gap-1 text-xs px-1.5 py-0 no-default-hover-elevate no-default-active-elevate"
+              data-testid="badge-gerado-por-ia"
+            >
+              <Sparkles className="h-2.5 w-2.5" />
+              Gerado por IA
+            </Badge>
+          </div>
+          <ChevronDown
+            className={`h-4 w-4 text-muted-foreground transition-transform duration-200 flex-shrink-0 ${cenarioOpen ? "rotate-180" : ""}`}
+          />
+        </button>
+
+        {cenarioOpen && (
+          <div className="px-5 pb-5 border-t">
+            <div className="flex items-center justify-end pt-3 mb-3">
+              <Link href="/contexto-macro">
+                <Button size="sm" variant="ghost" data-testid="button-ver-contexto-macro">
+                  Motor de Contexto
+                  <ChevronRight className="h-3 w-3 ml-1" />
+                </Button>
+              </Link>
+            </div>
+            {loadingCenario ? (
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            ) : !cenarioAtual ? (
+              <div className="text-center py-4 space-y-2">
+                <Globe2 className="h-8 w-8 text-muted-foreground/30 mx-auto" />
+                <p className="text-sm text-muted-foreground">Contexto macroeconômico ainda não gerado.</p>
+                <Link href="/contexto-macro">
+                  <Button size="sm" variant="outline" data-testid="button-ir-motor-contexto">
+                    Gerar no Motor de Contexto
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              <div>
+                {cenarioAtual.atualizadoEm && (
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Atualizado em{" "}
+                    {new Date(cenarioAtual.atualizadoEm).toLocaleDateString("pt-BR", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </p>
+                )}
+                <div className="max-h-48 overflow-y-auto pr-1 space-y-1.5" data-testid="text-cenario-brasileiro">
+                  {cenarioAtual.texto.split("\n").map((line, i) =>
+                    line.trim() === "" ? (
+                      <div key={i} className="h-1.5" />
+                    ) : (
+                      <p key={i} className="text-sm leading-relaxed text-muted-foreground">
+                        <RichLine line={line} />
+                      </p>
+                    )
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
+
       <JornadaEstrategicaCondicional />
 
       {/* Performance Geral + OKRs por Perspectiva */}
@@ -761,58 +841,6 @@ export default function Home() {
         </Card>
       </div>
 
-      {/* Cenário Brasileiro Atual */}
-      <Card className="p-5" data-testid="card-cenario-brasileiro">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <Globe2 className="h-4 w-4 text-muted-foreground" />
-            <h3 className="font-semibold">Cenário Brasileiro Atual</h3>
-          </div>
-          <Link href="/contexto-macro">
-            <Button size="sm" variant="ghost" data-testid="button-ver-contexto-macro">
-              Motor de Contexto
-              <ChevronRight className="h-3 w-3 ml-1" />
-            </Button>
-          </Link>
-        </div>
-        {loadingCenario ? (
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        ) : !cenarioAtual ? (
-          <div className="text-center py-4 space-y-2">
-            <Globe2 className="h-8 w-8 text-muted-foreground/30 mx-auto" />
-            <p className="text-sm text-muted-foreground">Contexto macroeconômico ainda não gerado.</p>
-            <Link href="/contexto-macro">
-              <Button size="sm" variant="outline" data-testid="button-ir-motor-contexto">
-                Gerar no Motor de Contexto
-              </Button>
-            </Link>
-          </div>
-        ) : (
-          <div>
-            {cenarioAtual.atualizadoEm && (
-              <p className="text-xs text-muted-foreground mb-3">
-                Atualizado em{" "}
-                {new Date(cenarioAtual.atualizadoEm).toLocaleDateString("pt-BR", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                })}
-              </p>
-            )}
-            <div className="max-h-48 overflow-y-auto pr-1 space-y-1.5" data-testid="text-cenario-brasileiro">
-              {cenarioAtual.texto.split("\n").map((line, i) =>
-                line.trim() === "" ? (
-                  <div key={i} className="h-1.5" />
-                ) : (
-                  <p key={i} className="text-sm leading-relaxed text-muted-foreground">
-                    <RichLine line={line} />
-                  </p>
-                )
-              )}
-            </div>
-          </div>
-        )}
-      </Card>
 
       {/* Diagnóstico IA */}
       <Card className="p-6" data-testid="card-diagnostico-ia">

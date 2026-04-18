@@ -31,10 +31,12 @@ import {
   Compass,
   Map,
   Zap,
+  Globe2,
+  Clock,
 } from "lucide-react";
 
 import { Link } from "wouter";
-import type { Empresa, Objetivo, ResultadoChave, Indicador, Evento } from "@shared/schema";
+import type { Empresa, Objetivo, ResultadoChave, Indicador, Evento, Ritual } from "@shared/schema";
 
 const INTRO_DISMISSED_KEY = (userId: string) => `biz-guide-intro-dismissed-${userId}`;
 // Data de lançamento desta feature de boas-vindas (17/04/2026).
@@ -73,7 +75,19 @@ const TIPO_EVENTO_LABELS: Record<string, string> = {
   marco_projeto: "Marco de Projeto",
   crise: "Crise",
   oportunidade: "Oportunidade",
+  fato_excepcional: "Fato Excepcional",
+  mudanca_estrategia: "Mudança de Estratégia",
+  revisao_plano: "Revisão do Plano",
   outro: "Outro",
+};
+
+type LucideIcon = React.ComponentType<{ className?: string }>;
+
+const RITUAIS_HOME_CONFIG: Record<string, { nome: string; icon: LucideIcon }> = {
+  diario:      { nome: "Ritual Diário",      icon: Clock },
+  semanal:     { nome: "Ritual Semanal",     icon: Calendar },
+  mensal:      { nome: "Ritual Mensal",      icon: BarChart3 },
+  trimestral:  { nome: "Ritual Trimestral",  icon: Target },
 };
 
 function calcularProgressoKR(kr: ResultadoChave): number {
@@ -167,8 +181,13 @@ export default function Home() {
     enabled: !!empresaId,
   });
 
-  const { data: alertas = [], isLoading: loadingAlertas } = useQuery<Alerta[]>({
-    queryKey: ["/api/alertas"],
+  const { data: rituais = [], isLoading: loadingRituais } = useQuery<Ritual[]>({
+    queryKey: ["/api/rituais"],
+    enabled: !!empresaId,
+  });
+
+  const { data: cenarioAtual, isLoading: loadingCenario } = useQuery<{ texto: string; atualizadoEm: string | null } | null>({
+    queryKey: ["/api/contexto-macro/cenario-atual"],
     enabled: !!empresaId,
   });
 
@@ -220,13 +239,11 @@ export default function Home() {
   const kpiVermelho = indicadores.filter((i) => i.status === "vermelho").length;
   const kpisCriticos = indicadores.filter((i) => i.status === "vermelho");
 
-  const alertasAlta = alertas.filter((a) => a.severidade === "alta");
-
-  const eventosRecentes = useMemo(
+  const ultimoEvento = useMemo(
     () =>
-      [...eventos]
-        .sort((a, b) => new Date(b.dataEvento).getTime() - new Date(a.dataEvento).getTime())
-        .slice(0, 3),
+      eventos.length > 0
+        ? [...eventos].sort((a, b) => new Date(b.dataEvento).getTime() - new Date(a.dataEvento).getTime())[0]
+        : null,
     [eventos]
   );
 
@@ -550,52 +567,60 @@ export default function Home() {
           )}
         </Card>
 
-        {/* Alertas */}
-        <Card className="p-5" data-testid="card-alertas">
-          <div className="flex items-center gap-2 mb-4">
-            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-            <h3 className="font-semibold">Alertas Ativos</h3>
-            {alertasAlta.length > 0 && (
-              <Badge variant="destructive" data-testid="badge-alertas-count">
-                {alertasAlta.length}
-              </Badge>
-            )}
+        {/* Cenário Brasileiro Atual */}
+        <Card className="p-5" data-testid="card-cenario-brasileiro">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <Globe2 className="h-4 w-4 text-muted-foreground" />
+              <h3 className="font-semibold">Cenário Brasileiro Atual</h3>
+            </div>
+            <Link href="/contexto-macro">
+              <Button size="sm" variant="ghost" data-testid="button-ver-contexto-macro">
+                Motor de Contexto
+                <ChevronRight className="h-3 w-3 ml-1" />
+              </Button>
+            </Link>
           </div>
-          {loadingAlertas ? (
+          {loadingCenario ? (
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          ) : alertasAlta.length === 0 ? (
-            <div className="flex items-center gap-2 text-sm text-green-600 py-4 justify-center">
-              <CheckCircle2 className="h-4 w-4" />
-              <span>Sem alertas de alta severidade</span>
+          ) : !cenarioAtual ? (
+            <div className="text-center py-4 space-y-2">
+              <Globe2 className="h-8 w-8 text-muted-foreground/30 mx-auto" />
+              <p className="text-sm text-muted-foreground">Contexto macroeconômico ainda não gerado.</p>
+              <Link href="/contexto-macro">
+                <Button size="sm" variant="outline" data-testid="button-ir-motor-contexto">
+                  Gerar no Motor de Contexto
+                </Button>
+              </Link>
             </div>
           ) : (
-            <div className="space-y-2">
-              {alertasAlta.slice(0, 5).map((alerta, i) => (
-                <div
-                  key={i}
-                  className="flex items-start gap-2 text-sm p-2 rounded-md bg-red-50 dark:bg-red-950/20"
-                  data-testid={`item-alerta-${i}`}
-                >
-                  <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0 text-red-500" />
-                  <span className="leading-snug">{alerta.mensagem}</span>
-                </div>
-              ))}
-              {alertasAlta.length > 5 && (
-                <p className="text-xs text-muted-foreground text-center pt-1">
-                  +{alertasAlta.length - 5} outros alertas críticos
+            <div>
+              {cenarioAtual.atualizadoEm && (
+                <p className="text-xs text-muted-foreground mb-3">
+                  Atualizado em{" "}
+                  {new Date(cenarioAtual.atualizadoEm).toLocaleDateString("pt-BR", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })}
                 </p>
               )}
+              <div className="max-h-48 overflow-y-auto pr-1">
+                <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line" data-testid="text-cenario-brasileiro">
+                  {cenarioAtual.texto}
+                </p>
+              </div>
             </div>
           )}
         </Card>
       </div>
 
-      {/* Eventos Recentes */}
-      <Card className="p-5" data-testid="card-eventos-recentes">
+      {/* Rituais de Gestão */}
+      <Card className="p-5" data-testid="card-rituais-gestao">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <h3 className="font-semibold">Eventos Recentes</h3>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+            <h3 className="font-semibold">Rituais de Gestão</h3>
           </div>
           <Link href="/acompanhamento">
             <Button size="sm" variant="ghost" data-testid="button-ver-acompanhamento">
@@ -604,38 +629,78 @@ export default function Home() {
             </Button>
           </Link>
         </div>
-        {loadingEventos ? (
+
+        {(loadingRituais || loadingEventos) ? (
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        ) : eventosRecentes.length === 0 ? (
-          <div className="text-center py-4">
-            <Circle className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">Nenhum evento registrado ainda</p>
+        ) : rituais.length === 0 ? (
+          <div className="text-center py-4 space-y-2">
+            <Circle className="h-8 w-8 text-muted-foreground/30 mx-auto" />
+            <p className="text-sm text-muted-foreground">Nenhum ritual de gestão configurado</p>
+            <Link href="/acompanhamento">
+              <Button size="sm" variant="outline" data-testid="button-configurar-rituais">
+                Configurar rituais
+              </Button>
+            </Link>
           </div>
         ) : (
-          <div className="space-y-3">
-            {eventosRecentes.map((evento) => (
-              <div
-                key={evento.id}
-                className="flex items-start gap-3 p-3 rounded-md bg-muted/40"
-                data-testid={`item-evento-${evento.id}`}
-              >
-                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <Activity className="h-4 w-4 text-primary" />
-                </div>
-                <div className="min-w-0">
-                  <p className="font-medium text-sm truncate">{evento.titulo}</p>
-                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                    <Badge variant="secondary" className="text-xs">
-                      {TIPO_EVENTO_LABELS[evento.tipo] || evento.tipo}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      {new Date(evento.dataEvento).toLocaleDateString("pt-BR")}
-                    </span>
+          <div className="space-y-2">
+            {rituais.map((ritual) => {
+              const config = RITUAIS_HOME_CONFIG[ritual.tipo] ?? { nome: ritual.tipo, icon: Calendar };
+              const RitualIcon = config.icon;
+              const atrasado = ritual.dataProximo && new Date(ritual.dataProximo) < hoje;
+              return (
+                <div
+                  key={ritual.id}
+                  className="flex items-center gap-3 p-2.5 rounded-md bg-muted/40"
+                  data-testid={`item-ritual-${ritual.id}`}
+                >
+                  <RitualIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium">{config.nome}</span>
+                      {atrasado && (
+                        <Badge variant="destructive" className="text-xs">
+                          Atrasado
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Último:{" "}
+                      {ritual.dataUltimo
+                        ? new Date(ritual.dataUltimo).toLocaleDateString("pt-BR")
+                        : "Nunca"}
+                      {" · "}
+                      Próximo:{" "}
+                      {new Date(ritual.dataProximo).toLocaleDateString("pt-BR")}
+                    </p>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
+        )}
+
+        {ultimoEvento && (
+          <>
+            <div className="my-4 border-t border-border" />
+            <div className="flex items-start gap-3" data-testid={`item-ultimo-evento-${ultimoEvento.id}`}>
+              <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Activity className="h-3.5 w-3.5 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground mb-0.5">Último evento estratégico</p>
+                <p className="font-medium text-sm truncate">{ultimoEvento.titulo}</p>
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                  <Badge variant="secondary" className="text-xs">
+                    {TIPO_EVENTO_LABELS[ultimoEvento.tipo] || ultimoEvento.tipo}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(ultimoEvento.dataEvento).toLocaleDateString("pt-BR")}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </>
         )}
       </Card>
 

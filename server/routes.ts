@@ -4433,6 +4433,24 @@ Responda em JSON:
     }
   });
 
+  // ==================== CENÁRIO MACRO — DASHBOARD ====================
+
+  app.get("/api/contexto-macro/cenario-atual", requireAuth, async (req, res) => {
+    try {
+      const row = await storage.getContextoMacroByCategoria("contexto_geral");
+      if (!row || !row.textoAtivo) {
+        return res.json(null);
+      }
+      return res.json({
+        texto: row.textoAtivo,
+        atualizadoEm: row.ultimaAtualizacao,
+      });
+    } catch (err) {
+      console.error("[contexto-macro/cenario-atual] Erro:", err);
+      return res.status(500).json({ error: "Erro interno" });
+    }
+  });
+
   // ==================== EVENTOS ====================
 
   app.get("/api/eventos", async (req, res) => {

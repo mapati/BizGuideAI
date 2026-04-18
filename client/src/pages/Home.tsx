@@ -45,13 +45,6 @@ const INTRO_DISMISSED_KEY = (userId: string) => `biz-guide-intro-dismissed-${use
 // Não altere esta data — ela garante que usuários já ativos não vejam o painel retroativamente.
 const INTRO_FEATURE_RELEASE_DATE = new Date("2026-04-17T00:00:00.000Z");
 
-interface Alerta {
-  tipo: string;
-  severidade: "alta" | "media";
-  mensagem: string;
-  detalhes: any;
-}
-
 interface Diagnostico {
   saudePlano: number;
   resumoExecutivo: string;
@@ -498,7 +491,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* KPIs + Alertas */}
+      {/* KPIs + Cenário */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* KPIs */}
         <Card className="p-5" data-testid="card-kpis">

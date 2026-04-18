@@ -13,7 +13,7 @@ export default function TermosDeUso() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="border-b bg-background">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
           <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity" data-testid="link-home-from-terms">
             <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center">

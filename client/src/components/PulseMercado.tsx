@@ -28,13 +28,6 @@ export function PulseMercado() {
   if (isLoading) return null;
   if (!items.length) return null;
 
-  const desktopCols =
-    items.length === 1
-      ? "lg:grid-cols-1"
-      : items.length === 2
-      ? "lg:grid-cols-2"
-      : "lg:grid-cols-3";
-
   return (
     <Card className="p-5" data-testid="card-pulse-mercado">
       {/* Header */}

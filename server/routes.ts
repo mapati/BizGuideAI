@@ -4455,7 +4455,7 @@ Responda em JSON:
     try {
       const ativos = await storage.getContextoMacroAtivos();
       const items = ativos
-        .filter((c) => c.textoAtivo)
+        .filter((c) => c.textoAtivo !== null && c.textoAtivo !== "")
         .sort((a, b) => {
           const ta = a.ultimaAtualizacao ? new Date(a.ultimaAtualizacao).getTime() : 0;
           const tb = b.ultimaAtualizacao ? new Date(b.ultimaAtualizacao).getTime() : 0;

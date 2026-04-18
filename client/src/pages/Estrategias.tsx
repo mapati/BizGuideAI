@@ -153,20 +153,16 @@ function EstrategiaCard({
         <PrioridadeBadge prioridade={item.prioridade} />
 
         <div className="flex items-center gap-3">
-          {contadores && (contadores.iniciativas > 0 || contadores.okrs > 0) && (
+          {contadores && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              {contadores.iniciativas > 0 && (
-                <span className="flex items-center gap-1">
-                  <Briefcase className="h-3 w-3" />
-                  {contadores.iniciativas}
-                </span>
-              )}
-              {contadores.okrs > 0 && (
-                <span className="flex items-center gap-1">
-                  <TargetIcon className="h-3 w-3" />
-                  {contadores.okrs}
-                </span>
-              )}
+              <span className="flex items-center gap-1">
+                <Briefcase className="h-3 w-3" />
+                {contadores.iniciativas} iniciativa{contadores.iniciativas !== 1 ? "s" : ""}
+              </span>
+              <span className="flex items-center gap-1">
+                <TargetIcon className="h-3 w-3" />
+                {contadores.okrs} OKR{contadores.okrs !== 1 ? "s" : ""}
+              </span>
             </div>
           )}
 
@@ -562,7 +558,7 @@ export default function Estrategias() {
           <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <Play className="h-3.5 w-3.5 text-blue-500" />
             <span data-testid="indicador-em-execucao">
-              {emExecucao} de {total} em execução
+              {emExecucao} de {total} estratégias em execução
             </span>
           </div>
           {concluidas > 0 && (

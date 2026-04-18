@@ -229,7 +229,7 @@ export function JornadaEstrategica({ progresso, defaultOpen, compact }: JornadaE
             Perfil da empresa incompleto
           </h3>
           <p className="text-sm text-yellow-700 dark:text-yellow-400 mt-1">
-            Para habilitar as próximas etapas da Jornada Estratégica, preencha todos os campos obrigatórios do perfil da empresa — razão social, CNPJ, endereço e responsável legal. Logotipo e documentos estratégicos são opcionais.
+            Para habilitar as próximas etapas da Jornada Estratégica, preencha todos os campos obrigatórios do perfil da empresa — razão social, CNPJ, endereço e responsável legal.
           </p>
         </div>
         <Link href="/onboarding" data-testid="link-completar-perfil">

@@ -336,14 +336,26 @@ export default function Onboarding() {
     if (!formData.nome) errors.nome = "Nome da empresa é obrigatório";
     if (!formData.setor) errors.setor = "Setor de atuação é obrigatório";
     if (!formData.tamanho) errors.tamanho = "Selecione o tamanho da empresa";
-    if (formData.cnpj && !validateCnpj(formData.cnpj)) {
+    if (!formData.descricao) errors.descricao = "Descrição do negócio é obrigatória";
+    if (!formData.cnpj) {
+      errors.cnpj = "CNPJ é obrigatório";
+    } else if (!validateCnpj(formData.cnpj)) {
       errors.cnpj = "CNPJ inválido. Informe os 14 dígitos (somente números ou no formato XX.XXX.XXX/XXXX-XX)";
     }
+    if (!formData.endereco) errors.endereco = "Endereço é obrigatório";
+    if (!formData.cidade) errors.cidade = "Cidade é obrigatória";
+    if (!formData.estado) errors.estado = "Estado é obrigatório";
+    if (!formData.cep) errors.cep = "CEP é obrigatório";
+    if (!formData.nomeResponsavel) errors.nomeResponsavel = "Nome do responsável é obrigatório";
+    if (!formData.emailResponsavel) errors.emailResponsavel = "E-mail do responsável é obrigatório";
     if (formData.website && !validateWebsiteUrl(formData.website)) {
       errors.website = "Endereço de website inválido. Ex: https://www.empresa.com.br";
     }
     if (formData.anoFundacao && (!/^\d{4}$/.test(formData.anoFundacao) || parseInt(formData.anoFundacao) < 1800 || parseInt(formData.anoFundacao) > new Date().getFullYear())) {
       errors.anoFundacao = "Informe um ano válido (ex: 2005)";
+    }
+    if (!(empresaExistente as any)?.termoAceitoEm && !aceitouTermos) {
+      errors.termos = "Você precisa aceitar os Termos de Uso para continuar";
     }
     setPerfilErrors(errors);
     if (Object.keys(errors).length > 0) return;
@@ -707,15 +719,21 @@ export default function Onboarding() {
                   </div>
 
                   <div>
-                    <Label htmlFor="edit-descricao">Descrição do Negócio</Label>
+                    <Label htmlFor="edit-descricao">Descrição do Negócio *</Label>
                     <Textarea
                       id="edit-descricao"
                       placeholder="Ex: Fabricamos peças metálicas usinadas de alta precisão para montadoras automotivas."
                       value={formData.descricao}
-                      onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
+                      onChange={(e) => {
+                        setFormData({ ...formData, descricao: e.target.value });
+                        if (perfilErrors.descricao) setPerfilErrors({ ...perfilErrors, descricao: "" });
+                      }}
                       className="min-h-[100px] mt-1"
                       data-testid="textarea-descricao"
                     />
+                    {perfilErrors.descricao && (
+                      <p className="text-sm text-destructive mt-1" data-testid="error-descricao">{perfilErrors.descricao}</p>
+                    )}
                   </div>
 
                   {/* Dados Cadastrais */}
@@ -727,7 +745,7 @@ export default function Onboarding() {
 
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div>
-                        <Label htmlFor="edit-cnpj">CNPJ</Label>
+                        <Label htmlFor="edit-cnpj">CNPJ *</Label>
                         <Input
                           id="edit-cnpj"
                           placeholder="00.000.000/0000-00"
@@ -762,47 +780,71 @@ export default function Onboarding() {
                     </div>
 
                     <div>
-                      <Label htmlFor="edit-endereco">Endereço</Label>
+                      <Label htmlFor="edit-endereco">Endereço *</Label>
                       <Input
                         id="edit-endereco"
                         placeholder="Ex: Rua das Indústrias, 1200"
                         value={formData.endereco}
-                        onChange={(e) => setFormData({ ...formData, endereco: e.target.value })}
+                        onChange={(e) => {
+                          setFormData({ ...formData, endereco: e.target.value });
+                          if (perfilErrors.endereco) setPerfilErrors({ ...perfilErrors, endereco: "" });
+                        }}
                         data-testid="input-endereco"
                       />
+                      {perfilErrors.endereco && (
+                        <p className="text-sm text-destructive mt-1" data-testid="error-endereco">{perfilErrors.endereco}</p>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                       <div className="sm:col-span-1">
-                        <Label htmlFor="edit-cidade">Cidade</Label>
+                        <Label htmlFor="edit-cidade">Cidade *</Label>
                         <Input
                           id="edit-cidade"
                           placeholder="Ex: São Paulo"
                           value={formData.cidade}
-                          onChange={(e) => setFormData({ ...formData, cidade: e.target.value })}
+                          onChange={(e) => {
+                            setFormData({ ...formData, cidade: e.target.value });
+                            if (perfilErrors.cidade) setPerfilErrors({ ...perfilErrors, cidade: "" });
+                          }}
                           data-testid="input-cidade"
                         />
+                        {perfilErrors.cidade && (
+                          <p className="text-sm text-destructive mt-1" data-testid="error-cidade">{perfilErrors.cidade}</p>
+                        )}
                       </div>
                       <div>
-                        <Label htmlFor="edit-estado">Estado</Label>
+                        <Label htmlFor="edit-estado">Estado *</Label>
                         <Input
                           id="edit-estado"
                           placeholder="Ex: SP"
                           value={formData.estado}
-                          onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
+                          onChange={(e) => {
+                            setFormData({ ...formData, estado: e.target.value });
+                            if (perfilErrors.estado) setPerfilErrors({ ...perfilErrors, estado: "" });
+                          }}
                           data-testid="input-estado"
                           maxLength={2}
                         />
+                        {perfilErrors.estado && (
+                          <p className="text-sm text-destructive mt-1" data-testid="error-estado">{perfilErrors.estado}</p>
+                        )}
                       </div>
                       <div>
-                        <Label htmlFor="edit-cep">CEP</Label>
+                        <Label htmlFor="edit-cep">CEP *</Label>
                         <Input
                           id="edit-cep"
                           placeholder="00000-000"
                           value={formData.cep}
-                          onChange={(e) => setFormData({ ...formData, cep: e.target.value })}
+                          onChange={(e) => {
+                            setFormData({ ...formData, cep: e.target.value });
+                            if (perfilErrors.cep) setPerfilErrors({ ...perfilErrors, cep: "" });
+                          }}
                           data-testid="input-cep"
                         />
+                        {perfilErrors.cep && (
+                          <p className="text-sm text-destructive mt-1" data-testid="error-cep">{perfilErrors.cep}</p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -815,27 +857,39 @@ export default function Onboarding() {
                     </div>
 
                     <div>
-                      <Label htmlFor="edit-nome-responsavel">Nome do responsável</Label>
+                      <Label htmlFor="edit-nome-responsavel">Nome do responsável *</Label>
                       <Input
                         id="edit-nome-responsavel"
                         placeholder="Ex: João Silva"
                         value={formData.nomeResponsavel}
-                        onChange={(e) => setFormData({ ...formData, nomeResponsavel: e.target.value })}
+                        onChange={(e) => {
+                          setFormData({ ...formData, nomeResponsavel: e.target.value });
+                          if (perfilErrors.nomeResponsavel) setPerfilErrors({ ...perfilErrors, nomeResponsavel: "" });
+                        }}
                         data-testid="input-nome-responsavel"
                       />
+                      {perfilErrors.nomeResponsavel && (
+                        <p className="text-sm text-destructive mt-1" data-testid="error-nome-responsavel">{perfilErrors.nomeResponsavel}</p>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div>
-                        <Label htmlFor="edit-email-responsavel">E-mail do responsável</Label>
+                        <Label htmlFor="edit-email-responsavel">E-mail do responsável *</Label>
                         <Input
                           id="edit-email-responsavel"
                           type="email"
                           placeholder="responsavel@empresa.com.br"
                           value={formData.emailResponsavel}
-                          onChange={(e) => setFormData({ ...formData, emailResponsavel: e.target.value })}
+                          onChange={(e) => {
+                            setFormData({ ...formData, emailResponsavel: e.target.value });
+                            if (perfilErrors.emailResponsavel) setPerfilErrors({ ...perfilErrors, emailResponsavel: "" });
+                          }}
                           data-testid="input-email-responsavel"
                         />
+                        {perfilErrors.emailResponsavel && (
+                          <p className="text-sm text-destructive mt-1" data-testid="error-email-responsavel">{perfilErrors.emailResponsavel}</p>
+                        )}
                       </div>
                       <div>
                         <Label htmlFor="edit-telefone-responsavel">Telefone do responsável</Label>
@@ -853,11 +907,14 @@ export default function Onboarding() {
                   {/* Termos de Uso */}
                   {!(empresaExistente as any)?.termoAceitoEm && (
                     <div className="border-t pt-5">
-                      <div className="flex items-start gap-3 rounded-md border p-3 bg-muted/30">
+                      <div className={`flex items-start gap-3 rounded-md border p-3 bg-muted/30 ${perfilErrors.termos ? "border-destructive" : ""}`}>
                         <Checkbox
                           id="aceite-termos"
                           checked={aceitouTermos}
-                          onCheckedChange={(checked) => setAceitouTermos(!!checked)}
+                          onCheckedChange={(checked) => {
+                            setAceitouTermos(!!checked);
+                            if (checked && perfilErrors.termos) setPerfilErrors({ ...perfilErrors, termos: "" });
+                          }}
                           data-testid="checkbox-aceite-termos"
                           className="mt-0.5"
                         />
@@ -874,6 +931,9 @@ export default function Onboarding() {
                           do BizGuideAI, incluindo as condições de uso da inteligência artificial e o tratamento de dados da minha empresa.
                         </label>
                       </div>
+                      {perfilErrors.termos && (
+                        <p className="text-sm text-destructive mt-1" data-testid="error-termos">{perfilErrors.termos}</p>
+                      )}
                     </div>
                   )}
                   {(empresaExistente as any)?.termoAceitoEm && (

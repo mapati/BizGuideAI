@@ -1,6 +1,7 @@
 import { spawn } from "child_process";
 import path from "path";
 import cron from "node-cron";
+import { sendPushFailureEmail } from "./email";
 
 export type PushFrequencia = "1h" | "6h" | "diario";
 
@@ -39,6 +40,15 @@ export async function runGithubPush(trigger: "manual" | "agendado" = "agendado")
 
     let stdout = "";
     let stderr = "";
+    let alertSent = false;
+
+    function notifyFailure(mensagem: string): void {
+      if (trigger !== "agendado" || alertSent) return;
+      alertSent = true;
+      sendPushFailureEmail(mensagem, now).catch((e) =>
+        console.error("[GITHUB_SCHEDULER] Falha ao enviar e-mail de alerta:", e)
+      );
+    }
 
     proc.stdout.on("data", (d) => { stdout += d.toString(); });
     proc.stderr.on("data", (d) => { stderr += d.toString(); });
@@ -66,6 +76,7 @@ export async function runGithubPush(trigger: "manual" | "agendado" = "agendado")
 
       if (resultado === "erro") {
         console.error(`[GITHUB_SCHEDULER] Erro no push (${trigger}): ${mensagem}`);
+        notifyFailure(mensagem);
       } else {
         console.log(`[GITHUB_SCHEDULER] Push ${resultado} (${trigger}): ${mensagem}`);
       }
@@ -79,6 +90,7 @@ export async function runGithubPush(trigger: "manual" | "agendado" = "agendado")
       pushLogs.unshift(log);
       if (pushLogs.length > MAX_LOGS) pushLogs.length = MAX_LOGS;
       console.error(`[GITHUB_SCHEDULER] ${mensagem}`);
+      notifyFailure(mensagem);
       resolve(log);
     });
   });

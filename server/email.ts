@@ -104,6 +104,95 @@ function buildVerificationEmailHtml(nome: string, link: string): string {
 </html>`;
 }
 
+export async function sendPushFailureEmail(
+  errorMessage: string,
+  timestamp: Date
+): Promise<void> {
+  const adminEmail = process.env.ADMIN_EMAIL;
+  if (!adminEmail) {
+    console.warn("[EMAIL] ADMIN_EMAIL não configurado — notificação de falha de push ignorada.");
+    return;
+  }
+
+  const resend = getResend();
+  if (!resend) {
+    console.log(`[EMAIL - DEV] Falha no push agendado para ${adminEmail} em ${timestamp.toISOString()}: ${errorMessage}`);
+    return;
+  }
+
+  await resend.emails.send({
+    from: `BizGuideAI <${FROM_EMAIL}>`,
+    to: adminEmail,
+    subject: "Alerta: Falha no push automático para o GitHub — BizGuideAI",
+    html: buildPushFailureEmailHtml(errorMessage, timestamp),
+  });
+}
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function buildPushFailureEmailHtml(errorMessage: string, timestamp: Date): string {
+  const timestampFormatted = timestamp.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+  const safeError = escapeHtml(errorMessage);
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 0;">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+        <tr>
+          <td style="background:#b91c1c;padding:24px 32px;">
+            <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;">BizGuideAI</h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px;">
+            <h2 style="margin:0 0 16px;color:#111827;font-size:20px;">Falha no backup automático para o GitHub</h2>
+            <p style="margin:0 0 16px;color:#374151;font-size:15px;">
+              O push agendado para o repositório GitHub falhou. Ação manual pode ser necessária para garantir a integridade do backup.
+            </p>
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#fef2f2;border-radius:6px;margin-bottom:24px;">
+              <tr>
+                <td style="padding:16px;">
+                  <p style="margin:0 0 8px;color:#991b1b;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Detalhes do erro</p>
+                  <p style="margin:0 0 8px;color:#374151;font-size:14px;"><strong>Data/hora:</strong> ${timestampFormatted}</p>
+                  <p style="margin:0;color:#374151;font-size:14px;word-break:break-word;"><strong>Mensagem:</strong> ${safeError}</p>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:0 0 8px;color:#374151;font-size:15px;font-weight:600;">Como corrigir:</p>
+            <ol style="margin:0 0 24px;padding-left:20px;color:#374151;font-size:14px;line-height:1.8;">
+              <li>Acesse o servidor e verifique o status do repositório Git local.</li>
+              <li>Execute <code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;">git status</code> para identificar conflitos ou problemas pendentes.</li>
+              <li>Se houver conflitos, execute <code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;">git pull --rebase</code> para sincronizar com o remoto.</li>
+              <li>Após resolver, acesse o painel de administração e realize um push manual para confirmar que está funcionando.</li>
+            </ol>
+            <p style="margin:0;color:#6b7280;font-size:13px;">
+              Este alerta foi disparado automaticamente pelo agendador de backup do BizGuideAI. Pushes manuais não geram notificações.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#f9fafb;padding:16px 32px;border-top:1px solid #e5e7eb;">
+            <p style="margin:0;color:#9ca3af;font-size:12px;text-align:center;">
+              &copy; ${new Date().getFullYear()} BizGuideAI. Todos os direitos reservados.
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
 function buildPasswordResetEmailHtml(nome: string, link: string): string {
   return `<!DOCTYPE html>
 <html lang="pt-BR">

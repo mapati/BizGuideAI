@@ -17,7 +17,7 @@ import { PrerequisiteWarning } from "@/components/PrerequisiteWarning";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertIniciativaSchema, type Iniciativa, type InsertIniciativa } from "@shared/schema";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 const formSchema = insertIniciativaSchema.extend({
   titulo: z.string().min(1, "Título é obrigatório"),

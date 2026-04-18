@@ -36,6 +36,7 @@ import {
   Compass,
   Map,
   Zap,
+  Globe2,
   Clock,
   FileDown,
   RefreshCw,
@@ -289,14 +290,6 @@ export default function Home() {
     queryKey: ["/api/contexto-macro/cenario-atual"],
     enabled: !!empresaId,
   });
-
-  const CENARIO_DIAS_LIMITE = 30;
-  const cenarioDesatualizado = useMemo(() => {
-    if (!cenarioAtual) return false;
-    if (!cenarioAtual.atualizadoEm) return true;
-    const diasDesdeAtualizacao = (Date.now() - new Date(cenarioAtual.atualizadoEm).getTime()) / (1000 * 60 * 60 * 24);
-    return diasDesdeAtualizacao > CENARIO_DIAS_LIMITE;
-  }, [cenarioAtual]);
 
   const { data: diagnosticoSalvo } = useQuery<{ diagnostico: Diagnostico; geradoEm: string } | null>({
     queryKey: ["/api/diagnostico-ia"],
@@ -582,12 +575,8 @@ export default function Home() {
           data-testid="button-toggle-cenario"
           aria-expanded={cenarioOpen}
         >
-          <div className="flex items-center gap-2 flex-wrap">
-            <svg viewBox="0 0 40 28" className="h-4 w-auto flex-shrink-0" aria-hidden="true">
-              <rect width="40" height="28" rx="2" fill="#009C3B" />
-              <polygon points="20,4 36,14 20,24 4,14" fill="#FFDF00" />
-              <circle cx="20" cy="14" r="6.5" fill="#002776" />
-            </svg>
+          <div className="flex items-center gap-2">
+            <Globe2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
             <span className="font-medium text-sm">Análise do Cenário Brasileiro Atual</span>
             <Badge
               variant="secondary"
@@ -597,15 +586,6 @@ export default function Home() {
               <Sparkles className="h-2.5 w-2.5" />
               Gerado por IA
             </Badge>
-            {cenarioDesatualizado && (
-              <Badge
-                className="flex items-center gap-1 text-xs px-1.5 py-0 no-default-hover-elevate no-default-active-elevate bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700"
-                data-testid="badge-cenario-desatualizado"
-              >
-                <AlertTriangle className="h-2.5 w-2.5" />
-                Desatualizado
-              </Badge>
-            )}
           </div>
           <ChevronDown
             className={`h-4 w-4 text-muted-foreground transition-transform duration-200 flex-shrink-0 ${cenarioOpen ? "rotate-180" : ""}`}
@@ -626,11 +606,7 @@ export default function Home() {
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             ) : !cenarioAtual ? (
               <div className="text-center py-4 space-y-2">
-                <svg viewBox="0 0 40 28" className="h-8 w-auto mx-auto opacity-30" aria-hidden="true">
-                  <rect width="40" height="28" rx="2" fill="#009C3B" />
-                  <polygon points="20,4 36,14 20,24 4,14" fill="#FFDF00" />
-                  <circle cx="20" cy="14" r="6.5" fill="#002776" />
-                </svg>
+                <Globe2 className="h-8 w-8 text-muted-foreground/30 mx-auto" />
                 <p className="text-sm text-muted-foreground">Contexto macroeconômico ainda não gerado.</p>
                 <Link href="/contexto-macro">
                   <Button size="sm" variant="outline" data-testid="button-ir-motor-contexto">
@@ -640,28 +616,16 @@ export default function Home() {
               </div>
             ) : (
               <div>
-                <div className="flex items-center gap-2 flex-wrap mb-3">
-                  <p className="text-xs text-muted-foreground">
-                    {cenarioAtual.atualizadoEm
-                      ? `Atualizado em ${new Date(cenarioAtual.atualizadoEm).toLocaleDateString("pt-BR", {
-                          day: "numeric",
-                          month: "long",
-                          year: "numeric",
-                        })}`
-                      : "Nunca atualizado"}
+                {cenarioAtual.atualizadoEm && (
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Atualizado em{" "}
+                    {new Date(cenarioAtual.atualizadoEm).toLocaleDateString("pt-BR", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}
                   </p>
-                  {cenarioDesatualizado && (
-                    <Link href="/contexto-macro">
-                      <Badge
-                        className="flex items-center gap-1 text-xs px-1.5 py-0 cursor-pointer bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300 border-yellow-300 dark:border-yellow-700"
-                        data-testid="badge-cenario-desatualizado-link"
-                      >
-                        <AlertTriangle className="h-2.5 w-2.5" />
-                        Regenerar no Motor de Contexto
-                      </Badge>
-                    </Link>
-                  )}
-                </div>
+                )}
                 <div className="max-h-48 overflow-y-auto pr-1 space-y-1.5" data-testid="text-cenario-brasileiro">
                   {cenarioAtual.texto.split("\n").map((line, i) =>
                     line.trim() === "" ? (

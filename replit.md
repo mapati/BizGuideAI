@@ -123,6 +123,19 @@ A guided onboarding journey implemented across the app:
     - Sidebar shows "Administração" link only when `user.isAdmin === true`.
     - Admin API routes: `GET /api/admin/usuarios`, `POST /api/admin/usuarios/:id/ativar-plano`, `POST /api/admin/usuarios/:id/suspender`, `GET /api/admin/faturas`, `POST /api/admin/faturas`, `PATCH /api/admin/faturas/:id`.
 
+## Scripts Utilitários
+
+### Push para o GitHub (`scripts/push-github.sh`)
+Envia todas as alterações para o repositório GitHub com um único comando:
+
+```bash
+bash scripts/push-github.sh "mensagem de commit"
+```
+
+- Se nenhuma mensagem for passada, usa a data/hora atual como mensagem padrão.
+- O script detecta automaticamente a branch atual e empurra para `origin`.
+- O remote `origin` já está configurado com autenticação para `https://github.com/mapati/BizGuideAI.git`.
+
 ## External Dependencies
 
 **AI Integration:**

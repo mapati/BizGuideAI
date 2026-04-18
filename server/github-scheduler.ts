@@ -33,9 +33,13 @@ export async function runGithubPush(trigger: "manual" | "agendado" = "agendado")
   const scriptPath = path.resolve("scripts/push-github.sh");
   const msg = `chore: backup automático ${trigger} — ${now.toISOString()}`;
 
+  const projectRoot = path.resolve(".");
+
   return new Promise((resolve) => {
     const proc = spawn("bash", [scriptPath, msg], {
       stdio: ["ignore", "pipe", "pipe"],
+      cwd: projectRoot,
+      env: { ...process.env },
     });
 
     let stdout = "";

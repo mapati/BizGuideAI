@@ -6,11 +6,24 @@
 
 set -e
 
-# Verifica se o remote 'origin' existe
-if ! git remote get-url origin &>/dev/null; then
-  echo "Erro: nenhum remote 'origin' encontrado."
-  echo "Configure o repositório com: git remote add origin <URL>"
+# Garante que estamos na raiz do projeto (dois níveis acima de scripts/)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$PROJECT_ROOT"
+
+# Verifica se o GITHUB_TOKEN está disponível
+if [ -z "$GITHUB_TOKEN" ]; then
+  echo "Erro: variável de ambiente GITHUB_TOKEN não encontrada."
+  echo "Configure o secret GITHUB_TOKEN no Replit."
   exit 1
+fi
+
+# Atualiza (ou cria) o remote 'origin' com o token atual
+REPO_URL="https://${GITHUB_TOKEN}@github.com/mapati/BizGuideAI.git"
+if git remote get-url origin &>/dev/null; then
+  git remote set-url origin "$REPO_URL"
+else
+  git remote add origin "$REPO_URL"
 fi
 
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")

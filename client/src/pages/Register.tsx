@@ -6,6 +6,7 @@ import { z } from "zod";
 import { Target, BadgeCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -24,6 +25,9 @@ const registerSchema = z
     nomeEmpresa: z.string().min(1, "Nome da empresa é obrigatório"),
     setor: z.string().min(1, "Setor é obrigatório"),
     tamanho: z.string().min(1, "Tamanho é obrigatório"),
+    termsAccepted: z.boolean().refine((v) => v === true, {
+      message: "Você deve aceitar os Termos de Uso para continuar",
+    }),
   })
   .refine((data) => data.senha === data.confirmaSenha, {
     message: "As senhas não conferem",
@@ -78,6 +82,7 @@ export default function Register() {
       nomeEmpresa: "",
       setor: "",
       tamanho: "",
+      termsAccepted: false,
     },
   });
 
@@ -91,18 +96,16 @@ export default function Register() {
         nomeEmpresa: values.nomeEmpresa,
         setor: values.setor,
         tamanho: values.tamanho,
+        termsAccepted: values.termsAccepted,
         ...(plano ? { plano } : {}),
       });
-      // Paid plan flow: redirect to MP checkout or verify-email fallback
       if (result?.planoTipo) {
         if (result.checkoutUrl) {
           window.location.href = result.checkoutUrl;
         } else {
-          // MP failed — user still needs to verify email, then login will redirect to /assinar
           window.location.href = "/verify-email";
         }
       }
-      // Trial flow: AuthContext.register() already navigated to /verify-email
     } catch (err: any) {
       toast({
         title: "Erro ao criar conta",
@@ -310,6 +313,38 @@ export default function Register() {
                   />
                 </div>
 
+                <FormField
+                  control={form.control}
+                  name="termsAccepted"
+                  render={({ field }) => (
+                    <FormItem>
+                      <div className="flex items-start gap-3 rounded-md border p-3 mt-2">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            data-testid="checkbox-terms"
+                            className="mt-0.5"
+                          />
+                        </FormControl>
+                        <div className="text-sm leading-relaxed">
+                          Li e concordo com os{" "}
+                          <Link
+                            href="/termos-de-uso"
+                            target="_blank"
+                            className="text-primary hover:underline font-medium"
+                            data-testid="link-termos-de-uso"
+                          >
+                            Termos de Uso
+                          </Link>{" "}
+                          do BizGuideAI, incluindo as condições de uso da inteligência artificial e o tratamento de dados da minha empresa.
+                        </div>
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
                 <Button
                   type="submit"
                   className="w-full"
@@ -317,7 +352,7 @@ export default function Register() {
                   data-testid="button-register"
                 >
                   {isSubmitting
-                    ? plano ? "Criando conta..." : "Criando conta..."
+                    ? "Criando conta..."
                     : plano
                     ? "Criar conta e ir para o pagamento"
                     : "Criar conta"}

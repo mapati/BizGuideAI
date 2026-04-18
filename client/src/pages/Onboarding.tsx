@@ -40,7 +40,8 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { useLocation } from "wouter";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useLocation, Link } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Empresa } from "@shared/schema";
@@ -76,6 +77,9 @@ export default function Onboarding() {
     cidade: "",
     estado: "",
     cep: "",
+    nomeResponsavel: "",
+    emailResponsavel: "",
+    telefoneResponsavel: "",
     logoUrl: "",
     modeloNegocio: "",
     areaAtuacao: "",
@@ -103,6 +107,7 @@ export default function Onboarding() {
   const [senhaErrors, setSenhaErrors] = useState<Record<string, string>>({});
   const [perfilErrors, setPerfilErrors] = useState<Record<string, string>>({});
   const [senhaAberta, setSenhaAberta] = useState(false);
+  const [aceitouTermos, setAceitouTermos] = useState(false);
 
   const { data: empresaExistente } = useQuery<(Empresa & { souProprietario?: boolean }) | null>({
     queryKey: ["/api/empresa"],
@@ -148,6 +153,9 @@ export default function Onboarding() {
         cidade: empresaExistente.cidade || "",
         estado: empresaExistente.estado || "",
         cep: empresaExistente.cep || "",
+        nomeResponsavel: (empresaExistente as any).nomeResponsavel || "",
+        emailResponsavel: (empresaExistente as any).emailResponsavel || "",
+        telefoneResponsavel: (empresaExistente as any).telefoneResponsavel || "",
         logoUrl: empresaExistente.logoUrl || "",
         modeloNegocio: empresaExistente.modeloNegocio || "",
         areaAtuacao: empresaExistente.areaAtuacao || "",
@@ -339,10 +347,13 @@ export default function Onboarding() {
     }
     setPerfilErrors(errors);
     if (Object.keys(errors).length > 0) return;
-    const payload = {
+    const payload: Record<string, unknown> = {
       ...formData,
       anoFundacao: formData.anoFundacao ? parseInt(formData.anoFundacao) : null,
     };
+    if (aceitouTermos && !(empresaExistente as any)?.termoAceitoEm) {
+      payload.termoAceitoEm = new Date().toISOString();
+    }
     atualizarEmpresaMutation.mutate(payload);
   };
 
@@ -795,6 +806,90 @@ export default function Onboarding() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Responsável Legal */}
+                  <div className="border-t pt-5 space-y-4">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">Responsável Legal</span>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="edit-nome-responsavel">Nome do responsável</Label>
+                      <Input
+                        id="edit-nome-responsavel"
+                        placeholder="Ex: João Silva"
+                        value={formData.nomeResponsavel}
+                        onChange={(e) => setFormData({ ...formData, nomeResponsavel: e.target.value })}
+                        data-testid="input-nome-responsavel"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div>
+                        <Label htmlFor="edit-email-responsavel">E-mail do responsável</Label>
+                        <Input
+                          id="edit-email-responsavel"
+                          type="email"
+                          placeholder="responsavel@empresa.com.br"
+                          value={formData.emailResponsavel}
+                          onChange={(e) => setFormData({ ...formData, emailResponsavel: e.target.value })}
+                          data-testid="input-email-responsavel"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-telefone-responsavel">Telefone do responsável</Label>
+                        <Input
+                          id="edit-telefone-responsavel"
+                          placeholder="Ex: (11) 99999-9999"
+                          value={formData.telefoneResponsavel}
+                          onChange={(e) => setFormData({ ...formData, telefoneResponsavel: e.target.value })}
+                          data-testid="input-telefone-responsavel"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Termos de Uso */}
+                  {!(empresaExistente as any)?.termoAceitoEm && (
+                    <div className="border-t pt-5">
+                      <div className="flex items-start gap-3 rounded-md border p-3 bg-muted/30">
+                        <Checkbox
+                          id="aceite-termos"
+                          checked={aceitouTermos}
+                          onCheckedChange={(checked) => setAceitouTermos(!!checked)}
+                          data-testid="checkbox-aceite-termos"
+                          className="mt-0.5"
+                        />
+                        <label htmlFor="aceite-termos" className="text-sm leading-relaxed cursor-pointer">
+                          Li e concordo com os{" "}
+                          <Link
+                            href="/termos-de-uso"
+                            target="_blank"
+                            className="text-primary hover:underline font-medium"
+                            data-testid="link-termos-onboarding"
+                          >
+                            Termos de Uso
+                          </Link>{" "}
+                          do BizGuideAI, incluindo as condições de uso da inteligência artificial e o tratamento de dados da minha empresa.
+                        </label>
+                      </div>
+                    </div>
+                  )}
+                  {(empresaExistente as any)?.termoAceitoEm && (
+                    <div className="border-t pt-4">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        <span>
+                          Termos de Uso aceitos em{" "}
+                          {new Date((empresaExistente as any).termoAceitoEm).toLocaleDateString("pt-BR")}.{" "}
+                          <Link href="/termos-de-uso" target="_blank" className="text-primary hover:underline" data-testid="link-ver-termos">
+                            Ver termos
+                          </Link>
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-end mt-6 pt-4 border-t">

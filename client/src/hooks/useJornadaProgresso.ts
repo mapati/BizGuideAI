@@ -119,7 +119,28 @@ export function useJornadaProgresso(): JornadaProgresso {
     loadingRituais ||
     loadingEventos;
 
-  const perfilCompleto = !!(empresa?.nome && empresa?.setor && empresa?.tamanho && empresa?.descricao);
+  // Empresas criadas antes desta data são tratadas como legadas e não exigem perfil completo estendido
+  const PERFIL_COMPLETO_RELEASE_DATE = new Date("2026-04-18T00:00:00.000Z");
+  const isLegacyCompany = empresa?.createdAt
+    ? new Date(empresa.createdAt) < PERFIL_COMPLETO_RELEASE_DATE
+    : false;
+
+  const perfilBaseCompleto = !!(empresa?.nome && empresa?.setor && empresa?.tamanho && empresa?.descricao);
+  const perfilEstendidoCompleto = !!(
+    empresa?.nome &&
+    empresa?.setor &&
+    empresa?.tamanho &&
+    empresa?.descricao &&
+    empresa?.cnpj &&
+    empresa?.endereco &&
+    empresa?.cidade &&
+    empresa?.estado &&
+    empresa?.cep &&
+    (empresa as any)?.nomeResponsavel &&
+    (empresa as any)?.emailResponsavel &&
+    (empresa as any)?.termoAceitoEm
+  );
+  const perfilCompleto = isLegacyCompany ? perfilBaseCompleto : perfilEstendidoCompleto;
   const perfilIniciado = !!(empresa?.nome && empresa?.setor && empresa?.tamanho);
 
   const indicadoresDiagnostico = indicadores.filter((i: any) => i.perspectiva === "diagnostico");

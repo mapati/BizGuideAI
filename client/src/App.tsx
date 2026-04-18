@@ -45,9 +45,10 @@ import ResetPassword from "@/pages/ResetPassword";
 import Assinar from "@/pages/Assinar";
 import PagamentoSucesso from "@/pages/PagamentoSucesso";
 import PagamentoCancelado from "@/pages/PagamentoCancelado";
+import TermosDeUso from "@/pages/TermosDeUso";
 import NotFound from "@/pages/not-found";
 
-const PUBLIC_ROUTES = ["/", "/login", "/register", "/trial-expirado", "/verify-email", "/forgot-password", "/reset-password", "/pagamento/sucesso", "/pagamento/cancelado"];
+const PUBLIC_ROUTES = ["/", "/login", "/register", "/termos-de-uso", "/trial-expirado", "/verify-email", "/forgot-password", "/reset-password", "/pagamento/sucesso", "/pagamento/cancelado"];
 const PUBLIC_PREFIXES = ["/plano-publico/"];
 
 function TrialBanner({ diasRestantes }: { diasRestantes: number }) {
@@ -175,6 +176,7 @@ function AppLayout() {
         <Route path="/" component={LandingPage} />
         <Route path="/login" component={Login} />
         <Route path="/register" component={Register} />
+        <Route path="/termos-de-uso" component={TermosDeUso} />
         <Route path="/verify-email" component={VerifyEmail} />
         <Route path="/forgot-password" component={ForgotPassword} />
         <Route path="/reset-password" component={ResetPassword} />
@@ -262,6 +264,7 @@ function AppLayout() {
                 <Route path="/assinar" component={Assinar} />
                 <Route path="/pagamento/sucesso" component={PagamentoSucesso} />
                 <Route path="/pagamento/cancelado" component={PagamentoCancelado} />
+                <Route path="/termos-de-uso" component={TermosDeUso} />
                 {/* Auth routes: must remain accessible even when logged in */}
                 <Route path="/reset-password" component={ResetPassword} />
                 <Route path="/verify-email" component={VerifyEmail} />

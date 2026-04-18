@@ -430,6 +430,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     cidade: z.string().optional(),
     estado: z.string().optional(),
     cep: z.string().optional(),
+    nomeResponsavel: z.string().optional(),
+    emailResponsavel: z.string().email().optional().or(z.literal("")),
+    telefoneResponsavel: z.string().optional(),
+    termsAccepted: z.boolean().optional(),
     plano: z.enum(["start", "pro"]).optional(),
   });
 
@@ -466,6 +470,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         cidade: data.cidade,
         estado: data.estado,
         cep: data.cep,
+        nomeResponsavel: data.nomeResponsavel,
+        emailResponsavel: data.emailResponsavel || null,
+        telefoneResponsavel: data.telefoneResponsavel,
+        termoAceitoEm: data.termsAccepted ? now : undefined,
         planoStatus: isPaidPlan ? "pendente_pagamento" : "trial",
         planoTipo: isPaidPlan ? data.plano : undefined,
         trialStartedAt: now,
@@ -1178,6 +1186,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Dados fiscais do sistema (BizGuideAI) — público para leitura, admin para escrita
+  app.get("/api/config-sistema", async (_req, res) => {
+    try {
+      const config = await storage.getConfigSistema();
+      res.json(config ?? {});
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/admin/config-sistema", async (req, res) => {
+    try {
+      const schema = z.object({
+        razaoSocial: z.string().min(1).optional(),
+        cnpj: z.string().min(1).optional(),
+        endereco: z.string().optional(),
+        cidade: z.string().optional(),
+        estado: z.string().optional(),
+        cep: z.string().optional(),
+        email: z.string().email().optional(),
+      });
+      const data = schema.parse(req.body);
+      const config = await storage.upsertConfigSistema(data);
+      res.json(config);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   // All routes below require authentication
   app.use("/api/empresa", requireAuth);
   app.use("/api/fatores-pestel", requireAuth);
@@ -1232,6 +1269,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         cidade: z.string().nullable().optional(),
         estado: z.string().nullable().optional(),
         cep: z.string().nullable().optional(),
+        nomeResponsavel: z.string().nullable().optional(),
+        emailResponsavel: z.string().nullable().optional(),
+        telefoneResponsavel: z.string().nullable().optional(),
+        termoAceitoEm: z.string().nullable().optional(),
         logoUrl: z.string().nullable().optional(),
         modeloNegocio: z.string().nullable().optional(),
         areaAtuacao: z.string().nullable().optional(),
@@ -1244,9 +1285,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const parsed = profileSchema.parse(req.body);
       const safeData: Partial<InsertEmpresa> = {};
       const fields = [
-        "nome","setor","tamanho","descricao","website","cnpj","endereco","cidade","estado","cep","logoUrl",
-        "modeloNegocio","areaAtuacao","publicoAlvo","principaisProdutos","concorrentesConhecidos","diferenciaisCompetitivos","anoFundacao",
+        "nome","setor","tamanho","descricao","website","cnpj","endereco","cidade","estado","cep",
+        "nomeResponsavel","emailResponsavel","telefoneResponsavel",
+        "logoUrl","modeloNegocio","areaAtuacao","publicoAlvo","principaisProdutos","concorrentesConhecidos","diferenciaisCompetitivos","anoFundacao",
       ] as const;
+      // Handle termoAceitoEm separately as it needs to be a Date
+      if (parsed.termoAceitoEm && !(safeData as any).termoAceitoEm) {
+        (safeData as any).termoAceitoEm = new Date(parsed.termoAceitoEm);
+      }
       for (const field of fields) {
         if (parsed[field] !== undefined) (safeData as Record<string, unknown>)[field] = parsed[field];
       }

@@ -36,6 +36,12 @@ export const empresas = pgTable("empresas", {
   mpSubscriptionId: text("mp_subscription_id"),
   mpSubscriptionStatus: text("mp_subscription_status"),
   proprietarioUsuarioId: varchar("proprietario_usuario_id"),
+  // Dados do responsável legal pela empresa
+  nomeResponsavel: text("nome_responsavel"),
+  emailResponsavel: text("email_responsavel"),
+  telefoneResponsavel: text("telefone_responsavel"),
+  // Aceite dos Termos de Uso
+  termoAceitoEm: timestamp("termo_aceito_em"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -525,4 +531,18 @@ export const googleSearchUsage = pgTable("google_search_usage", {
   date: varchar("date").primaryKey(), // YYYY-MM-DD UTC
   count: integer("count").notNull().default(0),
 });
+
+// Dados fiscais da empresa responsável pelo sistema (singleton, sempre id=1)
+export const configSistema = pgTable("config_sistema", {
+  id: integer("id").primaryKey().default(1),
+  razaoSocial: text("razao_social").notNull().default(""),
+  cnpj: text("cnpj").notNull().default(""),
+  endereco: text("endereco").notNull().default(""),
+  cidade: text("cidade").notNull().default(""),
+  estado: text("estado").notNull().default(""),
+  cep: text("cep").notNull().default(""),
+  email: text("email").notNull().default(""),
+  atualizadoEm: timestamp("atualizado_em").defaultNow().notNull(),
+});
+export type ConfigSistema = typeof configSistema.$inferSelect;
 

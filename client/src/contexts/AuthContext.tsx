@@ -53,6 +53,7 @@ interface RegisterData {
   nomeEmpresa: string;
   setor: string;
   tamanho: string;
+  termsAccepted?: boolean;
   plano?: "start" | "pro";
 }
 

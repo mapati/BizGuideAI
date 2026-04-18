@@ -27,6 +27,8 @@ import {
   configuracoesIa,
   pagamentoEventos,
   mpPlanos,
+  configSistema,
+  type ConfigSistema,
   type PagamentoEvento,
   type InsertPagamentoEvento,
   type Empresa,
@@ -978,6 +980,23 @@ export class DbStorage implements IStorage {
         target: diagnosticoIaSalvo.empresaId,
         set: { payload, geradoEm: new Date() },
       });
+  }
+
+  async getConfigSistema(): Promise<ConfigSistema | null> {
+    const rows = await db.select().from(configSistema).where(eq(configSistema.id, 1)).limit(1);
+    return rows[0] ?? null;
+  }
+
+  async upsertConfigSistema(data: Partial<Omit<ConfigSistema, "id" | "atualizadoEm">>): Promise<ConfigSistema> {
+    await db
+      .insert(configSistema)
+      .values({ id: 1, ...data as any, atualizadoEm: new Date() })
+      .onConflictDoUpdate({
+        target: configSistema.id,
+        set: { ...data, atualizadoEm: new Date() },
+      });
+    const rows = await db.select().from(configSistema).where(eq(configSistema.id, 1)).limit(1);
+    return rows[0]!;
   }
 
 }

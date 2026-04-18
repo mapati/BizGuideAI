@@ -42,6 +42,8 @@ import {
   RefreshCw,
   BookOpen,
   Search,
+  Building2,
+  MapPin,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -1280,6 +1282,171 @@ function TabConfigIA() {
   );
 }
 
+function TabDadosFiscais() {
+  const { toast } = useToast();
+  const { data: config, isLoading } = useQuery<Record<string, string>>({
+    queryKey: ["/api/config-sistema"],
+  });
+
+  const [form, setForm] = useState({
+    razaoSocial: "",
+    cnpj: "",
+    endereco: "",
+    cidade: "",
+    estado: "",
+    cep: "",
+    email: "",
+  });
+
+  useEffect(() => {
+    if (config) {
+      setForm({
+        razaoSocial: config.razaoSocial || "",
+        cnpj: config.cnpj || "",
+        endereco: config.endereco || "",
+        cidade: config.cidade || "",
+        estado: config.estado || "",
+        cep: config.cep || "",
+        email: config.email || "",
+      });
+    }
+  }, [config]);
+
+  const salvar = useMutation({
+    mutationFn: () => apiRequest("PATCH", "/api/admin/config-sistema", form),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/config-sistema"] });
+      toast({ title: "Dados fiscais salvos", description: "As informações foram atualizadas com sucesso." });
+    },
+    onError: (error: Error) =>
+      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" }),
+  });
+
+  if (isLoading) {
+    return <div className="text-sm text-muted-foreground py-8 text-center">Carregando...</div>;
+  }
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <div className="flex items-start gap-3 p-4 rounded-md border bg-muted/40">
+        <Building2 className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+        <div>
+          <p className="text-sm font-medium">Dados Fiscais do BizGuideAI</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Esses dados são exibidos na página de Termos de Uso e em documentos fiscais gerados pela plataforma.
+          </p>
+        </div>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Identificação da Empresa</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="fiscal-razao-social">Razão Social</Label>
+            <Input
+              id="fiscal-razao-social"
+              placeholder="Ex: MAPA CONSULTORIA E SERVICOS LTDA"
+              value={form.razaoSocial}
+              onChange={(e) => setForm({ ...form, razaoSocial: e.target.value })}
+              data-testid="input-fiscal-razao-social"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="fiscal-cnpj">CNPJ</Label>
+              <Input
+                id="fiscal-cnpj"
+                placeholder="00.000.000/0000-00"
+                value={form.cnpj}
+                onChange={(e) => setForm({ ...form, cnpj: e.target.value })}
+                data-testid="input-fiscal-cnpj"
+              />
+            </div>
+            <div>
+              <Label htmlFor="fiscal-email">E-mail de contato</Label>
+              <Input
+                id="fiscal-email"
+                type="email"
+                placeholder="contato@empresa.com.br"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                data-testid="input-fiscal-email"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <MapPin className="h-4 w-4" />
+            Endereço
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="fiscal-endereco">Endereço</Label>
+            <Input
+              id="fiscal-endereco"
+              placeholder="Ex: Rua das Empresas, 1000"
+              value={form.endereco}
+              onChange={(e) => setForm({ ...form, endereco: e.target.value })}
+              data-testid="input-fiscal-endereco"
+            />
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="col-span-1">
+              <Label htmlFor="fiscal-cidade">Cidade</Label>
+              <Input
+                id="fiscal-cidade"
+                placeholder="São Paulo"
+                value={form.cidade}
+                onChange={(e) => setForm({ ...form, cidade: e.target.value })}
+                data-testid="input-fiscal-cidade"
+              />
+            </div>
+            <div>
+              <Label htmlFor="fiscal-estado">Estado</Label>
+              <Input
+                id="fiscal-estado"
+                placeholder="SP"
+                maxLength={2}
+                value={form.estado}
+                onChange={(e) => setForm({ ...form, estado: e.target.value })}
+                data-testid="input-fiscal-estado"
+              />
+            </div>
+            <div>
+              <Label htmlFor="fiscal-cep">CEP</Label>
+              <Input
+                id="fiscal-cep"
+                placeholder="00000-000"
+                value={form.cep}
+                onChange={(e) => setForm({ ...form, cep: e.target.value })}
+                data-testid="input-fiscal-cep"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="flex justify-end">
+        <Button
+          onClick={() => salvar.mutate()}
+          disabled={salvar.isPending}
+          data-testid="button-salvar-dados-fiscais"
+        >
+          <Save className="h-4 w-4 mr-2" />
+          {salvar.isPending ? "Salvando..." : "Salvar Dados Fiscais"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function Admin() {
   const { user } = useAuth();
 
@@ -1334,6 +1501,10 @@ export default function Admin() {
             <Brain className="h-4 w-4 mr-2" />
             Modelos IA
           </TabsTrigger>
+          <TabsTrigger value="dados-fiscais" data-testid="tab-dados-fiscais">
+            <Building2 className="h-4 w-4 mr-2" />
+            Dados Fiscais
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="resumo" className="mt-4">
@@ -1350,6 +1521,10 @@ export default function Admin() {
 
         <TabsContent value="config-ia" className="mt-4">
           <TabConfigIA />
+        </TabsContent>
+
+        <TabsContent value="dados-fiscais" className="mt-4">
+          <TabDadosFiscais />
         </TabsContent>
       </Tabs>
     </div>

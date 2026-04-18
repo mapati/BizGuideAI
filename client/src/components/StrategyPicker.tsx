@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -68,21 +68,14 @@ const TIPO_CONFIG = {
 export function StrategyPicker({ open, onClose, onSave, candidatas, isLoading, isSaving }: StrategyPickerProps) {
   const [selecionadas, setSelecionadas] = useState<Set<number>>(new Set());
 
-  const handleOpen = (open: boolean) => {
+  useEffect(() => {
     if (open && candidatas.length > 0) {
       const preSelected = new Set(
         candidatas.map((c, i) => (c.selecionada ? i : -1)).filter(i => i >= 0)
       );
       setSelecionadas(preSelected);
     }
-  };
-
-  if (open && candidatas.length > 0 && selecionadas.size === 0) {
-    const preSelected = new Set(
-      candidatas.map((c, i) => (c.selecionada ? i : -1)).filter(i => i >= 0)
-    );
-    if (preSelected.size > 0) setSelecionadas(preSelected);
-  }
+  }, [open, candidatas]);
 
   const toggle = (index: number) => {
     setSelecionadas(prev => {
@@ -150,9 +143,10 @@ export function StrategyPicker({ open, onClose, onSave, candidatas, isLoading, i
                       >
                         <Checkbox
                           checked={selecionadas.has(i)}
-                          onCheckedChange={() => toggle(i)}
                           className="mt-1 shrink-0"
                           data-testid={`checkbox-candidata-${i}`}
+                          onClick={(e) => e.stopPropagation()}
+                          onCheckedChange={() => toggle(i)}
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start gap-2 flex-wrap mb-1">

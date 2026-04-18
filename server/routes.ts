@@ -104,7 +104,7 @@ async function serperSearch(query: string, numResults = 8): Promise<SerperSearch
     const res = await fetch("https://google.serper.dev/search", {
       method: "POST",
       headers: { "X-API-KEY": apiKey, "Content-Type": "application/json" },
-      body: JSON.stringify({ q: query, num: numResults, gl: "br", hl: "pt" }),
+      body: JSON.stringify({ q: query, num: numResults, gl: "br", hl: "pt", tbs: "qdr:m" }),
     });
     if (!res.ok) {
       console.warn(`[serperSearch] HTTP ${res.status} para query: ${query}`);
@@ -156,10 +156,13 @@ async function serperNewsSearch(query: string, numResults = 10): Promise<SerperN
 // Format Serper search results as a readable context block for LLM prompts
 function formatSearchContext(items: SerperSearchItem[]): string {
   if (!items.length) return "";
+  const dataGeracao = new Date().toLocaleDateString("pt-BR", {
+    day: "numeric", month: "long", year: "numeric",
+  });
   const lines = items.map((it, i) =>
     `${i + 1}. "${it.title}" (${it.link})\n   ${it.snippet}`
   );
-  return `[DADOS RECENTES DA INTERNET — use como contexto factual nas suas análises]\n\n${lines.join("\n\n")}\n\n[FIM DOS DADOS DA INTERNET]`;
+  return `[DADOS RECENTES DA INTERNET — gerados em ${dataGeracao} — use como contexto factual nas suas análises]\n\n${lines.join("\n\n")}\n\n[FIM DOS DADOS DA INTERNET]`;
 }
 
 /* ── Contexto Macro IA — cache 60s ── */
@@ -5654,16 +5657,25 @@ Seja específico para o setor ${empresa.setor}.`,
     return d;
   }
 
+  // Injects current month and year into a search query base string so that
+  // Serper/Google always targets the current period instead of a stale year.
+  function queryComData(base: string): string {
+    const now = new Date();
+    const mes = now.toLocaleString("pt-BR", { month: "long" });
+    const ano = now.getFullYear();
+    return `${base} ${mes} ${ano}`;
+  }
+
   // Short search queries per Contexto Macro category — optimised for Google CSE.
   // Keys must match CATEGORIAS_PROMPTS above; missing keys fall back to a generic query.
   const CATEGORIAS_QUERIES: Record<string, string> = {
-    cambio_politica_monetaria:    "câmbio real dólar Selic política monetária COPOM Brasil 2025",
-    inflacao_custos:              "inflação IPCA IGP-M combustíveis energia custos insumos Brasil 2025",
-    cenario_politico_regulatorio: "cenário político regulatório governo reforma tributária Brasil 2025",
-    geopolitica_comercio_exterior:"geopolítica comércio exterior exportações Brasil EUA China 2025",
-    crises_setoriais:             "crises setoriais falências PME indústria varejo Brasil 2025",
-    tendencias_mercado:           "tendências mercado consumidor e-commerce startups inovação Brasil 2025",
-    contexto_geral:               "economia brasileira PIB risco negócio PME perspectiva 2025",
+    cambio_politica_monetaria:    queryComData("câmbio real dólar Selic política monetária COPOM Brasil"),
+    inflacao_custos:              queryComData("inflação IPCA IGP-M combustíveis energia custos insumos Brasil"),
+    cenario_politico_regulatorio: queryComData("cenário político regulatório governo reforma tributária Brasil"),
+    geopolitica_comercio_exterior:queryComData("geopolítica comércio exterior exportações Brasil EUA China"),
+    crises_setoriais:             queryComData("crises setoriais falências PME indústria varejo Brasil"),
+    tendencias_mercado:           queryComData("tendências mercado consumidor e-commerce startups inovação Brasil"),
+    contexto_geral:               queryComData("economia brasileira PIB risco negócio PME perspectiva"),
     pulse_manchetes:              "dólar IBOVESPA Selic IPCA commodities manchetes negócios Brasil hoje",
   };
 
@@ -5720,25 +5732,29 @@ Seja específico para o setor ${empresa.setor}.`,
 
     const serperApiKey = process.env.SERPER_API_KEY;
 
+    // Build a temporal anchor so the LLM knows exactly when "now" is.
+    const hoje = new Date().toLocaleDateString("pt-BR", {
+      day: "numeric", month: "long", year: "numeric",
+    });
+    const systemPrompt = `Hoje é ${hoje}. Você é um analista macroeconômico especializado no Brasil. Sua função é redigir sínteses concisas e práticas do contexto econômico, político e regulatório brasileiro para ajudar gestores de pequenas e médias empresas a tomar melhores decisões estratégicas. Use linguagem direta e objetiva. Use EXCLUSIVAMENTE os dados fornecidos no contexto de busca para citar valores numéricos específicos (cotações, taxas, percentuais, preços, índices). Quando um dado específico não estiver nos resultados de busca fornecidos, escreva "dado não disponível nos resultados recentes" em vez de usar valores do seu conhecimento de treinamento. Responda sempre em português do Brasil.`;
+
     if (serperApiKey) {
       // Step 1 — Serper.dev search
-      // Use custom queryBusca from DB if set, otherwise fall back to hardcoded map
+      // Use custom queryBusca from DB if set, otherwise fall back to hardcoded map.
+      // Fallback uses queryComData to inject current month/year (avoids stale year in generic queries).
       const record = await storage.getContextoMacroByCategoria(categoria);
       const query = (record?.queryBusca && record.queryBusca.trim())
         ? record.queryBusca.trim()
-        : (CATEGORIAS_QUERIES[categoria] ?? `${categoria.replace(/_/g, " ")} Brasil 2025`);
+        : (CATEGORIAS_QUERIES[categoria] ?? queryComData(`${categoria.replace(/_/g, " ")} Brasil`));
       const searchItems = await serperSearch(query, 8);
       const searchCtx = formatSearchContext(searchItems);
 
-      // Step 2 — Azure LLM synthesises the category text using web snippets
+      // Step 2 — LLM synthesises the category text using web snippets
       const promptWithCtx = searchCtx ? `${searchCtx}\n\n${prompt}` : prompt;
       const completion = await openai.chat.completions.create({
         model: getModelForPlan("pro", "relatorios"),
         messages: [
-          {
-            role: "system",
-            content: `Você é um analista macroeconômico especializado no Brasil. Sua função é redigir sínteses concisas e práticas do contexto econômico, político e regulatório brasileiro para ajudar gestores de pequenas e médias empresas a tomar melhores decisões estratégicas. Use linguagem direta e objetiva, com dados e referências concretas quando possível. Responda sempre em português do Brasil.`,
-          },
+          { role: "system", content: systemPrompt },
           { role: "user", content: promptWithCtx },
         ],
         temperature: 0.4,
@@ -5747,15 +5763,12 @@ Seja específico para o setor ${empresa.setor}.`,
       return { texto: (completion.choices[0].message.content ?? "").trim(), modo: "web_search" };
     }
 
-    // Fallback: use Azure client with chat completions (no web search)
+    // Fallback: no Serper key — LLM generates without web search context.
     console.warn("[contexto-macro] SERPER_API_KEY não configurada — usando fallback sem busca na web.");
     const completion = await openai.chat.completions.create({
       model: getModelForPlan("pro", "relatorios"),
       messages: [
-        {
-          role: "system",
-          content: `Você é um analista macroeconômico especializado no Brasil. Sua função é redigir sínteses concisas e práticas do contexto econômico, político e regulatório brasileiro para ajudar gestores de pequenas e médias empresas a tomar melhores decisões estratégicas. Use linguagem direta e objetiva, com dados e referências concretas quando possível. Responda sempre em português do Brasil.`,
-        },
+        { role: "system", content: systemPrompt },
         { role: "user", content: prompt },
       ],
       temperature: 0.4,

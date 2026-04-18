@@ -488,9 +488,9 @@ export default function Home() {
               <div>
                 <p className="text-sm font-semibold">Por que seguir a jornada na ordem?</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Planejar bem é uma sequência: cada etapa entrega o insumo que torna a próxima possível. Pular etapas
-                  significa decidir no escuro — definir metas sem saber o cenário, escolher iniciativas sem entender o
-                  modelo de negócio, ou cobrar resultado sem indicadores. A jornada foi desenhada para você construir
+                  Planejar bem é uma sequência: cada etapa entrega o que a próxima precisa. Pular etapas
+                  significa decidir no escuro — definir metas sem entender o mercado, escolher projetos sem saber o que
+                  priorizar, ou cobrar resultado sem ter o que medir. A jornada foi desenhada para você construir
                   decisões com base em informação, não em achismo.
                 </p>
               </div>
@@ -501,11 +501,11 @@ export default function Home() {
                   <div className="space-y-0.5">
                     <p className="text-sm font-medium">1. Entenda o terreno antes de agir</p>
                     <p className="text-xs text-muted-foreground">
-                      Comece pelo <strong>Perfil</strong> e pelas <strong>Métricas</strong> para fotografar o seu negócio
-                      hoje. Em seguida, monte o <strong>Modelo de Negócio (BMC)</strong> — ele é a tese central que
-                      sustenta tudo. Só então o <strong>Cenário Externo (PESTEL)</strong> e as <strong>5 Forças do
-                      Mercado</strong> ganham significado: você passa a enxergar oportunidades e ameaças à luz da sua
-                      realidade.
+                      Comece pelo <strong>Perfil</strong> e pelas <strong>Métricas</strong> para ter uma foto clara do
+                      seu negócio hoje. Em seguida, monte o <strong>Modelo de Negócio</strong> — como você gera e
+                      entrega valor. Com isso em mãos, o <strong>Cenário Externo</strong> e a análise de
+                      <strong> concorrência e mercado</strong> fazem sentido: você enxerga ameaças e oportunidades à luz
+                      da sua realidade.
                     </p>
                   </div>
                 </div>
@@ -515,9 +515,9 @@ export default function Home() {
                   <div className="space-y-0.5">
                     <p className="text-sm font-medium">2. Cruze o que você é com o que o mercado é</p>
                     <p className="text-xs text-muted-foreground">
-                      A <strong>Análise SWOT</strong> nasce naturalmente quando você já tem o seu modelo (forças e
-                      fraquezas) e o cenário (oportunidades e ameaças) mapeados. É o momento em que ideias soltas viram
-                      <strong> apostas claras</strong>: onde atacar, onde defender, onde investir, onde recuar.
+                      A análise de <strong>Forças e Fraquezas</strong> só faz sentido quando você já conhece o mercado
+                      ao redor. É o momento em que ideias soltas viram <strong>apostas claras</strong>: onde atacar,
+                      onde defender, onde investir, onde recuar.
                     </p>
                   </div>
                 </div>
@@ -527,10 +527,10 @@ export default function Home() {
                   <div className="space-y-0.5">
                     <p className="text-sm font-medium">3. Transforme apostas em prioridades concretas</p>
                     <p className="text-xs text-muted-foreground">
-                      Com a SWOT na mão, você define <strong>Estratégias</strong> (caminhos), identifica
-                      <strong> Oportunidades de Crescimento</strong> e prioriza <strong>Iniciativas</strong> — projetos
-                      reais com responsável, prazo e impacto. Aqui o plano deixa de ser intenção e vira lista de coisas a
-                      fazer.
+                      Com as apostas definidas, você traça as <strong>Estratégias</strong> (os caminhos a seguir),
+                      identifica <strong>Oportunidades de Crescimento</strong> e prioriza as
+                      <strong> Iniciativas</strong> — projetos reais com responsável, prazo e impacto esperado. Aqui o
+                      plano deixa de ser intenção e vira lista de coisas a fazer.
                     </p>
                   </div>
                 </div>
@@ -540,18 +540,18 @@ export default function Home() {
                   <div className="space-y-0.5">
                     <p className="text-sm font-medium">4. Meça, acompanhe e ajuste a rota</p>
                     <p className="text-xs text-muted-foreground">
-                      Por último, vêm os <strong>OKRs</strong> (objetivos e resultados-chave que dão direção),
-                      os <strong>Indicadores</strong> (números que mostram se você está chegando lá) e os
-                      <strong> Rituais de Gestão</strong> (a cadência que mantém o time vivo no plano). Sem essa camada,
-                      tudo o que veio antes vira PDF de gaveta.
+                      Por último, defina as <strong>Metas do período</strong> (o que quer alcançar e como vai saber que
+                      chegou lá), os <strong>Indicadores</strong> (os números que mostram se o negócio está no rumo
+                      certo) e as <strong>revisões periódicas com o time</strong> (a rotina que mantém todo mundo
+                      comprometido com o plano). Sem essa camada, tudo o que veio antes vira documento de gaveta.
                     </p>
                   </div>
                 </div>
               </div>
 
               <p className="text-xs text-muted-foreground italic pt-1">
-                Por isso, etapas que dependem de outras ficam bloqueadas até você completar os pré-requisitos — não é
-                burocracia, é proteção contra decisões frágeis.
+                Por isso, etapas que dependem de outras ficam bloqueadas até você concluir as anteriores — não é
+                burocracia, é proteção contra decisões tomadas sem base.
               </p>
             </div>
 

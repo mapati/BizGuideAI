@@ -1,7 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Activity } from "lucide-react";
 
 interface PulseItem {
   titulo: string;
@@ -9,15 +6,9 @@ interface PulseItem {
   ultimaAtualizacao: string | null;
 }
 
-function formatarData(dateStr: string | null): string {
-  if (!dateStr) return "sem data";
-  const data = new Date(dateStr);
-  const agora = new Date();
-  const diffMs = agora.getTime() - data.getTime();
-  const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  if (diffDias === 0) return "hoje";
-  if (diffDias === 1) return "ontem";
-  return `há ${diffDias} dias`;
+function truncar(text: string, max: number): string {
+  if (text.length <= max) return text;
+  return text.slice(0, max - 1).trimEnd() + "…";
 }
 
 export function PulseMercado() {
@@ -28,70 +19,55 @@ export function PulseMercado() {
   if (isLoading) return null;
   if (!items.length) return null;
 
+  const tickerText = items
+    .map((item) => `${item.titulo} — ${truncar(item.resumo, 90)}`)
+    .join("   ·   ");
+
   return (
-    <Card className="p-5" data-testid="card-pulse-mercado">
-      {/* Header */}
-      <div className="flex items-center gap-2.5 mb-4">
-        <div className="relative flex-shrink-0">
-          <Activity className="h-4 w-4 text-muted-foreground" />
-          <span
-            className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-green-500"
-            style={{ animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite" }}
-            aria-hidden="true"
-          />
+    <div
+      className="flex items-center h-9 border-y overflow-hidden bg-muted/20"
+      data-testid="strip-pulse-mercado"
+    >
+      {/* Label fixo à esquerda */}
+      <div className="flex items-center gap-2 px-3 flex-shrink-0 border-r h-full">
+        <span
+          className="h-1.5 w-1.5 rounded-full bg-green-500 flex-shrink-0"
+          style={{ animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite" }}
+          aria-hidden="true"
+        />
+        <span className="text-xs font-semibold tracking-widest uppercase text-muted-foreground select-none whitespace-nowrap">
+          Pulse
+        </span>
+      </div>
+
+      {/* Ticker rolante */}
+      <div className="flex-1 overflow-hidden h-full flex items-center">
+        <div
+          className="ticker-track flex items-center gap-0 whitespace-nowrap"
+          data-testid="ticker-track"
+          aria-label={tickerText}
+        >
+          {/* Duplicado para loop infinito sem salto */}
+          <TickerContent items={items} />
+          <TickerContent items={items} aria-hidden />
         </div>
-        <h3 className="font-semibold text-sm" data-testid="text-pulse-titulo">
-          Pulse do Mercado
-        </h3>
-        <Badge variant="secondary" className="ml-auto text-xs no-default-active-elevate">
-          Cenário macro
-        </Badge>
       </div>
-
-      {/* Mobile: horizontal scroll lane; Desktop: responsive grid */}
-      <div className="hidden lg:grid gap-4 lg:gap-5" style={{ gridTemplateColumns: `repeat(${Math.min(items.length, 3)}, minmax(0, 1fr))` }}>
-        {items.map((item, i) => (
-          <PulseCard key={i} item={item} index={i} />
-        ))}
-      </div>
-
-      {/* Mobile scroll lane */}
-      <div className="flex gap-4 overflow-x-auto pb-1 lg:hidden" style={{ scrollSnapType: "x mandatory" }}>
-        {items.map((item, i) => (
-          <div
-            key={i}
-            className="flex-shrink-0 w-72"
-            style={{ scrollSnapAlign: "start" }}
-          >
-            <PulseCard item={item} index={i} />
-          </div>
-        ))}
-      </div>
-    </Card>
+    </div>
   );
 }
 
-function PulseCard({ item, index }: { item: PulseItem; index: number }) {
+function TickerContent({ items, "aria-hidden": ariaHidden }: { items: PulseItem[]; "aria-hidden"?: true }) {
   return (
-    <div className="space-y-1.5" data-testid={`item-pulse-${index}`}>
-      <p
-        className="text-sm font-medium leading-snug"
-        data-testid={`text-pulse-categoria-${index}`}
-      >
-        {item.titulo}
-      </p>
-      <p
-        className="text-xs text-muted-foreground leading-relaxed line-clamp-3"
-        data-testid={`text-pulse-resumo-${index}`}
-      >
-        {item.resumo}
-      </p>
-      <p
-        className="text-xs text-muted-foreground/70"
-        data-testid={`text-pulse-data-${index}`}
-      >
-        Atualizado {formatarData(item.ultimaAtualizacao)}
-      </p>
-    </div>
+    <span className="inline-flex items-center" aria-hidden={ariaHidden}>
+      {items.map((item, i) => (
+        <span key={i} className="inline-flex items-center">
+          <span className="text-xs">
+            <span className="font-medium text-foreground">{item.titulo}</span>
+            <span className="text-muted-foreground"> — {truncar(item.resumo, 90)}</span>
+          </span>
+          <span className="mx-6 text-border select-none" aria-hidden="true">·</span>
+        </span>
+      ))}
+    </span>
   );
 }

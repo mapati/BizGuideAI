@@ -121,7 +121,7 @@ export function AppSidebar() {
                 >
                   <Link href="/diagnostico">
                     <ClipboardList />
-                    <span>Diagnóstico Atual</span>
+                    <span>Métricas</span>
                     {!jornadaLoading && (
                       <EtapaIndicador jornadaId="diagnostico" etapas={etapas} proximaEtapaId={proximaEtapa?.id} />
                     )}

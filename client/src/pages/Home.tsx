@@ -36,7 +36,6 @@ import {
   Compass,
   Map,
   Zap,
-  Globe2,
   Clock,
   FileDown,
   RefreshCw,
@@ -198,6 +197,16 @@ function exportarDiagnosticoPDF(
 
   const fileName = `diagnostico-estrategico-${geradoEm.toISOString().slice(0, 10)}.pdf`;
   doc.save(fileName);
+}
+
+function BrazilFlag({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 14" className={className} role="img" aria-label="Bandeira do Brasil">
+      <rect width="20" height="14" rx="1" fill="#009c3b" />
+      <polygon points="10,1.5 18.5,7 10,12.5 1.5,7" fill="#ffdf00" />
+      <circle cx="10" cy="7" r="3.4" fill="#002776" />
+    </svg>
+  );
 }
 
 function JornadaEstrategicaCondicional() {
@@ -610,7 +619,7 @@ export default function Home() {
           aria-expanded={cenarioOpen}
         >
           <div className="flex items-center gap-2">
-            <Globe2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            <BrazilFlag className="h-4 w-4 flex-shrink-0" />
             <span className="font-medium text-sm">Análise do Cenário Brasileiro Atual</span>
             <Badge
               variant="secondary"
@@ -640,7 +649,7 @@ export default function Home() {
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             ) : !cenarioAtual ? (
               <div className="text-center py-4 space-y-2">
-                <Globe2 className="h-8 w-8 text-muted-foreground/30 mx-auto" />
+                <BrazilFlag className="h-8 w-8 mx-auto opacity-40" />
                 <p className="text-sm text-muted-foreground">Contexto macroeconômico ainda não gerado.</p>
                 <Link href="/contexto-macro">
                   <Button size="sm" variant="outline" data-testid="button-ir-motor-contexto">

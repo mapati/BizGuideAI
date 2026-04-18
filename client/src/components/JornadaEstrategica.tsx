@@ -192,7 +192,7 @@ export function JornadaEstrategica({ progresso, defaultOpen, compact }: JornadaE
 
   if (compact) {
     return (
-      <Card className="mb-6 opacity-70" data-testid="card-jornada-estrategica">
+      <Card className="mb-6 opacity-70 bg-sky-50 dark:bg-sky-950/20 border-sky-200/60 dark:border-sky-900/40" data-testid="card-jornada-estrategica">
         <Collapsible open={open} onOpenChange={setOpen}>
           <CollapsibleTrigger asChild>
             <button
@@ -227,7 +227,7 @@ export function JornadaEstrategica({ progresso, defaultOpen, compact }: JornadaE
   }
 
   return (
-    <Card className="mb-6" data-testid="card-jornada-estrategica">
+    <Card className="mb-6 bg-sky-50 dark:bg-sky-950/20 border-sky-200/60 dark:border-sky-900/40" data-testid="card-jornada-estrategica">
       <Collapsible open={open} onOpenChange={setOpen}>
         <CollapsibleTrigger asChild>
           <button

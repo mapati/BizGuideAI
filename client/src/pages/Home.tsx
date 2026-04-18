@@ -483,39 +483,76 @@ export default function Home() {
               </p>
             </div>
 
-            {/* Grupos da sidebar */}
-            <div className="space-y-2">
-              <p className="text-sm font-semibold">O que você encontra nos menus da barra lateral:</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-0">
+            {/* Lógica de construção do planejamento estratégico */}
+            <div className="space-y-3">
+              <div>
+                <p className="text-sm font-semibold">Por que seguir a jornada na ordem?</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Planejar bem é uma sequência: cada etapa entrega o insumo que torna a próxima possível. Pular etapas
+                  significa decidir no escuro — definir metas sem saber o cenário, escolher iniciativas sem entender o
+                  modelo de negócio, ou cobrar resultado sem indicadores. A jornada foi desenhada para você construir
+                  decisões com base em informação, não em achismo.
+                </p>
+              </div>
+
+              <div className="space-y-2">
                 <div className="flex items-start gap-3 rounded-md bg-background/60 p-3">
                   <Compass className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium">Mapa de Contexto</p>
-                    <p className="text-xs text-muted-foreground">Cenário externo, mercado e concorrência, modelo de negócio e forças &amp; fraquezas.</p>
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium">1. Entenda o terreno antes de agir</p>
+                    <p className="text-xs text-muted-foreground">
+                      Comece pelo <strong>Perfil</strong> e pelas <strong>Métricas</strong> para fotografar o seu negócio
+                      hoje. Em seguida, monte o <strong>Modelo de Negócio (BMC)</strong> — ele é a tese central que
+                      sustenta tudo. Só então o <strong>Cenário Externo (PESTEL)</strong> e as <strong>5 Forças do
+                      Mercado</strong> ganham significado: você passa a enxergar oportunidades e ameaças à luz da sua
+                      realidade.
+                    </p>
                   </div>
                 </div>
+
                 <div className="flex items-start gap-3 rounded-md bg-background/60 p-3">
                   <TrendingUp className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium">Apostas Estratégicas</p>
-                    <p className="text-xs text-muted-foreground">Estratégias definidas, oportunidades de crescimento e iniciativas prioritárias.</p>
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium">2. Cruze o que você é com o que o mercado é</p>
+                    <p className="text-xs text-muted-foreground">
+                      A <strong>Análise SWOT</strong> nasce naturalmente quando você já tem o seu modelo (forças e
+                      fraquezas) e o cenário (oportunidades e ameaças) mapeados. É o momento em que ideias soltas viram
+                      <strong> apostas claras</strong>: onde atacar, onde defender, onde investir, onde recuar.
+                    </p>
                   </div>
                 </div>
+
                 <div className="flex items-start gap-3 rounded-md bg-background/60 p-3">
                   <Map className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium">Execução e Marcha</p>
-                    <p className="text-xs text-muted-foreground">Metas e resultados (OKRs), indicadores de performance e rituais de acompanhamento.</p>
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium">3. Transforme apostas em prioridades concretas</p>
+                    <p className="text-xs text-muted-foreground">
+                      Com a SWOT na mão, você define <strong>Estratégias</strong> (caminhos), identifica
+                      <strong> Oportunidades de Crescimento</strong> e prioriza <strong>Iniciativas</strong> — projetos
+                      reais com responsável, prazo e impacto. Aqui o plano deixa de ser intenção e vira lista de coisas a
+                      fazer.
+                    </p>
                   </div>
                 </div>
+
                 <div className="flex items-start gap-3 rounded-md bg-background/60 p-3">
                   <Zap className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium">Análise Avançada</p>
-                    <p className="text-xs text-muted-foreground">Cenários estratégicos, gestão de riscos, rastreabilidade, alertas e exportação.</p>
+                  <div className="space-y-0.5">
+                    <p className="text-sm font-medium">4. Meça, acompanhe e ajuste a rota</p>
+                    <p className="text-xs text-muted-foreground">
+                      Por último, vêm os <strong>OKRs</strong> (objetivos e resultados-chave que dão direção),
+                      os <strong>Indicadores</strong> (números que mostram se você está chegando lá) e os
+                      <strong> Rituais de Gestão</strong> (a cadência que mantém o time vivo no plano). Sem essa camada,
+                      tudo o que veio antes vira PDF de gaveta.
+                    </p>
                   </div>
                 </div>
               </div>
+
+              <p className="text-xs text-muted-foreground italic pt-1">
+                Por isso, etapas que dependem de outras ficam bloqueadas até você completar os pré-requisitos — não é
+                burocracia, é proteção contra decisões frágeis.
+              </p>
             </div>
 
             {/* Checkbox "Não mostrar isso novamente" */}

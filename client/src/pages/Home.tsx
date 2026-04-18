@@ -450,7 +450,6 @@ export default function Home() {
           </p>
         </div>
       </div>
-
       {showIntroPanel && (
         <Card className="border-primary/20 bg-primary/5 dark:bg-primary/10" data-testid="card-intro-boas-vindas">
           <div className="p-6 space-y-5">
@@ -577,7 +576,6 @@ export default function Home() {
           </div>
         </Card>
       )}
-
       {showWelcome && (
         <Card className="p-5 border-primary/20 bg-primary/5 dark:bg-primary/10" data-testid="card-boas-vindas">
           <div className="flex items-start gap-4">
@@ -602,13 +600,12 @@ export default function Home() {
         </Card>
       )}
       <PulseMercado />
-
       {/* Análise do Cenário Brasileiro Atual — colapsável, fechado por padrão */}
       <Card data-testid="card-cenario-brasileiro">
         <button
           type="button"
           onClick={() => setCenarioOpen((v) => !v)}
-          className={`w-full flex items-center justify-between px-5 py-3 text-left hover-elevate active-elevate-2 ${cenarioOpen ? "rounded-t-lg" : "rounded-lg"}`}
+          className="w-full flex items-center justify-between px-5 py-3 text-left hover-elevate active-elevate-2 rounded-lg bg-[#5fad7200]"
           data-testid="button-toggle-cenario"
           aria-expanded={cenarioOpen}
         >
@@ -679,9 +676,7 @@ export default function Home() {
           </div>
         )}
       </Card>
-
       <JornadaEstrategicaCondicional />
-
       {/* Performance Geral + OKRs por Perspectiva */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         {/* Performance Geral */}
@@ -761,7 +756,6 @@ export default function Home() {
           })}
         </div>
       </div>
-
       {/* KPIs + Rituais */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
         {/* KPIs */}
@@ -993,7 +987,6 @@ export default function Home() {
           )}
         </Card>
       </div>
-
       {/* Diagnóstico IA */}
       <Card className="p-6" data-testid="card-diagnostico-ia">
         <div className="flex items-start justify-between gap-4 flex-wrap">

@@ -625,6 +625,7 @@ export default function Home() {
         </Card>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
       {/* Rituais de Gestão */}
       <Card className="p-5" data-testid="card-rituais-gestao">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
@@ -842,6 +843,7 @@ export default function Home() {
           </div>
         )}
       </Card>
+      </div>
     </div>
   );
 }

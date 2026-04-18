@@ -1,9 +1,19 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Target, ArrowLeft } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 export default function TermosDeUso() {
+  useEffect(() => {
+    // Scroll to top both for standalone page and when nested inside the app's overflow-auto main
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    // Also scroll the nearest scrollable ancestor (the app's <main> container)
+    const scrollable = document.querySelector("main");
+    if (scrollable) scrollable.scrollTop = 0;
+  }, []);
   const { data: config } = useQuery<any>({ queryKey: ["/api/config-sistema"] });
 
   const empresaNome = config?.razaoSocial || "BizGuideAI";

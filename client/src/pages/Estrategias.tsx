@@ -498,7 +498,7 @@ export default function Estrategias() {
 
                   <div>
                     <Label>Nível de Prioridade</Label>
-                    <Select value={formData.prioridade} onValueChange={(v: string) => setFormData({ ...formData, prioridade: v })}>
+                    <Select value={formData.prioridade} onValueChange={(v: "alta" | "média" | "baixa") => setFormData({ ...formData, prioridade: v })}>
                       <SelectTrigger data-testid="select-prioridade-estrategia">
                         <SelectValue />
                       </SelectTrigger>

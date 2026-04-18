@@ -1,4 +1,6 @@
 -- Task #124: Turbinar Estratégias - add new columns
+-- NOTE: The authoritative migration mechanism for this project is `npm run db:push`.
+-- This file is kept for reference and manual recovery only.
 -- Safe: all columns added with IF NOT EXISTS, no destructive changes
 
 -- Add status to estrategias (default 'planejada' matches schema.ts and STATUS_CONFIG)

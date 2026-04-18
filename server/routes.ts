@@ -3355,8 +3355,29 @@ Regras:
         temperature: 0.8,
       });
 
-      const resultado = JSON.parse(completion.choices[0].message.content || "{}");
-      res.json(resultado);
+      const candidataSchema = z.object({
+        tipo: z.enum(["FO", "FA", "DO", "DA"]),
+        titulo: z.string().min(1),
+        descricao: z.string().min(1),
+        prioridade: z.enum(["alta", "média", "baixa"]).default("média"),
+        potencial: z.enum(["alto", "medio"]).default("medio"),
+        selecionada: z.boolean().default(false),
+        swotOrigemIds: z.array(z.string()).default([]),
+        swotOrigemTextos: z.array(z.string()).default([]),
+      });
+
+      const resultadoSchema = z.object({
+        candidatas: z.array(candidataSchema).min(1),
+      });
+
+      const parsed = JSON.parse(completion.choices[0].message.content || "{}");
+      const validado = resultadoSchema.safeParse(parsed);
+
+      if (!validado.success) {
+        return res.status(500).json({ error: "Resposta da IA em formato inválido. Tente novamente." });
+      }
+
+      res.json(validado.data);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

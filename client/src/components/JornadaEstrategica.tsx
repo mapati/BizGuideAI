@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   CheckCircle2,
@@ -16,6 +17,8 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import type { JornadaEtapa, JornadaProgresso } from "@/hooks/useJornadaProgresso";
+
+const CELEBRACAO_DISMISSED_KEY = "biz-guide-jornada-concluida-dismissed";
 
 const ETAPA_INDEX: Record<string, number> = {
   perfil: 1,
@@ -153,7 +156,14 @@ interface JornadaEstrategicaProps {
 export function JornadaEstrategica({ progresso, defaultOpen, compact }: JornadaEstrategicaProps) {
   const { etapas, totalConcluidas, total, percentual, jornadaConcluida } = progresso;
   const [open, setOpen] = useState(defaultOpen ?? true);
-  const [celebrationDismissed, setCelebrationDismissed] = useState(false);
+  const [celebrationDismissed, setCelebrationDismissed] = useState(
+    () => localStorage.getItem(CELEBRACAO_DISMISSED_KEY) === "1"
+  );
+
+  function dismissPermanently() {
+    localStorage.setItem(CELEBRACAO_DISMISSED_KEY, "1");
+    setCelebrationDismissed(true);
+  }
 
   if (jornadaConcluida && !celebrationDismissed) {
     return (
@@ -170,6 +180,22 @@ export function JornadaEstrategica({ progresso, defaultOpen, compact }: JornadaE
             <p className="text-sm text-green-700 dark:text-green-400 mt-1">
               Parabéns! Você completou todas as {total} etapas. Continue acompanhando os rituais e ajustando conforme necessário.
             </p>
+            <label
+              htmlFor="check-celebracao-dismiss"
+              className="flex items-center gap-2 mt-3 cursor-pointer w-fit"
+              data-testid="label-nao-mostrar-celebracao"
+            >
+              <Checkbox
+                id="check-celebracao-dismiss"
+                data-testid="checkbox-nao-mostrar-celebracao"
+                onCheckedChange={(checked) => {
+                  if (checked) dismissPermanently();
+                }}
+              />
+              <span className="text-xs text-green-700 dark:text-green-400 select-none">
+                Não mostrar isso novamente
+              </span>
+            </label>
           </div>
           <Button
             variant="ghost"

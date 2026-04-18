@@ -11,6 +11,7 @@ import {
   SidebarMenuItem,
   SidebarHeader,
   SidebarFooter,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -44,12 +45,16 @@ function EtapaIndicador({ jornadaId, etapas, proximaEtapaId }: { jornadaId: stri
   if (!etapa) return null;
   const temDados = etapa.status !== "pendente";
   if (temDados) {
-    return <CheckCircle2 className={`h-3.5 w-3.5 ml-auto flex-shrink-0 ${etapa.concluida ? "text-green-500" : "text-green-400/70"}`} />;
+    return (
+      <CheckCircle2
+        className={`h-3.5 w-3.5 ml-auto flex-shrink-0 group-data-[collapsible=icon]:hidden ${etapa.concluida ? "text-green-500" : "text-green-400/70"}`}
+      />
+    );
   }
   if (proximaEtapaId === jornadaId) {
-    return <ArrowRight className="h-3.5 w-3.5 text-primary ml-auto flex-shrink-0" />;
+    return <ArrowRight className="h-3.5 w-3.5 text-primary ml-auto flex-shrink-0 group-data-[collapsible=icon]:hidden" />;
   }
-  return <Circle className="h-3.5 w-3.5 text-muted-foreground/40 ml-auto flex-shrink-0" />;
+  return <Circle className="h-3.5 w-3.5 text-muted-foreground/40 ml-auto flex-shrink-0 group-data-[collapsible=icon]:hidden" />;
 }
 
 function isEtapaBloqueada(jornadaId: string | null, etapas: ReturnType<typeof useJornadaProgresso>["etapas"]): boolean {
@@ -58,10 +63,28 @@ function isEtapaBloqueada(jornadaId: string | null, etapas: ReturnType<typeof us
   return !!(etapa?.bloqueadaPor && etapa.bloqueadaPor.length > 0);
 }
 
-export function AppSidebar() {
-  const [location] = useLocation();
+function SidebarHeaderContent() {
+  const { state } = useSidebar();
+  const isCollapsed = state === "collapsed";
+
+  return (
+    <Link href="/" data-testid="link-home">
+      <div className="flex items-center gap-2 cursor-pointer">
+        <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center flex-shrink-0">
+          <Target className="h-5 w-5 text-primary-foreground" />
+        </div>
+        {!isCollapsed && (
+          <span className="text-lg font-semibold group-data-[collapsible=icon]:hidden">BizGuideAI</span>
+        )}
+      </div>
+    </Link>
+  );
+}
+
+function SidebarFooterContent() {
   const { user, empresa, trialInfo, logout } = useAuth();
-  const { etapas, isLoading: jornadaLoading, jornadaConcluida } = useJornadaProgresso();
+  const { state } = useSidebar();
+  const isCollapsed = state === "collapsed";
 
   const initials = user?.nome
     ? user.nome
@@ -72,21 +95,80 @@ export function AppSidebar() {
         .toUpperCase()
     : "?";
 
+  if (isCollapsed) {
+    return (
+      <div className="flex flex-col items-center gap-2">
+        <Avatar className="h-8 w-8 shrink-0">
+          <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+        </Avatar>
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={logout}
+          data-testid="button-logout"
+          title="Sair"
+        >
+          <LogOut className="h-4 w-4" />
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {trialInfo?.planoStatus === "ativo" && empresa?.planoTipo && !user?.isAdmin && (
+        <div className="mb-3 px-1" data-testid="badge-plano-ativo-container">
+          <Badge
+            variant="secondary"
+            className="w-full justify-center gap-1.5 py-1"
+            data-testid="badge-plano-ativo"
+          >
+            <Zap className="h-3 w-3" />
+            Plano {empresa.planoTipo.charAt(0).toUpperCase() + empresa.planoTipo.slice(1)} ativo
+          </Badge>
+        </div>
+      )}
+      <div className="flex items-center gap-3">
+        <Avatar className="h-8 w-8 shrink-0">
+          <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate" data-testid="text-user-nome">
+            {user?.nome}
+          </p>
+          {empresa && (
+            <p className="text-xs text-muted-foreground truncate" data-testid="text-empresa-nome">
+              {empresa.nome}
+            </p>
+          )}
+        </div>
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={logout}
+          data-testid="button-logout"
+          title="Sair"
+        >
+          <LogOut className="h-4 w-4" />
+        </Button>
+      </div>
+    </>
+  );
+}
+
+export function AppSidebar() {
+  const [location] = useLocation();
+  const { etapas, isLoading: jornadaLoading, jornadaConcluida } = useJornadaProgresso();
+  const { user } = useAuth();
+
   const proximaEtapa = !jornadaConcluida
     ? etapas.find((e) => !e.concluida && (!e.bloqueadaPor || e.bloqueadaPor.length === 0))
     : null;
 
   return (
-    <Sidebar>
-      <SidebarHeader className="border-b p-6">
-        <Link href="/" data-testid="link-home">
-          <div className="flex items-center gap-2 cursor-pointer">
-            <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center">
-              <Target className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <span className="text-lg font-semibold">BizGuideAI</span>
-          </div>
-        </Link>
+    <Sidebar collapsible="icon">
+      <SidebarHeader className="border-b p-4">
+        <SidebarHeaderContent />
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
@@ -97,6 +179,7 @@ export function AppSidebar() {
                   asChild
                   isActive={location === "/" || location === "/dashboard"}
                   data-testid="link-home-sidebar"
+                  tooltip="Início"
                 >
                   <Link href="/">
                     <Home />
@@ -109,6 +192,7 @@ export function AppSidebar() {
                   asChild
                   isActive={location === "/onboarding"}
                   data-testid="link-onboarding"
+                  tooltip="Perfil da Empresa"
                 >
                   <Link href="/onboarding">
                     <FileText />
@@ -124,6 +208,7 @@ export function AppSidebar() {
                   <SidebarMenuButton
                     data-testid="link-diagnostico"
                     className="opacity-50 cursor-not-allowed pointer-events-none"
+                    tooltip="Métricas"
                   >
                     <ClipboardList />
                     <span>Métricas</span>
@@ -134,6 +219,7 @@ export function AppSidebar() {
                     asChild
                     isActive={location === "/diagnostico"}
                     data-testid="link-diagnostico"
+                    tooltip="Métricas"
                   >
                     <Link href="/diagnostico">
                       <ClipboardList />
@@ -161,6 +247,7 @@ export function AppSidebar() {
                       <SidebarMenuButton
                         data-testid={`link-${item.url.slice(1)}`}
                         className="opacity-50 cursor-not-allowed pointer-events-none"
+                        tooltip={item.title}
                       >
                         <item.icon />
                         <span>{item.title}</span>
@@ -171,6 +258,7 @@ export function AppSidebar() {
                         asChild
                         isActive={location === item.url}
                         data-testid={`link-${item.url.slice(1)}`}
+                        tooltip={item.title}
                       >
                         <Link href={item.url}>
                           <item.icon />
@@ -200,6 +288,7 @@ export function AppSidebar() {
                       <SidebarMenuButton
                         data-testid={`link-${item.url.slice(1)}`}
                         className="opacity-50 cursor-not-allowed pointer-events-none"
+                        tooltip={item.title}
                       >
                         <item.icon />
                         <span>{item.title}</span>
@@ -210,6 +299,7 @@ export function AppSidebar() {
                         asChild
                         isActive={location === item.url}
                         data-testid={`link-${item.url.slice(1)}`}
+                        tooltip={item.title}
                       >
                         <Link href={item.url}>
                           <item.icon />
@@ -239,6 +329,7 @@ export function AppSidebar() {
                       <SidebarMenuButton
                         data-testid={`link-${item.url.slice(1)}`}
                         className="opacity-50 cursor-not-allowed pointer-events-none"
+                        tooltip={item.title}
                       >
                         <item.icon />
                         <span>{item.title}</span>
@@ -249,6 +340,7 @@ export function AppSidebar() {
                         asChild
                         isActive={location === item.url}
                         data-testid={`link-${item.url.slice(1)}`}
+                        tooltip={item.title}
                       >
                         <Link href={item.url}>
                           <item.icon />
@@ -271,7 +363,7 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/cenarios"} data-testid="link-cenarios">
+                <SidebarMenuButton asChild isActive={location === "/cenarios"} data-testid="link-cenarios" tooltip="Cenários Estratégicos">
                   <Link href="/cenarios">
                     <CloudLightning />
                     <span>Cenários Estratégicos</span>
@@ -279,7 +371,7 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/alertas"} data-testid="link-alertas">
+                <SidebarMenuButton asChild isActive={location === "/alertas"} data-testid="link-alertas" tooltip="Alertas por E-mail">
                   <Link href="/alertas">
                     <Bell />
                     <span>Alertas por E-mail</span>
@@ -287,7 +379,7 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/rastreabilidade"} data-testid="link-rastreabilidade">
+                <SidebarMenuButton asChild isActive={location === "/rastreabilidade"} data-testid="link-rastreabilidade" tooltip="Rastreabilidade">
                   <Link href="/rastreabilidade">
                     <GitBranch />
                     <span>Rastreabilidade</span>
@@ -295,7 +387,7 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/riscos"} data-testid="link-riscos">
+                <SidebarMenuButton asChild isActive={location === "/riscos"} data-testid="link-riscos" tooltip="Gestão de Riscos">
                   <Link href="/riscos">
                     <ShieldAlert />
                     <span>Gestão de Riscos</span>
@@ -303,7 +395,7 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/mapa-bsc"} data-testid="link-mapa-bsc">
+                <SidebarMenuButton asChild isActive={location === "/mapa-bsc"} data-testid="link-mapa-bsc" tooltip="Mapa de Performance">
                   <Link href="/mapa-bsc">
                     <Network />
                     <span>Mapa de Performance</span>
@@ -311,7 +403,7 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/exportacao"} data-testid="link-exportacao">
+                <SidebarMenuButton asChild isActive={location === "/exportacao"} data-testid="link-exportacao" tooltip="Exportar & Compartilhar">
                   <Link href="/exportacao">
                     <Share2 />
                     <span>Exportar &amp; Compartilhar</span>
@@ -333,6 +425,7 @@ export function AppSidebar() {
                       asChild
                       isActive={location === "/equipe"}
                       data-testid="link-equipe"
+                      tooltip="Equipe"
                     >
                       <Link href="/equipe">
                         <Users />
@@ -347,6 +440,7 @@ export function AppSidebar() {
                       asChild
                       isActive={location === "/admin"}
                       data-testid="link-admin"
+                      tooltip="Administração"
                     >
                       <Link href="/admin">
                         <ShieldCheck />
@@ -361,42 +455,7 @@ export function AppSidebar() {
         )}
       </SidebarContent>
       <SidebarFooter className="border-t p-4">
-        {trialInfo?.planoStatus === "ativo" && empresa?.planoTipo && !user?.isAdmin && (
-          <div className="mb-3 px-1" data-testid="badge-plano-ativo-container">
-            <Badge
-              variant="secondary"
-              className="w-full justify-center gap-1.5 py-1"
-              data-testid="badge-plano-ativo"
-            >
-              <Zap className="h-3 w-3" />
-              Plano {empresa.planoTipo.charAt(0).toUpperCase() + empresa.planoTipo.slice(1)} ativo
-            </Badge>
-          </div>
-        )}
-        <div className="flex items-center gap-3">
-          <Avatar className="h-8 w-8 shrink-0">
-            <AvatarFallback className="text-xs">{initials}</AvatarFallback>
-          </Avatar>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate" data-testid="text-user-nome">
-              {user?.nome}
-            </p>
-            {empresa && (
-              <p className="text-xs text-muted-foreground truncate" data-testid="text-empresa-nome">
-                {empresa.nome}
-              </p>
-            )}
-          </div>
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={logout}
-            data-testid="button-logout"
-            title="Sair"
-          >
-            <LogOut className="h-4 w-4" />
-          </Button>
-        </div>
+        <SidebarFooterContent />
       </SidebarFooter>
     </Sidebar>
   );

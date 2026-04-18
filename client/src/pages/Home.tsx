@@ -33,7 +33,10 @@ import {
   Zap,
   Globe2,
   Clock,
+  FileDown,
+  RefreshCw,
 } from "lucide-react";
+import jsPDF from "jspdf";
 
 import { Link } from "wouter";
 import type { Empresa, Objetivo, ResultadoChave, Indicador, Evento, Ritual } from "@shared/schema";
@@ -109,6 +112,89 @@ function getSaudeCor(saude: number): { label: string; className: string } {
   return { label: "Crítico", className: "text-red-600" };
 }
 
+function exportarDiagnosticoPDF(
+  diag: Diagnostico,
+  nomeEmpresa: string,
+  geradoEm: Date
+) {
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const pageW = doc.internal.pageSize.getWidth();
+  const margin = 18;
+  const contentW = pageW - margin * 2;
+  let y = margin;
+
+  const checkPage = (needed = 10) => {
+    if (y + needed > 280) { doc.addPage(); y = margin; }
+  };
+
+  const addSection = (title: string, items: string[], bullet = "•") => {
+    checkPage(14);
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.text(title, margin, y);
+    y += 6;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    items.forEach((item, idx) => {
+      const prefix = bullet === "num" ? `${idx + 1}.  ` : `${bullet}  `;
+      const lines = doc.splitTextToSize(`${prefix}${item}`, contentW - 4);
+      checkPage(lines.length * 5 + 3);
+      doc.text(lines, margin + 3, y);
+      y += lines.length * 5 + 2;
+    });
+    y += 4;
+  };
+
+  // ── Header ──
+  doc.setFillColor(17, 24, 39);
+  doc.rect(0, 0, pageW, 22, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(13);
+  doc.setFont("helvetica", "bold");
+  doc.text("Diagnóstico Estratégico com IA", margin, 10);
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "normal");
+  doc.text(nomeEmpresa, margin, 16.5);
+  doc.text(
+    `Gerado em ${geradoEm.toLocaleDateString("pt-BR")} às ${geradoEm.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`,
+    pageW - margin,
+    16.5,
+    { align: "right" }
+  );
+  y = 32;
+
+  // ── Saúde do Plano ──
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(12);
+  doc.setFont("helvetica", "bold");
+  const saudeLbl = getSaudeCor(diag.saudePlano);
+  doc.text(`Saúde do Plano: ${diag.saudePlano}% — ${saudeLbl.label}`, margin, y);
+  y += 7;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  const resumoLines = doc.splitTextToSize(diag.resumoExecutivo, contentW);
+  doc.text(resumoLines, margin, y);
+  y += resumoLines.length * 5 + 8;
+
+  addSection("Pontos Fortes", diag.pontosFortes);
+  addSection("Pontos de Atenção", diag.pontosAtencao);
+  addSection("Riscos Identificados", diag.riscos);
+  addSection("Recomendações Prioritárias", diag.recomendacoes, "num");
+
+  // ── Footer ──
+  const pages = doc.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) {
+    doc.setPage(p);
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text(`BizGuideAI  ·  ${nomeEmpresa}  ·  Página ${p}/${pages}`, pageW / 2, 290, { align: "center" });
+  }
+
+  const fileName = `diagnostico-estrategico-${geradoEm.toISOString().slice(0, 10)}.pdf`;
+  doc.save(fileName);
+}
+
 function JornadaEstrategicaCondicional() {
   const progresso = useJornadaProgresso();
   if (progresso.isLoading) return null;
@@ -125,6 +211,7 @@ export default function Home() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [diagnostico, setDiagnostico] = useState<Diagnostico | null>(null);
+  const [geradoEm, setGeradoEm] = useState<Date | null>(null);
   const [showWelcome, setShowWelcome] = useState(false);
   const [showIntroPanel, setShowIntroPanel] = useState(false);
   const [, setLocation] = useLocation();
@@ -195,6 +282,18 @@ export default function Home() {
     enabled: !!empresaId,
   });
 
+  const { data: diagnosticoSalvo } = useQuery<{ diagnostico: Diagnostico; geradoEm: string } | null>({
+    queryKey: ["/api/diagnostico-ia"],
+    enabled: !!empresaId,
+  });
+
+  useEffect(() => {
+    if (diagnosticoSalvo && !diagnostico) {
+      setDiagnostico(diagnosticoSalvo.diagnostico);
+      setGeradoEm(new Date(diagnosticoSalvo.geradoEm));
+    }
+  }, [diagnosticoSalvo]);
+
   const krQueries = useQueries({
     queries: objetivos.map((obj) => ({
       queryKey: [`/api/resultados-chave/${obj.id}`],
@@ -256,7 +355,8 @@ export default function Home() {
     onSuccess: (data) => {
       if (data?.diagnostico) {
         setDiagnostico(data.diagnostico);
-        toast({ title: "Diagnóstico gerado!", description: "Análise estratégica concluída pela IA." });
+        setGeradoEm(data.geradoEm ? new Date(data.geradoEm) : new Date());
+        toast({ title: "Análise gerada!", description: "Diagnóstico estratégico concluído pela IA." });
       }
     },
     onError: () => {
@@ -719,33 +819,52 @@ export default function Home() {
       <Card className="p-6" data-testid="card-diagnostico-ia">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
               <Sparkles className="h-5 w-5 text-primary" />
             </div>
             <div>
               <h3 className="font-semibold text-lg">Diagnóstico Estratégico com IA</h3>
               <p className="text-sm text-muted-foreground">
-                Análise completa de metas, indicadores e eventos para um relatório executivo do plano
+                {geradoEm
+                  ? `Última análise em ${geradoEm.toLocaleDateString("pt-BR")} às ${geradoEm.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+                  : "Análise completa de metas, indicadores e eventos"}
               </p>
             </div>
           </div>
-          <Button
-            onClick={() => diagnosticoMutation.mutate()}
-            disabled={diagnosticoMutation.isPending || !hasData}
-            data-testid="button-gerar-diagnostico"
-          >
-            {diagnosticoMutation.isPending ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Analisando...
-              </>
-            ) : (
-              <>
-                <Sparkles className="h-4 w-4 mr-2" />
-                {diagnostico ? "Atualizar Diagnóstico" : "Gerar Diagnóstico"}
-              </>
+          <div className="flex items-center gap-2 flex-wrap">
+            {diagnostico && geradoEm && (
+              <Button
+                variant="outline"
+                onClick={() => exportarDiagnosticoPDF(diagnostico, empresa?.nome ?? "Empresa", geradoEm)}
+                data-testid="button-exportar-pdf"
+              >
+                <FileDown className="h-4 w-4 mr-2" />
+                Exportar PDF
+              </Button>
             )}
-          </Button>
+            <Button
+              onClick={() => diagnosticoMutation.mutate()}
+              disabled={diagnosticoMutation.isPending || !hasData}
+              data-testid="button-gerar-diagnostico"
+            >
+              {diagnosticoMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Analisando...
+                </>
+              ) : diagnostico ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Atualizar Análise
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Gerar Análise
+                </>
+              )}
+            </Button>
+          </div>
         </div>
 
         {!hasData && !diagnosticoMutation.isPending && (

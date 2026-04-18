@@ -513,6 +513,13 @@ export const insertContextoMacroLogSchema = createInsertSchema(contextoMacroLogs
 export type InsertContextoMacroLog = z.infer<typeof insertContextoMacroLogSchema>;
 export type ContextoMacroLog = typeof contextoMacroLogs.$inferSelect;
 
+export const diagnosticoIaSalvo = pgTable("diagnostico_ia_salvo", {
+  empresaId: varchar("empresa_id").primaryKey().references(() => empresas.id, { onDelete: "cascade" }),
+  payload: text("payload").notNull(),
+  geradoEm: timestamp("gerado_em").defaultNow().notNull(),
+});
+export type DiagnosticoIASalvo = typeof diagnosticoIaSalvo.$inferSelect;
+
 // Daily counter for Serper.dev web search calls. Keyed by UTC date (YYYY-MM-DD). Aggregated monthly for usage display.
 export const googleSearchUsage = pgTable("google_search_usage", {
   date: varchar("date").primaryKey(), // YYYY-MM-DD UTC

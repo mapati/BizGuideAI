@@ -4668,6 +4668,12 @@ Responda em JSON:
 
   // ==================== DIAGNÓSTICO ESTRATÉGICO IA ====================
 
+  app.get("/api/diagnostico-ia", requireAuth, async (req, res) => {
+    const saved = await storage.getDiagnosticoIASalvo(req.session.empresaId!);
+    if (!saved) return res.json(null);
+    res.json({ diagnostico: JSON.parse(saved.payload), geradoEm: saved.geradoEm });
+  });
+
   app.post("/api/ai/diagnostico-estrategico", async (req, res) => {
     try {
       const empresaId = req.session.empresaId!;
@@ -4868,7 +4874,9 @@ Inclua 3-5 itens em cada lista. Seja específico e cite os dados reais fornecido
       });
 
       const diagnostico = JSON.parse(completion.choices[0].message.content || "{}");
-      res.json({ diagnostico });
+      const geradoEm = new Date();
+      await storage.saveDiagnosticoIASalvo(empresaId, JSON.stringify(diagnostico));
+      res.json({ diagnostico, geradoEm });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

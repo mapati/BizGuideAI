@@ -78,6 +78,8 @@ import {
   contextoMacro,
   type ContextoMacro,
   contextoMacroLogs,
+  diagnosticoIaSalvo,
+  type DiagnosticoIASalvo,
   type ContextoMacroLog,
   type InsertContextoMacroLog,
   googleSearchUsage,
@@ -232,6 +234,9 @@ export interface IStorage {
   getContextoMacroLogs(categoria: string): Promise<ContextoMacroLog[]>;
   incrementSearchUsage(): Promise<void>;
   getSearchUsageThisMonth(): Promise<number>;
+
+  getDiagnosticoIASalvo(empresaId: string): Promise<DiagnosticoIASalvo | null>;
+  saveDiagnosticoIASalvo(empresaId: string, payload: string): Promise<void>;
 }
 
 function omitTenantFields<T extends Record<string, unknown>>(data: T): Omit<T, "empresaId" | "objetivoId"> {
@@ -958,6 +963,21 @@ export class DbStorage implements IStorage {
       .from(googleSearchUsage)
       .where(sql`${googleSearchUsage.date} LIKE ${month + "-%"}`);
     return rows.reduce((sum, r) => sum + (r.count ?? 0), 0);
+  }
+
+  async getDiagnosticoIASalvo(empresaId: string): Promise<DiagnosticoIASalvo | null> {
+    const rows = await db.select().from(diagnosticoIaSalvo).where(eq(diagnosticoIaSalvo.empresaId, empresaId)).limit(1);
+    return rows[0] ?? null;
+  }
+
+  async saveDiagnosticoIASalvo(empresaId: string, payload: string): Promise<void> {
+    await db
+      .insert(diagnosticoIaSalvo)
+      .values({ empresaId, payload, geradoEm: new Date() })
+      .onConflictDoUpdate({
+        target: diagnosticoIaSalvo.empresaId,
+        set: { payload, geradoEm: new Date() },
+      });
   }
 
 }

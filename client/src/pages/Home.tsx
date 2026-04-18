@@ -602,8 +602,8 @@ export default function Home() {
         </div>
       </div>
 
-      {/* KPIs + Cenário */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* KPIs + Rituais */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
         {/* KPIs */}
         <Card className="p-5" data-testid="card-kpis">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
@@ -671,147 +671,146 @@ export default function Home() {
           )}
         </Card>
 
-        {/* Cenário Brasileiro Atual */}
-        <Card className="p-5" data-testid="card-cenario-brasileiro">
+        {/* Rituais de Gestão */}
+        <Card className="p-5" data-testid="card-rituais-gestao">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <div className="flex items-center gap-2">
-              <Globe2 className="h-4 w-4 text-muted-foreground" />
-              <h3 className="font-semibold">Cenário Brasileiro Atual</h3>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <h3 className="font-semibold">Rituais de Gestão</h3>
             </div>
-            <Link href="/contexto-macro">
-              <Button size="sm" variant="ghost" data-testid="button-ver-contexto-macro">
-                Motor de Contexto
+            <Link href="/acompanhamento">
+              <Button size="sm" variant="ghost" data-testid="button-ver-acompanhamento">
+                Ver acompanhamento
                 <ChevronRight className="h-3 w-3 ml-1" />
               </Button>
             </Link>
           </div>
-          {loadingCenario ? (
+
+          {(loadingRituais || loadingEventos) ? (
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          ) : !cenarioAtual ? (
+          ) : rituais.length === 0 ? (
             <div className="text-center py-4 space-y-2">
-              <Globe2 className="h-8 w-8 text-muted-foreground/30 mx-auto" />
-              <p className="text-sm text-muted-foreground">Contexto macroeconômico ainda não gerado.</p>
-              <Link href="/contexto-macro">
-                <Button size="sm" variant="outline" data-testid="button-ir-motor-contexto">
-                  Gerar no Motor de Contexto
+              <Circle className="h-8 w-8 text-muted-foreground/30 mx-auto" />
+              <p className="text-sm text-muted-foreground">Nenhum ritual de gestão configurado</p>
+              <Link href="/acompanhamento">
+                <Button size="sm" variant="outline" data-testid="button-configurar-rituais">
+                  Configurar rituais
                 </Button>
               </Link>
             </div>
           ) : (
-            <div>
-              {cenarioAtual.atualizadoEm && (
-                <p className="text-xs text-muted-foreground mb-3">
-                  Atualizado em{" "}
-                  {new Date(cenarioAtual.atualizadoEm).toLocaleDateString("pt-BR", {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  })}
-                </p>
-              )}
-              <div className="max-h-48 overflow-y-auto pr-1 space-y-1.5" data-testid="text-cenario-brasileiro">
-                {cenarioAtual.texto.split("\n").map((line, i) =>
-                  line.trim() === "" ? (
-                    <div key={i} className="h-1.5" />
-                  ) : (
-                    <p key={i} className="text-sm leading-relaxed text-muted-foreground">
-                      <RichLine line={line} />
-                    </p>
-                  )
-                )}
-              </div>
+            <div className="space-y-2">
+              {rituais.map((ritual) => {
+                const config = RITUAIS_HOME_CONFIG[ritual.tipo] ?? { nome: ritual.tipo, icon: Calendar };
+                const RitualIcon = config.icon;
+                const atrasado = ritual.dataProximo && new Date(ritual.dataProximo) < hoje;
+                return (
+                  <div
+                    key={ritual.id}
+                    className="flex items-center gap-3 p-2.5 rounded-md bg-muted/40"
+                    data-testid={`item-ritual-${ritual.id}`}
+                  >
+                    <RitualIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-medium">{config.nome}</span>
+                        {atrasado && (
+                          <Badge variant="destructive" className="text-xs">
+                            Atrasado
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Último:{" "}
+                        {ritual.dataUltimo
+                          ? new Date(ritual.dataUltimo).toLocaleDateString("pt-BR")
+                          : "Nunca"}
+                        {" · "}
+                        Próximo:{" "}
+                        {new Date(ritual.dataProximo).toLocaleDateString("pt-BR")}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
+          )}
+
+          {ultimoEvento && (
+            <>
+              <div className="my-4 border-t border-border" />
+              <div className="flex items-start gap-3" data-testid={`item-ultimo-evento-${ultimoEvento.id}`}>
+                <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Activity className="h-3.5 w-3.5 text-primary" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground mb-0.5">Último evento estratégico</p>
+                  <p className="font-medium text-sm truncate">{ultimoEvento.titulo}</p>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    <Badge variant="secondary" className="text-xs">
+                      {TIPO_EVENTO_LABELS[ultimoEvento.tipo] || ultimoEvento.tipo}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(ultimoEvento.dataEvento).toLocaleDateString("pt-BR")}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </>
           )}
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
-      {/* Rituais de Gestão */}
-      <Card className="p-5" data-testid="card-rituais-gestao">
+      {/* Cenário Brasileiro Atual */}
+      <Card className="p-5" data-testid="card-cenario-brasileiro">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-muted-foreground" />
-            <h3 className="font-semibold">Rituais de Gestão</h3>
+            <Globe2 className="h-4 w-4 text-muted-foreground" />
+            <h3 className="font-semibold">Cenário Brasileiro Atual</h3>
           </div>
-          <Link href="/acompanhamento">
-            <Button size="sm" variant="ghost" data-testid="button-ver-acompanhamento">
-              Ver acompanhamento
+          <Link href="/contexto-macro">
+            <Button size="sm" variant="ghost" data-testid="button-ver-contexto-macro">
+              Motor de Contexto
               <ChevronRight className="h-3 w-3 ml-1" />
             </Button>
           </Link>
         </div>
-
-        {(loadingRituais || loadingEventos) ? (
+        {loadingCenario ? (
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        ) : rituais.length === 0 ? (
+        ) : !cenarioAtual ? (
           <div className="text-center py-4 space-y-2">
-            <Circle className="h-8 w-8 text-muted-foreground/30 mx-auto" />
-            <p className="text-sm text-muted-foreground">Nenhum ritual de gestão configurado</p>
-            <Link href="/acompanhamento">
-              <Button size="sm" variant="outline" data-testid="button-configurar-rituais">
-                Configurar rituais
+            <Globe2 className="h-8 w-8 text-muted-foreground/30 mx-auto" />
+            <p className="text-sm text-muted-foreground">Contexto macroeconômico ainda não gerado.</p>
+            <Link href="/contexto-macro">
+              <Button size="sm" variant="outline" data-testid="button-ir-motor-contexto">
+                Gerar no Motor de Contexto
               </Button>
             </Link>
           </div>
         ) : (
-          <div className="space-y-2">
-            {rituais.map((ritual) => {
-              const config = RITUAIS_HOME_CONFIG[ritual.tipo] ?? { nome: ritual.tipo, icon: Calendar };
-              const RitualIcon = config.icon;
-              const atrasado = ritual.dataProximo && new Date(ritual.dataProximo) < hoje;
-              return (
-                <div
-                  key={ritual.id}
-                  className="flex items-center gap-3 p-2.5 rounded-md bg-muted/40"
-                  data-testid={`item-ritual-${ritual.id}`}
-                >
-                  <RitualIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-medium">{config.nome}</span>
-                      {atrasado && (
-                        <Badge variant="destructive" className="text-xs">
-                          Atrasado
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Último:{" "}
-                      {ritual.dataUltimo
-                        ? new Date(ritual.dataUltimo).toLocaleDateString("pt-BR")
-                        : "Nunca"}
-                      {" · "}
-                      Próximo:{" "}
-                      {new Date(ritual.dataProximo).toLocaleDateString("pt-BR")}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {ultimoEvento && (
-          <>
-            <div className="my-4 border-t border-border" />
-            <div className="flex items-start gap-3" data-testid={`item-ultimo-evento-${ultimoEvento.id}`}>
-              <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <Activity className="h-3.5 w-3.5 text-primary" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs text-muted-foreground mb-0.5">Último evento estratégico</p>
-                <p className="font-medium text-sm truncate">{ultimoEvento.titulo}</p>
-                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                  <Badge variant="secondary" className="text-xs">
-                    {TIPO_EVENTO_LABELS[ultimoEvento.tipo] || ultimoEvento.tipo}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(ultimoEvento.dataEvento).toLocaleDateString("pt-BR")}
-                  </span>
-                </div>
-              </div>
+          <div>
+            {cenarioAtual.atualizadoEm && (
+              <p className="text-xs text-muted-foreground mb-3">
+                Atualizado em{" "}
+                {new Date(cenarioAtual.atualizadoEm).toLocaleDateString("pt-BR", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+              </p>
+            )}
+            <div className="max-h-48 overflow-y-auto pr-1 space-y-1.5" data-testid="text-cenario-brasileiro">
+              {cenarioAtual.texto.split("\n").map((line, i) =>
+                line.trim() === "" ? (
+                  <div key={i} className="h-1.5" />
+                ) : (
+                  <p key={i} className="text-sm leading-relaxed text-muted-foreground">
+                    <RichLine line={line} />
+                  </p>
+                )
+              )}
             </div>
-          </>
+          </div>
         )}
       </Card>
 
@@ -962,7 +961,6 @@ export default function Home() {
           </div>
         )}
       </Card>
-      </div>
     </div>
   );
 }

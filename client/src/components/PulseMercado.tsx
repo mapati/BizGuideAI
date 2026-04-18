@@ -11,6 +11,10 @@ function truncar(text: string, max: number): string {
   return text.slice(0, max - 1).trimEnd() + "…";
 }
 
+const DOT = (
+  <span className="mx-6 text-border select-none" aria-hidden="true">·</span>
+);
+
 export function PulseMercado() {
   const { data: items = [], isLoading } = useQuery<PulseItem[]>({
     queryKey: ["/api/pulse-mercado"],
@@ -48,25 +52,33 @@ export function PulseMercado() {
           data-testid="ticker-track"
           aria-label={tickerText}
         >
-          {/* Duplicado para loop infinito sem salto */}
+          {/* Copy 1 + separador inter-cópia + Copy 2 + separador final para loop */}
           <TickerContent items={items} />
+          {DOT}
           <TickerContent items={items} aria-hidden />
+          {DOT}
         </div>
       </div>
     </div>
   );
 }
 
-function TickerContent({ items, "aria-hidden": ariaHidden }: { items: PulseItem[]; "aria-hidden"?: true }) {
+function TickerContent({
+  items,
+  "aria-hidden": ariaHidden,
+}: {
+  items: PulseItem[];
+  "aria-hidden"?: true;
+}) {
   return (
     <span className="inline-flex items-center" aria-hidden={ariaHidden}>
       {items.map((item, i) => (
         <span key={i} className="inline-flex items-center">
+          {i > 0 && DOT}
           <span className="text-xs">
             <span className="font-medium text-foreground">{item.titulo}</span>
             <span className="text-muted-foreground"> — {truncar(item.resumo, 90)}</span>
           </span>
-          <span className="mx-6 text-border select-none" aria-hidden="true">·</span>
         </span>
       ))}
     </span>

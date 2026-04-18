@@ -424,6 +424,18 @@ export default function Home() {
 
   const isLoading = loadingObjetivos || loadingKRs || loadingIndicadores;
 
+  const { etapas, jornadaConcluida, isLoading: jornadaLoading } = useJornadaProgresso();
+
+  const isEtapaBloqueada = (id: string): boolean => {
+    if (jornadaLoading) return false;
+    const etapa = etapas.find((e) => e.id === id);
+    return !!(etapa?.bloqueadaPor && etapa.bloqueadaPor.length > 0);
+  };
+
+  const okrsBloqueado = isEtapaBloqueada("okrs");
+  const indicadoresBloqueado = isEtapaBloqueada("indicadores");
+  const acompanhamentoBloqueado = isEtapaBloqueada("acompanhamento");
+
   const hoje = new Date();
   const saudeCor = diagnostico ? getSaudeCor(diagnostico.saudePlano) : null;
 
@@ -688,11 +700,17 @@ export default function Home() {
             <div className="text-center space-y-2">
               <Target className="h-10 w-10 text-muted-foreground/40 mx-auto" />
               <p className="text-sm text-muted-foreground">Nenhum objetivo cadastrado</p>
-              <Link href="/okrs">
-                <Button size="sm" variant="outline" data-testid="button-go-okrs">
+              {okrsBloqueado ? (
+                <Button size="sm" variant="outline" disabled data-testid="button-go-okrs" title="Conclua as etapas anteriores da jornada para acessar">
                   Criar Metas
                 </Button>
-              </Link>
+              ) : (
+                <Link href="/okrs">
+                  <Button size="sm" variant="outline" data-testid="button-go-okrs">
+                    Criar Metas
+                  </Button>
+                </Link>
+              )}
             </div>
           ) : (
             <>
@@ -762,23 +780,36 @@ export default function Home() {
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
               <h3 className="font-semibold">Indicadores do Negócio</h3>
             </div>
-            <Link href="/indicadores">
-              <Button size="sm" variant="ghost" data-testid="button-ver-indicadores">
+            {indicadoresBloqueado ? (
+              <Button size="sm" variant="ghost" disabled data-testid="button-ver-indicadores" title="Conclua as etapas anteriores da jornada para acessar">
                 Ver todos
                 <ChevronRight className="h-3 w-3 ml-1" />
               </Button>
-            </Link>
+            ) : (
+              <Link href="/indicadores">
+                <Button size="sm" variant="ghost" data-testid="button-ver-indicadores">
+                  Ver todos
+                  <ChevronRight className="h-3 w-3 ml-1" />
+                </Button>
+              </Link>
+            )}
           </div>
           {loadingIndicadores ? (
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           ) : indicadores.length === 0 ? (
             <div className="text-center py-4 space-y-2">
               <p className="text-sm text-muted-foreground">Nenhum indicador cadastrado</p>
-              <Link href="/indicadores">
-                <Button size="sm" variant="outline" data-testid="button-criar-indicadores">
+              {indicadoresBloqueado ? (
+                <Button size="sm" variant="outline" disabled data-testid="button-criar-indicadores" title="Conclua as etapas anteriores da jornada para acessar">
                   Criar indicadores
                 </Button>
-              </Link>
+              ) : (
+                <Link href="/indicadores">
+                  <Button size="sm" variant="outline" data-testid="button-criar-indicadores">
+                    Criar indicadores
+                  </Button>
+                </Link>
+              )}
             </div>
           ) : (
             <div className="space-y-4">
@@ -829,12 +860,19 @@ export default function Home() {
               <Clock className="h-4 w-4 text-muted-foreground" />
               <h3 className="font-semibold">Rituais de Gestão</h3>
             </div>
-            <Link href="/ritos">
-              <Button size="sm" variant="ghost" data-testid="button-ver-acompanhamento">
+            {acompanhamentoBloqueado ? (
+              <Button size="sm" variant="ghost" disabled data-testid="button-ver-acompanhamento" title="Conclua as etapas anteriores da jornada para acessar">
                 Ver acompanhamento
                 <ChevronRight className="h-3 w-3 ml-1" />
               </Button>
-            </Link>
+            ) : (
+              <Link href="/ritos">
+                <Button size="sm" variant="ghost" data-testid="button-ver-acompanhamento">
+                  Ver acompanhamento
+                  <ChevronRight className="h-3 w-3 ml-1" />
+                </Button>
+              </Link>
+            )}
           </div>
 
           {(loadingRituais || loadingEventos) ? (
@@ -843,11 +881,17 @@ export default function Home() {
             <div className="text-center py-4 space-y-2">
               <Circle className="h-8 w-8 text-muted-foreground/30 mx-auto" />
               <p className="text-sm text-muted-foreground">Nenhum ritual de gestão configurado</p>
-              <Link href="/ritos">
-                <Button size="sm" variant="outline" data-testid="button-configurar-rituais">
+              {acompanhamentoBloqueado ? (
+                <Button size="sm" variant="outline" disabled data-testid="button-configurar-rituais" title="Conclua as etapas anteriores da jornada para acessar">
                   Configurar rituais
                 </Button>
-              </Link>
+              ) : (
+                <Link href="/ritos">
+                  <Button size="sm" variant="outline" data-testid="button-configurar-rituais">
+                    Configurar rituais
+                  </Button>
+                </Link>
+              )}
             </div>
           ) : (
             <div className="space-y-2">

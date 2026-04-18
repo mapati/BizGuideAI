@@ -362,54 +362,39 @@ export function AppSidebar() {
           <SidebarGroupLabel>Análise Avançada</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/cenarios"} data-testid="link-cenarios" tooltip="Cenários Estratégicos">
-                  <Link href="/cenarios">
-                    <CloudLightning />
-                    <span>Cenários Estratégicos</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/alertas"} data-testid="link-alertas" tooltip="Alertas por E-mail">
-                  <Link href="/alertas">
-                    <Bell />
-                    <span>Alertas por E-mail</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/rastreabilidade"} data-testid="link-rastreabilidade" tooltip="Rastreabilidade">
-                  <Link href="/rastreabilidade">
-                    <GitBranch />
-                    <span>Rastreabilidade</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/riscos"} data-testid="link-riscos" tooltip="Gestão de Riscos">
-                  <Link href="/riscos">
-                    <ShieldAlert />
-                    <span>Gestão de Riscos</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/mapa-bsc"} data-testid="link-mapa-bsc" tooltip="Mapa de Performance">
-                  <Link href="/mapa-bsc">
-                    <Network />
-                    <span>Mapa de Performance</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/exportacao"} data-testid="link-exportacao" tooltip="Exportar & Compartilhar">
-                  <Link href="/exportacao">
-                    <Share2 />
-                    <span>Exportar &amp; Compartilhar</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              {[
+                { title: "Cenários Estratégicos", url: "/cenarios", icon: CloudLightning, testId: "link-cenarios" },
+                { title: "Alertas por E-mail", url: "/alertas", icon: Bell, testId: "link-alertas" },
+                { title: "Rastreabilidade", url: "/rastreabilidade", icon: GitBranch, testId: "link-rastreabilidade" },
+                { title: "Gestão de Riscos", url: "/riscos", icon: ShieldAlert, testId: "link-riscos" },
+                { title: "Mapa de Performance", url: "/mapa-bsc", icon: Network, testId: "link-mapa-bsc" },
+                { title: "Exportar & Compartilhar", url: "/exportacao", icon: Share2, testId: "link-exportacao" },
+              ].map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  {!jornadaLoading && !jornadaConcluida ? (
+                    <SidebarMenuButton
+                      data-testid={item.testId}
+                      className="opacity-50 cursor-not-allowed pointer-events-none"
+                      tooltip={item.title}
+                    >
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </SidebarMenuButton>
+                  ) : (
+                    <SidebarMenuButton
+                      asChild
+                      isActive={location === item.url}
+                      data-testid={item.testId}
+                      tooltip={item.title}
+                    >
+                      <Link href={item.url}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  )}
+                </SidebarMenuItem>
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

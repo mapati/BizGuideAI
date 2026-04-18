@@ -92,6 +92,17 @@ function calcularProgressoKR(kr: ResultadoChave): number {
   return Math.max(0, Math.min(100, ((atual - inicial) / (alvo - inicial)) * 100));
 }
 
+function renderBoldText(text: string): React.ReactNode[] {
+  const parts = text.split(/\*\*(.+?)\*\*/g);
+  return parts.map((part, i) =>
+    i % 2 === 1 ? <strong key={i} className="font-semibold text-foreground">{part}</strong> : part
+  );
+}
+
+function RichLine({ line }: { line: string }) {
+  return <>{renderBoldText(line)}</>;
+}
+
 function getSaudeCor(saude: number): { label: string; className: string } {
   if (saude >= 70) return { label: "Excelente", className: "text-green-600" };
   if (saude >= 30) return { label: "Atenção", className: "text-yellow-600" };
@@ -598,10 +609,16 @@ export default function Home() {
                   })}
                 </p>
               )}
-              <div className="max-h-48 overflow-y-auto pr-1">
-                <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line" data-testid="text-cenario-brasileiro">
-                  {cenarioAtual.texto}
-                </p>
+              <div className="max-h-48 overflow-y-auto pr-1 space-y-1.5" data-testid="text-cenario-brasileiro">
+                {cenarioAtual.texto.split("\n").map((line, i) =>
+                  line.trim() === "" ? (
+                    <div key={i} className="h-1.5" />
+                  ) : (
+                    <p key={i} className="text-sm leading-relaxed text-muted-foreground">
+                      <RichLine line={line} />
+                    </p>
+                  )
+                )}
               </div>
             </div>
           )}

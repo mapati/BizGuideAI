@@ -5666,16 +5666,18 @@ Seja específico para o setor ${empresa.setor}.`,
     return `${base} ${mes} ${ano}`;
   }
 
-  // Short search queries per Contexto Macro category — optimised for Google CSE.
-  // Keys must match CATEGORIAS_PROMPTS above; missing keys fall back to a generic query.
+  // Base query strings per Contexto Macro category — optimised for Google CSE.
+  // DO NOT call queryComData() here: this object is initialised once at startup.
+  // The dynamic month/year injection happens at request time inside gerarContextoCategoria
+  // and in the queryEfetiva admin display below, both calling queryComData() there.
   const CATEGORIAS_QUERIES: Record<string, string> = {
-    cambio_politica_monetaria:    queryComData("câmbio real dólar Selic política monetária COPOM Brasil"),
-    inflacao_custos:              queryComData("inflação IPCA IGP-M combustíveis energia custos insumos Brasil"),
-    cenario_politico_regulatorio: queryComData("cenário político regulatório governo reforma tributária Brasil"),
-    geopolitica_comercio_exterior:queryComData("geopolítica comércio exterior exportações Brasil EUA China"),
-    crises_setoriais:             queryComData("crises setoriais falências PME indústria varejo Brasil"),
-    tendencias_mercado:           queryComData("tendências mercado consumidor e-commerce startups inovação Brasil"),
-    contexto_geral:               queryComData("economia brasileira PIB risco negócio PME perspectiva"),
+    cambio_politica_monetaria:    "câmbio real dólar Selic política monetária COPOM Brasil",
+    inflacao_custos:              "inflação IPCA IGP-M combustíveis energia custos insumos Brasil",
+    cenario_politico_regulatorio: "cenário político regulatório governo reforma tributária Brasil",
+    geopolitica_comercio_exterior:"geopolítica comércio exterior exportações Brasil EUA China",
+    crises_setoriais:             "crises setoriais falências PME indústria varejo Brasil",
+    tendencias_mercado:           "tendências mercado consumidor e-commerce startups inovação Brasil",
+    contexto_geral:               "economia brasileira PIB risco negócio PME perspectiva",
     pulse_manchetes:              "dólar IBOVESPA Selic IPCA commodities manchetes negócios Brasil hoje",
   };
 
@@ -5743,9 +5745,12 @@ Seja específico para o setor ${empresa.setor}.`,
       // Use custom queryBusca from DB if set, otherwise fall back to hardcoded map.
       // Fallback uses queryComData to inject current month/year (avoids stale year in generic queries).
       const record = await storage.getContextoMacroByCategoria(categoria);
+      // queryComData() is called here at request time (not at module init) so the
+      // injected month/year is always the current one, even after long-running processes.
+      const baseQuery = CATEGORIAS_QUERIES[categoria] ?? `${categoria.replace(/_/g, " ")} Brasil`;
       const query = (record?.queryBusca && record.queryBusca.trim())
         ? record.queryBusca.trim()
-        : (CATEGORIAS_QUERIES[categoria] ?? queryComData(`${categoria.replace(/_/g, " ")} Brasil`));
+        : queryComData(baseQuery);
       const searchItems = await serperSearch(query, 8);
       const searchCtx = formatSearchContext(searchItems);
 
@@ -5784,7 +5789,7 @@ Seja específico para o setor ${empresa.setor}.`,
         ...cat,
         queryEfetiva: (cat.queryBusca && cat.queryBusca.trim())
           ? cat.queryBusca.trim()
-          : (CATEGORIAS_QUERIES[cat.categoria] ?? `${cat.categoria.replace(/_/g, " ")} Brasil 2025`),
+          : queryComData(CATEGORIAS_QUERIES[cat.categoria] ?? `${cat.categoria.replace(/_/g, " ")} Brasil`),
       })));
     } catch (e: any) {
       res.status(500).json({ error: e.message });

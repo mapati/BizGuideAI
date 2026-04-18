@@ -3242,10 +3242,10 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
 
       const completion = await openai.chat.completions.create({
         model: getModelForPlan(empresa.planoTipo, "relatorios"),
-        messages: [
+        messages: await injectMacroCtx([
           {
             role: "system",
-            content: `Você é um consultor estratégico sênior especializado em Matriz de Ansoff. Sua missão é identificar oportunidades de crescimento práticas e acionáveis. Use sempre linguagem simples e direta, sem jargões técnicos.
+            content: `Você é um consultor estratégico sênior especializado em Matriz de Ansoff. Sua missão é identificar oportunidades de crescimento práticas e acionáveis. Use sempre linguagem simples e direta, sem jargões técnicos. Considere também o cenário macroeconômico atual presente no system message (quando disponível) para identificar oportunidades alinhadas ao contexto econômico brasileiro.
 
 REGRA CRÍTICA DE DUPLICAÇÃO:
 - Você DEVE analisar cuidadosamente todas as oportunidades já existentes listadas na seção "OPORTUNIDADES JÁ EXISTENTES"
@@ -3300,7 +3300,7 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
   ]
 }`
           }
-        ],
+        ]),
         response_format: { type: "json_object" },
         temperature: 0.8,
       });
@@ -4656,10 +4656,10 @@ Responda em JSON:
 
       const completion = await openai.chat.completions.create({
         model: getModelForPlan(empresa.planoTipo, "relatorios"),
-        messages: [
+        messages: await injectMacroCtx([
           {
             role: "system",
-            content: `Você é um consultor estratégico sênior especializado em Balanced Scorecard (BSC) e OKRs. Analise os dados do plano estratégico da empresa e forneça um diagnóstico executivo completo e honesto. Seja específico, cite métricas reais, dê recomendações acionáveis. Use linguagem simples e direta. Responda sempre em português brasileiro.`,
+            content: `Você é um consultor estratégico sênior especializado em Balanced Scorecard (BSC) e OKRs. Analise os dados do plano estratégico da empresa e forneça um diagnóstico executivo completo e honesto. Seja específico, cite métricas reais, dê recomendações acionáveis. Use linguagem simples e direta. Responda sempre em português brasileiro. Considere também o cenário macroeconômico atual presente no system message (quando disponível) ao formular as recomendações.`,
           },
           {
             role: "user",
@@ -4710,7 +4710,7 @@ Gere um diagnóstico estratégico em JSON com esta estrutura exata:
 }
 Inclua 3-5 itens em cada lista. Seja específico e cite os dados reais fornecidos.`,
           },
-        ],
+        ]),
         response_format: { type: "json_object" },
         temperature: 0.7,
       });
@@ -4788,10 +4788,14 @@ Inclua 3-5 itens em cada lista. Seja específico e cite os dados reais fornecido
       const estResume = estrategias.slice(0, 5).map(e => e.descricao).join("; ");
       const completion = await openai.chat.completions.create({
         model: getModelForPlan(empresa.planoTipo, "relatorios"),
-        messages: [{
-          role: "user",
-          content: `Você é consultor estratégico especializado em planejamento de cenários para PMEs brasileiras.
-Empresa: ${empresa.nome} | Setor: ${empresa.setor} | Porte: ${empresa.tamanho}
+        messages: await injectMacroCtx([
+          {
+            role: "system",
+            content: `Você é consultor estratégico especializado em planejamento de cenários para PMEs brasileiras. Considere o cenário macroeconômico atual presente no system message (quando disponível) ao construir as premissas de cada cenário — variáveis como Selic, câmbio e instabilidade política devem moldar os cenários pessimista, base e otimista.`,
+          },
+          {
+            role: "user",
+            content: `Empresa: ${empresa.nome} | Setor: ${empresa.setor} | Porte: ${empresa.tamanho}
 Descrição: ${empresa.descricao || ""}
 
 ANÁLISE SWOT:\n${swotResume || "Não disponível"}
@@ -4811,7 +4815,8 @@ Responda APENAS com JSON no formato:
     { "tipo": "otimista", "titulo": "...", "descricao": "...", "premissas": ["...", "...", "..."], "resposta_estrategica": "..." }
   ]
 }`,
-        }],
+          },
+        ]),
         response_format: { type: "json_object" },
         temperature: 0.7,
       });
@@ -4895,10 +4900,14 @@ Responda APENAS com JSON: { "respostaEstrategica": "..." }`,
       const pestelNeg = pestels.filter(p => p.impacto === "negativo").map(p => `${p.categoria}: ${p.descricao}`).join("; ");
       const completion = await openai.chat.completions.create({
         model: getModelForPlan(empresa.planoTipo, "relatorios"),
-        messages: [{
-          role: "user",
-          content: `Você é especialista em gestão de riscos para PMEs brasileiras.
-Empresa: ${empresa.nome} | Setor: ${empresa.setor}
+        messages: await injectMacroCtx([
+          {
+            role: "system",
+            content: `Você é especialista em gestão de riscos para PMEs brasileiras. Considere o cenário macroeconômico atual presente no system message (quando disponível) ao identificar riscos — variáveis como Selic, câmbio, instabilidade política e mudanças regulatórias são fontes críticas de risco para o contexto brasileiro.`,
+          },
+          {
+            role: "user",
+            content: `Empresa: ${empresa.nome} | Setor: ${empresa.setor}
 Fraquezas: ${fraquezas || "N/A"}
 Ameaças: ${ameacas || "N/A"}
 Fatores negativos PESTEL: ${pestelNeg || "N/A"}
@@ -4910,7 +4919,8 @@ Gere 5-7 riscos estratégicos em JSON:
   ]
 }
 Seja específico para o setor ${empresa.setor}.`,
-        }],
+          },
+        ]),
         response_format: { type: "json_object" },
         temperature: 0.7,
       });

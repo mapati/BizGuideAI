@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/EmptyState";
 import { ExampleCard } from "@/components/ExampleCard";
-import { Briefcase, Plus, Sparkles, Trash2, Pencil, Clock, User, TrendingUp } from "lucide-react";
+import { Briefcase, Plus, Sparkles, Trash2, Pencil, Clock, User, TrendingUp, Link2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { PrerequisiteWarning } from "@/components/PrerequisiteWarning";
@@ -630,6 +630,15 @@ export default function Iniciativas() {
                           <Badge variant={impactoVariants[iniciativa.impacto]} data-testid={`badge-impacto-${iniciativa.id}`}>
                             Impacto {impactoLabels[iniciativa.impacto as keyof typeof impactoLabels]}
                           </Badge>
+                          {iniciativa.estrategiaId && (() => {
+                            const est = estrategias.find(e => e.id === iniciativa.estrategiaId);
+                            return est ? (
+                              <Badge variant="outline" className="gap-1" data-testid={`badge-estrategia-${iniciativa.id}`}>
+                                <Link2 className="h-3 w-3" />
+                                {est.tipo} — {est.titulo.length > 35 ? est.titulo.slice(0, 35) + "…" : est.titulo}
+                              </Badge>
+                            ) : null;
+                          })()}
                         </div>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           <div className="flex items-center gap-1">
@@ -698,6 +707,15 @@ export default function Iniciativas() {
                           <Badge variant={impactoVariants[iniciativa.impacto]} data-testid={`badge-impacto-${iniciativa.id}`}>
                             Impacto {impactoLabels[iniciativa.impacto as keyof typeof impactoLabels]}
                           </Badge>
+                          {iniciativa.estrategiaId && (() => {
+                            const est = estrategias.find(e => e.id === iniciativa.estrategiaId);
+                            return est ? (
+                              <Badge variant="outline" className="gap-1" data-testid={`badge-estrategia-${iniciativa.id}`}>
+                                <Link2 className="h-3 w-3" />
+                                {est.tipo} — {est.titulo.length > 35 ? est.titulo.slice(0, 35) + "…" : est.titulo}
+                              </Badge>
+                            ) : null;
+                          })()}
                         </div>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           <div className="flex items-center gap-1">
@@ -766,6 +784,15 @@ export default function Iniciativas() {
                           <Badge variant={impactoVariants[iniciativa.impacto]} data-testid={`badge-impacto-${iniciativa.id}`}>
                             Impacto {impactoLabels[iniciativa.impacto as keyof typeof impactoLabels]}
                           </Badge>
+                          {iniciativa.estrategiaId && (() => {
+                            const est = estrategias.find(e => e.id === iniciativa.estrategiaId);
+                            return est ? (
+                              <Badge variant="outline" className="gap-1" data-testid={`badge-estrategia-${iniciativa.id}`}>
+                                <Link2 className="h-3 w-3" />
+                                {est.tipo} — {est.titulo.length > 35 ? est.titulo.slice(0, 35) + "…" : est.titulo}
+                              </Badge>
+                            ) : null;
+                          })()}
                         </div>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           <div className="flex items-center gap-1">

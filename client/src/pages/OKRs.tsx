@@ -2,13 +2,14 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 
-import { Plus, Sparkles, Target as TargetIcon, Loader2, Trash2, Edit2, TrendingUp, Users, Cog, GraduationCap, DollarSign, BookOpen, UserCheck } from "lucide-react";
+import { Plus, Sparkles, Target as TargetIcon, Loader2, Trash2, Edit2, TrendingUp, Users, Cog, GraduationCap, DollarSign, BookOpen, UserCheck, Link2 } from "lucide-react";
 import { PrerequisiteWarning } from "@/components/PrerequisiteWarning";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -112,6 +113,7 @@ export default function OKRs() {
             descricao: obj.descricao,
             prazo: obj.prazo,
             perspectiva: obj.perspectiva || perspectiva || "Financeira",
+            estrategiaId: obj.estrategiaId || null,
           });
         }
       } else {
@@ -648,6 +650,15 @@ export default function OKRs() {
                                     <UserCheck className="h-3 w-3" />
                                     {m.nome}
                                   </span>
+                                ) : null;
+                              })()}
+                              {objetivo.estrategiaId && (() => {
+                                const est = estrategias.find(e => e.id === objetivo.estrategiaId);
+                                return est ? (
+                                  <Badge variant="outline" className="gap-1 text-xs" data-testid={`badge-estrategia-objetivo-${objetivo.id}`}>
+                                    <Link2 className="h-3 w-3" />
+                                    {est.tipo} — {est.titulo.length > 35 ? est.titulo.slice(0, 35) + "…" : est.titulo}
+                                  </Badge>
                                 ) : null;
                               })()}
                             </div>

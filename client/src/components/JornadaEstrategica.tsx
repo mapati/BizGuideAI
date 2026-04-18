@@ -20,9 +20,9 @@ import type { JornadaEtapa, JornadaProgresso } from "@/hooks/useJornadaProgresso
 const ETAPA_INDEX: Record<string, number> = {
   perfil: 1,
   diagnostico: 2,
-  pestel: 3,
-  "cinco-forcas": 4,
-  bmc: 5,
+  bmc: 3,
+  pestel: 4,
+  "cinco-forcas": 5,
   swot: 6,
   estrategias: 7,
   oportunidades: 8,

@@ -19,9 +19,9 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
 
 const mapItems = [
+  { title: "Modelo de Negócio", url: "/bmc", icon: Grid3x3, jornadaId: "bmc" },
   { title: "Cenário Externo", url: "/pestel", icon: Compass, jornadaId: "pestel" },
   { title: "Mercado e Concorrência", url: "/cinco-forcas", icon: Layers, jornadaId: "cinco-forcas" },
-  { title: "Modelo de Negócio", url: "/bmc", icon: Grid3x3, jornadaId: "bmc" },
   { title: "Forças e Fraquezas", url: "/swot", icon: Target, jornadaId: "swot" },
 ];
 
@@ -50,6 +50,12 @@ function EtapaIndicador({ jornadaId, etapas, proximaEtapaId }: { jornadaId: stri
     return <ArrowRight className="h-3.5 w-3.5 text-primary ml-auto flex-shrink-0" />;
   }
   return <Circle className="h-3.5 w-3.5 text-muted-foreground/40 ml-auto flex-shrink-0" />;
+}
+
+function isEtapaBloqueada(jornadaId: string | null, etapas: ReturnType<typeof useJornadaProgresso>["etapas"]): boolean {
+  if (!jornadaId) return false;
+  const etapa = etapas.find((e) => e.id === jornadaId);
+  return !!(etapa?.bloqueadaPor && etapa.bloqueadaPor.length > 0);
 }
 
 export function AppSidebar() {
@@ -128,34 +134,6 @@ export function AppSidebar() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              {(user?.role === "admin" || user?.isAdmin) && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={location === "/equipe"}
-                    data-testid="link-equipe"
-                  >
-                    <Link href="/equipe">
-                      <Users />
-                      <span>Equipe</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-              {user?.isAdmin && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={location === "/admin"}
-                    data-testid="link-admin"
-                  >
-                    <Link href="/admin">
-                      <ShieldCheck />
-                      <span>Administração</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -164,23 +142,37 @@ export function AppSidebar() {
           <SidebarGroupLabel>Mapa</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mapItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={location === item.url}
-                    data-testid={`link-${item.url.slice(1)}`}
-                  >
-                    <Link href={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                      {!jornadaLoading && (
+              {mapItems.map((item) => {
+                const bloqueada = !jornadaLoading && isEtapaBloqueada(item.jornadaId, etapas);
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    {bloqueada ? (
+                      <SidebarMenuButton
+                        data-testid={`link-${item.url.slice(1)}`}
+                        className="opacity-40 cursor-not-allowed"
+                      >
+                        <item.icon />
+                        <span>{item.title}</span>
                         <EtapaIndicador jornadaId={item.jornadaId} etapas={etapas} proximaEtapaId={proximaEtapa?.id} />
-                      )}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+                      </SidebarMenuButton>
+                    ) : (
+                      <SidebarMenuButton
+                        asChild
+                        isActive={location === item.url}
+                        data-testid={`link-${item.url.slice(1)}`}
+                      >
+                        <Link href={item.url}>
+                          <item.icon />
+                          <span>{item.title}</span>
+                          {!jornadaLoading && (
+                            <EtapaIndicador jornadaId={item.jornadaId} etapas={etapas} proximaEtapaId={proximaEtapa?.id} />
+                          )}
+                        </Link>
+                      </SidebarMenuButton>
+                    )}
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -189,23 +181,37 @@ export function AppSidebar() {
           <SidebarGroupLabel>Plano de Ação</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {apostasItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={location === item.url}
-                    data-testid={`link-${item.url.slice(1)}`}
-                  >
-                    <Link href={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                      {!jornadaLoading && (
+              {apostasItems.map((item) => {
+                const bloqueada = !jornadaLoading && isEtapaBloqueada(item.jornadaId, etapas);
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    {bloqueada ? (
+                      <SidebarMenuButton
+                        data-testid={`link-${item.url.slice(1)}`}
+                        className="opacity-40 cursor-not-allowed"
+                      >
+                        <item.icon />
+                        <span>{item.title}</span>
                         <EtapaIndicador jornadaId={item.jornadaId} etapas={etapas} proximaEtapaId={proximaEtapa?.id} />
-                      )}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+                      </SidebarMenuButton>
+                    ) : (
+                      <SidebarMenuButton
+                        asChild
+                        isActive={location === item.url}
+                        data-testid={`link-${item.url.slice(1)}`}
+                      >
+                        <Link href={item.url}>
+                          <item.icon />
+                          <span>{item.title}</span>
+                          {!jornadaLoading && (
+                            <EtapaIndicador jornadaId={item.jornadaId} etapas={etapas} proximaEtapaId={proximaEtapa?.id} />
+                          )}
+                        </Link>
+                      </SidebarMenuButton>
+                    )}
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -214,23 +220,37 @@ export function AppSidebar() {
           <SidebarGroupLabel>Execução</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {marchaItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={location === item.url}
-                    data-testid={`link-${item.url.slice(1)}`}
-                  >
-                    <Link href={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                      {!jornadaLoading && (
+              {marchaItems.map((item) => {
+                const bloqueada = !jornadaLoading && isEtapaBloqueada(item.jornadaId, etapas);
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    {bloqueada ? (
+                      <SidebarMenuButton
+                        data-testid={`link-${item.url.slice(1)}`}
+                        className="opacity-40 cursor-not-allowed"
+                      >
+                        <item.icon />
+                        <span>{item.title}</span>
                         <EtapaIndicador jornadaId={item.jornadaId} etapas={etapas} proximaEtapaId={proximaEtapa?.id} />
-                      )}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+                      </SidebarMenuButton>
+                    ) : (
+                      <SidebarMenuButton
+                        asChild
+                        isActive={location === item.url}
+                        data-testid={`link-${item.url.slice(1)}`}
+                      >
+                        <Link href={item.url}>
+                          <item.icon />
+                          <span>{item.title}</span>
+                          {!jornadaLoading && (
+                            <EtapaIndicador jornadaId={item.jornadaId} etapas={etapas} proximaEtapaId={proximaEtapa?.id} />
+                          )}
+                        </Link>
+                      </SidebarMenuButton>
+                    )}
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -290,6 +310,44 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {(user?.role === "admin" || user?.isAdmin) && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Configurações</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {(user?.role === "admin" || user?.isAdmin) && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={location === "/equipe"}
+                      data-testid="link-equipe"
+                    >
+                      <Link href="/equipe">
+                        <Users />
+                        <span>Equipe</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
+                {user?.isAdmin && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={location === "/admin"}
+                      data-testid="link-admin"
+                    >
+                      <Link href="/admin">
+                        <ShieldCheck />
+                        <span>Administração</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       <SidebarFooter className="border-t p-4">
         {trialInfo?.planoStatus === "ativo" && empresa?.planoTipo && !user?.isAdmin && (

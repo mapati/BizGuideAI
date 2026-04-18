@@ -176,6 +176,19 @@ export function useJornadaProgresso(): JornadaProgresso {
       bloqueadaPor: perfilCompleto ? [] : ["perfil"],
     },
     {
+      id: "bmc",
+      nome: "Modelo de Negócio",
+      rota: "/bmc",
+      concluida: modeloNegocio.length >= 5,
+      status: derivarStatus(modeloNegocio.length >= 5, modeloNegocio.length > 0),
+      icone: LayoutGrid,
+      descricao:
+        "Mapeie os 9 blocos do seu modelo de negócio: proposta de valor, clientes, canais, fontes de receita, estrutura de custos e mais.",
+      valorIA:
+        "A IA analisa cada bloco do seu modelo de negócio e identifica lacunas ou oportunidades de melhoria.",
+      bloqueadaPor: indicadoresDiagnostico.length >= 3 ? [] : ["diagnostico"],
+    },
+    {
       id: "pestel",
       nome: "Cenário Externo",
       rota: "/pestel",
@@ -202,19 +215,6 @@ export function useJornadaProgresso(): JornadaProgresso {
       bloqueadaPor: perfilCompleto ? [] : ["perfil"],
     },
     {
-      id: "bmc",
-      nome: "Modelo de Negócio",
-      rota: "/bmc",
-      concluida: modeloNegocio.length >= 5,
-      status: derivarStatus(modeloNegocio.length >= 5, modeloNegocio.length > 0),
-      icone: LayoutGrid,
-      descricao:
-        "Mapeie os 9 blocos do seu modelo de negócio: proposta de valor, clientes, canais, fontes de receita, estrutura de custos e mais.",
-      valorIA:
-        "A IA analisa cada bloco do seu modelo de negócio e identifica lacunas ou oportunidades de melhoria.",
-      bloqueadaPor: perfilCompleto ? [] : ["perfil"],
-    },
-    {
       id: "swot",
       nome: "Forças e Fraquezas",
       rota: "/swot",
@@ -225,7 +225,13 @@ export function useJornadaProgresso(): JornadaProgresso {
         "Identifique as forças internas, fraquezas, oportunidades externas e ameaças do mercado para ter uma visão completa da sua posição estratégica.",
       valorIA:
         "A IA cruza o cenário externo, análise de mercado e modelo de negócio para sugerir itens altamente contextualizados.",
-      bloqueadaPor: perfilCompleto ? [] : ["perfil"],
+      bloqueadaPor: (() => {
+        const bloqueios: string[] = [];
+        if (modeloNegocio.length < 5) bloqueios.push("bmc");
+        if (fatoresPestel.length < 6) bloqueios.push("pestel");
+        if (cincoForcas.length < 3) bloqueios.push("cinco-forcas");
+        return bloqueios;
+      })(),
     },
     {
       id: "estrategias",

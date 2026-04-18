@@ -41,6 +41,9 @@ git add -A
 echo "==> Criando commit: \"$MSG\""
 git commit -m "$MSG"
 
+echo "==> Sincronizando com o GitHub antes de enviar..."
+git pull origin "$BRANCH" --no-rebase -X ours --quiet 2>/dev/null || true
+
 echo "==> Enviando para o GitHub (branch: $BRANCH)..."
 git push origin "$BRANCH"
 

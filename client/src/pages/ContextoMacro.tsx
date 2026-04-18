@@ -510,6 +510,7 @@ function CategoriaCard({
                     <SelectValue placeholder="Selecionar..." />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="4h">A cada 4 horas</SelectItem>
                     <SelectItem value="diario">Diário</SelectItem>
                     <SelectItem value="semanal">Semanal</SelectItem>
                     <SelectItem value="mensal">Mensal</SelectItem>

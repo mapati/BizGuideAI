@@ -4,15 +4,24 @@ const DOT = (
   <span className="mx-6 text-border select-none" aria-hidden="true">·</span>
 );
 
+const STALE_MS = 10 * 60 * 1000; // 10 min — matches server-side cache TTL
+
 export function PulseMercado() {
-  const { data: manchetes = [], isLoading } = useQuery<string[]>({
+  const { data: manchetes = [] } = useQuery<string[]>({
     queryKey: ["/api/pulse-mercado"],
+    staleTime: STALE_MS,
   });
 
-  if (isLoading) return null;
-  if (!manchetes.length) return null;
+  const { data: cotacoes = [] } = useQuery<string[]>({
+    queryKey: ["/api/cotacoes"],
+    staleTime: STALE_MS,
+  });
 
-  const tickerText = manchetes.join(" · ");
+  const items = [...cotacoes, ...manchetes];
+
+  if (!items.length) return null;
+
+  const tickerText = items.join(" · ");
 
   return (
     <div
@@ -40,9 +49,9 @@ export function PulseMercado() {
           aria-label={tickerText}
         >
           {/* Copy 1 + separador inter-cópia + Copy 2 + separador final para loop */}
-          <TickerContent manchetes={manchetes} />
+          <TickerContent items={items} />
           {DOT}
-          <TickerContent manchetes={manchetes} aria-hidden />
+          <TickerContent items={items} aria-hidden />
           {DOT}
         </div>
       </div>
@@ -51,15 +60,15 @@ export function PulseMercado() {
 }
 
 function TickerContent({
-  manchetes,
+  items,
   "aria-hidden": ariaHidden,
 }: {
-  manchetes: string[];
+  items: string[];
   "aria-hidden"?: true;
 }) {
   return (
     <span className="inline-flex items-center" aria-hidden={ariaHidden}>
-      {manchetes.map((texto, i) => (
+      {items.map((texto, i) => (
         <span key={i} className="inline-flex items-center">
           {i > 0 && DOT}
           <span className="text-xs text-foreground">{texto}</span>

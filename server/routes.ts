@@ -4451,6 +4451,79 @@ Responda em JSON:
 
   // ==================== PULSE DO MERCADO ====================
 
+  // In-memory cache for live market quotes (10-minute TTL)
+  let cotacoesCache: { items: string[]; cachedAt: number } | null = null;
+  const COTACOES_TTL_MS = 10 * 60 * 1000;
+
+  async function fetchCotacoes(): Promise<string[]> {
+    const now = Date.now();
+    if (cotacoesCache && now - cotacoesCache.cachedAt < COTACOES_TTL_MS) {
+      return cotacoesCache.items;
+    }
+
+    const items: string[] = [];
+
+    try {
+      const fxRes = await fetch("https://economia.awesomeapi.com.br/json/last/USD-BRL,EUR-BRL", {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (fxRes.ok) {
+        const fxData = await fxRes.json() as Record<string, { bid: string; pctChange: string }>;
+        const formatPct = (pct: string) => {
+          const n = parseFloat(pct);
+          const arrow = n >= 0 ? "▲" : "▼";
+          return `${arrow}${Math.abs(n).toFixed(2).replace(".", ",")}%`;
+        };
+        const formatBid = (bid: string) =>
+          parseFloat(bid).toFixed(2).replace(".", ",");
+
+        if (fxData.USDBRL) {
+          items.push(`USD/BRL ${formatBid(fxData.USDBRL.bid)} ${formatPct(fxData.USDBRL.pctChange)}`);
+        }
+        if (fxData.EURBRL) {
+          items.push(`EUR/BRL ${formatBid(fxData.EURBRL.bid)} ${formatPct(fxData.EURBRL.pctChange)}`);
+        }
+      }
+    } catch (e) {
+      console.warn("[cotacoes] AwesomeAPI fetch failed:", e);
+    }
+
+    const brapiToken = process.env.BRAPI_TOKEN;
+    if (brapiToken) {
+      try {
+        const bvspRes = await fetch(
+          `https://brapi.dev/api/quote/%5EBVSP?token=${brapiToken}`,
+          { signal: AbortSignal.timeout(5000) }
+        );
+        if (bvspRes.ok) {
+          const bvspData = await bvspRes.json() as { results?: Array<{ regularMarketPrice?: number; regularMarketChangePercent?: number }> };
+          const r = bvspData.results?.[0];
+          if (r?.regularMarketPrice !== undefined) {
+            const price = Math.round(r.regularMarketPrice).toLocaleString("pt-BR");
+            const pct = r.regularMarketChangePercent ?? 0;
+            const arrow = pct >= 0 ? "▲" : "▼";
+            items.push(`IBOVESPA ${price} ${arrow}${Math.abs(pct).toFixed(2).replace(".", ",")}%`);
+          }
+        }
+      } catch (e) {
+        console.warn("[cotacoes] BRAPI fetch failed:", e);
+      }
+    }
+
+    cotacoesCache = { items, cachedAt: now };
+    return items;
+  }
+
+  app.get("/api/cotacoes", requireAuth, async (_req, res) => {
+    try {
+      const items = await fetchCotacoes();
+      res.json(items);
+    } catch (err: any) {
+      console.error("[cotacoes]", err);
+      res.status(500).json({ error: "Erro interno" });
+    }
+  });
+
   app.get("/api/pulse-mercado", requireAuth, async (_req, res) => {
     try {
       const record = await storage.getContextoMacroByCategoria("pulse_manchetes");
@@ -5535,7 +5608,8 @@ Seja específico para o setor ${empresa.setor}.`,
 
   function calcularProximoAgendamento(frequencia: string, base: Date): Date {
     const d = new Date(base);
-    if (frequencia === "diario") d.setDate(d.getDate() + 1);
+    if (frequencia === "4h") d.setHours(d.getHours() + 4);
+    else if (frequencia === "diario") d.setDate(d.getDate() + 1);
     else if (frequencia === "semanal") d.setDate(d.getDate() + 7);
     else if (frequencia === "mensal") d.setDate(d.getDate() + 30);
     return d;

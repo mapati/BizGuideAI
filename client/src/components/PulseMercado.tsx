@@ -1,31 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
 
-interface PulseItem {
-  titulo: string;
-  resumo: string;
-  ultimaAtualizacao: string | null;
-}
-
-function truncar(text: string, max: number): string {
-  if (text.length <= max) return text;
-  return text.slice(0, max - 1).trimEnd() + "…";
-}
-
 const DOT = (
   <span className="mx-6 text-border select-none" aria-hidden="true">·</span>
 );
 
 export function PulseMercado() {
-  const { data: items = [], isLoading } = useQuery<PulseItem[]>({
+  const { data: manchetes = [], isLoading } = useQuery<string[]>({
     queryKey: ["/api/pulse-mercado"],
   });
 
   if (isLoading) return null;
-  if (!items.length) return null;
+  if (!manchetes.length) return null;
 
-  const tickerText = items
-    .map((item) => `${item.titulo} — ${truncar(item.resumo, 90)}`)
-    .join("   ·   ");
+  const tickerText = manchetes.join(" · ");
 
   return (
     <div
@@ -53,9 +40,9 @@ export function PulseMercado() {
           aria-label={tickerText}
         >
           {/* Copy 1 + separador inter-cópia + Copy 2 + separador final para loop */}
-          <TickerContent items={items} />
+          <TickerContent manchetes={manchetes} />
           {DOT}
-          <TickerContent items={items} aria-hidden />
+          <TickerContent manchetes={manchetes} aria-hidden />
           {DOT}
         </div>
       </div>
@@ -64,21 +51,18 @@ export function PulseMercado() {
 }
 
 function TickerContent({
-  items,
+  manchetes,
   "aria-hidden": ariaHidden,
 }: {
-  items: PulseItem[];
+  manchetes: string[];
   "aria-hidden"?: true;
 }) {
   return (
     <span className="inline-flex items-center" aria-hidden={ariaHidden}>
-      {items.map((item, i) => (
+      {manchetes.map((texto, i) => (
         <span key={i} className="inline-flex items-center">
           {i > 0 && DOT}
-          <span className="text-xs">
-            <span className="font-medium text-foreground">{item.titulo}</span>
-            <span className="text-muted-foreground"> — {truncar(item.resumo, 90)}</span>
-          </span>
+          <span className="text-xs text-foreground">{texto}</span>
         </span>
       ))}
     </span>

@@ -157,7 +157,8 @@ async function runStartupMigrations() {
         ('geopolitica_comercio_exterior', 'Geopolítica & Comércio Exterior'),
         ('crises_setoriais', 'Crises Setoriais'),
         ('tendencias_mercado', 'Tendências de Mercado'),
-        ('contexto_geral', 'Contexto Geral')
+        ('contexto_geral', 'Contexto Geral'),
+        ('pulse_manchetes', 'Manchetes & Mercado')
       ON CONFLICT (categoria) DO NOTHING
     `);
 

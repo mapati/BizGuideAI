@@ -4453,26 +4453,15 @@ Responda em JSON:
 
   app.get("/api/pulse-mercado", requireAuth, async (_req, res) => {
     try {
-      const ativos = await storage.getContextoMacroAtivos();
-      const items = ativos
-        .filter((c) => c.textoAtivo !== null && c.textoAtivo !== "")
-        .sort((a, b) => {
-          const ta = a.ultimaAtualizacao ? new Date(a.ultimaAtualizacao).getTime() : 0;
-          const tb = b.ultimaAtualizacao ? new Date(b.ultimaAtualizacao).getTime() : 0;
-          return tb - ta;
-        })
-        .map((c) => {
-          const primeiroParagrafo = (c.textoAtivo ?? "").split(/\n\n+/)[0].trim();
-          const resumo = primeiroParagrafo.length > 300
-            ? primeiroParagrafo.slice(0, 297) + "..."
-            : primeiroParagrafo;
-          return {
-            titulo: c.titulo,
-            resumo,
-            ultimaAtualizacao: c.ultimaAtualizacao,
-          };
-        });
-      res.json(items);
+      const record = await storage.getContextoMacroByCategoria("pulse_manchetes");
+      if (!record || !record.textoAtivo || record.textoAtivo.trim() === "") {
+        return res.json([]);
+      }
+      const manchetes = record.textoAtivo
+        .split("|")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      res.json(manchetes);
     } catch (err: any) {
       console.error("[pulse-mercado]", err);
       res.status(500).json({ error: "Erro interno" });
@@ -5541,6 +5530,7 @@ Seja específico para o setor ${empresa.setor}.`,
     crises_setoriais: `Pesquise CRISES e RISCOS SETORIAIS ATUAIS no Brasil com foco em impactos para PMEs. Inclua: setores em maior dificuldade (varejo, construção civil, indústria, agronegócio, serviços), dados recentes de falências e recuperações judiciais, problemas de cadeia de suprimento, greves ou paralisações, escassez de insumos ou mão de obra qualificada, e setores com oportunidades emergindo de reestruturações. Cite dados com datas. Responda em português do Brasil, máximo 400 palavras.`,
     tendencias_mercado: `Pesquise as principais TENDÊNCIAS DE MERCADO ATUAIS no Brasil relevantes para PMEs. Inclua: mudanças recentes no comportamento do consumidor brasileiro (pós-pandemia, digital, crédito), setores em crescimento acelerado (healthtech, agritech, fintechs, energia limpa, IA aplicada), expansão do e-commerce e marketplace, dados de investimento e venture capital no ecossistema brasileiro, e oportunidades identificadas por analistas e consultorias. Cite fontes e datas. Responda em português do Brasil, máximo 400 palavras.`,
     contexto_geral: `Faça uma síntese estratégica ATUAL do contexto macroeconômico e de negócios do Brasil voltado para gestores de PMEs. Com base em dados e notícias recentes, sintetize: perspectiva econômica geral (PIB, juros, câmbio, inflação), principais riscos operacionais e financeiros do momento, oportunidades concretas de crescimento, sentimento do empresariado (índices de confiança recentes), e 2 a 3 recomendações práticas de posicionamento estratégico para PMEs neste cenário. Cite dados com datas. Responda em português do Brasil, máximo 450 palavras.`,
+    pulse_manchetes: `Com base nas notícias e dados econômicos mais recentes encontrados, gere de 10 a 18 manchetes ultra-curtas sobre o mercado financeiro e de negócios brasileiro, separadas pelo caractere | (pipe). Cada manchete deve ter no máximo 70 caracteres. Inclua obrigatoriamente: cotação atual do dólar (USD/BRL) com variação percentual, valor atual do IBOVESPA com variação, taxa Selic vigente, IPCA acumulado mais recente, ao menos um preço de commodity relevante para o Brasil (soja, petróleo ou minério de ferro), e de 4 a 6 breaking news corporativas ou regulatórias relevantes para PMEs brasileiras. Use o estilo de letreiro de mercado financeiro: conciso, factual, sem artigos desnecessários. Exemplos de formato: "USD/BRL 5,82 ▲0,4%" | "IBOVESPA 131.204 ▼0,8%" | "Selic 14,75% a.a." | "IPCA +0,43% mar/25" | "Petróleo Brent USD 74,3/barril" | "Petrobras: lucro R$9,2bi no 1T25" | "STF suspende cobrança ICMS digital". Responda APENAS com as manchetes separadas por |, sem texto introdutório, sem numeração, sem explicações.`,
   };
 
   function calcularProximoAgendamento(frequencia: string, base: Date): Date {
@@ -5561,6 +5551,7 @@ Seja específico para o setor ${empresa.setor}.`,
     crises_setoriais:             "crises setoriais falências PME indústria varejo Brasil 2025",
     tendencias_mercado:           "tendências mercado consumidor e-commerce startups inovação Brasil 2025",
     contexto_geral:               "economia brasileira PIB risco negócio PME perspectiva 2025",
+    pulse_manchetes:              "dólar IBOVESPA Selic IPCA commodities manchetes negócios Brasil hoje",
   };
 
   async function gerarContextoCategoria(

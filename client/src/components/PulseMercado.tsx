@@ -25,11 +25,11 @@ export function PulseMercado() {
 
   return (
     <div
-      className="flex items-center h-9 border-y overflow-hidden bg-muted/20"
+      className="ticker-strip flex items-center h-9 border-y overflow-hidden bg-muted/20"
       data-testid="strip-pulse-mercado"
     >
       {/* Label fixo à esquerda */}
-      <div className="flex items-center gap-2 px-3 flex-shrink-0 border-r h-full">
+      <div className="flex items-center gap-2 px-3 flex-shrink-0 h-full">
         <span
           className="h-1.5 w-1.5 rounded-full bg-green-500 flex-shrink-0"
           style={{ animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite" }}
@@ -38,6 +38,7 @@ export function PulseMercado() {
         <span className="text-xs font-semibold tracking-widest uppercase text-muted-foreground select-none whitespace-nowrap">
           Pulse
         </span>
+        <span className="text-border select-none ml-1" aria-hidden="true">|</span>
       </div>
 
       {/* Ticker rolante */}

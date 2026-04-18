@@ -354,7 +354,7 @@
   will-change: transform;
 }
 
-.ticker-track:hover {
+.ticker-strip:hover .ticker-track {
   animation-play-state: paused;
 }
 

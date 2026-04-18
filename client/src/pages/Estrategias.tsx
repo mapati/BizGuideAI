@@ -12,10 +12,12 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/EmptyState";
 import { ExampleCard } from "@/components/ExampleCard";
 import { StrategyPicker } from "@/components/StrategyPicker";
-import { Target, Plus, Sparkles, Trash2, Pencil, ArrowUpRight, Shield, TrendingUp, AlertCircle, Tag, CheckCircle2, Clock, Play, Briefcase, Target as TargetIcon } from "lucide-react";
+import { Target, Plus, Sparkles, Trash2, Pencil, ArrowUpRight, Shield, TrendingUp, AlertCircle, Tag, CheckCircle2, Clock, Play, Briefcase, Target as TargetIcon, Link2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { PrerequisiteWarning } from "@/components/PrerequisiteWarning";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Estrategia {
   id: string;
@@ -74,6 +76,181 @@ const TipoIcon = ({ tipo }: { tipo: string }) => {
   return icons[tipo as keyof typeof icons] || null;
 };
 
+interface Vinculado {
+  iniciativas: Array<{ id: string; titulo: string; status: string; prioridade: string; progresso: number }>;
+  okrs: Array<{ id: string; titulo: string; perspectiva: string; encerrado: boolean; progresso: number }>;
+}
+
+function ProgressBar({ value, className = "", "data-testid": testId }: { value: number; className?: string; "data-testid"?: string }) {
+  return (
+    <div className={`flex items-center gap-2 ${className}`} data-testid={testId}>
+      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+        <div
+          className="h-full bg-primary rounded-full transition-all"
+          style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
+        />
+      </div>
+      <span className="text-xs text-muted-foreground tabular-nums w-8 text-right">{value}%</span>
+    </div>
+  );
+}
+
+const INICIATIVA_STATUS_LABELS: Record<string, string> = {
+  planejada: "Planejada",
+  em_andamento: "Em andamento",
+  concluida: "Concluída",
+  cancelada: "Cancelada",
+};
+
+const INICIATIVA_PRIORIDADE_CLASSES: Record<string, string> = {
+  alta: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+  média: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+  baixa: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+};
+
+function VinculadosSheet({
+  open,
+  onClose,
+  estrategia,
+}: {
+  open: boolean;
+  onClose: () => void;
+  estrategia: Estrategia | null;
+}) {
+  const { data: vinculados, isLoading, isError } = useQuery<Vinculado>({
+    queryKey: ["/api/estrategias", estrategia?.id, "vinculados"],
+    queryFn: async () => {
+      const res = await fetch(`/api/estrategias/${estrategia!.id}/vinculados`, { credentials: "include" });
+      if (!res.ok) throw new Error("Erro ao carregar itens vinculados");
+      return res.json();
+    },
+    enabled: open && !!estrategia?.id,
+    staleTime: 30000,
+  });
+
+  return (
+    <Sheet open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <SheetContent className="w-full sm:max-w-lg overflow-y-auto" data-testid="sheet-vinculados">
+        <SheetHeader className="mb-4">
+          <SheetTitle className="flex items-center gap-2">
+            <Link2 className="h-4 w-4" />
+            Vinculados à estratégia
+          </SheetTitle>
+          {estrategia && (
+            <p className="text-sm text-muted-foreground line-clamp-2">{estrategia.titulo}</p>
+          )}
+        </SheetHeader>
+
+        {isError ? (
+          <div className="flex flex-col items-center gap-2 py-8 text-center" data-testid="error-vinculados">
+            <AlertCircle className="h-8 w-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Não foi possível carregar os itens vinculados. Tente fechar e abrir novamente.</p>
+          </div>
+        ) : isLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map(i => (
+              <Skeleton key={i} className="h-16 w-full rounded-md" />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <section>
+              <div className="flex items-center gap-2 mb-3">
+                <Briefcase className="h-4 w-4 text-muted-foreground" />
+                <h3 className="font-medium text-sm">
+                  Iniciativas{" "}
+                  <span className="text-muted-foreground font-normal">
+                    ({vinculados?.iniciativas.length ?? 0})
+                  </span>
+                </h3>
+              </div>
+              {!vinculados?.iniciativas.length ? (
+                <p className="text-sm text-muted-foreground py-2 pl-1" data-testid="empty-iniciativas">
+                  Nenhuma iniciativa vinculada a esta estratégia.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {vinculados.iniciativas.map(ini => (
+                    <div
+                      key={ini.id}
+                      className="rounded-md border p-3"
+                      data-testid={`vinculado-iniciativa-${ini.id}`}
+                    >
+                      <p className="text-sm font-medium leading-tight mb-2">{ini.titulo}</p>
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <Badge
+                          className={INICIATIVA_PRIORIDADE_CLASSES[ini.prioridade] ?? ""}
+                          data-testid={`badge-prioridade-ini-${ini.id}`}
+                        >
+                          {ini.prioridade.charAt(0).toUpperCase() + ini.prioridade.slice(1)}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          {ini.status === "concluida" ? (
+                            <CheckCircle2 className="h-3 w-3 text-green-500" />
+                          ) : ini.status === "em_andamento" ? (
+                            <Play className="h-3 w-3 text-blue-500" />
+                          ) : (
+                            <Clock className="h-3 w-3" />
+                          )}
+                          {INICIATIVA_STATUS_LABELS[ini.status] ?? ini.status}
+                        </span>
+                      </div>
+                      <ProgressBar value={ini.progresso} data-testid={`progress-iniciativa-${ini.id}`} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section>
+              <div className="flex items-center gap-2 mb-3">
+                <TargetIcon className="h-4 w-4 text-muted-foreground" />
+                <h3 className="font-medium text-sm">
+                  OKRs{" "}
+                  <span className="text-muted-foreground font-normal">
+                    ({vinculados?.okrs.length ?? 0})
+                  </span>
+                </h3>
+              </div>
+              {!vinculados?.okrs.length ? (
+                <p className="text-sm text-muted-foreground py-2 pl-1" data-testid="empty-okrs">
+                  Nenhum OKR vinculado a esta estratégia.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {vinculados.okrs.map(okr => (
+                    <div
+                      key={okr.id}
+                      className="rounded-md border p-3"
+                      data-testid={`vinculado-okr-${okr.id}`}
+                    >
+                      <p className="text-sm font-medium leading-tight mb-2">{okr.titulo}</p>
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <Badge variant="outline" className="text-xs">
+                          {okr.perspectiva}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                          {okr.encerrado ? (
+                            <CheckCircle2 className="h-3 w-3 text-green-500" />
+                          ) : (
+                            <Play className="h-3 w-3 text-blue-500" />
+                          )}
+                          {okr.encerrado ? "Encerrado" : "Em andamento"}
+                        </span>
+                      </div>
+                      <ProgressBar value={okr.progresso} data-testid={`progress-okr-${okr.id}`} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 function EstrategiaCard({
   item,
   swotItens,
@@ -87,6 +264,8 @@ function EstrategiaCard({
   onDelete: (id: string) => void;
   onStatusChange: (id: string, status: string) => void;
 }) {
+  const [vinculadosOpen, setVinculadosOpen] = useState(false);
+
   const { data: contadores } = useQuery<{ iniciativas: number; okrs: number }>({
     queryKey: ["/api/estrategias", item.id, "contadores"],
     queryFn: () => fetch(`/api/estrategias/${item.id}/contadores`, { credentials: "include" }).then(r => r.json()),
@@ -109,89 +288,105 @@ function EstrategiaCard({
   const statusCfg = STATUS_CONFIG[statusKey];
   const StatusIcon = statusCfg.icon;
 
+  const hasVinculados = contadores && (contadores.iniciativas > 0 || contadores.okrs > 0);
+
   return (
-    <Card className="p-4" data-testid={`estrategia-${item.id}`}>
-      <div className="flex justify-between items-start gap-2 mb-2">
-        <h4 className="font-medium text-sm flex-1">{item.titulo}</h4>
-        <div className="flex gap-1 shrink-0">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => onEdit(item)}
-            data-testid={`button-edit-${item.id}`}
-          >
-            <Pencil className="h-3 w-3" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => onDelete(item.id)}
-            data-testid={`button-delete-${item.id}`}
-          >
-            <Trash2 className="h-3 w-3" />
-          </Button>
-        </div>
-      </div>
-
-      <p className="text-sm text-muted-foreground mb-3">{item.descricao}</p>
-
-      {swotOrigemTextos.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-3">
-          {swotOrigemTextos.map((texto, j) => (
-            <span
-              key={j}
-              className="inline-flex items-center gap-1 text-xs bg-muted text-muted-foreground rounded px-2 py-0.5"
+    <>
+      <VinculadosSheet
+        open={vinculadosOpen}
+        onClose={() => setVinculadosOpen(false)}
+        estrategia={vinculadosOpen ? item : null}
+      />
+      <Card className="p-4" data-testid={`estrategia-${item.id}`}>
+        <div className="flex justify-between items-start gap-2 mb-2">
+          <h4 className="font-medium text-sm flex-1">{item.titulo}</h4>
+          <div className="flex gap-1 shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onEdit(item)}
+              data-testid={`button-edit-${item.id}`}
             >
-              <Tag className="h-2.5 w-2.5 shrink-0" />
-              {texto.length > 45 ? texto.slice(0, 45) + "…" : texto}
-            </span>
-          ))}
-        </div>
-      )}
-
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <PrioridadeBadge prioridade={item.prioridade} />
-
-        <div className="flex items-center gap-3">
-          {contadores && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Briefcase className="h-3 w-3" />
-                {contadores.iniciativas} iniciativa{contadores.iniciativas !== 1 ? "s" : ""}
-              </span>
-              <span className="flex items-center gap-1">
-                <TargetIcon className="h-3 w-3" />
-                {contadores.okrs} OKR{contadores.okrs !== 1 ? "s" : ""}
-              </span>
-            </div>
-          )}
-
-          <Select
-            value={item.status ?? "planejada"}
-            onValueChange={(v) => onStatusChange(item.id, v)}
-          >
-            <SelectTrigger
-              className="h-7 text-xs w-auto gap-1 border-0 bg-transparent px-1 focus:ring-0"
-              data-testid={`select-status-${item.id}`}
+              <Pencil className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onDelete(item.id)}
+              data-testid={`button-delete-${item.id}`}
             >
-              <StatusIcon className={`h-3 w-3 ${statusCfg.className}`} />
-              <span className={statusCfg.className}>{statusCfg.label}</span>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="planejada">
-                <span className="flex items-center gap-1.5"><Clock className="h-3 w-3" /> Planejada</span>
-              </SelectItem>
-              <SelectItem value="em_andamento">
-                <span className="flex items-center gap-1.5"><Play className="h-3 w-3" /> Em andamento</span>
-              </SelectItem>
-              <SelectItem value="concluida">
-                <span className="flex items-center gap-1.5"><CheckCircle2 className="h-3 w-3" /> Concluída</span>
-              </SelectItem>
-            </SelectContent>
-          </Select>
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </div>
         </div>
-      </div>
-    </Card>
+
+        <p className="text-sm text-muted-foreground mb-3">{item.descricao}</p>
+
+        {swotOrigemTextos.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-3">
+            {swotOrigemTextos.map((texto, j) => (
+              <span
+                key={j}
+                className="inline-flex items-center gap-1 text-xs bg-muted text-muted-foreground rounded px-2 py-0.5"
+              >
+                <Tag className="h-2.5 w-2.5 shrink-0" />
+                {texto.length > 45 ? texto.slice(0, 45) + "…" : texto}
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <PrioridadeBadge prioridade={item.prioridade} />
+
+          <div className="flex items-center gap-3">
+            {contadores && (
+              <button
+                onClick={() => setVinculadosOpen(true)}
+                className="flex items-center gap-2 text-xs text-muted-foreground hover-elevate rounded px-1.5 py-1"
+                data-testid={`button-ver-vinculados-${item.id}`}
+                title="Ver vinculados"
+                aria-label="Ver vinculados"
+              >
+                <span className="flex items-center gap-1">
+                  <Briefcase className="h-3 w-3" />
+                  {contadores.iniciativas}
+                </span>
+                <span className="flex items-center gap-1">
+                  <TargetIcon className="h-3 w-3" />
+                  {contadores.okrs}
+                </span>
+                {hasVinculados && <Link2 className="h-3 w-3 opacity-60" />}
+              </button>
+            )}
+
+            <Select
+              value={item.status ?? "planejada"}
+              onValueChange={(v) => onStatusChange(item.id, v)}
+            >
+              <SelectTrigger
+                className="h-7 text-xs w-auto gap-1 border-0 bg-transparent px-1 focus:ring-0"
+                data-testid={`select-status-${item.id}`}
+              >
+                <StatusIcon className={`h-3 w-3 ${statusCfg.className}`} />
+                <span className={statusCfg.className}>{statusCfg.label}</span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="planejada">
+                  <span className="flex items-center gap-1.5"><Clock className="h-3 w-3" /> Planejada</span>
+                </SelectItem>
+                <SelectItem value="em_andamento">
+                  <span className="flex items-center gap-1.5"><Play className="h-3 w-3" /> Em andamento</span>
+                </SelectItem>
+                <SelectItem value="concluida">
+                  <span className="flex items-center gap-1.5"><CheckCircle2 className="h-3 w-3" /> Concluída</span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </Card>
+    </>
   );
 }
 

@@ -3260,6 +3260,22 @@ ${ctx.join("\n\n")}`;
     }
   });
 
+  app.get("/api/estrategias/:id/vinculados", async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId;
+      if (!empresaId) return res.status(401).json({ error: "Não autenticado" });
+      const { id } = req.params;
+      const estrategia = await storage.getEstrategia(id);
+      if (!estrategia || estrategia.empresaId !== empresaId) {
+        return res.status(404).json({ error: "Estratégia não encontrada" });
+      }
+      const vinculados = await storage.getEstrategiaVinculados(id, empresaId);
+      res.json(vinculados);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/ai/gerar-estrategias", async (req, res) => {
     try {
       const empresaId = req.session.empresaId!;

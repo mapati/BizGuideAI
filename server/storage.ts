@@ -186,6 +186,10 @@ export interface IStorage {
   updateEstrategia(id: string, empresaId: string, estrategia: Partial<InsertEstrategia>): Promise<Estrategia>;
   deleteEstrategia(id: string, empresaId: string): Promise<void>;
   getEstrategiaContadores(estrategiaId: string, empresaId: string): Promise<{ iniciativas: number; okrs: number }>;
+  getEstrategiaVinculados(estrategiaId: string, empresaId: string): Promise<{
+    iniciativas: Array<{ id: string; titulo: string; status: string; prioridade: string; progresso: number }>;
+    okrs: Array<{ id: string; titulo: string; perspectiva: string; encerrado: boolean; progresso: number }>;
+  }>;
   
   getOportunidadesCrescimento(empresaId: string): Promise<OportunidadeCrescimento[]>;
   createOportunidadeCrescimento(oportunidade: InsertOportunidadeCrescimento): Promise<OportunidadeCrescimento>;
@@ -695,6 +699,63 @@ export class DbStorage implements IStorage {
     return {
       iniciativas: iniciativasCount?.count ?? 0,
       okrs: okrsCount?.count ?? 0,
+    };
+  }
+
+  async getEstrategiaVinculados(estrategiaId: string, empresaId: string): Promise<{
+    iniciativas: Array<{ id: string; titulo: string; status: string; prioridade: string; progresso: number }>;
+    okrs: Array<{ id: string; titulo: string; perspectiva: string; encerrado: boolean; progresso: number }>;
+  }> {
+    const statusProgresso: Record<string, number> = {
+      planejada: 0,
+      em_andamento: 50,
+      concluida: 100,
+      cancelada: 0,
+    };
+
+    const iniciativasRows = await db
+      .select({ id: iniciativas.id, titulo: iniciativas.titulo, status: iniciativas.status, prioridade: iniciativas.prioridade })
+      .from(iniciativas)
+      .where(and(eq(iniciativas.estrategiaId, estrategiaId), eq(iniciativas.empresaId, empresaId)));
+
+    const okrsRows = await db
+      .select({ id: objetivos.id, titulo: objetivos.titulo, perspectiva: objetivos.perspectiva, encerrado: objetivos.encerrado })
+      .from(objetivos)
+      .where(and(eq(objetivos.estrategiaId, estrategiaId), eq(objetivos.empresaId, empresaId)));
+
+    const okrIds = okrsRows.map(o => o.id);
+    let krsRows: Array<{ objetivoId: string; valorInicial: string; valorAlvo: string; valorAtual: string }> = [];
+    if (okrIds.length > 0) {
+      krsRows = await db
+        .select({ objetivoId: resultadosChave.objetivoId, valorInicial: resultadosChave.valorInicial, valorAlvo: resultadosChave.valorAlvo, valorAtual: resultadosChave.valorAtual })
+        .from(resultadosChave)
+        .where(inArray(resultadosChave.objetivoId, okrIds));
+    }
+
+    const okrsComProgresso = okrsRows.map(okr => {
+      const krs = krsRows.filter(kr => kr.objetivoId === okr.id);
+      let progresso = 0;
+      if (okr.encerrado) {
+        progresso = 100;
+      } else if (krs.length > 0) {
+        const soma = krs.reduce((acc, kr) => {
+          const ini = parseFloat(kr.valorInicial);
+          const alvo = parseFloat(kr.valorAlvo);
+          const atual = parseFloat(kr.valorAtual);
+          if (alvo === ini) return acc + (atual >= alvo ? 100 : 0);
+          return acc + Math.min(100, Math.max(0, Math.round(((atual - ini) / (alvo - ini)) * 100)));
+        }, 0);
+        progresso = Math.round(soma / krs.length);
+      }
+      return { ...okr, encerrado: okr.encerrado ?? false, progresso };
+    });
+
+    return {
+      iniciativas: iniciativasRows.map(ini => ({
+        ...ini,
+        progresso: statusProgresso[ini.status] ?? 0,
+      })),
+      okrs: okrsComProgresso,
     };
   }
 

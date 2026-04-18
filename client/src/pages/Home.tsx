@@ -621,14 +621,6 @@ export default function Home() {
           <div className="flex items-center gap-2">
             <BrazilFlag className="h-4 w-4 flex-shrink-0" />
             <span className="font-medium text-sm">Análise do Cenário Brasileiro Atual</span>
-            <Badge
-              variant="secondary"
-              className="flex items-center gap-1 text-xs px-1.5 py-0 no-default-hover-elevate no-default-active-elevate"
-              data-testid="badge-gerado-por-ia"
-            >
-              <Sparkles className="h-2.5 w-2.5" />
-              Gerado por IA
-            </Badge>
           </div>
           <ChevronDown
             className={`h-4 w-4 text-muted-foreground transition-transform duration-200 flex-shrink-0 ${cenarioOpen ? "rotate-180" : ""}`}
@@ -637,13 +629,9 @@ export default function Home() {
 
         {cenarioOpen && (
           <div className="px-5 pb-5 border-t">
-            <div className="flex items-center justify-end pt-3 mb-3">
-              <Link href="/contexto-macro">
-                <Button size="sm" variant="ghost" data-testid="button-ver-contexto-macro">
-                  Motor de Contexto
-                  <ChevronRight className="h-3 w-3 ml-1" />
-                </Button>
-              </Link>
+            <div className="flex items-center gap-1.5 pt-3 mb-3">
+              <Sparkles className="h-3 w-3 text-muted-foreground/50" />
+              <span className="text-xs text-muted-foreground/50" data-testid="badge-gerado-por-ia">Gerado por IA</span>
             </div>
             {loadingCenario ? (
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -841,7 +829,7 @@ export default function Home() {
               <Clock className="h-4 w-4 text-muted-foreground" />
               <h3 className="font-semibold">Rituais de Gestão</h3>
             </div>
-            <Link href="/acompanhamento">
+            <Link href="/ritos">
               <Button size="sm" variant="ghost" data-testid="button-ver-acompanhamento">
                 Ver acompanhamento
                 <ChevronRight className="h-3 w-3 ml-1" />
@@ -855,7 +843,7 @@ export default function Home() {
             <div className="text-center py-4 space-y-2">
               <Circle className="h-8 w-8 text-muted-foreground/30 mx-auto" />
               <p className="text-sm text-muted-foreground">Nenhum ritual de gestão configurado</p>
-              <Link href="/acompanhamento">
+              <Link href="/ritos">
                 <Button size="sm" variant="outline" data-testid="button-configurar-rituais">
                   Configurar rituais
                 </Button>

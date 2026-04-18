@@ -5,6 +5,7 @@ import { sendVerificationEmail, sendPasswordResetEmail } from "./email";
 import { criarAssinatura, buscarAssinatura, cancelarAssinatura, buscarPagamento, motivoLegivel, validarAssinaturaWebhook, PLANOS_MP, type PlanoTipo, type MpSubscription, type MpPayment } from "./mp";
 import { randomBytes, createHash } from "crypto";
 import cron from "node-cron";
+import { runGithubPush, getPushLogs, startGithubScheduler, stopGithubScheduler, type PushFrequencia } from "./github-scheduler";
 import { 
   insertEmpresaSchema,
   PLAN_LIMITS,
@@ -1213,6 +1214,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
+  });
+
+  // ── GitHub Auto-Push config (admin only via /api/admin middleware) ──
+  app.get("/api/admin/github-config", async (_req, res) => {
+    try {
+      const config = await storage.getConfigSistema();
+      res.json({
+        enabled: config?.githubAutoPushEnabled ?? false,
+        frequencia: config?.githubAutoPushFrequencia ?? "diario",
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.patch("/api/admin/github-config", async (req, res) => {
+    try {
+      const schema = z.object({
+        enabled: z.boolean().optional(),
+        frequencia: z.enum(["1h", "6h", "diario"]).optional(),
+      });
+      const data = schema.parse(req.body);
+      const updated = await storage.upsertConfigSistema({
+        ...(data.enabled !== undefined ? { githubAutoPushEnabled: data.enabled } : {}),
+        ...(data.frequencia !== undefined ? { githubAutoPushFrequencia: data.frequencia } : {}),
+      });
+      if (updated.githubAutoPushEnabled) {
+        startGithubScheduler(updated.githubAutoPushFrequencia as PushFrequencia);
+      } else {
+        stopGithubScheduler();
+      }
+      res.json({
+        enabled: updated.githubAutoPushEnabled,
+        frequencia: updated.githubAutoPushFrequencia,
+      });
+    } catch (e: any) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/admin/github-push-now", async (_req, res) => {
+    try {
+      const log = await runGithubPush("manual");
+      res.json(log);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/admin/github-push-logs", (_req, res) => {
+    res.json(getPushLogs());
   });
 
   // All routes below require authentication
@@ -6058,6 +6110,18 @@ Seja específico para o setor ${empresa.setor}.`,
       console.error("[CONTEXTO_MACRO] Erro no scheduler:", err?.message ?? err);
     }
   });
+
+  /* ── Inicializa o agendador de push do GitHub (se ativo no banco) ── */
+  (async () => {
+    try {
+      const config = await storage.getConfigSistema();
+      if (config?.githubAutoPushEnabled) {
+        startGithubScheduler((config.githubAutoPushFrequencia as PushFrequencia) ?? "diario");
+      }
+    } catch (e: any) {
+      console.error("[GITHUB_SCHEDULER] Falha ao inicializar agendador:", e?.message ?? e);
+    }
+  })();
 
   const httpServer = createServer(app);
   return httpServer;

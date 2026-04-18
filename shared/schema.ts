@@ -543,6 +543,8 @@ export const configSistema = pgTable("config_sistema", {
   cep: text("cep").notNull().default(""),
   email: text("email").notNull().default(""),
   atualizadoEm: timestamp("atualizado_em").defaultNow().notNull(),
+  githubAutoPushEnabled: boolean("github_auto_push_enabled").notNull().default(false),
+  githubAutoPushFrequencia: text("github_auto_push_frequencia").notNull().default("diario"),
 });
 export type ConfigSistema = typeof configSistema.$inferSelect;
 

@@ -234,6 +234,10 @@ async function runStartupMigrations() {
       )
     `);
 
+    // Task #119 — GitHub auto-push scheduler config
+    await client.query(`ALTER TABLE config_sistema ADD COLUMN IF NOT EXISTS github_auto_push_enabled BOOLEAN NOT NULL DEFAULT false`);
+    await client.query(`ALTER TABLE config_sistema ADD COLUMN IF NOT EXISTS github_auto_push_frequencia TEXT NOT NULL DEFAULT 'diario'`);
+
     // Seed: ensure the platform admin from env vars exists and has the correct password
     const adminEmail = process.env.ADMIN_EMAIL;
     const adminSenha = process.env.ADMIN_SENHA;

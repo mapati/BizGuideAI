@@ -136,6 +136,20 @@ bash scripts/push-github.sh "mensagem de commit"
 - O script detecta automaticamente a branch atual e empurra para `origin`.
 - O remote `origin` já está configurado com autenticação para `https://github.com/mapati/BizGuideAI.git`.
 
+### Agendador Automático de Push para o GitHub (Task #119)
+
+**Configuração via Admin panel** — aba "GitHub" em `/admin`.
+
+- **Ativar/desativar:** botão toggle na aba GitHub do painel de administração.
+- **Frequências disponíveis:** a cada 1 hora (`0 * * * *`), a cada 6 horas (`0 */6 * * *`), uma vez por dia às 02:00 UTC (`0 2 * * *`).
+- **Histórico de execuções:** os últimos 50 pushes ficam registrados em memória (últimos 50) com timestamp, resultado (sucesso / erro / sem_alteracoes) e mensagem detalhada.
+- **Push manual:** botão "Fazer push agora" aciona o script imediatamente sem afetar o agendamento.
+- **Erros não são silenciosos:** qualquer falha no script aparece no histórico e no `console.error` do servidor.
+- **Persistência da config:** o estado de ativação e a frequência são persistidos na tabela `config_sistema` (campos `github_auto_push_enabled`, `github_auto_push_frequencia`). Ao reiniciar o servidor, o agendador é reiniciado automaticamente se estava ativo.
+- **Módulo:** `server/github-scheduler.ts` — exporta `runGithubPush`, `startGithubScheduler`, `stopGithubScheduler`, `getPushLogs`.
+- **API routes (admin only):** `GET/PATCH /api/admin/github-config`, `POST /api/admin/github-push-now`, `GET /api/admin/github-push-logs`.
+- **Design choice:** o agendador usa `node-cron` em-processo (não um workflow do `.replit`), pois a frequência é configurável em runtime via banco de dados. Um workflow `.replit` exigiria editar o arquivo manualmente para mudar a frequência. Os logs de push são apenas em memória (até 50 entradas); reinicializações do servidor limpam o histórico — veja Task #120 para persistência em banco.
+
 ## External Dependencies
 
 **AI Integration:**

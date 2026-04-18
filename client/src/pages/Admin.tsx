@@ -44,6 +44,11 @@ import {
   Search,
   Building2,
   MapPin,
+  GitBranch,
+  Play,
+  CircleCheck,
+  CircleX,
+  Minus,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -1447,6 +1452,198 @@ function TabDadosFiscais() {
   );
 }
 
+interface GithubConfig {
+  enabled: boolean;
+  frequencia: "1h" | "6h" | "diario";
+}
+
+interface PushLog {
+  executadoEm: string;
+  resultado: "sucesso" | "erro" | "sem_alteracoes";
+  mensagem: string;
+}
+
+function TabGithub() {
+  const { toast } = useToast();
+
+  const { data: config, isLoading: loadingConfig } = useQuery<GithubConfig>({
+    queryKey: ["/api/admin/github-config"],
+  });
+
+  const { data: logs = [], isLoading: loadingLogs, refetch: refetchLogs } = useQuery<PushLog[]>({
+    queryKey: ["/api/admin/github-push-logs"],
+    refetchInterval: 30000,
+  });
+
+  const saveConfig = useMutation({
+    mutationFn: (data: Partial<GithubConfig>) =>
+      apiRequest("PATCH", "/api/admin/github-config", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/github-config"] });
+      toast({ title: "Configuração salva", description: "Agendamento de push do GitHub atualizado." });
+    },
+    onError: (e: Error) =>
+      toast({ title: "Erro ao salvar", description: e.message, variant: "destructive" }),
+  });
+
+  const pushNow = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/admin/github-push-now", {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/github-push-logs"] });
+      toast({ title: "Push executado", description: "O envio para o GitHub foi acionado." });
+    },
+    onError: (e: Error) =>
+      toast({ title: "Erro no push", description: e.message, variant: "destructive" }),
+  });
+
+  if (loadingConfig) {
+    return <div className="text-sm text-muted-foreground py-8 text-center">Carregando...</div>;
+  }
+
+  const enabled = config?.enabled ?? false;
+  const frequencia = config?.frequencia ?? "diario";
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <div className="flex items-start gap-3 p-4 rounded-md border bg-muted/40">
+        <GitBranch className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+        <div>
+          <p className="text-sm font-medium">Push Automático para o GitHub</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Envie as alterações do projeto para o repositório GitHub automaticamente em horários fixos.
+            Erros de push ficam registrados no histórico abaixo.
+          </p>
+        </div>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Configuração do Agendamento</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium">Push automático ativo</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Quando ativo, o script é executado periodicamente conforme a frequência escolhida.
+              </p>
+            </div>
+            <Button
+              variant={enabled ? "default" : "outline"}
+              size="sm"
+              disabled={saveConfig.isPending}
+              onClick={() => saveConfig.mutate({ enabled: !enabled })}
+              data-testid="button-toggle-github-push"
+            >
+              {enabled ? "Ativado" : "Desativado"}
+            </Button>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="select-frequencia">Frequência do push</Label>
+            <Select
+              value={frequencia}
+              onValueChange={(v) => saveConfig.mutate({ frequencia: v as GithubConfig["frequencia"] })}
+              disabled={saveConfig.isPending}
+            >
+              <SelectTrigger id="select-frequencia" data-testid="select-github-frequencia">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1h">A cada 1 hora</SelectItem>
+                <SelectItem value="6h">A cada 6 horas</SelectItem>
+                <SelectItem value="diario">Uma vez por dia (02:00)</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              O agendamento utiliza o horário UTC do servidor.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
+          <CardTitle className="text-base">Ações Manuais</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Button
+            onClick={() => pushNow.mutate()}
+            disabled={pushNow.isPending}
+            data-testid="button-github-push-now"
+          >
+            <Play className="h-4 w-4 mr-2" />
+            {pushNow.isPending ? "Enviando..." : "Fazer push agora"}
+          </Button>
+          <p className="text-xs text-muted-foreground mt-2">
+            Executa o script de push imediatamente, independente do agendamento.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-3">
+          <CardTitle className="text-base">Histórico de Pushes</CardTitle>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => refetchLogs()}
+            disabled={loadingLogs}
+            data-testid="button-refresh-push-logs"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {logs.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">
+              Nenhum push registrado ainda.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {logs.map((log, i) => (
+                <div
+                  key={i}
+                  className="flex items-start gap-3 p-3 rounded-md border text-sm"
+                  data-testid={`row-push-log-${i}`}
+                >
+                  <div className="shrink-0 mt-0.5">
+                    {log.resultado === "sucesso" && <CircleCheck className="h-4 w-4 text-green-600 dark:text-green-400" />}
+                    {log.resultado === "erro" && <CircleX className="h-4 w-4 text-destructive" />}
+                    {log.resultado === "sem_alteracoes" && <Minus className="h-4 w-4 text-muted-foreground" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-muted-foreground">
+                      {format(new Date(log.executadoEm), "dd/MM/yyyy HH:mm:ss", { locale: ptBR })}
+                    </p>
+                    <p className="mt-0.5 break-words">{log.mensagem}</p>
+                  </div>
+                  <Badge
+                    variant={
+                      log.resultado === "sucesso"
+                        ? "default"
+                        : log.resultado === "erro"
+                        ? "destructive"
+                        : "secondary"
+                    }
+                    className="shrink-0"
+                  >
+                    {log.resultado === "sucesso"
+                      ? "Sucesso"
+                      : log.resultado === "erro"
+                      ? "Erro"
+                      : "Sem alterações"}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function Admin() {
   const { user } = useAuth();
 
@@ -1505,6 +1702,10 @@ export default function Admin() {
             <Building2 className="h-4 w-4 mr-2" />
             Dados Fiscais
           </TabsTrigger>
+          <TabsTrigger value="github" data-testid="tab-github">
+            <GitBranch className="h-4 w-4 mr-2" />
+            GitHub
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="resumo" className="mt-4">
@@ -1525,6 +1726,10 @@ export default function Admin() {
 
         <TabsContent value="dados-fiscais" className="mt-4">
           <TabDadosFiscais />
+        </TabsContent>
+
+        <TabsContent value="github" className="mt-4">
+          <TabGithub />
         </TabsContent>
       </Tabs>
     </div>

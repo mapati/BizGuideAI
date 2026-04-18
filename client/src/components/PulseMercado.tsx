@@ -15,6 +15,7 @@ export function PulseMercado() {
   const { data: cotacoes = [] } = useQuery<string[]>({
     queryKey: ["/api/cotacoes"],
     staleTime: STALE_MS,
+    refetchInterval: STALE_MS,
   });
 
   const items = [...cotacoes, ...manchetes];

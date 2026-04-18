@@ -36,7 +36,6 @@ import {
   Compass,
   Map,
   Zap,
-  Globe2,
   Clock,
   FileDown,
   RefreshCw,
@@ -576,7 +575,11 @@ export default function Home() {
           aria-expanded={cenarioOpen}
         >
           <div className="flex items-center gap-2">
-            <Globe2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            <svg viewBox="0 0 40 28" className="h-4 w-auto flex-shrink-0" aria-hidden="true">
+              <rect width="40" height="28" rx="2" fill="#009C3B" />
+              <polygon points="20,4 36,14 20,24 4,14" fill="#FFDF00" />
+              <circle cx="20" cy="14" r="6.5" fill="#002776" />
+            </svg>
             <span className="font-medium text-sm">Análise do Cenário Brasileiro Atual</span>
             <Badge
               variant="secondary"
@@ -606,7 +609,11 @@ export default function Home() {
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             ) : !cenarioAtual ? (
               <div className="text-center py-4 space-y-2">
-                <Globe2 className="h-8 w-8 text-muted-foreground/30 mx-auto" />
+                <svg viewBox="0 0 40 28" className="h-8 w-auto mx-auto opacity-30" aria-hidden="true">
+                  <rect width="40" height="28" rx="2" fill="#009C3B" />
+                  <polygon points="20,4 36,14 20,24 4,14" fill="#FFDF00" />
+                  <circle cx="20" cy="14" r="6.5" fill="#002776" />
+                </svg>
                 <p className="text-sm text-muted-foreground">Contexto macroeconômico ainda não gerado.</p>
                 <Link href="/contexto-macro">
                   <Button size="sm" variant="outline" data-testid="button-ir-motor-contexto">

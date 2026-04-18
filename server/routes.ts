@@ -5676,11 +5676,12 @@ Seja específico para o setor ${empresa.setor}.`,
       const record = await storage.getContextoMacroByCategoria(categoria);
       const customQuery = record?.queryBusca?.trim();
 
-      // Duas buscas paralelas para cobertura ampla; se admin definiu query customizada,
-      // usamos ela sozinha e pulamos a segunda (evitar duplicatas semânticas).
+      // Duas buscas paralelas para cobertura ampla.
+      // Se admin definiu queryBusca customizada, ela substitui a primeira query-padrão
+      // mas a segunda (negócios/PME) sempre roda para garantir diversidade de temas.
       const [macroNews, negociosNews] = await Promise.all([
         serperNewsSearch(customQuery ?? "mercado financeiro economia Brasil hoje", 10),
-        customQuery ? Promise.resolve([] as SerperNewsItem[]) : serperNewsSearch("negócios empresas PME Brasil hoje", 8),
+        serperNewsSearch("negócios empresas PME Brasil hoje", 8),
       ]);
 
       // Mescla e deduplica por prefixo do título (primeiros 40 chars, case-insensitive)
@@ -5692,9 +5693,9 @@ Seja específico para o setor ${empresa.setor}.`,
         const dedupeKey = title.toLowerCase().slice(0, 40);
         if (seen.has(dedupeKey)) continue;
         seen.add(dedupeKey);
-        // Formato: "Veículo · Título" (max 90 chars total para caber no ticker)
+        // Formato: "Veículo · Título" (max 80 chars total para caber no ticker)
         const prefix = item.source ? `${item.source} · ` : "";
-        const maxTitle = 90 - prefix.length;
+        const maxTitle = 80 - prefix.length;
         const truncated = title.length > maxTitle ? title.slice(0, maxTitle - 1) + "…" : title;
         manchetes.push(`${prefix}${truncated}`);
         if (manchetes.length >= 18) break;
@@ -5837,7 +5838,10 @@ Seja específico para o setor ${empresa.setor}.`,
         executadoEm: agora,
         modo,
         resultado: "sucesso",
-        mensagem: modo === "web_search" ? "Gerado com busca na web" : "Gerado sem busca na web (fallback)",
+        mensagem:
+          modo === "noticias_diretas" ? "Manchetes reais coletadas direto da fonte (sem IA)"
+          : modo === "web_search"     ? "Gerado com busca na web"
+          :                             "Gerado sem busca na web (fallback)",
       });
 
       if (record.agendadorAtivo && record.agendadorFrequencia) {
@@ -5861,7 +5865,9 @@ Seja específico para o setor ${empresa.setor}.`,
         await storage.addContextoMacroLog({
           categoria,
           executadoEm: agora,
-          modo: process.env.SERPER_API_KEY ? "web_search" : "fallback",
+          modo: categoria === "pulse_manchetes"
+            ? "noticias_diretas"
+            : process.env.SERPER_API_KEY ? "web_search" : "fallback",
           resultado: "erro",
           mensagem: e?.message ?? "Erro desconhecido",
         });
@@ -5923,7 +5929,10 @@ Seja específico para o setor ${empresa.setor}.`,
             executadoEm: now,
             modo,
             resultado: "sucesso",
-            mensagem: modo === "web_search" ? "Agendador: gerado com busca na web" : "Agendador: gerado sem busca na web (fallback)",
+            mensagem:
+              modo === "noticias_diretas" ? "Agendador: manchetes reais coletadas direto da fonte (sem IA)"
+              : modo === "web_search"     ? "Agendador: gerado com busca na web"
+              :                             "Agendador: gerado sem busca na web (fallback)",
           });
           console.log(`[CONTEXTO_MACRO] OK: ${cat.categoria} — próximo: ${proxima.toISOString()}`);
         } catch (err: any) {
@@ -5931,7 +5940,9 @@ Seja específico para o setor ${empresa.setor}.`,
             await storage.addContextoMacroLog({
               categoria: cat.categoria,
               executadoEm: now,
-              modo: process.env.SERPER_API_KEY ? "web_search" : "fallback",
+              modo: cat.categoria === "pulse_manchetes"
+                ? "noticias_diretas"
+                : process.env.SERPER_API_KEY ? "web_search" : "fallback",
               resultado: "erro",
               mensagem: err?.message ?? "Erro desconhecido",
             });

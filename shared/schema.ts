@@ -489,6 +489,7 @@ export const contextoMacro = pgTable("contexto_macro", {
   categoria: varchar("categoria").primaryKey(),
   titulo: text("titulo").notNull(),
   textoAtivo: text("texto_ativo"),
+  linksAtivos: text("links_ativos"),
   rascunho: text("rascunho"),
   ativo: boolean("ativo").notNull().default(false),
   ultimaAtualizacao: timestamp("ultima_atualizacao"),

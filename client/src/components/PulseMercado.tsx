@@ -1,5 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 
+interface PulseItem {
+  texto: string;
+  url?: string;
+}
+
 const DOT = (
   <span className="mx-6 text-border select-none" aria-hidden="true">·</span>
 );
@@ -7,7 +12,7 @@ const DOT = (
 const STALE_MS = 10 * 60 * 1000; // 10 min — matches server-side cache TTL
 
 export function PulseMercado() {
-  const { data: manchetes = [] } = useQuery<string[]>({
+  const { data: manchetes = [] } = useQuery<PulseItem[]>({
     queryKey: ["/api/pulse-mercado"],
     staleTime: STALE_MS,
   });
@@ -18,11 +23,12 @@ export function PulseMercado() {
     refetchInterval: STALE_MS,
   });
 
-  const items = [...cotacoes, ...manchetes];
+  const cotacaoItems: PulseItem[] = cotacoes.map((texto) => ({ texto }));
+  const items: PulseItem[] = [...cotacaoItems, ...manchetes];
 
   if (!items.length) return null;
 
-  const tickerText = items.join(" · ");
+  const tickerText = items.map((i) => i.texto).join(" · ");
 
   return (
     <div
@@ -64,15 +70,27 @@ function TickerContent({
   items,
   "aria-hidden": ariaHidden,
 }: {
-  items: string[];
+  items: PulseItem[];
   "aria-hidden"?: true;
 }) {
   return (
     <span className="inline-flex items-center" aria-hidden={ariaHidden}>
-      {items.map((texto, i) => (
+      {items.map((item, i) => (
         <span key={i} className="inline-flex items-center">
           {i > 0 && DOT}
-          <span className="text-xs text-foreground">{texto}</span>
+          {item.url ? (
+            <a
+              href={item.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-foreground hover:text-foreground/80 underline-offset-2 hover:underline transition-colors"
+              data-testid={`link-manchete-${i}`}
+            >
+              {item.texto}
+            </a>
+          ) : (
+            <span className="text-xs text-foreground">{item.texto}</span>
+          )}
         </span>
       ))}
     </span>

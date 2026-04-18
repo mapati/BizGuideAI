@@ -4566,7 +4566,14 @@ Responda em JSON:
         .split("|")
         .map((s) => s.trim())
         .filter((s) => s.length > 0);
-      res.json(manchetes);
+      const linksList = (record.linksAtivos ?? "")
+        .split("|")
+        .map((s) => s.trim());
+      const result = manchetes.map((texto, i) => ({
+        texto,
+        url: linksList[i] && linksList[i].startsWith("http") ? linksList[i] : undefined,
+      }));
+      res.json(result);
     } catch (err: any) {
       console.error("[pulse-mercado]", err);
       res.status(500).json({ error: "Erro interno" });
@@ -5662,7 +5669,7 @@ Seja específico para o setor ${empresa.setor}.`,
 
   async function gerarContextoCategoria(
     categoria: string
-  ): Promise<{ texto: string; modo: "web_search" | "fallback" | "noticias_diretas" }> {
+  ): Promise<{ texto: string; modo: "web_search" | "fallback" | "noticias_diretas"; links?: string }> {
 
     // ── pulse_manchetes: notícias reais direto da fonte, SEM síntese por IA ──
     // Eliminamos o passo de geração por LLM para evitar alucinações no ticker.
@@ -5687,6 +5694,7 @@ Seja específico para o setor ${empresa.setor}.`,
       // Mescla e deduplica por prefixo do título (primeiros 40 chars, case-insensitive)
       const seen = new Set<string>();
       const manchetes: string[] = [];
+      const linksColetados: string[] = [];
       for (const item of [...macroNews, ...negociosNews]) {
         const title = item.title.trim();
         if (!title) continue;
@@ -5698,12 +5706,13 @@ Seja específico para o setor ${empresa.setor}.`,
         const maxTitle = 80 - prefix.length;
         const truncated = title.length > maxTitle ? title.slice(0, maxTitle - 1) + "…" : title;
         manchetes.push(`${prefix}${truncated}`);
+        linksColetados.push(item.link ?? "");
         if (manchetes.length >= 18) break;
       }
 
       const texto = manchetes.join(" | ");
       console.log(`[pulse_manchetes] ${manchetes.length} manchetes reais coletadas (sem IA, anti-alucinação)`);
-      return { texto, modo: "noticias_diretas" };
+      return { texto, modo: "noticias_diretas", links: linksColetados.join(" | ") };
     }
 
     const prompt = CATEGORIAS_PROMPTS[categoria];
@@ -5831,7 +5840,7 @@ Seja específico para o setor ${empresa.setor}.`,
       const record = await storage.getContextoMacroByCategoria(categoria);
       if (!record) return res.status(404).json({ error: "Categoria não encontrada" });
 
-      const { texto, modo } = await gerarContextoCategoria(categoria);
+      const { texto, modo, links } = await gerarContextoCategoria(categoria);
 
       await storage.addContextoMacroLog({
         categoria,
@@ -5847,6 +5856,7 @@ Seja específico para o setor ${empresa.setor}.`,
       if (record.agendadorAtivo && record.agendadorFrequencia) {
         await storage.updateContextoMacro(categoria, {
           textoAtivo: texto,
+          linksAtivos: links ?? null,
           ativo: record.ativo,
           ultimaAtualizacao: agora,
           proximoAgendamento: calcularProximoAgendamento(record.agendadorFrequencia, agora),
@@ -5856,7 +5866,7 @@ Seja específico para o setor ${empresa.setor}.`,
         const updated = await storage.getContextoMacroByCategoria(categoria);
         return res.json({ mode: "auto_aprovado", record: updated });
       } else {
-        await storage.updateContextoMacro(categoria, { rascunho: texto });
+        await storage.updateContextoMacro(categoria, { rascunho: texto, linksAtivos: links ?? null });
         const updated = await storage.getContextoMacroByCategoria(categoria);
         return res.json({ mode: "rascunho", record: updated });
       }
@@ -5915,10 +5925,11 @@ Seja específico para o setor ${empresa.setor}.`,
         if (new Date(cat.proximoAgendamento) > now) continue;
         try {
           console.log(`[CONTEXTO_MACRO] Gerando: ${cat.categoria}`);
-          const { texto, modo } = await gerarContextoCategoria(cat.categoria);
+          const { texto, modo, links } = await gerarContextoCategoria(cat.categoria);
           const proxima = calcularProximoAgendamento(cat.agendadorFrequencia, now);
           await storage.updateContextoMacro(cat.categoria, {
             textoAtivo: texto,
+            linksAtivos: links ?? null,
             ultimaAtualizacao: now,
             proximoAgendamento: proxima,
             rascunho: null,

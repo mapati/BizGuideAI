@@ -5,7 +5,7 @@ import { sendVerificationEmail, sendPasswordResetEmail } from "./email";
 import { criarAssinatura, buscarAssinatura, cancelarAssinatura, buscarPagamento, motivoLegivel, validarAssinaturaWebhook, PLANOS_MP, type PlanoTipo, type MpSubscription, type MpPayment } from "./mp";
 import { randomBytes, createHash } from "crypto";
 import cron from "node-cron";
-import { runGithubPush, getPushLogs, startGithubScheduler, stopGithubScheduler, type PushFrequencia } from "./github-scheduler";
+import { runGithubPush, getPushLogs, startGithubScheduler, stopGithubScheduler, isGitRepository, type PushFrequencia } from "./github-scheduler";
 import { 
   insertEmpresaSchema,
   PLAN_LIMITS,
@@ -1223,6 +1223,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         enabled: config?.githubAutoPushEnabled ?? false,
         frequencia: config?.githubAutoPushFrequencia ?? "diario",
+        isGitRepo: isGitRepository(),
       });
     } catch (e: any) {
       res.status(500).json({ error: e.message });

@@ -1455,6 +1455,7 @@ function TabDadosFiscais() {
 interface GithubConfig {
   enabled: boolean;
   frequencia: "1h" | "6h" | "diario";
+  isGitRepo: boolean;
 }
 
 interface PushLog {
@@ -1502,9 +1503,22 @@ function TabGithub() {
 
   const enabled = config?.enabled ?? false;
   const frequencia = config?.frequencia ?? "diario";
+  const isGitRepo = config?.isGitRepo ?? true;
 
   return (
     <div className="space-y-6 max-w-2xl">
+      {!isGitRepo && (
+        <div className="flex items-start gap-3 p-4 rounded-md border border-yellow-500/40 bg-yellow-500/10">
+          <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-yellow-700 dark:text-yellow-300">Disponível apenas no Replit</p>
+            <p className="text-xs text-yellow-700/80 dark:text-yellow-300/80 mt-0.5">
+              Esta funcionalidade só opera no ambiente de desenvolvimento do Replit, onde o repositório Git está presente.
+              Em produção (app publicado), o push para o GitHub não é suportado.
+            </p>
+          </div>
+        </div>
+      )}
       <div className="flex items-start gap-3 p-4 rounded-md border bg-muted/40">
         <GitBranch className="h-5 w-5 text-primary shrink-0 mt-0.5" />
         <div>
@@ -1531,7 +1545,7 @@ function TabGithub() {
             <Button
               variant={enabled ? "default" : "outline"}
               size="sm"
-              disabled={saveConfig.isPending}
+              disabled={saveConfig.isPending || !isGitRepo}
               onClick={() => saveConfig.mutate({ enabled: !enabled })}
               data-testid="button-toggle-github-push"
             >
@@ -1569,7 +1583,7 @@ function TabGithub() {
         <CardContent>
           <Button
             onClick={() => pushNow.mutate()}
-            disabled={pushNow.isPending}
+            disabled={pushNow.isPending || !isGitRepo}
             data-testid="button-github-push-now"
           >
             <Play className="h-4 w-4 mr-2" />

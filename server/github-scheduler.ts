@@ -1,7 +1,12 @@
 import { spawn } from "child_process";
 import path from "path";
+import fs from "fs";
 import cron from "node-cron";
 import { sendPushFailureEmail } from "./email";
+
+export function isGitRepository(): boolean {
+  return fs.existsSync(path.resolve(".git"));
+}
 
 export type PushFrequencia = "1h" | "6h" | "diario";
 
@@ -30,6 +35,19 @@ function cronExpressionFor(freq: PushFrequencia): string {
 
 export async function runGithubPush(trigger: "manual" | "agendado" = "agendado"): Promise<PushLog> {
   const now = new Date();
+
+  if (!isGitRepository()) {
+    const log: PushLog = {
+      executadoEm: now,
+      resultado: "erro",
+      mensagem: "Ambiente de produção detectado: push para GitHub só funciona no ambiente de desenvolvimento do Replit.",
+    };
+    pushLogs.unshift(log);
+    if (pushLogs.length > MAX_LOGS) pushLogs.length = MAX_LOGS;
+    console.warn("[GITHUB_SCHEDULER] Ignorado: ambiente sem repositório git (produção).");
+    return log;
+  }
+
   const scriptPath = path.resolve("scripts/push-github.sh");
   const msg = `chore: backup automático ${trigger} — ${now.toISOString()}`;
 
@@ -105,6 +123,10 @@ export function getPushLogs(): PushLog[] {
 }
 
 export function startGithubScheduler(freq: PushFrequencia): void {
+  if (!isGitRepository()) {
+    console.warn("[GITHUB_SCHEDULER] Agendador não iniciado: sem repositório git (ambiente de produção).");
+    return;
+  }
   if (activeTask) {
     activeTask.stop();
     activeTask = null;

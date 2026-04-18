@@ -155,6 +155,7 @@ export const objetivos = pgTable("objetivos", {
   prazo: text("prazo").notNull(),
   perspectiva: text("perspectiva").notNull().default("Financeira"),
   responsavelId: varchar("responsavel_id").references(() => usuarios.id, { onDelete: "set null" }),
+  estrategiaId: varchar("estrategia_id").references(() => estrategias.id, { onDelete: "set null" }),
   encerrado: boolean("encerrado").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -246,6 +247,8 @@ export const estrategias = pgTable("estrategias", {
   titulo: text("titulo").notNull(),
   descricao: text("descricao").notNull(),
   prioridade: text("prioridade").notNull(),
+  status: text("status").notNull().default("planejada"),
+  swotOrigemIds: text("swot_origem_ids").array(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -284,6 +287,7 @@ export const iniciativas = pgTable("iniciativas", {
   prazo: text("prazo").notNull(),
   responsavel: text("responsavel").notNull(),
   impacto: text("impacto").notNull(),
+  estrategiaId: varchar("estrategia_id").references(() => estrategias.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

@@ -184,6 +184,7 @@ export interface IStorage {
   createEstrategia(estrategia: InsertEstrategia): Promise<Estrategia>;
   updateEstrategia(id: string, empresaId: string, estrategia: Partial<InsertEstrategia>): Promise<Estrategia>;
   deleteEstrategia(id: string, empresaId: string): Promise<void>;
+  getEstrategiaContadores(estrategiaId: string): Promise<{ iniciativas: number; okrs: number }>;
   
   getOportunidadesCrescimento(empresaId: string): Promise<OportunidadeCrescimento[]>;
   createOportunidadeCrescimento(oportunidade: InsertOportunidadeCrescimento): Promise<OportunidadeCrescimento>;
@@ -674,6 +675,21 @@ export class DbStorage implements IStorage {
       .where(and(eq(estrategias.id, id), eq(estrategias.empresaId, empresaId)))
       .returning();
     if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
+  }
+
+  async getEstrategiaContadores(estrategiaId: string): Promise<{ iniciativas: number; okrs: number }> {
+    const [iniciativasCount] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(iniciativas)
+      .where(eq(iniciativas.estrategiaId, estrategiaId));
+    const [okrsCount] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(objetivos)
+      .where(eq(objetivos.estrategiaId, estrategiaId));
+    return {
+      iniciativas: iniciativasCount?.count ?? 0,
+      okrs: okrsCount?.count ?? 0,
+    };
   }
 
   async getOportunidadesCrescimento(empresaId: string): Promise<OportunidadeCrescimento[]> {

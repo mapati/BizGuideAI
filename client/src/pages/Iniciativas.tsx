@@ -19,9 +19,16 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { insertIniciativaSchema, type Iniciativa, type InsertIniciativa } from "@shared/schema";
 import { z } from "zod/v4";
 
+interface Estrategia {
+  id: string;
+  tipo: string;
+  titulo: string;
+}
+
 const formSchema = insertIniciativaSchema.extend({
   titulo: z.string().min(1, "Título é obrigatório"),
   descricao: z.string().min(1, "Descrição é obrigatória"),
+  estrategiaId: z.string().optional().nullable(),
 });
 
 const statusLabels = {
@@ -77,7 +84,7 @@ export default function Iniciativas() {
     enabled: !!empresa?.id,
   });
 
-  const { data: estrategias = [] } = useQuery<any[]>({
+  const { data: estrategias = [] } = useQuery<Estrategia[]>({
     queryKey: ["/api/estrategias", empresa?.id],
     enabled: !!empresa?.id,
   });
@@ -93,6 +100,7 @@ export default function Iniciativas() {
       prazo: "",
       responsavel: "",
       impacto: "médio",
+      estrategiaId: null,
     },
   });
 
@@ -240,6 +248,7 @@ export default function Iniciativas() {
       prazo: iniciativa.prazo,
       responsavel: iniciativa.responsavel,
       impacto: iniciativa.impacto,
+      estrategiaId: (iniciativa as any).estrategiaId ?? null,
     });
     setOpenDialog(true);
   };
@@ -481,6 +490,37 @@ export default function Iniciativas() {
                     </FormItem>
                   )}
                 />
+
+                {estrategias.length > 0 && (
+                  <FormField
+                    control={form.control}
+                    name="estrategiaId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Estratégia Relacionada (opcional)</FormLabel>
+                        <Select
+                          onValueChange={(v) => field.onChange(v === "__none__" ? null : v)}
+                          value={field.value ?? "__none__"}
+                        >
+                          <FormControl>
+                            <SelectTrigger data-testid="select-estrategia">
+                              <SelectValue placeholder="Vincular a uma estratégia" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="__none__">Nenhuma</SelectItem>
+                            {estrategias.map(e => (
+                              <SelectItem key={e.id} value={e.id}>
+                                {e.tipo} — {e.titulo.length > 50 ? e.titulo.slice(0, 50) + "…" : e.titulo}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
                 <div className="flex justify-end gap-2">
                   <Button

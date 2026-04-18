@@ -40,7 +40,7 @@ type Membro = { id: string; nome: string; email: string };
 export default function OKRs() {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [novoObjetivo, setNovoObjetivo] = useState({ titulo: "", descricao: "", prazo: "", perspectiva: "Financeira", responsavelId: "" });
+  const [novoObjetivo, setNovoObjetivo] = useState({ titulo: "", descricao: "", prazo: "", perspectiva: "Financeira", responsavelId: "", estrategiaId: "" });
   const [objetivoSelecionado, setObjetivoSelecionado] = useState<Objetivo | null>(null);
   const [dialogResultadosOpen, setDialogResultadosOpen] = useState(false);
   const [editandoResultado, setEditandoResultado] = useState<ResultadoChave | null>(null);
@@ -265,7 +265,7 @@ export default function OKRs() {
       ...novoObjetivo,
     });
 
-    setNovoObjetivo({ titulo: "", descricao: "", prazo: "", perspectiva: "Financeira", responsavelId: "" });
+    setNovoObjetivo({ titulo: "", descricao: "", prazo: "", perspectiva: "Financeira", responsavelId: "", estrategiaId: "" });
     setIsDialogOpen(false);
     toast({
       title: "Objetivo criado!",
@@ -475,6 +475,27 @@ export default function OKRs() {
                           <SelectItem value="__none__">Sem responsável</SelectItem>
                           {membros.map(m => (
                             <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  {estrategias.length > 0 && (
+                    <div>
+                      <Label>Estratégia Relacionada (opcional)</Label>
+                      <Select
+                        value={novoObjetivo.estrategiaId || "__none__"}
+                        onValueChange={(v) => setNovoObjetivo({ ...novoObjetivo, estrategiaId: v === "__none__" ? "" : v })}
+                      >
+                        <SelectTrigger data-testid="select-estrategia-objetivo">
+                          <SelectValue placeholder="Vincular a uma estratégia" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Nenhuma</SelectItem>
+                          {estrategias.map((e: any) => (
+                            <SelectItem key={e.id} value={e.id}>
+                              {e.tipo} — {e.titulo.length > 50 ? e.titulo.slice(0, 50) + "…" : e.titulo}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>

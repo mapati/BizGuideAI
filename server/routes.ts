@@ -3211,6 +3211,27 @@ ${ctx.join("\n\n")}`;
     }
   });
 
+  app.patch("/api/estrategias/:id/status", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = z.object({ status: z.enum(["planejada", "em_andamento", "concluida"]) }).parse(req.body);
+      const estrategia = await storage.updateEstrategia(id, req.session.empresaId!, { status });
+      res.json(estrategia);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/estrategias/:id/contadores", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const contadores = await storage.getEstrategiaContadores(id);
+      res.json(contadores);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/ai/gerar-estrategias", async (req, res) => {
     try {
       const empresaId = req.session.empresaId!;
@@ -3225,87 +3246,89 @@ ${ctx.join("\n\n")}`;
       const swotExistente = await storage.getAnaliseSwot(empresaId);
       const estrategiasExistentes = await storage.getEstrategias(empresaId);
 
-      const forcas = swotExistente.filter(s => s.tipo === "forca").map(s => s.descricao);
-      const fraquezas = swotExistente.filter(s => s.tipo === "fraqueza").map(s => s.descricao);
-      const oportunidades = swotExistente.filter(s => s.tipo === "oportunidade").map(s => s.descricao);
-      const ameacas = swotExistente.filter(s => s.tipo === "ameaca").map(s => s.descricao);
+      const forcas = swotExistente.filter(s => s.tipo === "forca");
+      const fraquezas = swotExistente.filter(s => s.tipo === "fraqueza");
+      const oportunidades = swotExistente.filter(s => s.tipo === "oportunidade");
+      const ameacas = swotExistente.filter(s => s.tipo === "ameaca");
 
-      const estrategiasResume = estrategiasExistentes.map(e => 
-        `- ${e.tipo}: ${e.titulo}\n  Descrição: ${e.descricao}`
-      ).join("\n\n");
+      const swotFormatado = (items: typeof forcas, label: string) =>
+        items.length > 0
+          ? items.map((f, i) => `${i + 1}. [ID:${f.id}] ${f.descricao}`).join("\n")
+          : `Nenhum item de ${label} identificado`;
+
+      const estrategiasResume = estrategiasExistentes.map(e =>
+        `- ${e.tipo}: ${e.titulo}`
+      ).join("\n");
 
       const completion = await openai.chat.completions.create({
         model: getModelForPlan(empresa.planoTipo, "relatorios"),
         messages: await injectMacroCtx([
           {
             role: "system",
-            content: `Você é um consultor estratégico sênior especializado em matriz TOWS (SWOT Cruzada). Sua missão é criar estratégias práticas e acionáveis combinando elementos internos e externos. Use sempre linguagem simples e direta, sem jargões técnicos.
+            content: `Você é um consultor estratégico sênior especializado em matriz TOWS (SWOT Cruzada). Sua missão é criar MÚLTIPLAS opções de estratégias práticas e acionáveis combinando elementos internos e externos. Use sempre linguagem simples e direta, sem jargões técnicos.
 
-REGRA CRÍTICA DE DUPLICAÇÃO:
-- Você DEVE analisar cuidadosamente todas as estratégias já existentes listadas na seção "ESTRATÉGIAS JÁ EXISTENTES"
-- NUNCA crie estratégias que sejam semelhantes, parecidas ou que abordem os mesmos temas das estratégias existentes
-- Cada nova estratégia PRECISA ser única, inovadora e diferente de todas as anteriores
-- Se você sugerir algo muito parecido com o que já existe, está violando esta regra crítica`
+IMPORTANTE:
+- Para cada quadrante (FO, FA, DO, DA), gere entre 4 e 6 estratégias candidatas DIFERENTES entre si
+- Para cada estratégia, identifique QUAIS itens SWOT específicos (pelos IDs fornecidos) foram usados para criá-la
+- Avalie o potencial de cada estratégia como "alto" ou "medio"
+- Marque como pré-selecionada (selecionada: true) apenas as de maior potencial (no máximo 2 por quadrante)
+- NUNCA repita estratégias já existentes`
           },
           {
             role: "user",
             content: `## PERFIL DA EMPRESA
 ${contextoPerfil}
 
-## ANÁLISE SWOT EXISTENTE:
+## ITENS SWOT (com IDs para rastreabilidade):
 
-### FORÇAS (Internas - Positivo):
-${forcas.length > 0 ? forcas.map((f, i) => `${i + 1}. ${f}`).join("\n") : "Nenhuma força identificada"}
+### FORÇAS:
+${swotFormatado(forcas, "força")}
 
-### FRAQUEZAS (Internas - Negativo):
-${fraquezas.length > 0 ? fraquezas.map((f, i) => `${i + 1}. ${f}`).join("\n") : "Nenhuma fraqueza identificada"}
+### FRAQUEZAS:
+${swotFormatado(fraquezas, "fraqueza")}
 
-### OPORTUNIDADES (Externas - Positivo):
-${oportunidades.length > 0 ? oportunidades.map((o, i) => `${i + 1}. ${o}`).join("\n") : "Nenhuma oportunidade identificada"}
+### OPORTUNIDADES:
+${swotFormatado(oportunidades, "oportunidade")}
 
-### AMEAÇAS (Externas - Negativo):
-${ameacas.length > 0 ? ameacas.map((a, i) => `${i + 1}. ${a}`).join("\n") : "Nenhuma ameaça identificada"}
+### AMEAÇAS:
+${swotFormatado(ameacas, "ameaça")}
 
-## ESTRATÉGIAS JÁ EXISTENTES (NÃO REPITA NENHUMA DELAS):
-${estrategiasExistentes.length > 0 ? estrategiasResume : "Nenhuma estratégia criada ainda - esta é a primeira geração"}
-
-${estrategiasExistentes.length > 0 ? `
-⚠️ ATENÇÃO: Já existem ${estrategiasExistentes.length} estratégia(s) cadastrada(s) acima.
-Suas novas sugestões DEVEM ser completamente diferentes e abordar aspectos não cobertos pelas estratégias existentes.
-Analise cada estratégia existente antes de sugerir algo novo.
-` : ''}
+## ESTRATÉGIAS JÁ EXISTENTES (NÃO REPITA):
+${estrategiasExistentes.length > 0 ? estrategiasResume : "Nenhuma ainda"}
 
 ## TAREFA:
-Com base na matriz TOWS, crie EXATAMENTE 4 novas estratégias ÚNICAS e DIFERENTES, uma de cada tipo:
+Gere um CARDÁPIO de estratégias para o usuário escolher. Para cada quadrante, crie 4 a 6 opções distintas.
 
-1. **FO (Ofensiva/Maxi-Maxi)**: Combine uma FORÇA com uma OPORTUNIDADE
-2. **FA (Confronto/Maxi-Mini)**: Combine uma FORÇA para neutralizar uma AMEAÇA
-3. **DO (Reorientação/Mini-Maxi)**: Supere uma FRAQUEZA aproveitando uma OPORTUNIDADE
-4. **DA (Defensiva/Mini-Mini)**: Minimize uma FRAQUEZA e evite uma AMEAÇA
-
-Para cada estratégia, forneça:
-- tipo: "FO", "FA", "DO" ou "DA"
-- titulo: Um título objetivo (máx 80 caracteres)
-- descricao: Descrição detalhada da estratégia (2-3 frases)
-- prioridade: "alta", "média" ou "baixa"
-
-Responda OBRIGATORIAMENTE em JSON com este formato exato:
+Responda OBRIGATORIAMENTE em JSON com este formato:
 {
-  "estrategias": [
-    {"tipo": "FO", "titulo": "...", "descricao": "...", "prioridade": "alta"},
-    {"tipo": "FA", "titulo": "...", "descricao": "...", "prioridade": "alta"},
-    {"tipo": "DO", "titulo": "...", "descricao": "...", "prioridade": "média"},
-    {"tipo": "DA", "titulo": "...", "descricao": "...", "prioridade": "baixa"}
+  "candidatas": [
+    {
+      "tipo": "FO",
+      "titulo": "...",
+      "descricao": "...",
+      "prioridade": "alta",
+      "potencial": "alto",
+      "selecionada": true,
+      "swotOrigemIds": ["id1", "id2"],
+      "swotOrigemTextos": ["Força: texto da força", "Oportunidade: texto da oportunidade"]
+    }
   ]
-}`
+}
+
+Regras:
+- tipo: "FO", "FA", "DO" ou "DA"
+- potencial: "alto" ou "medio"
+- selecionada: true apenas para as 1-2 melhores de cada quadrante
+- swotOrigemIds: array com os IDs dos itens SWOT usados (copie exatamente os IDs do formato [ID:xxx])
+- swotOrigemTextos: array com texto legível de cada item SWOT de origem`
           }
         ]),
         response_format: { type: "json_object" },
         temperature: 0.8,
       });
 
-      const sugestoes = JSON.parse(completion.choices[0].message.content || "{}");
-      res.json(sugestoes);
+      const resultado = JSON.parse(completion.choices[0].message.content || "{}");
+      res.json(resultado);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

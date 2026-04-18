@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueries, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { JornadaEstrategica } from "@/components/JornadaEstrategica";
+import { PulseMercado } from "@/components/PulseMercado";
 import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -397,6 +398,7 @@ export default function Home() {
           </div>
         </Card>
       )}
+      <PulseMercado />
       <JornadaEstrategicaCondicional />
 
       {/* Performance Geral + OKRs por Perspectiva */}

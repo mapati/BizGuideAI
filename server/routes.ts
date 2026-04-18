@@ -4449,6 +4449,36 @@ Responda em JSON:
     }
   });
 
+  // ==================== PULSE DO MERCADO ====================
+
+  app.get("/api/pulse-mercado", requireAuth, async (_req, res) => {
+    try {
+      const ativos = await storage.getContextoMacroAtivos();
+      const items = ativos
+        .filter((c) => c.textoAtivo)
+        .sort((a, b) => {
+          const ta = a.ultimaAtualizacao ? new Date(a.ultimaAtualizacao).getTime() : 0;
+          const tb = b.ultimaAtualizacao ? new Date(b.ultimaAtualizacao).getTime() : 0;
+          return tb - ta;
+        })
+        .map((c) => {
+          const primeiroParagrafo = (c.textoAtivo ?? "").split(/\n\n+/)[0].trim();
+          const resumo = primeiroParagrafo.length > 300
+            ? primeiroParagrafo.slice(0, 297) + "..."
+            : primeiroParagrafo;
+          return {
+            titulo: c.titulo,
+            resumo,
+            ultimaAtualizacao: c.ultimaAtualizacao,
+          };
+        });
+      res.json(items);
+    } catch (err: any) {
+      console.error("[pulse-mercado]", err);
+      res.status(500).json({ error: "Erro interno" });
+    }
+  });
+
   // ==================== ALERTAS ====================
   
   app.get("/api/alertas", async (req, res) => {

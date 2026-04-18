@@ -14,6 +14,7 @@ import {
   ArrowRight,
   PartyPopper,
   Circle,
+  AlertTriangle,
 } from "lucide-react";
 import { Link } from "wouter";
 import type { JornadaEtapa, JornadaProgresso } from "@/hooks/useJornadaProgresso";
@@ -154,7 +155,7 @@ interface JornadaEstrategicaProps {
 }
 
 export function JornadaEstrategica({ progresso, defaultOpen, compact }: JornadaEstrategicaProps) {
-  const { etapas, totalConcluidas, total, percentual, jornadaConcluida } = progresso;
+  const { etapas, totalConcluidas, total, percentual, jornadaConcluida, perfilCompleto } = progresso;
   const [open, setOpen] = useState(defaultOpen ?? true);
   const [celebrationDismissed, setCelebrationDismissed] = useState(
     () => localStorage.getItem(CELEBRACAO_DISMISSED_KEY) === "1"
@@ -216,97 +217,128 @@ export function JornadaEstrategica({ progresso, defaultOpen, compact }: JornadaE
     (e) => !e.concluida && (!e.bloqueadaPor || e.bloqueadaPor.length === 0)
   );
 
+  const avisoPerfil = !perfilCompleto ? (
+    <Card
+      className="mb-6 p-5 border-yellow-300 dark:border-yellow-700 bg-yellow-50/60 dark:bg-yellow-950/20"
+      data-testid="card-aviso-perfil-incompleto"
+    >
+      <div className="flex items-start gap-4 flex-wrap">
+        <AlertTriangle className="h-6 w-6 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <h3 className="font-semibold text-yellow-800 dark:text-yellow-300 text-sm">
+            Perfil da empresa incompleto
+          </h3>
+          <p className="text-sm text-yellow-700 dark:text-yellow-400 mt-1">
+            Para habilitar as próximas etapas da Jornada Estratégica, preencha todos os campos obrigatórios do perfil da empresa — razão social, CNPJ, endereço e responsável legal. Logotipo e documentos estratégicos são opcionais.
+          </p>
+        </div>
+        <Link href="/onboarding" data-testid="link-completar-perfil">
+          <Button variant="outline" size="sm" className="flex-shrink-0 border-yellow-400 dark:border-yellow-600 text-yellow-800 dark:text-yellow-300">
+            Completar perfil
+            <ArrowRight className="h-3 w-3 ml-1" />
+          </Button>
+        </Link>
+      </div>
+    </Card>
+  ) : null;
+
   if (compact) {
     return (
-      <Card className="mb-6 opacity-70 bg-sky-50 dark:bg-sky-950/20 border-sky-200/60 dark:border-sky-900/40" data-testid="card-jornada-estrategica">
-        <Collapsible open={open} onOpenChange={setOpen}>
-          <CollapsibleTrigger asChild>
-            <button
-              className="w-full flex items-center justify-between px-6 py-3 text-left hover-elevate"
-              data-testid="button-toggle-jornada"
-            >
-              <div className="flex items-center gap-3 flex-wrap">
-                <Map className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium text-muted-foreground">Jornada</span>
-                <Badge variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate" data-testid="badge-jornada-progresso">
-                  {totalConcluidas}/{total}
-                </Badge>
-                <Progress value={percentual} className="w-16 h-1" />
+      <>
+        {avisoPerfil}
+        <Card className="mb-6 opacity-70 bg-sky-50 dark:bg-sky-950/20 border-sky-200/60 dark:border-sky-900/40" data-testid="card-jornada-estrategica">
+          <Collapsible open={open} onOpenChange={setOpen}>
+            <CollapsibleTrigger asChild>
+              <button
+                className="w-full flex items-center justify-between px-6 py-3 text-left hover-elevate"
+                data-testid="button-toggle-jornada"
+              >
+                <div className="flex items-center gap-3 flex-wrap">
+                  <Map className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium text-muted-foreground">Jornada</span>
+                  <Badge variant="secondary" className="text-xs no-default-hover-elevate no-default-active-elevate" data-testid="badge-jornada-progresso">
+                    {totalConcluidas}/{total}
+                  </Badge>
+                  <Progress value={percentual} className="w-16 h-1" />
+                </div>
+                {open ? (
+                  <ChevronUp className="h-3.5 w-3.5 text-muted-foreground/60" />
+                ) : (
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/60" />
+                )}
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="px-4 pb-3">
+                {etapas.map((etapa, i) => (
+                  <EtapaRow key={etapa.id} etapa={etapa} isLast={i === etapas.length - 1} />
+                ))}
               </div>
-              {open ? (
-                <ChevronUp className="h-3.5 w-3.5 text-muted-foreground/60" />
-              ) : (
-                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/60" />
-              )}
-            </button>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="px-4 pb-3">
-              {etapas.map((etapa, i) => (
-                <EtapaRow key={etapa.id} etapa={etapa} isLast={i === etapas.length - 1} />
-              ))}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      </Card>
+            </CollapsibleContent>
+          </Collapsible>
+        </Card>
+      </>
     );
   }
 
   return (
-    <Card className="mb-6 bg-sky-50 dark:bg-sky-950/20 border-sky-200/60 dark:border-sky-900/40" data-testid="card-jornada-estrategica">
-      <Collapsible open={open} onOpenChange={setOpen}>
-        <CollapsibleTrigger asChild>
-          <button
-            className="w-full flex items-center justify-between px-6 py-4 text-left hover-elevate"
-            data-testid="button-toggle-jornada"
-          >
-            <div className="flex items-center gap-3 flex-wrap">
-              <Map className="h-5 w-5 text-primary" />
-              <span className="font-semibold">Jornada Estratégica</span>
-              <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate" data-testid="badge-jornada-progresso">
-                {totalConcluidas}/{total}
-              </Badge>
-              {proximaEtapa && !open && (
-                <span className="text-xs text-muted-foreground hidden sm:inline">
-                  Próxima: {proximaEtapa.nome}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-3 flex-shrink-0">
-              <div className="hidden sm:flex items-center gap-2">
-                <Progress value={percentual} className="w-24 h-1.5" />
+    <>
+      {avisoPerfil}
+      <Card className="mb-6 bg-sky-50 dark:bg-sky-950/20 border-sky-200/60 dark:border-sky-900/40" data-testid="card-jornada-estrategica">
+        <Collapsible open={open} onOpenChange={setOpen}>
+          <CollapsibleTrigger asChild>
+            <button
+              className="w-full flex items-center justify-between px-6 py-4 text-left hover-elevate"
+              data-testid="button-toggle-jornada"
+            >
+              <div className="flex items-center gap-3 flex-wrap">
+                <Map className="h-5 w-5 text-primary" />
+                <span className="font-semibold">Jornada Estratégica</span>
+                <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate" data-testid="badge-jornada-progresso">
+                  {totalConcluidas}/{total}
+                </Badge>
+                {proximaEtapa && !open && (
+                  <span className="text-xs text-muted-foreground hidden sm:inline">
+                    Próxima: {proximaEtapa.nome}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <div className="hidden sm:flex items-center gap-2">
+                  <Progress value={percentual} className="w-24 h-1.5" />
+                  <span className="text-xs text-muted-foreground">{percentual}%</span>
+                </div>
+                {open ? (
+                  <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                )}
+              </div>
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="px-6 pb-5">
+              <div className="flex items-center gap-2 sm:hidden mb-4">
+                <Progress value={percentual} className="flex-1 h-1.5" />
                 <span className="text-xs text-muted-foreground">{percentual}%</span>
               </div>
-              {open ? (
-                <ChevronUp className="h-4 w-4 text-muted-foreground" />
-              ) : (
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              {etapas.map((etapa, i) => (
+                <EtapaRow key={etapa.id} etapa={etapa} isLast={i === etapas.length - 1} />
+              ))}
+              {proximaEtapa && (
+                <div className="mt-3 pl-11">
+                  <Link href={proximaEtapa.rota}>
+                    <Button data-testid="button-proxima-etapa">
+                      Iniciar: {proximaEtapa.nome}
+                      <ArrowRight className="h-4 w-4 ml-2" />
+                    </Button>
+                  </Link>
+                </div>
               )}
             </div>
-          </button>
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <div className="px-6 pb-5">
-            <div className="flex items-center gap-2 sm:hidden mb-4">
-              <Progress value={percentual} className="flex-1 h-1.5" />
-              <span className="text-xs text-muted-foreground">{percentual}%</span>
-            </div>
-            {etapas.map((etapa, i) => (
-              <EtapaRow key={etapa.id} etapa={etapa} isLast={i === etapas.length - 1} />
-            ))}
-            {proximaEtapa && (
-              <div className="mt-3 pl-11">
-                <Link href={proximaEtapa.rota}>
-                  <Button data-testid="button-proxima-etapa">
-                    Iniciar: {proximaEtapa.nome}
-                    <ArrowRight className="h-4 w-4 ml-2" />
-                  </Button>
-                </Link>
-              </div>
-            )}
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
-    </Card>
+          </CollapsibleContent>
+        </Collapsible>
+      </Card>
+    </>
   );
 }

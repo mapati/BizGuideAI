@@ -36,6 +36,7 @@ export interface JornadaProgresso {
   total: number;
   percentual: number;
   jornadaConcluida: boolean;
+  perfilCompleto: boolean;
   isLoading: boolean;
 }
 
@@ -345,6 +346,7 @@ export function useJornadaProgresso(): JornadaProgresso {
     total,
     percentual,
     jornadaConcluida,
+    perfilCompleto,
     isLoading,
   };
 }

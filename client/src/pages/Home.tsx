@@ -605,7 +605,7 @@ export default function Home() {
       {/* KPIs + Rituais */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
         {/* KPIs */}
-        <Card className="p-5" data-testid="card-kpis">
+        <Card className="p-5 order-2" data-testid="card-kpis">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
@@ -672,7 +672,7 @@ export default function Home() {
         </Card>
 
         {/* Rituais de Gestão */}
-        <Card className="p-5" data-testid="card-rituais-gestao">
+        <Card className="p-5 order-1" data-testid="card-rituais-gestao">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4 text-muted-foreground" />

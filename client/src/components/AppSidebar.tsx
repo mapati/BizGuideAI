@@ -120,19 +120,30 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={location === "/diagnostico"}
-                  data-testid="link-diagnostico"
-                >
-                  <Link href="/diagnostico">
+                {!jornadaLoading && isEtapaBloqueada("diagnostico", etapas) ? (
+                  <SidebarMenuButton
+                    data-testid="link-diagnostico"
+                    className="opacity-50 cursor-not-allowed pointer-events-none"
+                  >
                     <ClipboardList />
                     <span>Métricas</span>
-                    {!jornadaLoading && (
-                      <EtapaIndicador jornadaId="diagnostico" etapas={etapas} proximaEtapaId={proximaEtapa?.id} />
-                    )}
-                  </Link>
-                </SidebarMenuButton>
+                    <EtapaIndicador jornadaId="diagnostico" etapas={etapas} proximaEtapaId={proximaEtapa?.id} />
+                  </SidebarMenuButton>
+                ) : (
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location === "/diagnostico"}
+                    data-testid="link-diagnostico"
+                  >
+                    <Link href="/diagnostico">
+                      <ClipboardList />
+                      <span>Métricas</span>
+                      {!jornadaLoading && (
+                        <EtapaIndicador jornadaId="diagnostico" etapas={etapas} proximaEtapaId={proximaEtapa?.id} />
+                      )}
+                    </Link>
+                  </SidebarMenuButton>
+                )}
               </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
@@ -149,7 +160,7 @@ export function AppSidebar() {
                     {bloqueada ? (
                       <SidebarMenuButton
                         data-testid={`link-${item.url.slice(1)}`}
-                        className="opacity-40 cursor-not-allowed"
+                        className="opacity-50 cursor-not-allowed pointer-events-none"
                       >
                         <item.icon />
                         <span>{item.title}</span>
@@ -188,7 +199,7 @@ export function AppSidebar() {
                     {bloqueada ? (
                       <SidebarMenuButton
                         data-testid={`link-${item.url.slice(1)}`}
-                        className="opacity-40 cursor-not-allowed"
+                        className="opacity-50 cursor-not-allowed pointer-events-none"
                       >
                         <item.icon />
                         <span>{item.title}</span>
@@ -227,7 +238,7 @@ export function AppSidebar() {
                     {bloqueada ? (
                       <SidebarMenuButton
                         data-testid={`link-${item.url.slice(1)}`}
-                        className="opacity-40 cursor-not-allowed"
+                        className="opacity-50 cursor-not-allowed pointer-events-none"
                       >
                         <item.icon />
                         <span>{item.title}</span>

@@ -116,7 +116,18 @@ function EtapaRow({ etapa, isLast }: { etapa: JornadaEtapa; isLast: boolean }) {
           </Badge>
         )}
 
-        {!bloqueada && (
+        {bloqueada && !etapa.concluida ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-shrink-0"
+            disabled
+            data-testid={`link-jornada-${etapa.id}`}
+          >
+            {ctaLabel}
+            <ArrowRight className="h-3 w-3 ml-1" />
+          </Button>
+        ) : (
           <Link href={etapa.rota} data-testid={`link-jornada-${etapa.id}`}>
             <Button
               variant={etapa.concluida ? "ghost" : "outline"}

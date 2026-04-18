@@ -36,11 +36,19 @@ const perspectivas = [
 ];
 
 type Membro = { id: string; nome: string; email: string };
+type EstrategiaBasica = { id: string; tipo: string; titulo: string };
 
 export default function OKRs() {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [novoObjetivo, setNovoObjetivo] = useState({ titulo: "", descricao: "", prazo: "", perspectiva: "Financeira", responsavelId: "", estrategiaId: "" });
+  const [novoObjetivo, setNovoObjetivo] = useState<{
+    titulo: string;
+    descricao: string;
+    prazo: string;
+    perspectiva: string;
+    responsavelId: string;
+    estrategiaId: string | null;
+  }>({ titulo: "", descricao: "", prazo: "", perspectiva: "Financeira", responsavelId: "", estrategiaId: null });
   const [objetivoSelecionado, setObjetivoSelecionado] = useState<Objetivo | null>(null);
   const [dialogResultadosOpen, setDialogResultadosOpen] = useState(false);
   const [editandoResultado, setEditandoResultado] = useState<ResultadoChave | null>(null);
@@ -66,7 +74,7 @@ export default function OKRs() {
 
   const empresaId = empresa?.id;
 
-  const { data: estrategias = [] } = useQuery<any[]>({
+  const { data: estrategias = [] } = useQuery<EstrategiaBasica[]>({
     queryKey: ["/api/estrategias", empresaId],
     enabled: !!empresaId,
   });
@@ -265,7 +273,7 @@ export default function OKRs() {
       ...novoObjetivo,
     });
 
-    setNovoObjetivo({ titulo: "", descricao: "", prazo: "", perspectiva: "Financeira", responsavelId: "", estrategiaId: "" });
+    setNovoObjetivo({ titulo: "", descricao: "", prazo: "", perspectiva: "Financeira", responsavelId: "", estrategiaId: null });
     setIsDialogOpen(false);
     toast({
       title: "Objetivo criado!",
@@ -484,15 +492,15 @@ export default function OKRs() {
                     <div>
                       <Label>Estratégia Relacionada (opcional)</Label>
                       <Select
-                        value={novoObjetivo.estrategiaId || "__none__"}
-                        onValueChange={(v) => setNovoObjetivo({ ...novoObjetivo, estrategiaId: v === "__none__" ? "" : v })}
+                        value={novoObjetivo.estrategiaId ?? "__none__"}
+                        onValueChange={(v) => setNovoObjetivo({ ...novoObjetivo, estrategiaId: v === "__none__" ? null : v })}
                       >
                         <SelectTrigger data-testid="select-estrategia-objetivo">
                           <SelectValue placeholder="Vincular a uma estratégia" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="__none__">Nenhuma</SelectItem>
-                          {estrategias.map((e: any) => (
+                          {estrategias.map((e: EstrategiaBasica) => (
                             <SelectItem key={e.id} value={e.id}>
                               {e.tipo} — {e.titulo.length > 50 ? e.titulo.slice(0, 50) + "…" : e.titulo}
                             </SelectItem>

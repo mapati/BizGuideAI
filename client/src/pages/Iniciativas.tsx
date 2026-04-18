@@ -248,7 +248,7 @@ export default function Iniciativas() {
       prazo: iniciativa.prazo,
       responsavel: iniciativa.responsavel,
       impacto: iniciativa.impacto,
-      estrategiaId: (iniciativa as any).estrategiaId ?? null,
+      estrategiaId: iniciativa.estrategiaId ?? null,
     });
     setOpenDialog(true);
   };

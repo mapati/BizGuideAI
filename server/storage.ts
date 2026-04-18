@@ -181,6 +181,7 @@ export interface IStorage {
   deleteModeloNegocio(id: string, empresaId: string): Promise<void>;
   
   getEstrategias(empresaId: string): Promise<Estrategia[]>;
+  getEstrategia(id: string): Promise<Estrategia | undefined>;
   createEstrategia(estrategia: InsertEstrategia): Promise<Estrategia>;
   updateEstrategia(id: string, empresaId: string, estrategia: Partial<InsertEstrategia>): Promise<Estrategia>;
   deleteEstrategia(id: string, empresaId: string): Promise<void>;
@@ -655,6 +656,11 @@ export class DbStorage implements IStorage {
 
   async getEstrategias(empresaId: string): Promise<Estrategia[]> {
     return db.select().from(estrategias).where(eq(estrategias.empresaId, empresaId));
+  }
+
+  async getEstrategia(id: string): Promise<Estrategia | undefined> {
+    const result = await db.select().from(estrategias).where(eq(estrategias.id, id));
+    return result[0];
   }
 
   async createEstrategia(estrategia: InsertEstrategia): Promise<Estrategia> {

@@ -3224,7 +3224,13 @@ ${ctx.join("\n\n")}`;
 
   app.get("/api/estrategias/:id/contadores", async (req, res) => {
     try {
+      const empresaId = req.session.empresaId;
+      if (!empresaId) return res.status(401).json({ error: "Não autenticado" });
       const { id } = req.params;
+      const estrategia = await storage.getEstrategia(id);
+      if (!estrategia || estrategia.empresaId !== empresaId) {
+        return res.status(404).json({ error: "Estratégia não encontrada" });
+      }
       const contadores = await storage.getEstrategiaContadores(id);
       res.json(contadores);
     } catch (error: any) {

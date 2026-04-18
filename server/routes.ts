@@ -1662,7 +1662,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/objetivos", async (req, res) => {
     try {
-      const data = insertObjetivoSchema.parse({ ...req.body, empresaId: req.session.empresaId });
+      const empresaId = req.session.empresaId!;
+      const data = insertObjetivoSchema.parse({ ...req.body, empresaId });
+      if (data.estrategiaId) {
+        const est = await storage.getEstrategia(data.estrategiaId);
+        if (!est || est.empresaId !== empresaId) {
+          return res.status(400).json({ error: "Estratégia inválida ou não pertence à empresa" });
+        }
+      }
       const objetivo = await storage.createObjetivo(data);
       res.json(objetivo);
     } catch (error: any) {
@@ -1672,9 +1679,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/objetivos/:id", async (req, res) => {
     try {
+      const empresaId = req.session.empresaId!;
       const { id } = req.params;
       const data = stripTenantFields(insertObjetivoSchema.partial().parse(req.body));
-      const objetivo = await storage.updateObjetivo(id, req.session.empresaId!, data);
+      if (data.estrategiaId) {
+        const est = await storage.getEstrategia(data.estrategiaId);
+        if (!est || est.empresaId !== empresaId) {
+          return res.status(400).json({ error: "Estratégia inválida ou não pertence à empresa" });
+        }
+      }
+      const objetivo = await storage.updateObjetivo(id, empresaId, data);
       res.json(objetivo);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -3239,7 +3253,7 @@ ${ctx.join("\n\n")}`;
       if (!estrategia || estrategia.empresaId !== empresaId) {
         return res.status(404).json({ error: "Estratégia não encontrada" });
       }
-      const contadores = await storage.getEstrategiaContadores(id);
+      const contadores = await storage.getEstrategiaContadores(id, empresaId);
       res.json(contadores);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -3496,7 +3510,14 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
 
   app.post("/api/iniciativas", async (req, res) => {
     try {
-      const data = insertIniciativaSchema.parse({ ...req.body, empresaId: req.session.empresaId });
+      const empresaId = req.session.empresaId!;
+      const data = insertIniciativaSchema.parse({ ...req.body, empresaId });
+      if (data.estrategiaId) {
+        const est = await storage.getEstrategia(data.estrategiaId);
+        if (!est || est.empresaId !== empresaId) {
+          return res.status(400).json({ error: "Estratégia inválida ou não pertence à empresa" });
+        }
+      }
       const iniciativa = await storage.createIniciativa(data);
       res.json(iniciativa);
     } catch (error: any) {
@@ -3506,9 +3527,16 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
 
   app.patch("/api/iniciativas/:id", async (req, res) => {
     try {
+      const empresaId = req.session.empresaId!;
       const { id } = req.params;
       const data = stripTenantFields(insertIniciativaSchema.partial().parse(req.body));
-      const iniciativa = await storage.updateIniciativa(id, req.session.empresaId!, data);
+      if (data.estrategiaId) {
+        const est = await storage.getEstrategia(data.estrategiaId);
+        if (!est || est.empresaId !== empresaId) {
+          return res.status(400).json({ error: "Estratégia inválida ou não pertence à empresa" });
+        }
+      }
+      const iniciativa = await storage.updateIniciativa(id, empresaId, data);
       res.json(iniciativa);
     } catch (error: any) {
       res.status(400).json({ error: error.message });

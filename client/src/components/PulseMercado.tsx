@@ -48,7 +48,7 @@ export function PulseMercado() {
       {/* Ticker rolante */}
       <div className="flex-1 overflow-hidden h-full flex items-center">
         <div
-          className="ticker-track flex items-center gap-0 whitespace-nowrap"
+          className="ticker-track inline-flex items-center gap-0 whitespace-nowrap"
           data-testid="ticker-track"
           aria-label={tickerText}
         >

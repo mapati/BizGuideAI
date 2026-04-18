@@ -3199,7 +3199,7 @@ ${ctx.join("\n\n")}`;
   app.post("/api/estrategias", async (req, res) => {
     try {
       const data = insertEstrategiaSchema.parse({ ...req.body, empresaId: req.session.empresaId });
-      if (data.status && !ESTRATEGIA_STATUS_VALIDOS.includes(data.status as typeof ESTRATEGIA_STATUS_VALIDOS[number])) {
+      if (data.status !== undefined && !ESTRATEGIA_STATUS_VALIDOS.includes(data.status as typeof ESTRATEGIA_STATUS_VALIDOS[number])) {
         return res.status(400).json({ error: `Status inválido. Permitidos: ${ESTRATEGIA_STATUS_VALIDOS.join(", ")}` });
       }
       const estrategia = await storage.createEstrategia(data);
@@ -3213,7 +3213,7 @@ ${ctx.join("\n\n")}`;
     try {
       const { id } = req.params;
       const data = stripTenantFields(insertEstrategiaSchema.partial().parse(req.body));
-      if (data.status && !ESTRATEGIA_STATUS_VALIDOS.includes(data.status as typeof ESTRATEGIA_STATUS_VALIDOS[number])) {
+      if (data.status !== undefined && !ESTRATEGIA_STATUS_VALIDOS.includes(data.status as typeof ESTRATEGIA_STATUS_VALIDOS[number])) {
         return res.status(400).json({ error: `Status inválido. Permitidos: ${ESTRATEGIA_STATUS_VALIDOS.join(", ")}` });
       }
       const estrategia = await storage.updateEstrategia(id, req.session.empresaId!, data);

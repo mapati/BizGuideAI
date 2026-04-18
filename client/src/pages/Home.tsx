@@ -9,8 +9,11 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { CircularProgress } from "@/components/CircularProgress";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
   TrendingUp,
@@ -20,6 +23,7 @@ import {
   GraduationCap,
   AlertTriangle,
   CheckCircle2,
+  Check,
   Circle,
   Calendar,
   Sparkles,
@@ -217,6 +221,9 @@ export default function Home() {
   const [showIntroPanel, setShowIntroPanel] = useState(false);
   const [cenarioOpen, setCenarioOpen] = useState(false);
   const [, setLocation] = useLocation();
+  const [concluirRitualId, setConcluirRitualId] = useState<string | null>(null);
+  const [concluirData, setConcluirData] = useState<string>(() => new Date().toISOString().split("T")[0]);
+  const [concluirNota, setConcluirNota] = useState<string>("");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -351,6 +358,42 @@ export default function Home() {
         : null,
     [eventos]
   );
+
+  const concluirRitualMutation = useMutation({
+    mutationFn: async ({ id, tipo }: { id: string; tipo: string }) => {
+      const dataUltimo = new Date(concluirData + "T12:00:00");
+      const dataProximo = new Date(dataUltimo);
+
+      if (tipo === "diario") {
+        dataProximo.setDate(dataProximo.getDate() + 1);
+      } else if (tipo === "semanal") {
+        dataProximo.setDate(dataProximo.getDate() + 7);
+      } else if (tipo === "mensal") {
+        dataProximo.setMonth(dataProximo.getMonth() + 1);
+      } else if (tipo === "trimestral") {
+        dataProximo.setMonth(dataProximo.getMonth() + 3);
+      } else {
+        dataProximo.setDate(dataProximo.getDate() + 30);
+      }
+
+      return apiRequest("PATCH", `/api/rituais/${id}`, {
+        dataUltimo: dataUltimo.toISOString(),
+        dataProximo: dataProximo.toISOString(),
+        completado: "true",
+        ...(concluirNota.trim() ? { notas: concluirNota.trim() } : {}),
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/rituais"] });
+      setConcluirRitualId(null);
+      setConcluirNota("");
+      setConcluirData(new Date().toISOString().split("T")[0]);
+      toast({ title: "Ritual concluído!", description: "O próximo agendamento foi atualizado." });
+    },
+    onError: () => {
+      toast({ title: "Erro ao concluir ritual", variant: "destructive" });
+    },
+  });
 
   const diagnosticoMutation = useMutation({
     mutationFn: async () => apiRequest("POST", "/api/ai/diagnostico-estrategico"),
@@ -784,6 +827,7 @@ export default function Home() {
                 const config = RITUAIS_HOME_CONFIG[ritual.tipo] ?? { nome: ritual.tipo, icon: Calendar };
                 const RitualIcon = config.icon;
                 const atrasado = ritual.dataProximo && new Date(ritual.dataProximo) < hoje;
+                const isOpen = concluirRitualId === ritual.id;
                 return (
                   <div
                     key={ritual.id}
@@ -810,6 +854,78 @@ export default function Home() {
                         {new Date(ritual.dataProximo).toLocaleDateString("pt-BR")}
                       </p>
                     </div>
+                    <Popover
+                      open={isOpen}
+                      onOpenChange={(open) => {
+                        if (open) {
+                          setConcluirRitualId(ritual.id);
+                          setConcluirData(new Date().toISOString().split("T")[0]);
+                          setConcluirNota("");
+                        } else {
+                          setConcluirRitualId(null);
+                        }
+                      }}
+                    >
+                      <PopoverTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="flex-shrink-0"
+                          data-testid={`button-concluir-ritual-${ritual.id}`}
+                          title="Concluir ritual"
+                        >
+                          <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-72" align="end">
+                        <div className="space-y-3">
+                          <p className="text-sm font-semibold">Concluir: {config.nome}</p>
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`data-ritual-${ritual.id}`} className="text-xs">Data de conclusão</Label>
+                            <Input
+                              id={`data-ritual-${ritual.id}`}
+                              type="date"
+                              value={concluirData}
+                              onChange={(e) => setConcluirData(e.target.value)}
+                              data-testid={`input-data-concluir-${ritual.id}`}
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`nota-ritual-${ritual.id}`} className="text-xs">Nota (opcional)</Label>
+                            <Input
+                              id={`nota-ritual-${ritual.id}`}
+                              placeholder="Adicione uma observação..."
+                              value={concluirNota}
+                              onChange={(e) => setConcluirNota(e.target.value)}
+                              data-testid={`input-nota-concluir-${ritual.id}`}
+                            />
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setConcluirRitualId(null)}
+                              data-testid={`button-cancelar-concluir-${ritual.id}`}
+                            >
+                              Cancelar
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => concluirRitualMutation.mutate({ id: ritual.id, tipo: ritual.tipo })}
+                              disabled={!concluirData || concluirRitualMutation.isPending}
+                              data-testid={`button-confirmar-concluir-${ritual.id}`}
+                            >
+                              {concluirRitualMutation.isPending ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Check className="h-3.5 w-3.5" />
+                              )}
+                              Confirmar
+                            </Button>
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 );
               })}
@@ -840,7 +956,6 @@ export default function Home() {
           )}
         </Card>
       </div>
-
 
       {/* Diagnóstico IA */}
       <Card className="p-6" data-testid="card-diagnostico-ia">

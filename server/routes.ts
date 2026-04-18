@@ -4410,7 +4410,10 @@ Responda em JSON:
   app.patch("/api/rituais/:id", async (req, res) => {
     try {
       const { id } = req.params;
-      const data = stripTenantFields(insertRitualSchema.partial().parse(req.body));
+      const body = req.body;
+      if (body.dataUltimo && typeof body.dataUltimo === "string") body.dataUltimo = new Date(body.dataUltimo);
+      if (body.dataProximo && typeof body.dataProximo === "string") body.dataProximo = new Date(body.dataProximo);
+      const data = stripTenantFields(insertRitualSchema.partial().parse(body));
       
       if (data.completado === "true" && !data.dataUltimo) {
         data.dataUltimo = new Date();

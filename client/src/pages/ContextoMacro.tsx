@@ -27,6 +27,7 @@ import {
   EyeOff,
   Globe,
   Loader2,
+  Newspaper,
   RefreshCw,
   Trash2,
   Zap,
@@ -49,7 +50,7 @@ interface ContextoMacro {
 
 interface ExecLog {
   timestamp: string;
-  modo: "web_search" | "fallback";
+  modo: "web_search" | "fallback" | "noticias_diretas";
   resultado: "sucesso" | "erro";
   mensagem: string;
 }
@@ -587,13 +588,25 @@ function CategoriaCard({
                           minute: "2-digit",
                         })}
                       </span>
-                      <span className={`flex items-center gap-0.5 shrink-0 font-medium ${log.modo === "web_search" ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}`}>
-                        {log.modo === "web_search" ? (
+                      <span className={`flex items-center gap-0.5 shrink-0 font-medium ${
+                        log.modo === "noticias_diretas"
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : log.modo === "web_search"
+                          ? "text-green-600 dark:text-green-400"
+                          : "text-amber-600 dark:text-amber-400"
+                      }`}>
+                        {log.modo === "noticias_diretas" ? (
+                          <Newspaper className="h-3 w-3" />
+                        ) : log.modo === "web_search" ? (
                           <Globe className="h-3 w-3" />
                         ) : (
                           <AlertTriangle className="h-3 w-3" />
                         )}
-                        {log.modo === "web_search" ? "web search" : "fallback"}
+                        {log.modo === "noticias_diretas"
+                          ? "notícias diretas"
+                          : log.modo === "web_search"
+                          ? "web search"
+                          : "fallback"}
                       </span>
                       <span className="text-foreground/80 break-words min-w-0">{log.mensagem}</span>
                     </div>

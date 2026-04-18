@@ -92,6 +92,7 @@ const openai = new OpenAI({
 // Requires SERPER_API_KEY. Returns an empty array if the key is missing,
 // so all callers get a graceful fallback without web search.
 interface SerperSearchItem { title: string; snippet: string; link: string }
+interface SerperNewsItem  { title: string; source: string; date: string; link: string }
 
 async function serperSearch(query: string, numResults = 8): Promise<SerperSearchItem[]> {
   const apiKey = process.env.SERPER_API_KEY;
@@ -117,6 +118,37 @@ async function serperSearch(query: string, numResults = 8): Promise<SerperSearch
     }));
   } catch (err) {
     console.warn("[serperSearch] Erro:", err);
+    return [];
+  }
+}
+
+// Serper.dev NEWS search — returns real news titles, no LLM involved.
+// Used by pulse_manchetes to source verified headlines directly from publishers.
+async function serperNewsSearch(query: string, numResults = 10): Promise<SerperNewsItem[]> {
+  const apiKey = process.env.SERPER_API_KEY;
+  if (!apiKey) return [];
+  storage.incrementSearchUsage().catch(() => {});
+  try {
+    const res = await fetch("https://google.serper.dev/news", {
+      method: "POST",
+      headers: { "X-API-KEY": apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ q: query, num: numResults, gl: "br", hl: "pt" }),
+    });
+    if (!res.ok) {
+      console.warn(`[serperNewsSearch] HTTP ${res.status} para query: ${query}`);
+      return [];
+    }
+    const data = await res.json() as {
+      news?: Array<{ title?: string; source?: string; date?: string; link?: string }>;
+    };
+    return (data.news ?? []).map((it) => ({
+      title:  it.title  ?? "",
+      source: it.source ?? "",
+      date:   it.date   ?? "",
+      link:   it.link   ?? "",
+    }));
+  } catch (err) {
+    console.warn("[serperNewsSearch] Erro:", err);
     return [];
   }
 }
@@ -5603,7 +5635,7 @@ Seja específico para o setor ${empresa.setor}.`,
     crises_setoriais: `Pesquise CRISES e RISCOS SETORIAIS ATUAIS no Brasil com foco em impactos para PMEs. Inclua: setores em maior dificuldade (varejo, construção civil, indústria, agronegócio, serviços), dados recentes de falências e recuperações judiciais, problemas de cadeia de suprimento, greves ou paralisações, escassez de insumos ou mão de obra qualificada, e setores com oportunidades emergindo de reestruturações. Cite dados com datas. Responda em português do Brasil, máximo 400 palavras.`,
     tendencias_mercado: `Pesquise as principais TENDÊNCIAS DE MERCADO ATUAIS no Brasil relevantes para PMEs. Inclua: mudanças recentes no comportamento do consumidor brasileiro (pós-pandemia, digital, crédito), setores em crescimento acelerado (healthtech, agritech, fintechs, energia limpa, IA aplicada), expansão do e-commerce e marketplace, dados de investimento e venture capital no ecossistema brasileiro, e oportunidades identificadas por analistas e consultorias. Cite fontes e datas. Responda em português do Brasil, máximo 400 palavras.`,
     contexto_geral: `Faça uma síntese estratégica ATUAL do contexto macroeconômico e de negócios do Brasil voltado para gestores de PMEs. Com base em dados e notícias recentes, sintetize: perspectiva econômica geral (PIB, juros, câmbio, inflação), principais riscos operacionais e financeiros do momento, oportunidades concretas de crescimento, sentimento do empresariado (índices de confiança recentes), e 2 a 3 recomendações práticas de posicionamento estratégico para PMEs neste cenário. Cite dados com datas. Responda em português do Brasil, máximo 450 palavras.`,
-    pulse_manchetes: `Com base nas notícias e dados econômicos mais recentes encontrados, gere de 10 a 18 manchetes ultra-curtas sobre o mercado financeiro e de negócios brasileiro, separadas pelo caractere | (pipe). Cada manchete deve ter no máximo 70 caracteres. Inclua obrigatoriamente: cotação atual do dólar (USD/BRL) com variação percentual, valor atual do IBOVESPA com variação, taxa Selic vigente, IPCA acumulado mais recente, ao menos um preço de commodity relevante para o Brasil (soja, petróleo ou minério de ferro), e de 4 a 6 breaking news corporativas ou regulatórias relevantes para PMEs brasileiras. Use o estilo de letreiro de mercado financeiro: conciso, factual, sem artigos desnecessários. Exemplos de formato: "USD/BRL 5,82 ▲0,4%" | "IBOVESPA 131.204 ▼0,8%" | "Selic 14,75% a.a." | "IPCA +0,43% mar/25" | "Petróleo Brent USD 74,3/barril" | "Petrobras: lucro R$9,2bi no 1T25" | "STF suspende cobrança ICMS digital". Responda APENAS com as manchetes separadas por |, sem texto introdutório, sem numeração, sem explicações.`,
+    // pulse_manchetes não usa prompt de IA — gerarContextoCategoria busca notícias reais via Serper /news
   };
 
   function calcularProximoAgendamento(frequencia: string, base: Date): Date {
@@ -5630,7 +5662,49 @@ Seja específico para o setor ${empresa.setor}.`,
 
   async function gerarContextoCategoria(
     categoria: string
-  ): Promise<{ texto: string; modo: "web_search" | "fallback" }> {
+  ): Promise<{ texto: string; modo: "web_search" | "fallback" | "noticias_diretas" }> {
+
+    // ── pulse_manchetes: notícias reais direto da fonte, SEM síntese por IA ──
+    // Eliminamos o passo de geração por LLM para evitar alucinações no ticker.
+    // Usamos os títulos exatos retornados pelo endpoint /news do Serper.dev,
+    // escritos pelos próprios jornalistas dos portais (Valor, InfoMoney, G1, etc.).
+    if (categoria === "pulse_manchetes") {
+      if (!process.env.SERPER_API_KEY) {
+        console.warn("[pulse_manchetes] SERPER_API_KEY ausente — ticker retorna vazio (sem fallback para IA).");
+        return { texto: "", modo: "noticias_diretas" };
+      }
+      const record = await storage.getContextoMacroByCategoria(categoria);
+      const customQuery = record?.queryBusca?.trim();
+
+      // Duas buscas paralelas para cobertura ampla; se admin definiu query customizada,
+      // usamos ela sozinha e pulamos a segunda (evitar duplicatas semânticas).
+      const [macroNews, negociosNews] = await Promise.all([
+        serperNewsSearch(customQuery ?? "mercado financeiro economia Brasil hoje", 10),
+        customQuery ? Promise.resolve([] as SerperNewsItem[]) : serperNewsSearch("negócios empresas PME Brasil hoje", 8),
+      ]);
+
+      // Mescla e deduplica por prefixo do título (primeiros 40 chars, case-insensitive)
+      const seen = new Set<string>();
+      const manchetes: string[] = [];
+      for (const item of [...macroNews, ...negociosNews]) {
+        const title = item.title.trim();
+        if (!title) continue;
+        const dedupeKey = title.toLowerCase().slice(0, 40);
+        if (seen.has(dedupeKey)) continue;
+        seen.add(dedupeKey);
+        // Formato: "Veículo · Título" (max 90 chars total para caber no ticker)
+        const prefix = item.source ? `${item.source} · ` : "";
+        const maxTitle = 90 - prefix.length;
+        const truncated = title.length > maxTitle ? title.slice(0, maxTitle - 1) + "…" : title;
+        manchetes.push(`${prefix}${truncated}`);
+        if (manchetes.length >= 18) break;
+      }
+
+      const texto = manchetes.join(" | ");
+      console.log(`[pulse_manchetes] ${manchetes.length} manchetes reais coletadas (sem IA, anti-alucinação)`);
+      return { texto, modo: "noticias_diretas" };
+    }
+
     const prompt = CATEGORIAS_PROMPTS[categoria];
     if (!prompt) throw new Error(`Categoria sem prompt: ${categoria}`);
 

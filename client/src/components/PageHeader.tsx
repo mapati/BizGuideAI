@@ -17,7 +17,7 @@ export function PageHeader({ title, description, tooltip, action }: PageHeaderPr
         </div>
         <p className="text-muted-foreground max-w-2xl" data-testid="text-page-description">{description}</p>
       </div>
-      {action && <div>{action}</div>}
+      {action && <div className="mt-10">{action}</div>}
     </div>
   );
 }

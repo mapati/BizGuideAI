@@ -529,8 +529,8 @@ export default function Estrategias() {
       toast({ title: "Perfil não encontrado", description: "Complete o perfil da empresa primeiro.", variant: "destructive" });
       return;
     }
-    setIsPreGenOpen(false);
     setIsGenerating(true);
+    setIsPreGenOpen(false);
     setIsPickerOpen(true);
     try {
       const response = await apiRequest("POST", "/api/ai/gerar-estrategias", {
@@ -715,11 +715,11 @@ export default function Estrategias() {
                   .map(([k]) => k),
                 instrucaoAdicional: instrucaoAdicionalEstrategia,
               })}
-              disabled={!algumQuadranteSelecionado}
+              disabled={!algumQuadranteSelecionado || isGenerating}
               data-testid="button-confirmar-gerar-estrategias"
             >
               <Sparkles className="h-4 w-4 mr-2" />
-              Gerar
+              {isGenerating ? "Gerando..." : "Gerar"}
             </Button>
           </DialogFooter>
         </DialogContent>

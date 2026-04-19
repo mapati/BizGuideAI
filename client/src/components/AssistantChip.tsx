@@ -1,4 +1,4 @@
-import { Sparkles } from "lucide-react";
+import { Sparkles, Compass } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { NivelStatus } from "@/hooks/useAssistantStatus";
 
@@ -7,6 +7,7 @@ interface AssistantChipProps {
   preview: string;
   onClick: () => void;
   isOpen: boolean;
+  modo: "guia" | "assistente";
 }
 
 const CONFIG: Record<NivelStatus, { bg: string; text: string; border: string; pulse: boolean }> = {
@@ -36,8 +37,19 @@ const CONFIG: Record<NivelStatus, { bg: string; text: string; border: string; pu
   },
 };
 
-export function AssistantChip({ nivel, preview, onClick, isOpen }: AssistantChipProps) {
-  const cfg = CONFIG[nivel];
+const GUIA_CONFIG = {
+  bg: "bg-background",
+  text: "text-foreground",
+  border: "border-border",
+  pulse: true,
+};
+
+export function AssistantChip({ nivel, preview, onClick, isOpen, modo }: AssistantChipProps) {
+  const isGuia = modo === "guia";
+  const cfg = isGuia ? GUIA_CONFIG : CONFIG[nivel];
+  const Icon = isGuia ? Compass : Sparkles;
+  const title = isGuia ? "Abrir Guia Estratégico" : "Abrir Assistente Estratégico";
+
   return (
     <button
       onClick={onClick}
@@ -52,10 +64,10 @@ export function AssistantChip({ nivel, preview, onClick, isOpen }: AssistantChip
       )}
       style={{ zIndex: 9990 }}
       data-testid="button-assistant-chip"
-      title="Abrir Assistente Estratégico"
+      title={title}
     >
       <div className={cn("relative flex-shrink-0", cfg.pulse && "animate-pulse")}>
-        <Sparkles className="h-4 w-4" />
+        <Icon className="h-4 w-4" />
       </div>
       <span className="text-sm font-medium max-w-[180px] truncate">{preview}</span>
     </button>

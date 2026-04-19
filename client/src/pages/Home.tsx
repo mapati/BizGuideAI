@@ -2,7 +2,6 @@ import { useState, useMemo, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueries, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { JornadaEstrategica } from "@/components/JornadaEstrategica";
 import { PulseMercado } from "@/components/PulseMercado";
 import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
 import { Card } from "@/components/ui/card";
@@ -32,7 +31,6 @@ import {
   BarChart3,
   Activity,
   ChevronRight,
-  ChevronDown,
   Compass,
   Map,
   Zap,
@@ -97,17 +95,6 @@ function calcularProgressoKR(kr: ResultadoChave): number {
   if (isNaN(inicial) || isNaN(atual) || isNaN(alvo)) return 0;
   if (inicial === alvo) return 100;
   return Math.max(0, Math.min(100, ((atual - inicial) / (alvo - inicial)) * 100));
-}
-
-function renderBoldText(text: string): React.ReactNode[] {
-  const parts = text.split(/\*\*(.+?)\*\*/g);
-  return parts.map((part, i) =>
-    i % 2 === 1 ? <strong key={i} className="font-semibold text-foreground">{part}</strong> : part
-  );
-}
-
-function RichLine({ line }: { line: string }) {
-  return <>{renderBoldText(line)}</>;
 }
 
 function getSaudeCor(saude: number): { label: string; className: string } {
@@ -197,28 +184,6 @@ function exportarDiagnosticoPDF(
 
   const fileName = `diagnostico-estrategico-${geradoEm.toISOString().slice(0, 10)}.pdf`;
   doc.save(fileName);
-}
-
-function BrazilFlag({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 20 14" className={className} role="img" aria-label="Bandeira do Brasil">
-      <rect width="20" height="14" rx="1" fill="#009c3b" />
-      <polygon points="10,1.5 18.5,7 10,12.5 1.5,7" fill="#ffdf00" />
-      <circle cx="10" cy="7" r="3.4" fill="#002776" />
-    </svg>
-  );
-}
-
-function JornadaEstrategicaCondicional() {
-  const progresso = useJornadaProgresso();
-  if (progresso.isLoading) return null;
-  if (progresso.jornadaConcluida) {
-    return <JornadaEstrategica progresso={progresso} defaultOpen={false} />;
-  }
-  if (progresso.totalConcluidas < 6) {
-    return <JornadaEstrategica progresso={progresso} defaultOpen={false} />;
-  }
-  return <JornadaEstrategica progresso={progresso} defaultOpen={false} compact />;
 }
 
 export default function Home() {
@@ -418,7 +383,7 @@ export default function Home() {
 
   const isLoading = loadingObjetivos || loadingKRs || loadingIndicadores;
 
-  const { etapas, jornadaConcluida, isLoading: jornadaLoading } = useJornadaProgresso();
+  const { etapas, isLoading: jornadaLoading } = useJornadaProgresso();
 
   const isEtapaBloqueada = (id: string): boolean => {
     if (jornadaLoading) return false;
@@ -615,7 +580,6 @@ export default function Home() {
         </Card>
       )}
       <PulseMercado />
-      <JornadaEstrategicaCondicional />
       {/* Performance Geral + OKRs por Perspectiva */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         {/* Performance Geral */}

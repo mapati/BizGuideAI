@@ -29,7 +29,7 @@ export function AssistantDrawer({
   return (
     <div
       className={cn(
-        "fixed flex flex-col rounded-2xl border bg-background shadow-2xl",
+        "assistant-card fixed flex flex-col rounded-2xl border bg-background shadow-2xl",
         "transition-all duration-200 ease-out",
         isOpen
           ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
@@ -38,8 +38,6 @@ export function AssistantDrawer({
       style={{
         bottom: "5rem",
         right: "1.25rem",
-        width: "min(380px, calc(100vw - 2.5rem))",
-        height: "min(560px, 80vh)",
         transformOrigin: "bottom right",
         zIndex: 9995,
       }}

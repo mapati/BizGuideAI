@@ -385,3 +385,15 @@
     opacity: 0;
   }
 }
+.assistant-card {
+  width: min(380px, calc(100vw - 2.5rem));
+  height: min(560px, 80vh);
+}
+
+@media (max-width: 640px) {
+  .assistant-card {
+    width: calc(100vw - 2rem);
+    max-height: 75vh;
+    height: 75vh;
+  }
+}

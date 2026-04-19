@@ -36,7 +36,7 @@ export function AssistantDrawer({
           : "opacity-0 scale-95 -translate-y-2 pointer-events-none"
       )}
       style={{
-        top: "7rem",
+        top: "8.5rem",
         right: "1.25rem",
         transformOrigin: "top right",
         zIndex: 9995,

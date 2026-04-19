@@ -3003,6 +3003,83 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
     }
   });
 
+  app.post("/api/ai/sugerir-bloco-bmc", requireAuth, async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const { bloco } = req.body as { bloco?: string };
+
+      const blocosValidos = [
+        "parcerias_principais", "atividades_principais", "recursos_principais",
+        "proposta_valor", "relacionamento_clientes", "canais",
+        "segmentos_clientes", "estrutura_custos", "fontes_receita",
+      ];
+      if (!bloco || !blocosValidos.includes(bloco)) {
+        return res.status(400).json({ error: "Bloco inválido" });
+      }
+
+      const empresa = await storage.getEmpresa(empresaId);
+      if (!empresa) return res.status(404).json({ error: "Empresa não encontrada" });
+
+      const blocosLabels: Record<string, { label: string; pergunta: string }> = {
+        parcerias_principais: { label: "Parcerias Principais", pergunta: "Quem são os principais parceiros e fornecedores estratégicos?" },
+        atividades_principais: { label: "Atividades Principais", pergunta: "Quais são as atividades mais importantes para operar?" },
+        recursos_principais: { label: "Recursos Principais", pergunta: "Quais recursos essenciais (físicos, financeiros, humanos) são necessários?" },
+        proposta_valor: { label: "Proposta de Valor", pergunta: "Qual valor único é entregue aos clientes?" },
+        relacionamento_clientes: { label: "Relacionamento com Clientes", pergunta: "Como o relacionamento com os clientes é mantido?" },
+        canais: { label: "Canais", pergunta: "Quais canais de comunicação, venda e distribuição são usados?" },
+        segmentos_clientes: { label: "Segmentos de Clientes", pergunta: "Quais grupos de clientes são atendidos?" },
+        estrutura_custos: { label: "Estrutura de Custos", pergunta: "Quais são os principais custos para operar o negócio?" },
+        fontes_receita: { label: "Fontes de Receita", pergunta: "Como é gerada a receita com cada segmento?" },
+      };
+
+      const blocosExistentes = await storage.getModeloNegocio(empresaId);
+      const outrosBlocos = blocosExistentes
+        .filter(b => b.bloco !== bloco && b.descricao?.trim())
+        .map(b => `- ${blocosLabels[b.bloco]?.label || b.bloco}: ${b.descricao}`)
+        .join("\n");
+
+      const contextoPerfil = buildEmpresaContextoIA(empresa);
+      const info = blocosLabels[bloco];
+
+      const completion = await openai.chat.completions.create({
+        model: getModelForPlan(empresa.planoTipo, "relatorios"),
+        messages: [
+          {
+            role: "system",
+            content: `Você é um consultor estratégico especializado em Business Model Canvas. Sua tarefa é gerar APENAS o conteúdo de um bloco específico do BMC, considerando o perfil da empresa e os outros blocos já preenchidos para garantir coerência entre eles. Use linguagem simples e direta, sem jargões.`,
+          },
+          {
+            role: "user",
+            content: `## PERFIL DA EMPRESA
+${contextoPerfil}
+
+${outrosBlocos ? `## OUTROS BLOCOS JÁ PREENCHIDOS DO BMC:\n${outrosBlocos}\n` : ""}
+## TAREFA:
+Gere o conteúdo do bloco "${info.label}" do Business Model Canvas para esta empresa.
+
+Pergunta-guia: ${info.pergunta}
+
+Forneça uma descrição clara, prática e específica para esta empresa, em 2-4 frases. Garanta coerência com os outros blocos já preenchidos (se houver).
+
+Responda OBRIGATORIAMENTE em JSON:
+{
+  "descricao": "..."
+}`,
+          },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.7,
+      });
+
+      const result = JSON.parse(completion.choices[0].message.content || "{}");
+      const descricao = typeof result.descricao === "string" ? result.descricao.trim() : "";
+      if (!descricao) return res.status(500).json({ error: "Resposta da IA vazia" });
+      res.json({ descricao });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/ai/sugerir-resultados", async (req, res) => {
     try {
       const { objetivo, nomeEmpresa, setor } = req.body;
@@ -3766,6 +3843,7 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
       const iniciativasExistentes = await storage.getIniciativas(empresaId);
       const estrategiasLista = await storage.getEstrategias(empresaId);
       const oportunidades = await storage.getOportunidadesCrescimento(empresaId);
+      const modeloNegocio = await storage.getModeloNegocio(empresaId);
 
       const iniciativasResume = iniciativasExistentes.map(i => 
         `- ${i.titulo}\n  Descrição: ${i.descricao}\n  Status: ${i.status} | Prioridade: ${i.prioridade}`
@@ -3773,6 +3851,12 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
 
       const estrategiasResume = estrategiasLista.map(e => `${e.tipo}: ${e.titulo}`).join("\n");
       const oportunidadesResume = oportunidades.map(o => `${o.tipo}: ${o.titulo}`).join("\n");
+
+      const blocosIniciativas = ["atividades_principais", "recursos_principais", "parcerias_principais"];
+      const bmcIniciativasCtx = modeloNegocio
+        .filter(b => blocosIniciativas.includes(b.bloco) && b.descricao?.trim())
+        .map(b => `- ${b.bloco}: ${b.descricao}`)
+        .join("\n");
 
       const completion = await openai.chat.completions.create({
         model: getModelForPlan(empresa.planoTipo, "relatorios"),
@@ -3799,7 +3883,7 @@ ${estrategiasLista.length > 0 ? estrategiasResume : "Nenhuma estratégia definid
 
 ### OPORTUNIDADES DE CRESCIMENTO:
 ${oportunidades.length > 0 ? oportunidadesResume : "Nenhuma oportunidade identificada"}
-
+${bmcIniciativasCtx ? `\n### MODELO DE NEGÓCIO (Business Model Canvas):\n${bmcIniciativasCtx}\n` : ""}
 ## INICIATIVAS JÁ EXISTENTES (NÃO REPITA NENHUMA DELAS):
 ${iniciativasExistentes.length > 0 ? iniciativasResume : "Nenhuma iniciativa criada ainda - esta é a primeira geração"}
 
@@ -3876,10 +3960,17 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
       const estrategiasLista = await storage.getEstrategias(empresaId);
       const oportunidades = await storage.getOportunidadesCrescimento(empresaId);
       const iniciativas = await storage.getIniciativas(empresaId);
+      const modeloNegocio = await storage.getModeloNegocio(empresaId);
 
       const estrategiasResume = estrategiasLista.map(e => `${e.tipo}: ${e.titulo} - ${e.descricao}`).join("\n");
       const oportunidadesResume = oportunidades.map(o => `${o.tipo}: ${o.titulo} - ${o.descricao}`).join("\n");
       const iniciativasResume = iniciativas.map(i => `${i.titulo} (Prioridade: ${i.prioridade})`).join("\n");
+
+      const blocosObjetivos = ["proposta_valor", "segmentos_clientes", "atividades_principais"];
+      const bmcObjetivosCtx = modeloNegocio
+        .filter(b => blocosObjetivos.includes(b.bloco) && b.descricao?.trim())
+        .map(b => `- ${b.bloco}: ${b.descricao}`)
+        .join("\n");
 
       const definicoesPerspectivasBSC: Record<string, { definicao: string; exemplos: string }> = {
         "Financeira": {
@@ -3930,6 +4021,7 @@ ${contextoPerfil}
 ${estrategiasLista.length > 0 ? `Estratégias:\n${estrategiasResume}` : ""}
 ${oportunidades.length > 0 ? `\nOportunidades de crescimento:\n${oportunidadesResume}` : ""}
 ${iniciativas.length > 0 ? `\nIniciativas prioritárias:\n${iniciativasResume}` : ""}
+${bmcObjetivosCtx ? `\nModelo de Negócio (Business Model Canvas):\n${bmcObjetivosCtx}` : ""}
 
 ## OBJETIVOS JÁ EXISTENTES NA PERSPECTIVA "${perspectiva}" (NÃO REPITA):
 ${objetivosDestaPerspectiva.length > 0 ? objetivosResume : "Nenhum ainda"}
@@ -5049,13 +5141,20 @@ Responda em JSON:
 
       const contextoPerfil = buildEmpresaContextoIA(empresa);
 
-      const [objetivosList, indicadores, eventos, iniciativas, rituais] = await Promise.all([
+      const [objetivosList, indicadores, eventos, iniciativas, rituais, modeloNegocio] = await Promise.all([
         storage.getObjetivos(empresaId),
         storage.getIndicadores(empresaId),
         storage.getEventos(empresaId),
         storage.getIniciativas(empresaId),
         storage.getRituais(empresaId),
+        storage.getModeloNegocio(empresaId),
       ]);
+
+      const blocosDiagnostico = ["proposta_valor", "segmentos_clientes", "fontes_receita", "estrutura_custos"];
+      const bmcDiagnosticoCtx = modeloNegocio
+        .filter(b => blocosDiagnostico.includes(b.bloco) && b.descricao?.trim())
+        .map(b => `- ${b.bloco}: ${b.descricao}`)
+        .join("\n");
 
       const krsArrays = await Promise.all(
         objetivosList.map((obj) => storage.getResultadosChave(obj.id, empresaId))
@@ -5221,7 +5320,7 @@ ${alertasResume}
 
 ## Eventos Recentes de Acompanhamento
 ${eventosResume}
-
+${bmcDiagnosticoCtx ? `\n## Modelo de Negócio (Business Model Canvas)\n${bmcDiagnosticoCtx}\n` : ""}
 ---
 Gere um diagnóstico estratégico em JSON com esta estrutura exata:
 {

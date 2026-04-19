@@ -33,12 +33,12 @@ export function AssistantDrawer({
         "transition-all duration-200 ease-out",
         isOpen
           ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
-          : "opacity-0 scale-95 translate-y-2 pointer-events-none"
+          : "opacity-0 scale-95 -translate-y-2 pointer-events-none"
       )}
       style={{
-        bottom: "5rem",
+        top: "7rem",
         right: "1.25rem",
-        transformOrigin: "bottom right",
+        transformOrigin: "top right",
         zIndex: 9995,
       }}
       data-testid="component-assistant-drawer"

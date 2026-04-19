@@ -42,7 +42,7 @@ export function AssistantChip({ nivel, preview, onClick, isOpen }: AssistantChip
     <button
       onClick={onClick}
       className={cn(
-        "fixed bottom-5 right-5 flex items-center gap-2 px-4 py-2.5",
+        "fixed top-[4.5rem] right-5 flex items-center gap-2 px-4 py-2.5",
         "rounded-full border shadow-md transition-all duration-300",
         "hover:shadow-lg active:scale-95",
         cfg.bg,

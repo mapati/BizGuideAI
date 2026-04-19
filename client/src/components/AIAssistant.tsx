@@ -37,6 +37,8 @@ export function AIAssistant() {
     prevConcluidaRef.current = atual;
   }, [progresso.jornadaConcluida, progresso.isLoading]);
 
+  if (progresso.isLoading) return null;
+
   const guiaPreview = (() => {
     const proxima = progresso.etapas.find(
       (e) => !e.concluida && (!e.bloqueadaPor || e.bloqueadaPor.length === 0)

@@ -221,7 +221,7 @@ export function useJornadaProgresso(): JornadaProgresso {
         "Mapeie os fatores externos — políticos, econômicos, sociais, tecnológicos, ambientais e legais — que influenciam o seu mercado.",
       valorIA:
         "A IA pesquisa e sugere fatores externos relevantes para o seu setor, enriquecendo a análise com dados reais.",
-      bloqueadaPor: perfilCompleto ? [] : ["perfil"],
+      bloqueadaPor: modeloNegocio.length >= 5 ? [] : ["bmc"],
     },
     {
       id: "cinco-forcas",
@@ -234,7 +234,7 @@ export function useJornadaProgresso(): JornadaProgresso {
         "Analise as forças do seu mercado: rivalidade entre concorrentes, ameaça de entrantes, substitutos, poder de clientes e poder de fornecedores.",
       valorIA:
         "A IA avalia cada força competitiva do seu setor e sugere estratégias de posicionamento com base no cenário externo mapeado.",
-      bloqueadaPor: perfilCompleto ? [] : ["perfil"],
+      bloqueadaPor: fatoresPestel.length >= 6 ? [] : ["pestel"],
     },
     {
       id: "swot",

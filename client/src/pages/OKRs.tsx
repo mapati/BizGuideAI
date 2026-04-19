@@ -1103,136 +1103,20 @@ export default function OKRs() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {resultadosChave.map((resultado) => {
-                    const isEditing = editandoResultado?.id === resultado.id;
-                    const progresso = calcularProgresso(resultado.valorInicial, resultado.valorAtual, resultado.valorAlvo);
-
-                    return (
-                      <Card key={resultado.id} className="p-4" data-testid={`card-resultado-${resultado.id}`}>
-                        {isEditing ? (
-                          <div className="space-y-3">
-                            <div>
-                              <Label>Métrica</Label>
-                              <Input
-                                value={editandoResultado.metrica}
-                                onChange={(e) => setEditandoResultado({ ...editandoResultado, metrica: e.target.value })}
-                                data-testid={`input-edit-metrica-${resultado.id}`}
-                              />
-                            </div>
-                            <div className="grid grid-cols-3 gap-2">
-                              <div>
-                                <Label className="text-xs">Inicial</Label>
-                                <Input
-                                  type="number"
-                                  value={editandoResultado.valorInicial}
-                                  onChange={(e) => setEditandoResultado({ ...editandoResultado, valorInicial: e.target.value })}
-                                  data-testid={`input-edit-inicial-${resultado.id}`}
-                                />
-                              </div>
-                              <div>
-                                <Label className="text-xs">Atual</Label>
-                                <Input
-                                  type="number"
-                                  value={editandoResultado.valorAtual}
-                                  onChange={(e) => setEditandoResultado({ ...editandoResultado, valorAtual: e.target.value })}
-                                  data-testid={`input-edit-atual-${resultado.id}`}
-                                />
-                              </div>
-                              <div>
-                                <Label className="text-xs">Alvo</Label>
-                                <Input
-                                  type="number"
-                                  value={editandoResultado.valorAlvo}
-                                  onChange={(e) => setEditandoResultado({ ...editandoResultado, valorAlvo: e.target.value })}
-                                  data-testid={`input-edit-alvo-${resultado.id}`}
-                                />
-                              </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                              <div>
-                                <Label className="text-xs">Responsável</Label>
-                                <Input
-                                  value={editandoResultado.owner}
-                                  onChange={(e) => setEditandoResultado({ ...editandoResultado, owner: e.target.value })}
-                                  data-testid={`input-edit-owner-${resultado.id}`}
-                                />
-                              </div>
-                              <div>
-                                <Label className="text-xs">Prazo</Label>
-                                <Input
-                                  value={editandoResultado.prazo}
-                                  onChange={(e) => setEditandoResultado({ ...editandoResultado, prazo: e.target.value })}
-                                  data-testid={`input-edit-prazo-${resultado.id}`}
-                                />
-                              </div>
-                            </div>
-                            <div className="flex gap-2">
-                              <Button
-                                onClick={handleEditarResultado}
-                                disabled={editarResultadoMutation.isPending}
-                                size="sm"
-                                data-testid={`button-save-resultado-${resultado.id}`}
-                              >
-                                Salvar
-                              </Button>
-                              <Button
-                                onClick={() => setEditandoResultado(null)}
-                                variant="outline"
-                                size="sm"
-                                data-testid={`button-cancel-resultado-${resultado.id}`}
-                              >
-                                Cancelar
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div>
-                            <div className="flex items-start justify-between mb-3">
-                              <div className="flex-1">
-                                <h5 className="font-semibold text-sm mb-1">{resultado.metrica}</h5>
-                                <div className="flex gap-4 text-xs text-muted-foreground">
-                                  <span>Inicial: {resultado.valorInicial}</span>
-                                  <span>Atual: {resultado.valorAtual}</span>
-                                  <span>Alvo: {resultado.valorAlvo}</span>
-                                </div>
-                              </div>
-                              <div className="flex gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => setEditandoResultado(resultado)}
-                                  data-testid={`button-edit-resultado-${resultado.id}`}
-                                >
-                                  <Edit2 className="h-3 w-3" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => deletarResultadoMutation.mutate(resultado.id)}
-                                  data-testid={`button-delete-resultado-${resultado.id}`}
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between text-xs">
-                                <span className="text-muted-foreground">Progresso</span>
-                                <span className="font-semibold">{Math.round(progresso)}%</span>
-                              </div>
-                              <Progress value={progresso} className="h-2" data-testid={`progress-resultado-${resultado.id}`} />
-                            </div>
-                            <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-                              <span>Responsável: {resultado.owner}</span>
-                              <span>Prazo: {resultado.prazo}</span>
-                            </div>
-                          </div>
-                        )}
-                      </Card>
-                    );
-                  })}
+                  {resultadosChave.map((resultado) => (
+                    <ResultadoChaveCard
+                      key={resultado.id}
+                      resultado={resultado}
+                      isEditing={editandoResultado?.id === resultado.id}
+                      editingData={editandoResultado}
+                      onStartEdit={setEditandoResultado}
+                      onChangeEdit={setEditandoResultado}
+                      onSave={handleEditarResultado}
+                      onCancelEdit={() => setEditandoResultado(null)}
+                      onDelete={(id) => deletarResultadoMutation.mutate(id)}
+                      isSaving={editarResultadoMutation.isPending}
+                    />
+                  ))}
                 </div>
               )}
             </div>

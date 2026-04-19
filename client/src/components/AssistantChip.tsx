@@ -44,7 +44,7 @@ export function AssistantChip({ nivel, preview, onClick, isOpen }: AssistantChip
       className={cn(
         "fixed bottom-5 right-5 flex items-center gap-2 px-4 py-2.5",
         "rounded-full border shadow-md transition-all duration-300",
-        "hover-elevate active-elevate-2",
+        "hover:shadow-lg active:scale-95",
         cfg.bg,
         cfg.border,
         cfg.text,

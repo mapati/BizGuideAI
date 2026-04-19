@@ -3409,12 +3409,13 @@ Regras:
       });
 
       const rawContent = completion.choices[0].message.content || "{}";
+      console.log("[gerar-estrategias] Resposta bruta da IA (debug):", rawContent.substring(0, 300));
       const parsed = JSON.parse(rawContent);
       const validado = resultadoSchema.safeParse(parsed);
 
       if (!validado.success) {
         console.error("[gerar-estrategias] Falha na validação Zod:", JSON.stringify(validado.error.issues));
-        console.error("[gerar-estrategias] Resposta bruta da IA:", rawContent.substring(0, 500));
+        console.error("[gerar-estrategias] Resposta bruta completa:", rawContent.substring(0, 500));
         return res.status(500).json({ error: "Resposta da IA em formato inválido. Tente novamente." });
       }
 

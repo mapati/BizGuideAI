@@ -2300,6 +2300,27 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
     }
   });
 
+  app.get("/api/ai/estrategias-context-summary", async (req, res) => {
+    try {
+      if (!req.session.empresaId) return res.status(401).json({ error: "Não autenticado" });
+      const empresaId = req.session.empresaId;
+      const [pestelList, cincoForcasList, modeloList] = await Promise.all([
+        storage.getFatoresPestel(empresaId),
+        storage.getCincoForcas(empresaId),
+        storage.getModeloNegocio(empresaId),
+      ]);
+      res.json({
+        counts: {
+          pestel: pestelList.length,
+          cincoForcas: cincoForcasList.length,
+          modeloNegocio: modeloList.length,
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/ai/sugerir-swot-completo", async (req, res) => {
     try {
       if (!req.session.empresaId) return res.status(401).json({ error: "Não autenticado" });
@@ -3301,10 +3322,26 @@ ${ctx.join("\n\n")}`;
           ? req.body.instrucaoAdicional.trim()
           : "";
 
+      const fontesPermitidas = ["pestel", "cincoForcas", "modeloNegocio"] as const;
+      type FonteEstrategia = typeof fontesPermitidas[number];
+      const rawFontes: unknown = req.body.fontesContexto;
+      const fontesContexto: FonteEstrategia[] = Array.isArray(rawFontes)
+        ? (rawFontes.filter((f): f is FonteEstrategia => fontesPermitidas.includes(f as FonteEstrategia)))
+        : [...fontesPermitidas];
+
+      const usePestel       = fontesContexto.includes("pestel");
+      const useCincoForcas  = fontesContexto.includes("cincoForcas");
+      const useModeloNeg    = fontesContexto.includes("modeloNegocio");
+
       const contextoPerfil = buildEmpresaContextoIA(empresa);
 
-      const swotExistente = await storage.getAnaliseSwot(empresaId);
-      const estrategiasExistentes = await storage.getEstrategias(empresaId);
+      const [swotExistente, estrategiasExistentes, fatoresPestelList, cincoForcasList, modeloNegocioList] = await Promise.all([
+        storage.getAnaliseSwot(empresaId),
+        storage.getEstrategias(empresaId),
+        usePestel      ? storage.getFatoresPestel(empresaId)  : Promise.resolve<FatorPestel[]>([]),
+        useCincoForcas ? storage.getCincoForcas(empresaId)    : Promise.resolve<CincoForcas[]>([]),
+        useModeloNeg   ? storage.getModeloNegocio(empresaId)  : Promise.resolve<ModeloNegocio[]>([]),
+      ]);
 
       const forcas = swotExistente.filter(s => s.tipo === "forca");
       const fraquezas = swotExistente.filter(s => s.tipo === "fraqueza");
@@ -3331,6 +3368,22 @@ ${ctx.join("\n\n")}`;
         .map(q => `- ${quadrantesDetalhes[q]}`)
         .join("\n");
 
+      const pestelResumo = fatoresPestelList.length > 0
+        ? fatoresPestelList.map((f) => `${f.tipo}: ${f.descricao}`).join("\n")
+        : "";
+      const cincoForcasResumo = cincoForcasList.length > 0
+        ? cincoForcasList.map((f) => `${f.forca}: ${f.descricao} (intensidade ${f.intensidade})`).join("\n")
+        : "";
+      const modeloNegocioResumo = modeloNegocioList.length > 0
+        ? modeloNegocioList.map((m) => `${m.bloco}: ${m.descricao}`).join("\n")
+        : "";
+
+      const contextoAdicionais = [
+        pestelResumo       ? `## CENÁRIO EXTERNO / PESTEL:\n${pestelResumo}`                    : "",
+        cincoForcasResumo  ? `## MERCADO E CONCORRÊNCIA / 5 FORÇAS DE PORTER:\n${cincoForcasResumo}` : "",
+        modeloNegocioResumo ? `## MODELO DE NEGÓCIO:\n${modeloNegocioResumo}`                   : "",
+      ].filter(Boolean).join("\n\n");
+
       const completion = await openai.chat.completions.create({
         model: getModelForPlan(empresa.planoTipo, "relatorios"),
         messages: await injectMacroCtx([
@@ -3350,7 +3403,7 @@ IMPORTANTE:
             role: "user",
             content: `## PERFIL DA EMPRESA
 ${contextoPerfil}
-
+${contextoAdicionais ? `\n${contextoAdicionais}\n` : ""}
 ## ITENS SWOT (com IDs para rastreabilidade):
 
 ### FORÇAS:

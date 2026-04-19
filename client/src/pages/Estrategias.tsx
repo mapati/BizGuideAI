@@ -408,6 +408,11 @@ export default function Estrategias() {
     DA: true,
   });
   const [instrucaoAdicionalEstrategia, setInstrucaoAdicionalEstrategia] = useState("");
+  const [fontesContexto, setFontesContexto] = useState<Record<"pestel" | "cincoForcas" | "modeloNegocio", boolean>>({
+    pestel: true,
+    cincoForcas: true,
+    modeloNegocio: true,
+  });
   const [formData, setFormData] = useState({
     tipo: "",
     titulo: "",
@@ -439,6 +444,13 @@ export default function Estrategias() {
 
   const { data: swotItens = [] } = useQuery<SwotItem[]>({
     queryKey: ["/api/analise-swot", empresa?.id],
+    enabled: !!empresa?.id,
+  });
+
+  const { data: estrategiasContextSummary } = useQuery<{
+    counts: { pestel: number; cincoForcas: number; modeloNegocio: number };
+  }>({
+    queryKey: ["/api/ai/estrategias-context-summary"],
     enabled: !!empresa?.id,
   });
 
@@ -524,6 +536,7 @@ export default function Estrategias() {
     quantidadePorQuadrante: number;
     quadrantesSelecionados: string[];
     instrucaoAdicional: string;
+    fontesContexto: string[];
   }) => {
     if (!empresa) {
       toast({ title: "Perfil não encontrado", description: "Complete o perfil da empresa primeiro.", variant: "destructive" });
@@ -538,6 +551,7 @@ export default function Estrategias() {
         quantidadePorQuadrante: params.quantidadePorQuadrante,
         quadrantesSelecionados: params.quadrantesSelecionados,
         instrucaoAdicional: params.instrucaoAdicional,
+        fontesContexto: params.fontesContexto,
       });
       const candidatasRecebidas: Candidata[] = response.candidatas ?? [];
       if (candidatasRecebidas.length === 0) {
@@ -688,6 +702,52 @@ export default function Estrategias() {
               ))}
             </div>
 
+            <div data-testid="section-fontes-contexto">
+              <Label className="text-sm font-medium mb-2 block">
+                Fontes de contexto
+                {!estrategiasContextSummary && <span className="ml-2 text-xs font-normal text-muted-foreground">(carregando…)</span>}
+              </Label>
+              <div className="space-y-2">
+                {([
+                  { id: "pestel" as const,       label: "Cenário Externo",         desc: "Fatores PESTEL" },
+                  { id: "cincoForcas" as const,   label: "Mercado e concorrência",  desc: "5 Forças de Porter" },
+                  { id: "modeloNegocio" as const, label: "Modelo de Negócio",       desc: "Estrutura do negócio" },
+                ]).map((fonte) => {
+                  const count = estrategiasContextSummary?.counts?.[fonte.id] ?? 0;
+                  const isDisabled = count === 0;
+                  return (
+                    <div
+                      key={fonte.id}
+                      className={`flex items-center justify-between gap-2 py-1 ${isDisabled ? "opacity-50" : ""}`}
+                      data-testid={`row-fonte-${fonte.id}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id={`fonte-estrategia-${fonte.id}`}
+                          checked={fontesContexto[fonte.id] && !isDisabled}
+                          disabled={isDisabled}
+                          onCheckedChange={(checked) =>
+                            !isDisabled && setFontesContexto((prev) => ({ ...prev, [fonte.id]: !!checked }))
+                          }
+                          data-testid={`checkbox-fonte-${fonte.id}`}
+                        />
+                        <label
+                          htmlFor={`fonte-estrategia-${fonte.id}`}
+                          className={`text-sm select-none ${isDisabled ? "cursor-default" : "cursor-pointer"}`}
+                        >
+                          <span className="font-medium">{fonte.label}</span>
+                          <span className="text-muted-foreground ml-1">— {fonte.desc}</span>
+                        </label>
+                      </div>
+                      <Badge variant="secondary" className="text-xs shrink-0" data-testid={`badge-count-${fonte.id}`}>
+                        {count} {count === 1 ? "item" : "itens"}
+                      </Badge>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             <div>
               <Label htmlFor="instrucao-adicional-estrategia" className="text-sm font-medium mb-1 block">
                 Instruções adicionais <span className="text-muted-foreground font-normal">(opcional)</span>
@@ -714,6 +774,9 @@ export default function Estrategias() {
                   .filter(([, v]) => v)
                   .map(([k]) => k),
                 instrucaoAdicional: instrucaoAdicionalEstrategia,
+                fontesContexto: Object.entries(fontesContexto)
+                  .filter(([, v]) => v)
+                  .map(([k]) => k),
               })}
               disabled={!algumQuadranteSelecionado || isGenerating}
               data-testid="button-confirmar-gerar-estrategias"

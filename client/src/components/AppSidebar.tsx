@@ -231,10 +231,10 @@ export function AppSidebar() {
                   <SidebarMenuButton
                     data-testid="link-diagnostico"
                     className="opacity-50 cursor-not-allowed pointer-events-none"
-                    tooltip="Métricas"
+                    tooltip="Diagnóstico Atual"
                   >
                     <ClipboardList />
-                    <span>Métricas</span>
+                    <span>Diagnóstico Atual</span>
                     <EtapaIndicador jornadaId="diagnostico" etapas={etapas} proximaEtapaId={proximaEtapa?.id} />
                   </SidebarMenuButton>
                 ) : (
@@ -242,11 +242,11 @@ export function AppSidebar() {
                     asChild
                     isActive={location === "/diagnostico"}
                     data-testid="link-diagnostico"
-                    tooltip="Métricas"
+                    tooltip="Diagnóstico Atual"
                   >
                     <Link href="/diagnostico">
                       <ClipboardList />
-                      <span>Métricas</span>
+                      <span>Diagnóstico Atual</span>
                       {!jornadaLoading && (
                         <EtapaIndicador jornadaId="diagnostico" etapas={etapas} proximaEtapaId={proximaEtapa?.id} />
                       )}

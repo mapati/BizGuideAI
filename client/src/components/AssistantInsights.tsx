@@ -10,6 +10,11 @@ interface InsightsResult {
   bullets: string[];
 }
 
+interface InsightsApiResponse {
+  nivel?: "neutro" | "positivo" | "atencao" | "critico";
+  bullets?: string[];
+}
+
 interface AssistantInsightsProps {
   pagina: string;
   onAskAbout: (context: string) => void;
@@ -30,36 +35,44 @@ const NIVEL_COLOR: Record<string, string> = {
 };
 
 export function AssistantInsights({ pagina, onAskAbout }: AssistantInsightsProps) {
-  const cacheRef = useRef<InsightsResult | null>(null);
+  const cacheMapRef = useRef<Map<string, InsightsResult>>(new Map());
+  const fetchingRef = useRef<Set<string>>(new Set());
   const [result, setResult] = useState<InsightsResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const fetchedRef = useRef(false);
 
   useEffect(() => {
-    if (fetchedRef.current) return;
-    if (cacheRef.current) {
-      setResult(cacheRef.current);
+    const cached = cacheMapRef.current.get(pagina);
+    if (cached) {
+      setResult(cached);
+      setLoading(false);
       return;
     }
-    fetchedRef.current = true;
+    if (fetchingRef.current.has(pagina)) return;
+
+    fetchingRef.current.add(pagina);
     setLoading(true);
+    setResult(null);
 
     apiRequest("POST", "/api/ai/assistente", { modoAnalise: true, pagina })
-      .then((data: any) => {
+      .then((data: unknown) => {
+        const typed = data as InsightsApiResponse;
         const r: InsightsResult = {
-          nivel: data.nivel ?? "neutro",
-          bullets: data.bullets ?? [],
+          nivel: typed.nivel ?? "neutro",
+          bullets: typed.bullets ?? [],
         };
-        cacheRef.current = r;
+        cacheMapRef.current.set(pagina, r);
         setResult(r);
       })
       .catch(() => {
         const r: InsightsResult = { nivel: "neutro", bullets: [] };
-        cacheRef.current = r;
+        cacheMapRef.current.set(pagina, r);
         setResult(r);
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        fetchingRef.current.delete(pagina);
+        setLoading(false);
+      });
   }, [pagina]);
 
   const handleAskAbout = () => {

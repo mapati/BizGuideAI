@@ -6,6 +6,7 @@ interface AssistantChipProps {
   nivel: NivelStatus;
   preview: string;
   onClick: () => void;
+  isOpen: boolean;
 }
 
 const CONFIG: Record<NivelStatus, { bg: string; text: string; border: string; pulse: boolean }> = {
@@ -35,18 +36,19 @@ const CONFIG: Record<NivelStatus, { bg: string; text: string; border: string; pu
   },
 };
 
-export function AssistantChip({ nivel, preview, onClick }: AssistantChipProps) {
+export function AssistantChip({ nivel, preview, onClick, isOpen }: AssistantChipProps) {
   const cfg = CONFIG[nivel];
   return (
     <button
       onClick={onClick}
       className={cn(
         "fixed bottom-5 right-5 flex items-center gap-2 px-4 py-2.5",
-        "rounded-full border shadow-md transition-all duration-200",
+        "rounded-full border shadow-md transition-all duration-300",
         "hover-elevate active-elevate-2",
         cfg.bg,
         cfg.border,
         cfg.text,
+        isOpen ? "opacity-0 pointer-events-none translate-x-full" : "opacity-100 translate-x-0",
       )}
       style={{ zIndex: 9990 }}
       data-testid="button-assistant-chip"

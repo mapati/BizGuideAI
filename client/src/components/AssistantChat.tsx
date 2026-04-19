@@ -18,6 +18,10 @@ interface AssistantChatProps {
   onContextUsed?: () => void;
 }
 
+interface AssistanteResponse {
+  resposta: string;
+}
+
 function MessageBubble({ msg }: { msg: Message }) {
   const isUser = msg.role === "user";
   return (
@@ -56,6 +60,8 @@ function buildSuggestedQuestions(alertas: Alerta[]): string[] {
       questions.push("Quais indicadores estão no vermelho e o que fazer?");
     } else if (alerta.tipo === "iniciativa") {
       questions.push("Como recuperar as iniciativas com prazo vencido?");
+    } else if (alerta.tipo === "okr") {
+      questions.push("Por que meus OKRs estão com progresso baixo?");
     }
   }
 
@@ -124,9 +130,10 @@ export function AssistantChat({ alertas, initialContext, onContextUsed }: Assist
         pergunta: trimmed,
         historico,
       });
+      const typed = json as AssistanteResponse;
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: (json as any).resposta },
+        { role: "assistant", content: typed.resposta },
       ]);
     } catch {
       setMessages((prev) => [

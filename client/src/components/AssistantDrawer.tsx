@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { X, Sparkles, ChevronDown } from "lucide-react";
+import { X, Sparkles, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AssistantInsights } from "@/components/AssistantInsights";
 import { AssistantChat } from "@/components/AssistantChat";
@@ -9,7 +9,6 @@ import type { Alerta } from "@/hooks/useAssistantStatus";
 interface AssistantDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  onCloseAndClear: () => void;
   pagina: string | null;
   alertas: Alerta[];
 }
@@ -17,7 +16,6 @@ interface AssistantDrawerProps {
 export function AssistantDrawer({
   isOpen,
   onClose,
-  onCloseAndClear,
   pagina,
   alertas,
 }: AssistantDrawerProps) {
@@ -31,18 +29,16 @@ export function AssistantDrawer({
   return (
     <div
       className={cn(
-        "fixed bottom-0 right-0 flex flex-col border-l border-t bg-background shadow-2xl transition-transform duration-200",
-        isOpen ? "translate-y-0" : "translate-y-full pointer-events-none"
+        "fixed top-0 right-0 h-full flex flex-col border-l bg-background shadow-2xl transition-transform duration-300 ease-in-out",
+        isOpen ? "translate-x-0" : "translate-x-full pointer-events-none"
       )}
       style={{
         width: "min(420px, 100vw)",
-        height: "min(620px, calc(100vh - 60px))",
         zIndex: 9995,
-        borderTopLeftRadius: "0.75rem",
       }}
       data-testid="component-assistant-drawer"
     >
-      <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30 rounded-tl-xl flex-shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30 flex-shrink-0">
         <div className="flex items-center gap-2">
           <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center">
             <Sparkles className="h-3.5 w-3.5 text-primary-foreground" />
@@ -54,26 +50,15 @@ export function AssistantDrawer({
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onClose}
-            data-testid="button-assistant-minimize"
-            title="Minimizar"
-          >
-            <ChevronDown className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onCloseAndClear}
-            data-testid="button-assistant-close"
-            title="Fechar"
-          >
-            <X className="h-4 w-4" />
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onClose}
+          data-testid="button-assistant-close"
+          title="Fechar"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
       </div>
 
       {hasOpened && (

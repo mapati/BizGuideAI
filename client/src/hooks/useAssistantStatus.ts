@@ -23,6 +23,24 @@ const ANALYSIS_PAGES: Record<string, string> = {
   "/estrategias": "Estratégias",
 };
 
+interface IndicadorItem {
+  atual?: string | number | null;
+  meta?: string | number | null;
+}
+
+interface IniciativaItem {
+  status?: string;
+  prazo?: string;
+}
+
+interface ResultadoChave {
+  progresso?: number | null;
+}
+
+interface ObjetivoItem {
+  resultadosChave?: ResultadoChave[];
+}
+
 function isExpiredDate(prazo: string): boolean {
   if (!prazo) return false;
   const d = new Date(prazo);
@@ -32,22 +50,47 @@ function isExpiredDate(prazo: string): boolean {
   return d < today;
 }
 
+function calcularProgressoObjetivo(obj: ObjetivoItem): number {
+  const rks = obj.resultadosChave ?? [];
+  if (rks.length === 0) return 0;
+  const valid = rks.filter((rk) => rk.progresso != null);
+  if (valid.length === 0) return 0;
+  const soma = valid.reduce((acc, rk) => acc + (rk.progresso ?? 0), 0);
+  return soma / valid.length;
+}
+
 export function useAssistantStatus(): AssistantStatus {
   const { empresa } = useAuth();
   const [location] = useLocation();
   const enabled = !!empresa?.id;
+  const isAnalysisPage = location in ANALYSIS_PAGES;
 
-  const { data: indicadores = [] } = useQuery<any[]>({
+  const { data: indicadores = [] } = useQuery<IndicadorItem[]>({
     queryKey: ["/api/indicadores"],
     enabled,
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: iniciativas = [] } = useQuery<any[]>({
+  const { data: iniciativas = [] } = useQuery<IniciativaItem[]>({
     queryKey: ["/api/iniciativas", empresa?.id],
     enabled,
     staleTime: 5 * 60 * 1000,
   });
+
+  const { data: objetivos = [] } = useQuery<ObjetivoItem[]>({
+    queryKey: ["/api/objetivos"],
+    enabled,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  if (!isAnalysisPage) {
+    return {
+      nivel: "neutro",
+      preview: "Assistente Estratégico",
+      alertas: [],
+      pagina: null,
+    };
+  }
 
   const alertas: Alerta[] = [];
 
@@ -65,7 +108,7 @@ export function useAssistantStatus(): AssistantStatus {
   }
 
   const atrasadas = iniciativas.filter(
-    (i) => i.status !== "concluida" && isExpiredDate(i.prazo)
+    (i) => i.status !== "concluida" && isExpiredDate(i.prazo ?? "")
   );
 
   if (atrasadas.length > 0) {
@@ -75,7 +118,19 @@ export function useAssistantStatus(): AssistantStatus {
     });
   }
 
-  const hasData = indicadores.length > 0 || iniciativas.length > 0;
+  const okrsBaixoProgresso = objetivos.filter(
+    (obj) => calcularProgressoObjetivo(obj) < 30
+  );
+
+  if (okrsBaixoProgresso.length > 0) {
+    alertas.push({
+      tipo: "okr",
+      mensagem: `${okrsBaixoProgresso.length} OKR${okrsBaixoProgresso.length > 1 ? "s" : ""} abaixo de 30%`,
+    });
+  }
+
+  const hasData =
+    indicadores.length > 0 || iniciativas.length > 0 || objetivos.length > 0;
 
   const nivel: NivelStatus = !hasData
     ? "neutro"

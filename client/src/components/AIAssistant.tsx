@@ -9,17 +9,15 @@ export function AIAssistant() {
 
   return (
     <>
-      {!isOpen && (
-        <AssistantChip
-          nivel={nivel}
-          preview={preview}
-          onClick={() => setIsOpen(true)}
-        />
-      )}
+      <AssistantChip
+        nivel={nivel}
+        preview={preview}
+        onClick={() => setIsOpen(true)}
+        isOpen={isOpen}
+      />
       <AssistantDrawer
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
-        onCloseAndClear={() => setIsOpen(false)}
         pagina={pagina}
         alertas={alertas}
       />

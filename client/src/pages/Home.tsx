@@ -228,7 +228,6 @@ export default function Home() {
   const [geradoEm, setGeradoEm] = useState<Date | null>(null);
   const [showWelcome, setShowWelcome] = useState(false);
   const [showIntroPanel, setShowIntroPanel] = useState(false);
-  const [cenarioOpen, setCenarioOpen] = useState(false);
   const [, setLocation] = useLocation();
   const [concluirRitualId, setConcluirRitualId] = useState<string | null>(null);
   const [concluirData, setConcluirData] = useState<string>(() => new Date().toISOString().split("T")[0]);
@@ -292,11 +291,6 @@ export default function Home() {
 
   const { data: rituais = [], isLoading: loadingRituais } = useQuery<Ritual[]>({
     queryKey: ["/api/rituais"],
-    enabled: !!empresaId,
-  });
-
-  const { data: cenarioAtual, isLoading: loadingCenario } = useQuery<{ texto: string; atualizadoEm: string | null } | null>({
-    queryKey: ["/api/contexto-macro/cenario-atual"],
     enabled: !!empresaId,
   });
 
@@ -621,70 +615,6 @@ export default function Home() {
         </Card>
       )}
       <PulseMercado />
-      {/* Análise do Cenário Brasileiro Atual — colapsável, fechado por padrão */}
-      <Card data-testid="card-cenario-brasileiro">
-        <button
-          type="button"
-          onClick={() => setCenarioOpen((v) => !v)}
-          className="w-full flex items-center justify-between px-5 py-3 text-left hover-elevate active-elevate-2 rounded-lg bg-[#5fad7200]"
-          data-testid="button-toggle-cenario"
-          aria-expanded={cenarioOpen}
-        >
-          <div className="flex items-center gap-2">
-            <BrazilFlag className="h-4 w-4 flex-shrink-0" />
-            <span className="font-medium text-sm">Análise do Cenário Brasileiro Atual</span>
-          </div>
-          <ChevronDown
-            className={`h-4 w-4 text-muted-foreground transition-transform duration-200 flex-shrink-0 ${cenarioOpen ? "rotate-180" : ""}`}
-          />
-        </button>
-
-        {cenarioOpen && (
-          <div className="px-5 pb-5 border-t">
-            <div className="flex items-center gap-1.5 pt-3 mb-3">
-              <Sparkles className="h-3 w-3 text-muted-foreground/50" />
-              <span className="text-xs text-muted-foreground/50" data-testid="badge-gerado-por-ia">Gerado por IA</span>
-            </div>
-            {loadingCenario ? (
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            ) : !cenarioAtual ? (
-              <div className="text-center py-4 space-y-2">
-                <BrazilFlag className="h-8 w-8 mx-auto opacity-40" />
-                <p className="text-sm text-muted-foreground">Contexto macroeconômico ainda não gerado.</p>
-                <Link href="/contexto-macro">
-                  <Button size="sm" variant="outline" data-testid="button-ir-motor-contexto">
-                    Gerar no Motor de Contexto
-                  </Button>
-                </Link>
-              </div>
-            ) : (
-              <div>
-                {cenarioAtual.atualizadoEm && (
-                  <p className="text-xs text-muted-foreground mb-3">
-                    Atualizado em{" "}
-                    {new Date(cenarioAtual.atualizadoEm).toLocaleDateString("pt-BR", {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                    })}
-                  </p>
-                )}
-                <div className="max-h-48 overflow-y-auto pr-1 space-y-1.5" data-testid="text-cenario-brasileiro">
-                  {cenarioAtual.texto.split("\n").map((line, i) =>
-                    line.trim() === "" ? (
-                      <div key={i} className="h-1.5" />
-                    ) : (
-                      <p key={i} className="text-sm leading-relaxed text-muted-foreground">
-                        <RichLine line={line} />
-                      </p>
-                    )
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </Card>
       <JornadaEstrategicaCondicional />
       {/* Performance Geral + OKRs por Perspectiva */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">

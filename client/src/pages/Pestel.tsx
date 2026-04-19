@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,10 +12,30 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { EmptyState } from "@/components/EmptyState";
-import { ExampleCard } from "@/components/ExampleCard";
 import { Compass, Plus, Sparkles, Trash2, Pencil, Globe, ChevronDown, ChevronUp, ExternalLink, Loader2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+
+function renderBoldText(text: string): React.ReactNode[] {
+  const parts = text.split(/\*\*(.+?)\*\*/g);
+  return parts.map((part, i) =>
+    i % 2 === 1 ? <strong key={i} className="font-semibold text-foreground">{part}</strong> : part
+  );
+}
+
+function RichLine({ line }: { line: string }) {
+  return <>{renderBoldText(line)}</>;
+}
+
+function BrazilFlag({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 20 14" className={className} role="img" aria-label="Bandeira do Brasil">
+      <rect width="20" height="14" rx="1" fill="#009c3b" />
+      <polygon points="10,1.5 18.5,7 10,12.5 1.5,7" fill="#ffdf00" />
+      <circle cx="10" cy="7" r="3.4" fill="#002776" />
+    </svg>
+  );
+}
 
 interface FatorPESTEL {
   id: string;
@@ -71,6 +92,7 @@ export default function Pestel() {
   const [suggestPhase, setSuggestPhase] = useState<SuggestPhase>("idle");
   const [cenarioExterno, setCenarioExterno] = useState<CenarioExterno | null>(null);
   const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [cenarioOpen, setCenarioOpen] = useState(false);
   const [formData, setFormData] = useState<{
     tipo: string;
     descricao: string;
@@ -94,6 +116,11 @@ export default function Pestel() {
 
   const { data: empresa } = useQuery<{ id: string; nome: string; setor: string; tamanho: string; descricao?: string | null }>({
     queryKey: ["/api/empresa"],
+  });
+
+  const { data: cenarioAtual, isLoading: loadingCenario } = useQuery<{ texto: string; atualizadoEm: string | null } | null>({
+    queryKey: ["/api/contexto-macro/cenario-atual"],
+    enabled: !!empresa?.id,
   });
 
   const { data: fatores = [], isLoading } = useQuery<FatorPESTEL[]>({
@@ -382,9 +409,69 @@ export default function Pestel() {
         }
       />
 
-      <ExampleCard>
-        <strong>Econômico:</strong> O dólar subiu muito e isso está aumentando nosso custo de matéria-prima importada. Se não conseguirmos repassar esse aumento, nossa margem pode cair 3-5%. <strong>Impacto: Alto</strong>
-      </ExampleCard>
+      <Card data-testid="card-cenario-brasileiro">
+        <button
+          type="button"
+          onClick={() => setCenarioOpen((v) => !v)}
+          className="w-full flex items-center justify-between px-5 py-3 text-left rounded-lg"
+          data-testid="button-toggle-cenario"
+          aria-expanded={cenarioOpen}
+        >
+          <div className="flex items-center gap-2">
+            <BrazilFlag className="h-4 w-4 flex-shrink-0" />
+            <span className="font-medium text-sm">Análise do Cenário Brasileiro Atual</span>
+          </div>
+          <ChevronDown
+            className={`h-4 w-4 text-muted-foreground transition-transform duration-200 flex-shrink-0 ${cenarioOpen ? "rotate-180" : ""}`}
+          />
+        </button>
+
+        {cenarioOpen && (
+          <div className="px-5 pb-5 border-t">
+            <div className="flex items-center gap-1.5 pt-3 mb-3">
+              <Sparkles className="h-3 w-3 text-muted-foreground/50" />
+              <span className="text-xs text-muted-foreground/50" data-testid="badge-gerado-por-ia">Gerado por IA</span>
+            </div>
+            {loadingCenario ? (
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            ) : !cenarioAtual ? (
+              <div className="text-center py-4 space-y-2">
+                <BrazilFlag className="h-8 w-8 mx-auto opacity-40" />
+                <p className="text-sm text-muted-foreground">Contexto macroeconômico ainda não gerado.</p>
+                <Link href="/contexto-macro">
+                  <Button size="sm" variant="outline" data-testid="button-ir-motor-contexto">
+                    Gerar no Motor de Contexto
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              <div>
+                {cenarioAtual.atualizadoEm && (
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Atualizado em{" "}
+                    {new Date(cenarioAtual.atualizadoEm).toLocaleDateString("pt-BR", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </p>
+                )}
+                <div className="max-h-48 overflow-y-auto pr-1 space-y-1.5" data-testid="text-cenario-brasileiro">
+                  {cenarioAtual.texto.split("\n").map((line, i) =>
+                    line.trim() === "" ? (
+                      <div key={i} className="h-1.5" />
+                    ) : (
+                      <p key={i} className="text-sm leading-relaxed text-muted-foreground">
+                        <RichLine line={line} />
+                      </p>
+                    )
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
 
       {/* Progress indicator during AI analysis */}
       {isSuggesting && (

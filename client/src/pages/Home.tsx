@@ -443,95 +443,20 @@ export default function Home() {
                   Bem-vindo ao BizGuideAI{user?.nome ? `, ${user.nome.split(" ")[0]}` : ""}!
                 </h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Você está a poucos passos de construir a estratégia completa da sua empresa — de forma guiada e com apoio de inteligência artificial em cada etapa.
+                  O BizGuideAI transforma o planejamento estratégico em uma jornada guiada — do diagnóstico ao acompanhamento das metas — com inteligência artificial sugerindo, analisando e gerando conteúdo a cada passo.
                 </p>
               </div>
             </div>
 
-            {/* Jornada Estratégica */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <Target className="h-4 w-4 text-primary flex-shrink-0" />
-                <span>A Jornada Estratégica Guiada</span>
-              </div>
-              <p className="text-sm text-muted-foreground pl-6">
-                A jornada é composta por <span className="font-medium text-foreground">12 etapas sequenciais</span>, cada uma construindo sobre a anterior. As etapas se desbloqueiam progressivamente conforme você avança — assim você segue um caminho estruturado, sem perder o fio da meada. Em cada etapa, a IA sugere benchmarks, identifica lacunas e gera diagnósticos automáticos para acelerar o seu trabalho.
-              </p>
-              <p className="text-sm text-muted-foreground pl-6">
-                Você começa pelo <span className="font-medium text-foreground">Perfil da Empresa</span> e avança por diagnóstico, análise de mercado, modelo de negócio, estratégias, metas e acompanhamento. O painel de progresso acima da jornada mostra onde você está a qualquer momento.
-              </p>
-            </div>
-
-            {/* Lógica de construção do planejamento estratégico */}
-            <div className="space-y-3">
-              <div>
-                <p className="text-sm font-semibold">Por que seguir a jornada na ordem?</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Planejar bem é uma sequência: cada etapa entrega o que a próxima precisa. Pular etapas
-                  significa decidir no escuro — definir metas sem entender o mercado, escolher projetos sem saber o que
-                  priorizar, ou cobrar resultado sem ter o que medir. A jornada foi desenhada para você construir
-                  decisões com base em informação, não em achismo.
+            {/* Como começar */}
+            <div className="flex items-start gap-3 rounded-md bg-background/60 p-4">
+              <Compass className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+              <div className="space-y-1">
+                <p className="text-sm font-semibold">Comece pelo Guia Estratégico</p>
+                <p className="text-sm text-muted-foreground">
+                  No canto superior direito você verá o chip <span className="font-medium text-foreground">Guia Estratégico</span>. Clique nele a qualquer momento — ele mostra onde você está, qual é a próxima etapa e leva você direto para ela. As etapas se desbloqueiam à medida que você avança, então é só seguir o guia.
                 </p>
               </div>
-
-              <div className="space-y-2">
-                <div className="flex items-start gap-3 rounded-md bg-background/60 p-3">
-                  <Compass className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                  <div className="space-y-0.5">
-                    <p className="text-sm font-medium">1. Entenda o terreno antes de agir</p>
-                    <p className="text-xs text-muted-foreground">
-                      Comece pelo <strong>Perfil</strong> e pelas <strong>Métricas</strong> para ter uma foto clara do
-                      seu negócio hoje. Em seguida, monte o <strong>Modelo de Negócio</strong> — como você gera e
-                      entrega valor. Com isso em mãos, o <strong>Cenário Externo</strong> e a análise de
-                      <strong> concorrência e mercado</strong> fazem sentido: você enxerga ameaças e oportunidades à luz
-                      da sua realidade.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3 rounded-md bg-background/60 p-3">
-                  <TrendingUp className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                  <div className="space-y-0.5">
-                    <p className="text-sm font-medium">2. Cruze o que você é com o que o mercado é</p>
-                    <p className="text-xs text-muted-foreground">
-                      A análise de <strong>Forças e Fraquezas</strong> só faz sentido quando você já conhece o mercado
-                      ao redor. É o momento em que ideias soltas viram <strong>apostas claras</strong>: onde atacar,
-                      onde defender, onde investir, onde recuar.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3 rounded-md bg-background/60 p-3">
-                  <Map className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                  <div className="space-y-0.5">
-                    <p className="text-sm font-medium">3. Transforme apostas em prioridades concretas</p>
-                    <p className="text-xs text-muted-foreground">
-                      Com as apostas definidas, você traça as <strong>Estratégias</strong> (os caminhos a seguir),
-                      identifica <strong>Oportunidades de Crescimento</strong> e prioriza as
-                      <strong> Iniciativas</strong> — projetos reais com responsável, prazo e impacto esperado. Aqui o
-                      plano deixa de ser intenção e vira lista de coisas a fazer.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3 rounded-md bg-background/60 p-3">
-                  <Zap className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                  <div className="space-y-0.5">
-                    <p className="text-sm font-medium">4. Meça, acompanhe e ajuste a rota</p>
-                    <p className="text-xs text-muted-foreground">
-                      Por último, defina as <strong>Metas do período</strong> (o que quer alcançar e como vai saber que
-                      chegou lá), os <strong>Indicadores</strong> (os números que mostram se o negócio está no rumo
-                      certo) e as <strong>revisões periódicas com o time</strong> (a rotina que mantém todo mundo
-                      comprometido com o plano). Sem essa camada, tudo o que veio antes vira documento de gaveta.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <p className="text-xs text-muted-foreground italic pt-1">
-                Por isso, etapas que dependem de outras ficam bloqueadas até você concluir as anteriores — não é
-                burocracia, é proteção contra decisões tomadas sem base.
-              </p>
             </div>
 
             {/* Checkbox "Não mostrar isso novamente" */}

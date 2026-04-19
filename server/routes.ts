@@ -3371,12 +3371,34 @@ Regras:
         temperature: 0.8,
       });
 
+      const normalizePrioridade = (val: unknown): unknown => {
+        if (typeof val !== "string") return val;
+        const v = val.toLowerCase().trim();
+        if (v === "media" || v === "média" || v === "medio" || v === "médio" || v === "medium") return "média";
+        if (v === "alta" || v === "alto" || v === "high") return "alta";
+        if (v === "baixa" || v === "baixo" || v === "low") return "baixa";
+        return val;
+      };
+
+      const normalizePotencial = (val: unknown): unknown => {
+        if (typeof val !== "string") return val;
+        const v = val.toLowerCase().trim();
+        if (v === "alto" || v === "alta" || v === "high") return "alto";
+        if (v === "medio" || v === "média" || v === "media" || v === "médio" || v === "medium") return "medio";
+        return val;
+      };
+
+      const normalizeTipo = (val: unknown): unknown => {
+        if (typeof val !== "string") return val;
+        return val.toUpperCase().trim();
+      };
+
       const candidataSchema = z.object({
-        tipo: z.enum(["FO", "FA", "DO", "DA"]),
+        tipo: z.preprocess(normalizeTipo, z.enum(["FO", "FA", "DO", "DA"])),
         titulo: z.string().min(1),
         descricao: z.string().min(1),
-        prioridade: z.enum(["alta", "média", "baixa"]).default("média"),
-        potencial: z.enum(["alto", "medio"]).default("medio"),
+        prioridade: z.preprocess(normalizePrioridade, z.enum(["alta", "média", "baixa"])).catch("média"),
+        potencial: z.preprocess(normalizePotencial, z.enum(["alto", "medio"])).catch("medio"),
         selecionada: z.boolean().default(false),
         swotOrigemIds: z.array(z.string()).default([]),
         swotOrigemTextos: z.array(z.string()).default([]),
@@ -3386,10 +3408,13 @@ Regras:
         candidatas: z.array(candidataSchema).min(1),
       });
 
-      const parsed = JSON.parse(completion.choices[0].message.content || "{}");
+      const rawContent = completion.choices[0].message.content || "{}";
+      const parsed = JSON.parse(rawContent);
       const validado = resultadoSchema.safeParse(parsed);
 
       if (!validado.success) {
+        console.error("[gerar-estrategias] Falha na validação Zod:", JSON.stringify(validado.error.issues));
+        console.error("[gerar-estrategias] Resposta bruta da IA:", rawContent.substring(0, 500));
         return res.status(500).json({ error: "Resposta da IA em formato inválido. Tente novamente." });
       }
 

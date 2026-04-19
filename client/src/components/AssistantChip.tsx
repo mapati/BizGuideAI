@@ -38,9 +38,9 @@ const CONFIG: Record<NivelStatus, { bg: string; text: string; border: string; pu
 };
 
 const GUIA_CONFIG = {
-  bg: "bg-blue-500 dark:bg-blue-600",
-  text: "text-white",
-  border: "border-blue-400 dark:border-blue-500",
+  bg: "bg-sky-300 dark:bg-sky-400",
+  text: "text-sky-950 dark:text-sky-950",
+  border: "border-sky-200 dark:border-sky-300",
   pulse: true,
 };
 

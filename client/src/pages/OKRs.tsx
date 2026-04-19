@@ -39,6 +39,180 @@ const perspectivas = [
 type Membro = { id: string; nome: string; email: string };
 type EstrategiaBasica = { id: string; tipo: string; titulo: string };
 
+function calcularProgresso(inicial: string, atual: string, alvo: string): number {
+  const ini = parseFloat(inicial);
+  const atu = parseFloat(atual);
+  const alv = parseFloat(alvo);
+  if (isNaN(ini) || isNaN(atu) || isNaN(alv)) return 0;
+  if (alv === ini) return 100;
+  const progresso = ((atu - ini) / (alv - ini)) * 100;
+  return Math.max(0, Math.min(100, progresso));
+}
+
+interface ObjetivoCardProps {
+  objetivo: Objetivo;
+  membros: Membro[];
+  estrategias: EstrategiaBasica[];
+  onSelect: (obj: Objetivo) => void;
+  onRetro: (obj: Objetivo) => void;
+  onDelete: (id: string) => void;
+}
+
+function ObjetivoCard({ objetivo, membros, estrategias, onSelect, onRetro, onDelete }: ObjetivoCardProps) {
+  return (
+    <Card
+      className="p-4 hover-elevate cursor-pointer"
+      onClick={() => onSelect(objetivo)}
+      data-testid={`card-objetivo-${objetivo.id}`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1">
+          <h4 className="font-semibold text-sm mb-1">{objetivo.titulo}</h4>
+          {objetivo.descricao && (
+            <p className="text-xs text-muted-foreground mb-2">{objetivo.descricao}</p>
+          )}
+          <div className="flex items-center flex-wrap gap-2">
+            <p className="text-xs text-muted-foreground">Prazo: {objetivo.prazo}</p>
+            {objetivo.responsavelId && (() => {
+              const m = membros.find(m => m.id === objetivo.responsavelId);
+              return m ? (
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                  <UserCheck className="h-3 w-3" />
+                  {m.nome}
+                </span>
+              ) : null;
+            })()}
+            {objetivo.estrategiaId && (() => {
+              const est = estrategias.find(e => e.id === objetivo.estrategiaId);
+              return est ? (
+                <Badge variant="outline" className="gap-1 text-xs" data-testid={`badge-estrategia-objetivo-${objetivo.id}`}>
+                  <Link2 className="h-3 w-3" />
+                  {est.tipo} — {est.titulo.length > 35 ? est.titulo.slice(0, 35) + "…" : est.titulo}
+                </Badge>
+              ) : null;
+            })()}
+          </div>
+        </div>
+        <div className="flex gap-0.5" onClick={e => e.stopPropagation()}>
+          <Button
+            variant="ghost"
+            size="icon"
+            title="Registrar Retrospectiva"
+            onClick={(e) => { e.stopPropagation(); onRetro(objetivo); }}
+            data-testid={`button-retro-objetivo-${objetivo.id}`}
+          >
+            <BookOpen className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e) => { e.stopPropagation(); onDelete(objetivo.id); }}
+            data-testid={`button-delete-objetivo-${objetivo.id}`}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+interface ResultadoChaveCardProps {
+  resultado: ResultadoChave;
+  isEditing: boolean;
+  editingData: ResultadoChave | null;
+  onStartEdit: (r: ResultadoChave) => void;
+  onChangeEdit: (r: ResultadoChave) => void;
+  onSave: () => void;
+  onCancelEdit: () => void;
+  onDelete: (id: string) => void;
+  isSaving: boolean;
+}
+
+function ResultadoChaveCard({ resultado, isEditing, editingData, onStartEdit, onChangeEdit, onSave, onCancelEdit, onDelete, isSaving }: ResultadoChaveCardProps) {
+  const progresso = calcularProgresso(resultado.valorInicial, resultado.valorAtual, resultado.valorAlvo);
+  return (
+    <Card className="p-4" data-testid={`card-resultado-${resultado.id}`}>
+      {isEditing && editingData ? (
+        <div className="space-y-3">
+          <div>
+            <Label>Métrica</Label>
+            <Input
+              value={editingData.metrica}
+              onChange={(e) => onChangeEdit({ ...editingData, metrica: e.target.value })}
+              data-testid={`input-edit-metrica-${resultado.id}`}
+            />
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <Label className="text-xs">Inicial</Label>
+              <Input type="number" value={editingData.valorInicial} onChange={(e) => onChangeEdit({ ...editingData, valorInicial: e.target.value })} data-testid={`input-edit-inicial-${resultado.id}`} />
+            </div>
+            <div>
+              <Label className="text-xs">Atual</Label>
+              <Input type="number" value={editingData.valorAtual} onChange={(e) => onChangeEdit({ ...editingData, valorAtual: e.target.value })} data-testid={`input-edit-atual-${resultado.id}`} />
+            </div>
+            <div>
+              <Label className="text-xs">Alvo</Label>
+              <Input type="number" value={editingData.valorAlvo} onChange={(e) => onChangeEdit({ ...editingData, valorAlvo: e.target.value })} data-testid={`input-edit-alvo-${resultado.id}`} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-xs">Responsável</Label>
+              <Input value={editingData.owner} onChange={(e) => onChangeEdit({ ...editingData, owner: e.target.value })} data-testid={`input-edit-owner-${resultado.id}`} />
+            </div>
+            <div>
+              <Label className="text-xs">Prazo</Label>
+              <Input value={editingData.prazo} onChange={(e) => onChangeEdit({ ...editingData, prazo: e.target.value })} data-testid={`input-edit-prazo-${resultado.id}`} />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={onSave} disabled={isSaving} size="sm" data-testid={`button-save-resultado-${resultado.id}`}>
+              Salvar
+            </Button>
+            <Button onClick={onCancelEdit} variant="outline" size="sm" data-testid={`button-cancel-resultado-${resultado.id}`}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <div className="flex items-start justify-between mb-3">
+            <div className="flex-1">
+              <h5 className="font-semibold text-sm mb-1">{resultado.metrica}</h5>
+              <div className="flex gap-4 text-xs text-muted-foreground">
+                <span>Inicial: {resultado.valorInicial}</span>
+                <span>Atual: {resultado.valorAtual}</span>
+                <span>Alvo: {resultado.valorAlvo}</span>
+              </div>
+            </div>
+            <div className="flex gap-1">
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onStartEdit(resultado)} data-testid={`button-edit-resultado-${resultado.id}`}>
+                <Edit2 className="h-3 w-3" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onDelete(resultado.id)} data-testid={`button-delete-resultado-${resultado.id}`}>
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Progresso</span>
+              <span className="font-semibold">{Math.round(progresso)}%</span>
+            </div>
+            <Progress value={progresso} className="h-2" data-testid={`progress-resultado-${resultado.id}`} />
+          </div>
+          <div className="flex justify-between mt-2 text-xs text-muted-foreground">
+            <span>Responsável: {resultado.owner}</span>
+            <span>Prazo: {resultado.prazo}</span>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export default function OKRs() {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -333,18 +507,6 @@ export default function OKRs() {
     setEditandoResultado(null);
   };
 
-  const calcularProgresso = (inicial: string, atual: string, alvo: string): number => {
-    const ini = parseFloat(inicial);
-    const atu = parseFloat(atual);
-    const alv = parseFloat(alvo);
-    
-    if (isNaN(ini) || isNaN(atu) || isNaN(alv)) return 0;
-    if (alv === ini) return 100;
-    
-    const progresso = ((atu - ini) / (alv - ini)) * 100;
-    return Math.max(0, Math.min(100, progresso));
-  };
-
   const objetivosPorPerspectiva = (perspectiva: string) => {
     return objetivos.filter(obj => obj.perspectiva === perspectiva);
   };
@@ -626,72 +788,15 @@ export default function OKRs() {
                     </div>
                   ) : (
                     objs.map((objetivo) => (
-                      <Card
+                      <ObjetivoCard
                         key={objetivo.id}
-                        className="p-4 hover-elevate cursor-pointer"
-                        onClick={() => {
-                          setObjetivoSelecionado(objetivo);
-                          setDialogResultadosOpen(true);
-                        }}
-                        data-testid={`card-objetivo-${objetivo.id}`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-sm mb-1">{objetivo.titulo}</h4>
-                            {objetivo.descricao && (
-                              <p className="text-xs text-muted-foreground mb-2">{objetivo.descricao}</p>
-                            )}
-                            <div className="flex items-center flex-wrap gap-2">
-                              <p className="text-xs text-muted-foreground">Prazo: {objetivo.prazo}</p>
-                              {objetivo.responsavelId && (() => {
-                                const m = membros.find(m => m.id === objetivo.responsavelId);
-                                return m ? (
-                                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                                    <UserCheck className="h-3 w-3" />
-                                    {m.nome}
-                                  </span>
-                                ) : null;
-                              })()}
-                              {objetivo.estrategiaId && (() => {
-                                const est = estrategias.find(e => e.id === objetivo.estrategiaId);
-                                return est ? (
-                                  <Badge variant="outline" className="gap-1 text-xs" data-testid={`badge-estrategia-objetivo-${objetivo.id}`}>
-                                    <Link2 className="h-3 w-3" />
-                                    {est.tipo} — {est.titulo.length > 35 ? est.titulo.slice(0, 35) + "…" : est.titulo}
-                                  </Badge>
-                                ) : null;
-                              })()}
-                            </div>
-                          </div>
-                          <div className="flex gap-0.5" onClick={e => e.stopPropagation()}>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              title="Registrar Retrospectiva"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setRetroObjetivo(objetivo);
-                                setRetroDialogOpen(true);
-                              }}
-                              data-testid={`button-retro-objetivo-${objetivo.id}`}
-                            >
-                              <BookOpen className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-9 w-9"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deletarObjetivoMutation.mutate(objetivo.id);
-                              }}
-                              data-testid={`button-delete-objetivo-${objetivo.id}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </Card>
+                        objetivo={objetivo}
+                        membros={membros}
+                        estrategias={estrategias}
+                        onSelect={(obj) => { setObjetivoSelecionado(obj); setDialogResultadosOpen(true); }}
+                        onRetro={(obj) => { setRetroObjetivo(obj); setRetroDialogOpen(true); }}
+                        onDelete={(id) => deletarObjetivoMutation.mutate(id)}
+                      />
                     ))
                   )}
                 </div>

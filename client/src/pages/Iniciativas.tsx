@@ -657,14 +657,18 @@ export default function Iniciativas() {
         </div>
       ) : (
         <div className="space-y-6">
-          {altaPrioridade.length > 0 && (
-            <div>
+          {([
+            { label: "Prioridade Alta",  items: altaPrioridade,   iconClass: "text-destructive" },
+            { label: "Prioridade Média", items: mediaPrioridade,  iconClass: "text-primary" },
+            { label: "Prioridade Baixa", items: baixaPrioridade,  iconClass: "text-muted-foreground" },
+          ] as const).filter(({ items }) => items.length > 0).map(({ label, items, iconClass }) => (
+            <div key={label}>
               <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-destructive" />
-                Prioridade Alta
+                <TrendingUp className={`h-5 w-5 ${iconClass}`} />
+                {label}
               </h2>
               <div className="grid gap-4 md:grid-cols-2">
-                {altaPrioridade.map((iniciativa) => (
+                {items.map((iniciativa) => (
                   <IniciativaCard
                     key={iniciativa.id}
                     iniciativa={iniciativa}
@@ -675,47 +679,7 @@ export default function Iniciativas() {
                 ))}
               </div>
             </div>
-          )}
-
-          {mediaPrioridade.length > 0 && (
-            <div>
-              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-primary" />
-                Prioridade Média
-              </h2>
-              <div className="grid gap-4 md:grid-cols-2">
-                {mediaPrioridade.map((iniciativa) => (
-                  <IniciativaCard
-                    key={iniciativa.id}
-                    iniciativa={iniciativa}
-                    estrategias={estrategias}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {baixaPrioridade.length > 0 && (
-            <div>
-              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-muted-foreground" />
-                Prioridade Baixa
-              </h2>
-              <div className="grid gap-4 md:grid-cols-2">
-                {baixaPrioridade.map((iniciativa) => (
-                  <IniciativaCard
-                    key={iniciativa.id}
-                    iniciativa={iniciativa}
-                    estrategias={estrategias}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+          ))}
         </div>
       )}
     </div>

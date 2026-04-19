@@ -450,7 +450,7 @@ export default function Estrategias() {
   const { data: estrategiasContextSummary } = useQuery<{
     counts: { swot: number; pestel: number; cincoForcas: number; modeloNegocio: number };
   }>({
-    queryKey: ["/api/ai/estrategias-context-summary"],
+    queryKey: ["/api/ai/estrategias-context-summary", empresa?.id],
     enabled: !!empresa?.id,
   });
 
@@ -797,7 +797,7 @@ export default function Estrategias() {
                   .map(([k]) => k),
                 instrucaoAdicional: instrucaoAdicionalEstrategia,
                 fontesContexto: Object.entries(fontesContexto)
-                  .filter(([, v]) => v)
+                  .filter(([k, v]) => v && (estrategiasContextSummary?.counts?.[k as keyof typeof fontesContexto] ?? 0) > 0)
                   .map(([k]) => k),
               })}
               disabled={!algumQuadranteSelecionado || isGenerating}

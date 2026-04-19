@@ -1,0 +1,49 @@
+<h2>Como deve funcionar a edição dos blocos?</h2>
+<p class="subtitle">Atualmente: clicar em um bloco abre um modal separado com textarea. Qual experiência faz mais sentido para o redesign?</p>
+
+<div class="options">
+
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Painel lateral deslizante</h3>
+      <p>Clicar em um bloco abre um painel à direita da tela. O canvas BMC permanece visível à esquerda (reduzido). O painel tem: textarea editável, botão "Sugestão da IA" específica para aquele bloco, e um lembrete de como esse bloco impacta Estratégias e OKRs.</p>
+      <div style="margin-top:12px; display:flex; gap:8px; font-size:11px;">
+        <div style="background:#e8f5e9; color:#2e7d32; padding:4px 8px; border-radius:4px; font-weight:600;">✓ Canvas sempre visível</div>
+        <div style="background:#e8f5e9; color:#2e7d32; padding:4px 8px; border-radius:4px; font-weight:600;">✓ IA por bloco</div>
+        <div style="background:#fff3e0; color:#e65100; padding:4px 8px; border-radius:4px;">⚠ Menos espaço no canvas</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Edição inline expansível</h3>
+      <p>Clicar em um bloco o expande diretamente no grid, sobrepondo os vizinhos com um painel elevado. Edição acontece dentro do próprio bloco — sem modal, sem painel separado. Mais rápido, mais contextual.</p>
+      <div style="margin-top:12px; display:flex; gap:8px; font-size:11px;">
+        <div style="background:#e8f5e9; color:#2e7d32; padding:4px 8px; border-radius:4px; font-weight:600;">✓ Sem quebra de contexto</div>
+        <div style="background:#e8f5e9; color:#2e7d32; padding:4px 8px; border-radius:4px; font-weight:600;">✓ Mais fluido</div>
+        <div style="background:#fff3e0; color:#e65100; padding:4px 8px; border-radius:4px;">⚠ Menos espaço para IA</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Vista dividida: Canvas + Editor</h3>
+      <p>A página tem dois modos: "Visão Geral" (canvas read-only como hoje) e "Editar Bloco" (tela dividida — canvas à esquerda com bloco selecionado destacado, editor completo à direita com IA, histórico e contexto de impacto). Um botão alterna entre os modos.</p>
+      <div style="margin-top:12px; display:flex; gap:8px; font-size:11px;">
+        <div style="background:#e8f5e9; color:#2e7d32; padding:4px 8px; border-radius:4px; font-weight:600;">✓ Mais espaço para IA</div>
+        <div style="background:#e8f5e9; color:#2e7d32; padding:4px 8px; border-radius:4px; font-weight:600;">✓ Separação clara</div>
+        <div style="background:#fff3e0; color:#e65100; padding:4px 8px; border-radius:4px;">⚠ Mais complexo de implementar</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top: 24px; padding: 16px; background: #f5f5f5; border-radius: 8px; font-size: 13px; color: #555;">
+  <strong>Contexto:</strong> O canvas BMC tem 9 blocos em grid 5 colunas. Em desktop tem bastante espaço. Em mobile, a lista vertical permanece.
+</div>

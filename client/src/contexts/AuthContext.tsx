@@ -9,6 +9,7 @@ interface Usuario {
   empresaId: string | null;
   isAdmin: boolean;
   role: "admin" | "membro";
+  fotoUrl?: string | null;
   createdAt?: string | Date | null;
   introBoasVindasDismissed?: boolean;
 }
@@ -44,6 +45,7 @@ interface AuthContextType {
   login: (email: string, senha: string) => Promise<{ trialInfo: TrialInfo | null; empresa: Empresa | null }>;
   logout: () => Promise<void>;
   register: (data: RegisterData) => Promise<{ checkoutUrl?: string | null; planoTipo?: string }>;
+  updateProfile: (data: { nome?: string; fotoUrl?: string | null }) => Promise<void>;
 }
 
 interface RegisterData {
@@ -151,8 +153,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return data;
   };
 
+  const updateProfile = async (data: { nome?: string; fotoUrl?: string | null }) => {
+    const res = await fetch("/api/auth/perfil", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || "Erro ao atualizar perfil");
+    }
+    const payload = await res.json();
+    setUser(payload.usuario);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, empresa, trialInfo, planoInfo, isLoading, login, logout, register }}>
+    <AuthContext.Provider value={{ user, empresa, trialInfo, planoInfo, isLoading, login, logout, register, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );

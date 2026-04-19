@@ -801,7 +801,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const planoLimits = empresa ? getPlanLimits(empresa.planoTipo) : PLAN_LIMITS.start;
       res.json({
-        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresaId: usuario.empresaId, isAdmin: usuario.isAdmin, role: usuario.role, createdAt: usuario.createdAt, introBoasVindasDismissed: usuario.introBoasVindasDismissed },
+        usuario: { id: usuario.id, nome: usuario.nome, email: usuario.email, empresaId: usuario.empresaId, isAdmin: usuario.isAdmin, role: usuario.role, fotoUrl: usuario.fotoUrl, createdAt: usuario.createdAt, introBoasVindasDismissed: usuario.introBoasVindasDismissed },
         empresa,
         trialInfo: empresa ? computeTrialInfo(empresa) : null,
         planoInfo: {
@@ -812,6 +812,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/api/auth/perfil", async (req, res) => {
+    try {
+      if (!req.session?.userId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+      const schema = z.object({
+        nome: z.string().min(1).max(120).optional(),
+        fotoUrl: z.string().max(2_000_000).nullable().optional(),
+      }).refine((d) => Object.keys(d).length > 0, { message: "Nenhum campo informado" });
+      const data = schema.parse(req.body);
+      const updated = await storage.updateUsuario(req.session.userId, data);
+      res.json({
+        usuario: {
+          id: updated.id, nome: updated.nome, email: updated.email,
+          empresaId: updated.empresaId, isAdmin: updated.isAdmin, role: updated.role,
+          fotoUrl: updated.fotoUrl, createdAt: updated.createdAt,
+          introBoasVindasDismissed: updated.introBoasVindasDismissed,
+        },
+      });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
     }
   });
 

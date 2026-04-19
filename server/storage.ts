@@ -297,7 +297,7 @@ export class DbStorage implements IStorage {
     return db.select().from(usuarios).where(eq(usuarios.empresaId, empresaId)).orderBy(usuarios.createdAt);
   }
 
-  async updateUsuario(id: string, data: Partial<Pick<Usuario, "isAdmin" | "role" | "nome">>): Promise<Usuario> {
+  async updateUsuario(id: string, data: Partial<Pick<Usuario, "isAdmin" | "role" | "nome" | "fotoUrl">>): Promise<Usuario> {
     const result = await db.update(usuarios).set(data).where(eq(usuarios.id, id)).returning();
     if (!result[0]) throw new Error("Usuário não encontrado");
     return result[0];

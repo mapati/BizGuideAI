@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Home, Map, Target, TrendingUp, CheckCircle, FileText, Compass, Layers, Grid3x3, ListChecks, Briefcase, LogOut, BarChart3, ShieldCheck, Users, CheckCircle2, Circle, ArrowRight, ClipboardList, CloudLightning, ShieldAlert, Network, Share2, GitBranch, Bell, Zap } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -16,7 +17,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { UserProfileDialog } from "@/components/UserProfileDialog";
 import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
 
 const mapItems = [
@@ -85,6 +87,7 @@ function SidebarFooterContent() {
   const { user, empresa, trialInfo, logout } = useAuth();
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
+  const [profileOpen, setProfileOpen] = useState(false);
 
   const initials = user?.nome
     ? user.nome
@@ -97,20 +100,31 @@ function SidebarFooterContent() {
 
   if (isCollapsed) {
     return (
-      <div className="flex flex-col items-center gap-2">
-        <Avatar className="h-8 w-8 shrink-0">
-          <AvatarFallback className="text-xs">{initials}</AvatarFallback>
-        </Avatar>
-        <Button
-          size="icon"
-          variant="ghost"
-          onClick={logout}
-          data-testid="button-logout"
-          title="Sair"
-        >
-          <LogOut className="h-4 w-4" />
-        </Button>
-      </div>
+      <>
+        <div className="flex flex-col items-center gap-2">
+          <button
+            onClick={() => setProfileOpen(true)}
+            className="rounded-full hover-elevate active-elevate-2"
+            data-testid="button-open-profile-collapsed"
+            title="Editar perfil"
+          >
+            <Avatar className="h-8 w-8 shrink-0">
+              {user?.fotoUrl && <AvatarImage src={user.fotoUrl} alt={user?.nome || ""} />}
+              <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+            </Avatar>
+          </button>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={logout}
+            data-testid="button-logout"
+            title="Sair"
+          >
+            <LogOut className="h-4 w-4" />
+          </Button>
+        </div>
+        <UserProfileDialog open={profileOpen} onOpenChange={setProfileOpen} />
+      </>
     );
   }
 
@@ -128,20 +142,28 @@ function SidebarFooterContent() {
           </Badge>
         </div>
       )}
-      <div className="flex items-center gap-3">
-        <Avatar className="h-8 w-8 shrink-0">
-          <AvatarFallback className="text-xs">{initials}</AvatarFallback>
-        </Avatar>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate" data-testid="text-user-nome">
-            {user?.nome}
-          </p>
-          {empresa && (
-            <p className="text-xs text-muted-foreground truncate" data-testid="text-empresa-nome">
-              {empresa.nome}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setProfileOpen(true)}
+          className="flex items-center gap-3 flex-1 min-w-0 p-1 -m-1 rounded-md hover-elevate active-elevate-2 text-left"
+          data-testid="button-open-profile"
+          title="Editar perfil e preferências"
+        >
+          <Avatar className="h-8 w-8 shrink-0">
+            {user?.fotoUrl && <AvatarImage src={user.fotoUrl} alt={user?.nome || ""} />}
+            <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium truncate" data-testid="text-user-nome">
+              {user?.nome}
             </p>
-          )}
-        </div>
+            {empresa && (
+              <p className="text-xs text-muted-foreground truncate" data-testid="text-empresa-nome">
+                {empresa.nome}
+              </p>
+            )}
+          </div>
+        </button>
         <Button
           size="icon"
           variant="ghost"
@@ -152,6 +174,7 @@ function SidebarFooterContent() {
           <LogOut className="h-4 w-4" />
         </Button>
       </div>
+      <UserProfileDialog open={profileOpen} onOpenChange={setProfileOpen} />
     </>
   );
 }

@@ -78,6 +78,7 @@ export const usuarios = pgTable("usuarios", {
   senha: text("senha").notNull(),
   isAdmin: boolean("is_admin").notNull().default(false),
   role: text("role").notNull().default("admin"),
+  fotoUrl: text("foto_url"),
   emailVerificado: boolean("email_verificado").notNull().default(false),
   loginAttempts: integer("login_attempts").notNull().default(0),
   lockedUntil: timestamp("locked_until"),

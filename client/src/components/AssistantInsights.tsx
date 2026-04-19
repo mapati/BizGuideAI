@@ -17,6 +17,7 @@ interface InsightsApiResponse {
 
 interface AssistantInsightsProps {
   pagina: string;
+  isOpen: boolean;
   onAskAbout: (context: string) => void;
 }
 
@@ -34,7 +35,7 @@ const NIVEL_COLOR: Record<string, string> = {
   neutro: "text-muted-foreground",
 };
 
-export function AssistantInsights({ pagina, onAskAbout }: AssistantInsightsProps) {
+export function AssistantInsights({ pagina, isOpen, onAskAbout }: AssistantInsightsProps) {
   const cacheMapRef = useRef<Map<string, InsightsResult>>(new Map());
   const fetchingRef = useRef<Set<string>>(new Set());
   const [result, setResult] = useState<InsightsResult | null>(null);
@@ -42,6 +43,8 @@ export function AssistantInsights({ pagina, onAskAbout }: AssistantInsightsProps
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
+    if (!isOpen) return;
+
     const cached = cacheMapRef.current.get(pagina);
     if (cached) {
       setResult(cached);
@@ -73,7 +76,7 @@ export function AssistantInsights({ pagina, onAskAbout }: AssistantInsightsProps
         fetchingRef.current.delete(pagina);
         setLoading(false);
       });
-  }, [pagina]);
+  }, [pagina, isOpen]);
 
   const handleAskAbout = () => {
     if (!result) return;

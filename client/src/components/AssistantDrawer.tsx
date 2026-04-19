@@ -67,6 +67,7 @@ export function AssistantDrawer({
             <div className="flex-shrink-0">
               <AssistantInsights
                 pagina={pagina}
+                isOpen={isOpen}
                 onAskAbout={(ctx) => setChatContext(ctx)}
               />
             </div>

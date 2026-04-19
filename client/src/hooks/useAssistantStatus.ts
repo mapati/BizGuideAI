@@ -24,21 +24,12 @@ const ANALYSIS_PAGES: Record<string, string> = {
 };
 
 interface IndicadorItem {
-  atual?: string | number | null;
-  meta?: string | number | null;
+  status?: string;
 }
 
 interface IniciativaItem {
   status?: string;
   prazo?: string;
-}
-
-interface ResultadoChave {
-  progresso?: number | null;
-}
-
-interface ObjetivoItem {
-  resultadosChave?: ResultadoChave[];
 }
 
 function isExpiredDate(prazo: string): boolean {
@@ -48,15 +39,6 @@ function isExpiredDate(prazo: string): boolean {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   return d < today;
-}
-
-function calcularProgressoObjetivo(obj: ObjetivoItem): number {
-  const rks = obj.resultadosChave ?? [];
-  if (rks.length === 0) return 0;
-  const valid = rks.filter((rk) => rk.progresso != null);
-  if (valid.length === 0) return 0;
-  const soma = valid.reduce((acc, rk) => acc + (rk.progresso ?? 0), 0);
-  return soma / valid.length;
 }
 
 export function useAssistantStatus(): AssistantStatus {
@@ -77,12 +59,6 @@ export function useAssistantStatus(): AssistantStatus {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: objetivos = [] } = useQuery<ObjetivoItem[]>({
-    queryKey: ["/api/objetivos"],
-    enabled,
-    staleTime: 5 * 60 * 1000,
-  });
-
   if (!isAnalysisPage) {
     return {
       nivel: "neutro",
@@ -94,11 +70,7 @@ export function useAssistantStatus(): AssistantStatus {
 
   const alertas: Alerta[] = [];
 
-  const vermelhosKpi = indicadores.filter((i) => {
-    const atual = i.atual != null ? parseFloat(String(i.atual)) : null;
-    const meta = i.meta != null ? parseFloat(String(i.meta)) : null;
-    return atual != null && meta != null && atual < meta * 0.8;
-  });
+  const vermelhosKpi = indicadores.filter((i) => i.status === "vermelho");
 
   if (vermelhosKpi.length > 0) {
     alertas.push({
@@ -118,25 +90,13 @@ export function useAssistantStatus(): AssistantStatus {
     });
   }
 
-  const okrsBaixoProgresso = objetivos.filter(
-    (obj) => calcularProgressoObjetivo(obj) < 30
-  );
-
-  if (okrsBaixoProgresso.length > 0) {
-    alertas.push({
-      tipo: "okr",
-      mensagem: `${okrsBaixoProgresso.length} OKR${okrsBaixoProgresso.length > 1 ? "s" : ""} abaixo de 30%`,
-    });
-  }
-
-  const hasData =
-    indicadores.length > 0 || iniciativas.length > 0 || objetivos.length > 0;
+  const hasData = indicadores.length > 0 || iniciativas.length > 0;
 
   const nivel: NivelStatus = !hasData
     ? "neutro"
     : alertas.length === 0
     ? "positivo"
-    : alertas.length >= 3
+    : alertas.length >= 2
     ? "critico"
     : "atencao";
 

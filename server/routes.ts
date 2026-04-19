@@ -2304,13 +2304,15 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
     try {
       if (!req.session.empresaId) return res.status(401).json({ error: "Não autenticado" });
       const empresaId = req.session.empresaId;
-      const [pestelList, cincoForcasList, modeloList] = await Promise.all([
+      const [swotList, pestelList, cincoForcasList, modeloList] = await Promise.all([
+        storage.getAnaliseSwot(empresaId),
         storage.getFatoresPestel(empresaId),
         storage.getCincoForcas(empresaId),
         storage.getModeloNegocio(empresaId),
       ]);
       res.json({
         counts: {
+          swot: swotList.length,
           pestel: pestelList.length,
           cincoForcas: cincoForcasList.length,
           modeloNegocio: modeloList.length,

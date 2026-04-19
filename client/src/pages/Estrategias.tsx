@@ -448,7 +448,7 @@ export default function Estrategias() {
   });
 
   const { data: estrategiasContextSummary } = useQuery<{
-    counts: { pestel: number; cincoForcas: number; modeloNegocio: number };
+    counts: { swot: number; pestel: number; cincoForcas: number; modeloNegocio: number };
   }>({
     queryKey: ["/api/ai/estrategias-context-summary"],
     enabled: !!empresa?.id,
@@ -708,6 +708,28 @@ export default function Estrategias() {
                 {!estrategiasContextSummary && <span className="ml-2 text-xs font-normal text-muted-foreground">(carregando…)</span>}
               </Label>
               <div className="space-y-2">
+                <div
+                  className="flex items-center justify-between gap-2 py-1"
+                  data-testid="row-fonte-swot"
+                >
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="fonte-estrategia-swot"
+                      checked
+                      disabled
+                      data-testid="checkbox-fonte-swot"
+                    />
+                    <label htmlFor="fonte-estrategia-swot" className="text-sm select-none cursor-default">
+                      <span className="font-medium">SWOT</span>
+                      <span className="text-muted-foreground ml-1">— Diagnóstico estratégico</span>
+                      <span className="text-muted-foreground ml-1 text-xs">(sempre incluído)</span>
+                    </label>
+                  </div>
+                  <Badge variant="secondary" className="text-xs shrink-0" data-testid="badge-count-swot">
+                    {estrategiasContextSummary?.counts?.swot ?? 0} {(estrategiasContextSummary?.counts?.swot ?? 0) === 1 ? "item" : "itens"}
+                  </Badge>
+                </div>
+
                 {([
                   { id: "pestel" as const,       label: "Cenário Externo",         desc: "Fatores PESTEL" },
                   { id: "cincoForcas" as const,   label: "Mercado e concorrência",  desc: "5 Forças de Porter" },

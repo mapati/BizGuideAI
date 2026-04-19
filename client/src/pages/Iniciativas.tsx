@@ -69,6 +69,82 @@ const impactoVariants: Record<string, "default" | "secondary" | "outline"> = {
   baixo: "outline",
 };
 
+interface IniciativaCardProps {
+  iniciativa: Iniciativa;
+  estrategias: Estrategia[];
+  onEdit: (iniciativa: Iniciativa) => void;
+  onDelete: (id: string) => void;
+}
+
+function IniciativaCard({ iniciativa, estrategias, onEdit, onDelete }: IniciativaCardProps) {
+  return (
+    <Card className="hover-elevate" data-testid={`card-iniciativa-${iniciativa.id}`}>
+      <CardHeader>
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1">
+            <CardTitle className="text-lg">{iniciativa.titulo}</CardTitle>
+            <CardDescription className="mt-2">
+              {iniciativa.descricao}
+            </CardDescription>
+          </div>
+          <div className="flex gap-1">
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => onEdit(iniciativa)}
+              data-testid={`button-edit-${iniciativa.id}`}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => onDelete(iniciativa.id)}
+              data-testid={`button-delete-${iniciativa.id}`}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <Badge variant={statusVariants[iniciativa.status]} data-testid={`badge-status-${iniciativa.id}`}>
+              {statusLabels[iniciativa.status as keyof typeof statusLabels]}
+            </Badge>
+            <Badge variant={prioridadeVariants[iniciativa.prioridade]} data-testid={`badge-prioridade-${iniciativa.id}`}>
+              {prioridadeLabels[iniciativa.prioridade as keyof typeof prioridadeLabels]}
+            </Badge>
+            <Badge variant={impactoVariants[iniciativa.impacto]} data-testid={`badge-impacto-${iniciativa.id}`}>
+              Impacto {impactoLabels[iniciativa.impacto as keyof typeof impactoLabels]}
+            </Badge>
+            {iniciativa.estrategiaId && (() => {
+              const est = estrategias.find(e => e.id === iniciativa.estrategiaId);
+              return est ? (
+                <Badge variant="outline" className="gap-1" data-testid={`badge-estrategia-${iniciativa.id}`}>
+                  <Link2 className="h-3 w-3" />
+                  {est.tipo} — {est.titulo.length > 35 ? est.titulo.slice(0, 35) + "…" : est.titulo}
+                </Badge>
+              ) : null;
+            })()}
+          </div>
+          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <div className="flex items-center gap-1">
+              <Clock className="h-4 w-4" />
+              <span>{iniciativa.prazo}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <User className="h-4 w-4" />
+              <span>{iniciativa.responsavel}</span>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Iniciativas() {
   const { toast } = useToast();
   const [openDialog, setOpenDialog] = useState(false);
@@ -589,70 +665,13 @@ export default function Iniciativas() {
               </h2>
               <div className="grid gap-4 md:grid-cols-2">
                 {altaPrioridade.map((iniciativa) => (
-                  <Card key={iniciativa.id} className="hover-elevate" data-testid={`card-iniciativa-${iniciativa.id}`}>
-                    <CardHeader>
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1">
-                          <CardTitle className="text-lg">{iniciativa.titulo}</CardTitle>
-                          <CardDescription className="mt-2">
-                            {iniciativa.descricao}
-                          </CardDescription>
-                        </div>
-                        <div className="flex gap-1">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleEdit(iniciativa)}
-                            data-testid={`button-edit-${iniciativa.id}`}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleDelete(iniciativa.id)}
-                            data-testid={`button-delete-${iniciativa.id}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        <div className="flex flex-wrap gap-2">
-                          <Badge variant={statusVariants[iniciativa.status]} data-testid={`badge-status-${iniciativa.id}`}>
-                            {statusLabels[iniciativa.status as keyof typeof statusLabels]}
-                          </Badge>
-                          <Badge variant={prioridadeVariants[iniciativa.prioridade]} data-testid={`badge-prioridade-${iniciativa.id}`}>
-                            {prioridadeLabels[iniciativa.prioridade as keyof typeof prioridadeLabels]}
-                          </Badge>
-                          <Badge variant={impactoVariants[iniciativa.impacto]} data-testid={`badge-impacto-${iniciativa.id}`}>
-                            Impacto {impactoLabels[iniciativa.impacto as keyof typeof impactoLabels]}
-                          </Badge>
-                          {iniciativa.estrategiaId && (() => {
-                            const est = estrategias.find(e => e.id === iniciativa.estrategiaId);
-                            return est ? (
-                              <Badge variant="outline" className="gap-1" data-testid={`badge-estrategia-${iniciativa.id}`}>
-                                <Link2 className="h-3 w-3" />
-                                {est.tipo} — {est.titulo.length > 35 ? est.titulo.slice(0, 35) + "…" : est.titulo}
-                              </Badge>
-                            ) : null;
-                          })()}
-                        </div>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-4 w-4" />
-                            <span>{iniciativa.prazo}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <User className="h-4 w-4" />
-                            <span>{iniciativa.responsavel}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <IniciativaCard
+                    key={iniciativa.id}
+                    iniciativa={iniciativa}
+                    estrategias={estrategias}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                  />
                 ))}
               </div>
             </div>
@@ -666,70 +685,13 @@ export default function Iniciativas() {
               </h2>
               <div className="grid gap-4 md:grid-cols-2">
                 {mediaPrioridade.map((iniciativa) => (
-                  <Card key={iniciativa.id} className="hover-elevate" data-testid={`card-iniciativa-${iniciativa.id}`}>
-                    <CardHeader>
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1">
-                          <CardTitle className="text-lg">{iniciativa.titulo}</CardTitle>
-                          <CardDescription className="mt-2">
-                            {iniciativa.descricao}
-                          </CardDescription>
-                        </div>
-                        <div className="flex gap-1">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleEdit(iniciativa)}
-                            data-testid={`button-edit-${iniciativa.id}`}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleDelete(iniciativa.id)}
-                            data-testid={`button-delete-${iniciativa.id}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        <div className="flex flex-wrap gap-2">
-                          <Badge variant={statusVariants[iniciativa.status]} data-testid={`badge-status-${iniciativa.id}`}>
-                            {statusLabels[iniciativa.status as keyof typeof statusLabels]}
-                          </Badge>
-                          <Badge variant={prioridadeVariants[iniciativa.prioridade]} data-testid={`badge-prioridade-${iniciativa.id}`}>
-                            {prioridadeLabels[iniciativa.prioridade as keyof typeof prioridadeLabels]}
-                          </Badge>
-                          <Badge variant={impactoVariants[iniciativa.impacto]} data-testid={`badge-impacto-${iniciativa.id}`}>
-                            Impacto {impactoLabels[iniciativa.impacto as keyof typeof impactoLabels]}
-                          </Badge>
-                          {iniciativa.estrategiaId && (() => {
-                            const est = estrategias.find(e => e.id === iniciativa.estrategiaId);
-                            return est ? (
-                              <Badge variant="outline" className="gap-1" data-testid={`badge-estrategia-${iniciativa.id}`}>
-                                <Link2 className="h-3 w-3" />
-                                {est.tipo} — {est.titulo.length > 35 ? est.titulo.slice(0, 35) + "…" : est.titulo}
-                              </Badge>
-                            ) : null;
-                          })()}
-                        </div>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-4 w-4" />
-                            <span>{iniciativa.prazo}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <User className="h-4 w-4" />
-                            <span>{iniciativa.responsavel}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <IniciativaCard
+                    key={iniciativa.id}
+                    iniciativa={iniciativa}
+                    estrategias={estrategias}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                  />
                 ))}
               </div>
             </div>
@@ -743,70 +705,13 @@ export default function Iniciativas() {
               </h2>
               <div className="grid gap-4 md:grid-cols-2">
                 {baixaPrioridade.map((iniciativa) => (
-                  <Card key={iniciativa.id} className="hover-elevate" data-testid={`card-iniciativa-${iniciativa.id}`}>
-                    <CardHeader>
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1">
-                          <CardTitle className="text-lg">{iniciativa.titulo}</CardTitle>
-                          <CardDescription className="mt-2">
-                            {iniciativa.descricao}
-                          </CardDescription>
-                        </div>
-                        <div className="flex gap-1">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleEdit(iniciativa)}
-                            data-testid={`button-edit-${iniciativa.id}`}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleDelete(iniciativa.id)}
-                            data-testid={`button-delete-${iniciativa.id}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        <div className="flex flex-wrap gap-2">
-                          <Badge variant={statusVariants[iniciativa.status]} data-testid={`badge-status-${iniciativa.id}`}>
-                            {statusLabels[iniciativa.status as keyof typeof statusLabels]}
-                          </Badge>
-                          <Badge variant={prioridadeVariants[iniciativa.prioridade]} data-testid={`badge-prioridade-${iniciativa.id}`}>
-                            {prioridadeLabels[iniciativa.prioridade as keyof typeof prioridadeLabels]}
-                          </Badge>
-                          <Badge variant={impactoVariants[iniciativa.impacto]} data-testid={`badge-impacto-${iniciativa.id}`}>
-                            Impacto {impactoLabels[iniciativa.impacto as keyof typeof impactoLabels]}
-                          </Badge>
-                          {iniciativa.estrategiaId && (() => {
-                            const est = estrategias.find(e => e.id === iniciativa.estrategiaId);
-                            return est ? (
-                              <Badge variant="outline" className="gap-1" data-testid={`badge-estrategia-${iniciativa.id}`}>
-                                <Link2 className="h-3 w-3" />
-                                {est.tipo} — {est.titulo.length > 35 ? est.titulo.slice(0, 35) + "…" : est.titulo}
-                              </Badge>
-                            ) : null;
-                          })()}
-                        </div>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-4 w-4" />
-                            <span>{iniciativa.prazo}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <User className="h-4 w-4" />
-                            <span>{iniciativa.responsavel}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <IniciativaCard
+                    key={iniciativa.id}
+                    iniciativa={iniciativa}
+                    estrategias={estrategias}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                  />
                 ))}
               </div>
             </div>

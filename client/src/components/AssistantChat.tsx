@@ -1,0 +1,211 @@
+import { useState, useRef, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Send, Bot, User, Loader2 } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
+import type { Alerta } from "@/hooks/useAssistantStatus";
+
+interface Message {
+  role: "user" | "assistant";
+  content: string;
+}
+
+interface AssistantChatProps {
+  alertas: Alerta[];
+  initialContext?: string;
+  onContextUsed?: () => void;
+}
+
+function MessageBubble({ msg }: { msg: Message }) {
+  const isUser = msg.role === "user";
+  return (
+    <div className={cn("flex gap-2.5 text-sm", isUser ? "flex-row-reverse" : "flex-row")}>
+      <div
+        className={cn(
+          "h-7 w-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5",
+          isUser ? "bg-primary" : "bg-muted"
+        )}
+      >
+        {isUser ? (
+          <User className="h-3.5 w-3.5 text-primary-foreground" />
+        ) : (
+          <Bot className="h-3.5 w-3.5 text-muted-foreground" />
+        )}
+      </div>
+      <div
+        className={cn(
+          "rounded-xl px-3.5 py-2.5 max-w-[82%] leading-relaxed whitespace-pre-wrap break-words",
+          isUser
+            ? "bg-primary text-primary-foreground rounded-tr-sm"
+            : "bg-muted text-foreground rounded-tl-sm"
+        )}
+      >
+        {msg.content}
+      </div>
+    </div>
+  );
+}
+
+function buildSuggestedQuestions(alertas: Alerta[]): string[] {
+  const questions: string[] = [];
+
+  for (const alerta of alertas) {
+    if (alerta.tipo === "indicador") {
+      questions.push("Quais indicadores estão no vermelho e o que fazer?");
+    } else if (alerta.tipo === "iniciativa") {
+      questions.push("Como recuperar as iniciativas com prazo vencido?");
+    }
+  }
+
+  const defaults = [
+    "Como estão meus OKRs hoje?",
+    "Qual é o ponto mais fraco da minha empresa?",
+    "Quais são as prioridades estratégicas agora?",
+    "Onde devo focar meus esforços esta semana?",
+  ];
+
+  const combined = Array.from(new Set([...questions, ...defaults]));
+  return combined.slice(0, 4);
+}
+
+export function AssistantChat({ alertas, initialContext, onContextUsed }: AssistantChatProps) {
+  const { user } = useAuth();
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const initializedRef = useRef(false);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isLoading]);
+
+  useEffect(() => {
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      setMessages([
+        {
+          role: "assistant",
+          content: `Olá${user?.nome ? `, ${user.nome.split(" ")[0]}` : ""}! Sou o seu Assistente Estratégico. Tenho acesso a todos os dados da sua empresa — perfil, cenário externo, OKRs, indicadores, iniciativas e mais. Como posso ajudar?`,
+        },
+      ]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (initialContext) {
+      const contextMsg = `Com base nesta análise:\n${initialContext}\n\nO que devo fazer para melhorar esses pontos?`;
+      sendMessage(contextMsg);
+      onContextUsed?.();
+    }
+  }, [initialContext]);
+
+  const sendMessage = async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || isLoading) return;
+
+    const newUserMsg: Message = { role: "user", content: trimmed };
+    const updatedMessages = [...messages, newUserMsg];
+    setMessages(updatedMessages);
+    setInput("");
+    setIsLoading(true);
+
+    try {
+      const historico = updatedMessages
+        .slice(0, -1)
+        .map((m) => ({ role: m.role, content: m.content }));
+      const json = await apiRequest("POST", "/api/ai/assistente", {
+        pergunta: trimmed,
+        historico,
+      });
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: (json as any).resposta },
+      ]);
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "Desculpe, ocorreu um erro ao processar sua pergunta. Tente novamente.",
+        },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage(input);
+    }
+  };
+
+  const suggestedQuestions = buildSuggestedQuestions(alertas);
+
+  return (
+    <div className="flex flex-col flex-1 min-h-0">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        {messages.map((msg, i) => (
+          <MessageBubble key={i} msg={msg} />
+        ))}
+
+        {isLoading && (
+          <div className="flex gap-2.5">
+            <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+              <Bot className="h-3.5 w-3.5 text-muted-foreground" />
+            </div>
+            <div className="bg-muted rounded-xl rounded-tl-sm px-3.5 py-2.5 flex items-center gap-1.5">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Analisando seus dados...</span>
+            </div>
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
+      </div>
+
+      {messages.length === 1 && !isLoading && (
+        <div className="px-4 pb-2 flex flex-wrap gap-1.5">
+          {suggestedQuestions.map((q) => (
+            <button
+              key={q}
+              onClick={() => sendMessage(q)}
+              className="text-xs border rounded-full px-2.5 py-1 text-muted-foreground hover-elevate"
+              data-testid={`button-suggested-${q.slice(0, 20)}`}
+            >
+              {q}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="px-3 pb-3 pt-2 border-t flex gap-2 items-end">
+        <Textarea
+          placeholder="Pergunte sobre sua empresa..."
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          className="min-h-[44px] max-h-[120px] resize-none text-sm"
+          rows={1}
+          data-testid="textarea-ai-input"
+        />
+        <Button
+          size="icon"
+          onClick={() => sendMessage(input)}
+          disabled={!input.trim() || isLoading}
+          data-testid="button-ai-submit"
+        >
+          <Send className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}

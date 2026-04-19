@@ -3039,11 +3039,13 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
 
   app.post("/api/ai/assistente", requireAuth, async (req, res) => {
     try {
-      const { pergunta, historico = [] } = req.body as {
-        pergunta: string;
-        historico: { role: "user" | "assistant"; content: string }[];
+      const { pergunta, historico = [], modoAnalise = false, pagina = "" } = req.body as {
+        pergunta?: string;
+        historico?: { role: "user" | "assistant"; content: string }[];
+        modoAnalise?: boolean;
+        pagina?: string;
       };
-      if (!pergunta?.trim()) return res.status(400).json({ error: "Pergunta não pode ser vazia." });
+      if (!modoAnalise && !pergunta?.trim()) return res.status(400).json({ error: "Pergunta não pode ser vazia." });
 
       const empresaId = req.session.empresaId!;
 
@@ -3148,6 +3150,37 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
         }
       }
 
+      if (modoAnalise) {
+        const analysisPrompt = `Você é um consultor estratégico analisando os dados desta empresa com foco em "${pagina}".
+
+Analise os dados abaixo e retorne APENAS um JSON válido (sem markdown, sem texto extra) com este formato exato:
+{"nivel":"positivo","bullets":["observação 1","observação 2"]}
+
+Regras:
+- nivel: "critico" (problemas graves ou múltiplos alertas), "atencao" (1-2 alertas moderados), "positivo" (tudo bem)
+- bullets: 2 a 4 frases curtas e diretas com observações específicas sobre ${pagina}
+- Use números e dados reais dos registros fornecidos
+- Seja específico e acionável, não genérico
+- Se não houver dados suficientes para ${pagina}, retorne {"nivel":"neutro","bullets":["Sem dados suficientes para análise de ${pagina} ainda."]}
+
+${ctx.join("\n\n")}`;
+
+        const analysisCompletion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: analysisPrompt }],
+          temperature: 0.3,
+          max_tokens: 300,
+        });
+
+        const raw = analysisCompletion.choices[0].message.content ?? "{}";
+        try {
+          const parsed = JSON.parse(raw);
+          return res.json({ nivel: parsed.nivel ?? "neutro", bullets: parsed.bullets ?? [] });
+        } catch {
+          return res.json({ nivel: "neutro", bullets: [] });
+        }
+      }
+
       const systemPrompt = `Você é o Assistente Estratégico do BizGuideAI, um consultor sênior de estratégia empresarial com profundo conhecimento em gestão para pequenas e médias empresas brasileiras.
 
 Você tem acesso completo às informações estratégicas da empresa abaixo. Use esses dados para dar respostas precisas, contextualizadas e acionáveis.
@@ -3164,8 +3197,8 @@ ${ctx.join("\n\n")}`;
 
       const messages: { role: "system" | "user" | "assistant"; content: string }[] = [
         { role: "system", content: systemPrompt },
-        ...historico.slice(-10),
-        { role: "user", content: pergunta },
+        ...(historico ?? []).slice(-10),
+        { role: "user", content: pergunta! },
       ];
 
       const completion = await openai.chat.completions.create({

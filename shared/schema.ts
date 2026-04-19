@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { pgTable, text, varchar, timestamp, integer, decimal, boolean, serial } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod";
+import { z } from "zod/v4";
 
 export const empresas = pgTable("empresas", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

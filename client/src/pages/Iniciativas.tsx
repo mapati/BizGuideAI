@@ -16,8 +16,8 @@ import { useToast } from "@/hooks/use-toast";
 import { PrerequisiteWarning } from "@/components/PrerequisiteWarning";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { insertIniciativaSchema, type Iniciativa, type InsertIniciativa } from "@shared/schema";
-import { z } from "zod/v4";
+import { type Iniciativa, type InsertIniciativa } from "@shared/schema";
+import { z } from "zod";
 
 interface Estrategia {
   id: string;
@@ -25,9 +25,15 @@ interface Estrategia {
   titulo: string;
 }
 
-const formSchema = insertIniciativaSchema.extend({
+const formSchema = z.object({
+  empresaId: z.string(),
   titulo: z.string().min(1, "Título é obrigatório"),
   descricao: z.string().min(1, "Descrição é obrigatória"),
+  status: z.string(),
+  prioridade: z.string(),
+  prazo: z.string(),
+  responsavel: z.string(),
+  impacto: z.string(),
   estrategiaId: z.string().optional().nullable(),
 });
 

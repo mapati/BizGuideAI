@@ -463,7 +463,7 @@ export default function Estrategias() {
     ameaca: "Ameaça",
   };
 
-  const { data: empresa } = useQuery({ queryKey: ["/api/empresa"] });
+  const { data: empresa } = useQuery<{ id: string; nome: string; setor: string; tamanho: string; descricao?: string | null }>({ queryKey: ["/api/empresa"] });
 
   const { data: estrategias = [], isLoading } = useQuery<Estrategia[]>({
     queryKey: ["/api/estrategias", empresa?.id],
@@ -1013,7 +1013,7 @@ export default function Estrategias() {
             title="Transforme o diagnóstico em estratégias práticas"
             description="A IA gera um cardápio de opções para você escolher — combinando seus pontos fortes com as oportunidades do mercado, e neutralizando fraquezas e ameaças."
             actionLabel="Gerar com IA"
-            onAction={handleGenerateStrategies}
+            onAction={() => setIsPreGenOpen(true)}
           />
         </Card>
       ) : (

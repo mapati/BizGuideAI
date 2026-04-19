@@ -69,12 +69,18 @@ export default function OportunidadesCrescimento() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    tipo: string;
+    titulo: string;
+    descricao: string;
+    potencial: "alto" | "médio" | "baixo";
+    risco: "alto" | "médio" | "baixo";
+  }>({
     tipo: "",
     titulo: "",
     descricao: "",
-    potencial: "médio" as const,
-    risco: "médio" as const,
+    potencial: "médio",
+    risco: "médio",
   });
 
   const tipos = [
@@ -104,7 +110,7 @@ export default function OportunidadesCrescimento() {
     },
   ];
 
-  const { data: empresa } = useQuery({
+  const { data: empresa } = useQuery<{ id: string; nome: string; setor: string; tamanho: string; descricao?: string | null }>({
     queryKey: ["/api/empresa"],
   });
 
@@ -280,16 +286,15 @@ export default function OportunidadesCrescimento() {
     return (
       <div className="container mx-auto p-6">
         <PageHeader
-          icon={TrendingUp}
           title="Oportunidades de Crescimento"
-          subtitle="Explore caminhos para expandir seu negócio"
+          description="Explore caminhos para expandir seu negócio"
         />
         <div className="mt-6">Carregando...</div>
       </div>
     );
   }
 
-  const semEstategias = empresa && estrategias.length === 0 && oportunidades.length === 0;
+  const semEstategias = !!empresa && estrategias.length === 0 && oportunidades.length === 0;
 
   return (
     <div className="container mx-auto p-6">
@@ -303,9 +308,8 @@ export default function OportunidadesCrescimento() {
         />
       )}
       <PageHeader
-        icon={TrendingUp}
         title="Oportunidades de Crescimento"
-        subtitle="Explore caminhos para expandir seu negócio"
+        description="Explore caminhos para expandir seu negócio"
       />
 
       <div className="mt-6 flex gap-3">

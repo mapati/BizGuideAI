@@ -81,10 +81,14 @@ export default function Swot() {
   const [isSuggestingComplete, setIsSuggestingComplete] = useState(false);
   const [isSuggestingModal, setIsSuggestingModal] = useState(false);
   const [tipoSugestao, setTipoSugestao] = useState<TipoSwot | null>(null);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    tipo: string;
+    descricao: string;
+    impacto: "alto" | "médio" | "baixo";
+  }>({
     tipo: "",
     descricao: "",
-    impacto: "médio" as const,
+    impacto: "médio",
   });
 
   const [isAiParamsOpen, setIsAiParamsOpen] = useState(false);
@@ -118,7 +122,7 @@ export default function Swot() {
     { value: "ameaca", label: "Ameaça", desc: "Risco externo ao negócio" },
   ];
 
-  const { data: empresa } = useQuery({
+  const { data: empresa } = useQuery<{ id: string; nome: string; setor: string; tamanho: string; descricao?: string | null }>({
     queryKey: ["/api/empresa"],
   });
 

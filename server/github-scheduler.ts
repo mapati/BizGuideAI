@@ -19,7 +19,7 @@ export interface PushLog {
 const MAX_LOGS = 50;
 const pushLogs: PushLog[] = [];
 
-let activeTask: cron.ScheduledTask | null = null;
+let activeTask: ReturnType<typeof cron.schedule> | null = null;
 
 function cronExpressionFor(freq: PushFrequencia): string {
   switch (freq) {

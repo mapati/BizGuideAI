@@ -71,10 +71,15 @@ export default function Pestel() {
   const [suggestPhase, setSuggestPhase] = useState<SuggestPhase>("idle");
   const [cenarioExterno, setCenarioExterno] = useState<CenarioExterno | null>(null);
   const [sourcesOpen, setSourcesOpen] = useState(false);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    tipo: string;
+    descricao: string;
+    impacto: "alto" | "médio" | "baixo";
+    evidencia: string;
+  }>({
     tipo: "",
     descricao: "",
-    impacto: "médio" as const,
+    impacto: "médio",
     evidencia: "",
   });
 
@@ -87,7 +92,7 @@ export default function Pestel() {
     { value: "legal", label: "Legal (normas, certificações)" },
   ];
 
-  const { data: empresa } = useQuery({
+  const { data: empresa } = useQuery<{ id: string; nome: string; setor: string; tamanho: string; descricao?: string | null }>({
     queryKey: ["/api/empresa"],
   });
 
@@ -513,7 +518,7 @@ export default function Pestel() {
                       </p>
                       {data.fontes && data.fontes.length > 0 && (
                         <div className="flex flex-wrap gap-1">
-                          {data.fontes.map((fonte, i) => (
+                          {data.fontes.map((fonte: string, i: number) => (
                             <span
                               key={i}
                               className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-background/60 border rounded px-2 py-0.5"

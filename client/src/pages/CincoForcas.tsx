@@ -87,7 +87,7 @@ export default function CincoForcasPage() {
     { value: "ameaca_substitutos", label: "Ameaça de Substitutos" },
   ];
 
-  const { data: empresa } = useQuery({
+  const { data: empresa } = useQuery<{ id: string; nome: string; setor: string; tamanho: string; descricao?: string | null }>({
     queryKey: ["/api/empresa"],
   });
 

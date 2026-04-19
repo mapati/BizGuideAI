@@ -251,7 +251,7 @@ async function ssrfSafeFetch(rawUrl: string): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15000);
 
-  let response: Response;
+  let response: globalThis.Response;
   try {
     response = await fetch(rawUrl, {
       method: "GET",
@@ -2410,7 +2410,7 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
       const objetivosResumo      = objetivosList.map((o) => {
         const krs = resultadosChaveMap[o.id] ?? [];
         const krsText = krs.length > 0
-          ? "\n" + krs.map((kr) => `    KR: ${kr.descricao} — atual: ${kr.atual}, meta: ${kr.meta}, status: ${kr.status}`).join("\n")
+          ? "\n" + krs.map((kr) => `    KR: ${kr.metrica} — atual: ${kr.valorAtual}, meta: ${kr.valorAlvo}`).join("\n")
           : "";
         return `[${o.perspectiva}] ${o.titulo}${o.descricao ? `: ${o.descricao}` : ""} (prazo: ${o.prazo})${krsText}`;
       }).join("\n");
@@ -2571,7 +2571,7 @@ Responda EXCLUSIVAMENTE em JSON:
         : "";
 
       // ── SYSTEM PROMPT ──────────────────────────────────────────────────────
-      const todasFontesNomes = [...new Set([...fontesInternas, ...fontesExternas])].join(", ");
+      const todasFontesNomes = Array.from(new Set([...fontesInternas, ...fontesExternas])).join(", ");
       const systemPrompt = `Você é um consultor estratégico sênior especializado em análise SWOT. Identifique forças, fraquezas, oportunidades e ameaças CONCRETAS e ESPECÍFICAS com base exclusivamente nos dados fornecidos.
 
 REGRAS OBRIGATÓRIAS — CLASSIFICAÇÃO INTERNA vs. EXTERNA:
@@ -2671,7 +2671,7 @@ Responda em JSON:
     type MercadoPesquisado = Record<ForcaKey, { resumo: string; fontes: string[] }>;
 
     const emptyMercado = (): MercadoPesquisado =>
-      Object.fromEntries(forcaKeys.map((k) => [k, { resumo: "", fontes: [] }])) as MercadoPesquisado;
+      Object.fromEntries(forcaKeys.map((k) => [k, { resumo: "", fontes: [] as string[] }])) as unknown as MercadoPesquisado;
 
     // Prompt de pesquisa livre — sem exigir JSON para que o modelo de busca
     // possa focar em encontrar informações reais e específicas
@@ -2974,8 +2974,9 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
       const { nomeEmpresa, setor, descricao } = req.body;
 
       let contextoPerfil = `Empresa: ${nomeEmpresa}\nSetor: ${setor}\nDescrição: ${descricao || "Não informada"}`;
+      let empresaCompleta: Awaited<ReturnType<typeof storage.getEmpresa>> | undefined;
       if (req.session?.empresaId) {
-        const empresaCompleta = await storage.getEmpresa(req.session.empresaId);
+        empresaCompleta = await storage.getEmpresa(req.session.empresaId);
         if (empresaCompleta) contextoPerfil = buildEmpresaContextoIA(empresaCompleta);
       }
       
@@ -3007,13 +3008,14 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
       const { objetivo, nomeEmpresa, setor } = req.body;
 
       let contextoPerfil = `Empresa: ${nomeEmpresa}\nSetor: ${setor}`;
+      let empresaCompleta2: Awaited<ReturnType<typeof storage.getEmpresa>> | undefined;
       if (req.session?.empresaId) {
-        const empresaCompleta = await storage.getEmpresa(req.session.empresaId);
-        if (empresaCompleta) contextoPerfil = buildEmpresaContextoIA(empresaCompleta);
+        empresaCompleta2 = await storage.getEmpresa(req.session.empresaId);
+        if (empresaCompleta2) contextoPerfil = buildEmpresaContextoIA(empresaCompleta2);
       }
       
       const completion = await openai.chat.completions.create({
-        model: getModelForPlan(empresaCompleta?.planoTipo, "relatorios"),
+        model: getModelForPlan(empresaCompleta2?.planoTipo, "relatorios"),
         messages: [
           {
             role: "system",
@@ -3084,7 +3086,7 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
       if (pestel.length > 0) {
         const grupos = ["politico", "economico", "social", "tecnologico", "ambiental", "legal"];
         const pestelStr = grupos.map(g => {
-          const items = pestel.filter(p => p.categoria === g).map(p => `  - ${p.fator}: ${p.descricao} (impacto: ${p.impacto})`);
+          const items = pestel.filter(p => p.tipo === g).map(p => `  - ${p.descricao} (impacto: ${p.impacto})`);
           return items.length ? `${g.toUpperCase()}:\n${items.join("\n")}` : null;
         }).filter(Boolean).join("\n");
         ctx.push(`## ANÁLISE DE CENÁRIO EXTERNO (PESTEL)\n${pestelStr}`);
@@ -3104,7 +3106,7 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
       }
 
       if (modeloNegocio.length > 0) {
-        ctx.push(`## MODELO DE NEGÓCIO\n${modeloNegocio.map(b => `- ${b.bloco}: ${b.conteudo}`).join("\n")}`);
+        ctx.push(`## MODELO DE NEGÓCIO\n${modeloNegocio.map(b => `- ${b.bloco}: ${b.descricao}`).join("\n")}`);
       }
 
       if (estrategias.length > 0) {
@@ -3114,10 +3116,10 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
       if (resultadosPorObjetivo.length > 0) {
         const okrStr = resultadosPorObjetivo.map(({ objetivo, resultados }) => {
           const rks = resultados.map(r => {
-            const progresso = r.valorAtual != null && r.valorMeta != null
-              ? `${parseFloat(String(r.valorAtual))}/${parseFloat(String(r.valorMeta))} ${r.unidade || ""} (${Math.round((parseFloat(String(r.valorAtual)) / parseFloat(String(r.valorMeta))) * 100)}%)`
+            const progresso = r.valorAtual != null && r.valorAlvo != null
+              ? `${parseFloat(String(r.valorAtual))}/${parseFloat(String(r.valorAlvo))} (${Math.round((parseFloat(String(r.valorAtual)) / parseFloat(String(r.valorAlvo))) * 100)}%)`
               : "sem dados";
-            return `    • ${r.descricao}: ${progresso}`;
+            return `    • ${r.metrica}: ${progresso}`;
           }).join("\n");
           return `- Objetivo: ${objetivo.titulo} (${objetivo.perspectiva})\n${rks || "    • Sem resultados-chave"}`;
         }).join("\n");
@@ -3126,12 +3128,12 @@ Retorne EXATAMENTE este JSON (sem texto adicional):
 
       if (indicadores.length > 0) {
         ctx.push(`## INDICADORES DE DESEMPENHO (KPIs / BSC)\n${indicadores.map(i => {
-          const atual = i.valorAtual != null ? parseFloat(String(i.valorAtual)) : null;
-          const meta = i.valorMeta != null ? parseFloat(String(i.valorMeta)) : null;
-          const status = atual != null && meta != null
-            ? (atual >= meta ? "Verde" : atual >= meta * 0.8 ? "Amarelo" : "Vermelho")
+          const atualVal = i.atual != null ? parseFloat(String(i.atual)) : null;
+          const metaVal = i.meta != null ? parseFloat(String(i.meta)) : null;
+          const status = atualVal != null && metaVal != null
+            ? (atualVal >= metaVal ? "Verde" : atualVal >= metaVal * 0.8 ? "Amarelo" : "Vermelho")
             : "Sem dados";
-          return `- [${i.perspectiva}] ${i.nome}: atual=${atual ?? "—"}, meta=${meta ?? "—"} ${i.unidade || ""} — ${status}`;
+          return `- [${i.perspectiva}] ${i.nome}: atual=${atualVal ?? "—"}, meta=${metaVal ?? "—"} — ${status}`;
         }).join("\n")}`);
       }
 
@@ -5382,7 +5384,7 @@ Responda APENAS com JSON: { "respostaEstrategica": "..." }`,
       const pestels = await storage.getFatoresPestel(req.session.empresaId!);
       const fraquezas = swots.filter(s => s.tipo === "fraqueza").map(s => s.descricao).join("; ");
       const ameacas = swots.filter(s => s.tipo === "ameaca").map(s => s.descricao).join("; ");
-      const pestelNeg = pestels.filter(p => p.impacto === "negativo").map(p => `${p.categoria}: ${p.descricao}`).join("; ");
+      const pestelNeg = pestels.filter(p => p.impacto === "negativo").map(p => `${p.tipo}: ${p.descricao}`).join("; ");
       const completion = await openai.chat.completions.create({
         model: getModelForPlan(empresa.planoTipo, "relatorios"),
         messages: await injectMacroCtx([

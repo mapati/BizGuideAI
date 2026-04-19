@@ -241,7 +241,7 @@ export default function DiagnosticoAtual() {
         description="Registre 3 a 5 métricas que representam a situação real do negócio hoje, antes de construir a estratégia."
         tooltip="O Diagnóstico Atual cria um ponto de partida do negócio. Diferente dos indicadores estratégicos (que derivam do plano), essas métricas capturam a situação atual — permitindo medir o impacto das decisões ao longo do tempo."
         action={
-          <div className="flex gap-2">
+          <div className="flex gap-2 mt-10">
             <Button
               variant="outline"
               onClick={() => gerarDiagnosticoMutation.mutate()}

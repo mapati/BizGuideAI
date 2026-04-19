@@ -3175,7 +3175,13 @@ ${ctx.join("\n\n")}`;
         const raw = analysisCompletion.choices[0].message.content ?? "{}";
         try {
           const parsed = JSON.parse(raw);
-          return res.json({ nivel: parsed.nivel ?? "neutro", bullets: parsed.bullets ?? [] });
+          const validNiveis = ["neutro", "positivo", "atencao", "critico"] as const;
+          type NivelAnalise = typeof validNiveis[number];
+          const nivel: NivelAnalise = validNiveis.includes(parsed.nivel) ? parsed.nivel : "neutro";
+          const bullets: string[] = Array.isArray(parsed.bullets)
+            ? parsed.bullets.filter((b: unknown) => typeof b === "string")
+            : [];
+          return res.json({ nivel, bullets });
         } catch {
           return res.json({ nivel: "neutro", bullets: [] });
         }

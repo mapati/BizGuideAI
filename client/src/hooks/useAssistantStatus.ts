@@ -49,13 +49,13 @@ export function useAssistantStatus(): AssistantStatus {
 
   const { data: indicadores = [] } = useQuery<IndicadorItem[]>({
     queryKey: ["/api/indicadores"],
-    enabled,
+    enabled: enabled && isAnalysisPage,
     staleTime: 5 * 60 * 1000,
   });
 
   const { data: iniciativas = [] } = useQuery<IniciativaItem[]>({
     queryKey: ["/api/iniciativas", empresa?.id],
-    enabled,
+    enabled: enabled && isAnalysisPage,
     staleTime: 5 * 60 * 1000,
   });
 

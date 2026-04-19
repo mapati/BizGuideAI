@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { X, Sparkles, ChevronRight } from "lucide-react";
+import { X, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AssistantInsights } from "@/components/AssistantInsights";
 import { AssistantChat } from "@/components/AssistantChat";
@@ -29,16 +29,23 @@ export function AssistantDrawer({
   return (
     <div
       className={cn(
-        "fixed top-0 right-0 h-full flex flex-col border-l bg-background shadow-2xl transition-transform duration-300 ease-in-out",
-        isOpen ? "translate-x-0" : "translate-x-full pointer-events-none"
+        "fixed flex flex-col rounded-2xl border bg-background shadow-2xl",
+        "transition-all duration-200 ease-out",
+        isOpen
+          ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
+          : "opacity-0 scale-95 translate-y-2 pointer-events-none"
       )}
       style={{
-        width: "min(420px, 100vw)",
+        bottom: "5rem",
+        right: "1.25rem",
+        width: "min(380px, calc(100vw - 2.5rem))",
+        height: "min(560px, 80vh)",
+        transformOrigin: "bottom right",
         zIndex: 9995,
       }}
       data-testid="component-assistant-drawer"
     >
-      <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30 flex-shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30 rounded-t-2xl flex-shrink-0">
         <div className="flex items-center gap-2">
           <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center">
             <Sparkles className="h-3.5 w-3.5 text-primary-foreground" />
@@ -57,12 +64,12 @@ export function AssistantDrawer({
           data-testid="button-assistant-close"
           title="Fechar"
         >
-          <ChevronRight className="h-4 w-4" />
+          <X className="h-4 w-4" />
         </Button>
       </div>
 
       {hasOpened && (
-        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden rounded-b-2xl">
           {pagina && (
             <div className="flex-shrink-0">
               <AssistantInsights

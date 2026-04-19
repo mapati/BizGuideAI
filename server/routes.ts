@@ -3289,12 +3289,13 @@ ${ctx.join("\n\n")}`;
       const rawQtd = Number(req.body.quantidadePorQuadrante);
       const quantidadePorQuadrante = Number.isInteger(rawQtd) && rawQtd >= 1 && rawQtd <= 5 ? rawQtd : 3;
       const rawQuadrantes: unknown = req.body.quadrantesSelecionados;
+      const quadrantesValidos = Array.isArray(rawQuadrantes)
+        ? rawQuadrantes.filter((q): q is "FO" | "FA" | "DO" | "DA" =>
+            todosQuadrantes.includes(q as "FO" | "FA" | "DO" | "DA")
+          )
+        : [];
       const quadrantesSelecionados: Array<"FO" | "FA" | "DO" | "DA"> =
-        Array.isArray(rawQuadrantes) && rawQuadrantes.length > 0
-          ? (rawQuadrantes.filter((q): q is "FO" | "FA" | "DO" | "DA" =>
-              todosQuadrantes.includes(q as "FO" | "FA" | "DO" | "DA")
-            ))
-          : [...todosQuadrantes];
+        quadrantesValidos.length > 0 ? quadrantesValidos : [...todosQuadrantes];
       const instrucaoAdicional: string =
         typeof req.body.instrucaoAdicional === "string"
           ? req.body.instrucaoAdicional.trim()
@@ -3450,7 +3451,15 @@ ${instrucaoAdicional}` : ""}`
         return res.status(500).json({ error: "Resposta da IA em formato inválido. Tente novamente." });
       }
 
-      res.json(validado.data);
+      const quadrantesSet = new Set(quadrantesSelecionados);
+      const candidatasFiltradas = validado.data.candidatas.filter(c => quadrantesSet.has(c.tipo));
+
+      if (candidatasFiltradas.length === 0) {
+        console.error("[gerar-estrategias] Nenhuma candidata para os quadrantes:", quadrantesSelecionados);
+        return res.status(500).json({ error: "A IA não retornou estratégias para os quadrantes selecionados. Tente novamente." });
+      }
+
+      res.json({ candidatas: candidatasFiltradas });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

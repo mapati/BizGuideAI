@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
@@ -13,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/EmptyState";
 import { ExampleCard } from "@/components/ExampleCard";
 import { StrategyPicker } from "@/components/StrategyPicker";
-import { Target, Plus, Sparkles, Trash2, Pencil, ArrowUpRight, Shield, TrendingUp, AlertCircle, Tag, CheckCircle2, Clock, Play, Briefcase, Target as TargetIcon, Link2, Settings2 } from "lucide-react";
+import { Target, Plus, Sparkles, Trash2, Pencil, ArrowUpRight, Shield, TrendingUp, AlertCircle, Tag, CheckCircle2, Clock, Play, Briefcase, Target as TargetIcon, Link2, Settings2, ExternalLink } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { PrerequisiteWarning } from "@/components/PrerequisiteWarning";
@@ -118,6 +119,7 @@ function VinculadosSheet({
   onClose: () => void;
   estrategia: Estrategia | null;
 }) {
+  const [, navigate] = useLocation();
   const { data: vinculados, isLoading, isError } = useQuery<Vinculado>({
     queryKey: ["/api/estrategias", estrategia?.id, "vinculados"],
     queryFn: async () => {
@@ -177,7 +179,20 @@ function VinculadosSheet({
                       className="rounded-md border p-3"
                       data-testid={`vinculado-iniciativa-${ini.id}`}
                     >
-                      <p className="text-sm font-medium leading-tight mb-2">{ini.titulo}</p>
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <p className="text-sm font-medium leading-tight">{ini.titulo}</p>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="shrink-0"
+                          onClick={() => { onClose(); navigate("/iniciativas"); }}
+                          data-testid={`link-iniciativa-${ini.id}`}
+                          title="Ir para Iniciativas"
+                          aria-label="Ir para Iniciativas"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                        </Button>
+                      </div>
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <Badge
                           className={INICIATIVA_PRIORIDADE_CLASSES[ini.prioridade] ?? ""}
@@ -225,7 +240,20 @@ function VinculadosSheet({
                       className="rounded-md border p-3"
                       data-testid={`vinculado-okr-${okr.id}`}
                     >
-                      <p className="text-sm font-medium leading-tight mb-2">{okr.titulo}</p>
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <p className="text-sm font-medium leading-tight">{okr.titulo}</p>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="shrink-0"
+                          onClick={() => { onClose(); navigate("/okrs"); }}
+                          data-testid={`link-okr-${okr.id}`}
+                          title="Ir para OKRs"
+                          aria-label="Ir para OKRs"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                        </Button>
+                      </div>
                       <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <Badge variant="outline" className="text-xs">
                           {okr.perspectiva}

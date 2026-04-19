@@ -38,9 +38,9 @@ const CONFIG: Record<NivelStatus, { bg: string; text: string; border: string; pu
 };
 
 const GUIA_CONFIG = {
-  bg: "bg-background",
-  text: "text-foreground",
-  border: "border-border",
+  bg: "bg-blue-500 dark:bg-blue-600",
+  text: "text-white",
+  border: "border-blue-400 dark:border-blue-500",
   pulse: true,
 };
 
@@ -60,6 +60,7 @@ export function AssistantChip({ nivel, preview, onClick, isOpen, modo }: Assista
         cfg.bg,
         cfg.border,
         cfg.text,
+        isGuia && "guide-chip-glow font-semibold",
         isOpen ? "opacity-0 pointer-events-none translate-x-full" : "opacity-100 translate-x-0",
       )}
       style={{ zIndex: 9990 }}

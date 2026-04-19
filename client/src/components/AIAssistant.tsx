@@ -39,15 +39,7 @@ export function AIAssistant() {
 
   if (progresso.isLoading) return null;
 
-  const guiaPreview = (() => {
-    const proxima = progresso.etapas.find(
-      (e) => !e.concluida && (!e.bloqueadaPor || e.bloqueadaPor.length === 0)
-    );
-    if (proxima) return `Próxima: ${proxima.nome}`;
-    return `${progresso.totalConcluidas} de ${progresso.total} etapas`;
-  })();
-
-  const chipPreview = modo === "guia" ? guiaPreview : preview;
+  const chipPreview = modo === "guia" ? "Guia Estratégico" : preview;
   const chipNivel = modo === "guia" ? "neutro" : nivel;
 
   return (

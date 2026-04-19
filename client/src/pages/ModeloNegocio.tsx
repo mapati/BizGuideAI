@@ -3,9 +3,18 @@ import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Sparkles, LayoutGrid, Loader2, Save } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Sparkles, LayoutGrid, Loader2, Save, Trash2,
+  Handshake, Activity, Boxes, Gift, Heart, Truck, Users, TrendingDown, TrendingUp,
+  type LucideIcon,
+} from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -30,18 +39,77 @@ interface BlocoDef {
   hint: string;
   description: string;
   alimenta: string[];
+  icon: LucideIcon;
+  // Tailwind color classes para o chip do ícone
+  iconBg: string;
+  iconText: string;
+  borderTint: string; // borda lateral sutil
 }
 
 const blocosPadrao: BlocoDef[] = [
-  { value: "parcerias_principais", label: "Parcerias Principais", hint: "Quem te ajuda?", description: "Liste seus principais parceiros e fornecedores estratégicos", alimenta: ["Estratégias", "Iniciativas"] },
-  { value: "atividades_principais", label: "Atividades Principais", hint: "O que você precisa fazer?", description: "Descreva as atividades mais importantes para operar", alimenta: ["OKRs", "Iniciativas"] },
-  { value: "recursos_principais", label: "Recursos Principais", hint: "O que você precisa ter?", description: "Liste os recursos essenciais (físicos, financeiros, humanos)", alimenta: ["Iniciativas"] },
-  { value: "proposta_valor", label: "Proposta de Valor", hint: "O que você oferece?", description: "Descreva o valor único que você entrega aos clientes", alimenta: ["Estratégias", "OKRs", "Diagnóstico"] },
-  { value: "relacionamento_clientes", label: "Relacionamento com Clientes", hint: "Como se relaciona?", description: "Explique como você mantém relacionamento com clientes", alimenta: ["Estratégias"] },
-  { value: "canais", label: "Canais", hint: "Como entrega valor?", description: "Liste os canais de comunicação, venda e distribuição", alimenta: ["Estratégias"] },
-  { value: "segmentos_clientes", label: "Segmentos de Clientes", hint: "Quem são seus clientes?", description: "Identifique os diferentes grupos de clientes que você atende", alimenta: ["Estratégias", "OKRs", "Diagnóstico"] },
-  { value: "estrutura_custos", label: "Estrutura de Custos", hint: "Quais são os custos?", description: "Liste os principais custos para operar o negócio", alimenta: ["Diagnóstico"] },
-  { value: "fontes_receita", label: "Fontes de Receita", hint: "Como ganha dinheiro?", description: "Descreva como você gera receita com cada segmento", alimenta: ["Estratégias", "Diagnóstico"] },
+  {
+    value: "parcerias_principais", label: "Parcerias Principais", hint: "Quem te ajuda?",
+    description: "Liste seus principais parceiros e fornecedores estratégicos",
+    alimenta: ["Estratégias", "Iniciativas"], icon: Handshake,
+    iconBg: "bg-sky-100 dark:bg-sky-950", iconText: "text-sky-700 dark:text-sky-300",
+    borderTint: "border-l-sky-400 dark:border-l-sky-600",
+  },
+  {
+    value: "atividades_principais", label: "Atividades Principais", hint: "O que você precisa fazer?",
+    description: "Descreva as atividades mais importantes para operar",
+    alimenta: ["OKRs", "Iniciativas"], icon: Activity,
+    iconBg: "bg-amber-100 dark:bg-amber-950", iconText: "text-amber-700 dark:text-amber-300",
+    borderTint: "border-l-amber-400 dark:border-l-amber-600",
+  },
+  {
+    value: "recursos_principais", label: "Recursos Principais", hint: "O que você precisa ter?",
+    description: "Liste os recursos essenciais (físicos, financeiros, humanos)",
+    alimenta: ["Iniciativas"], icon: Boxes,
+    iconBg: "bg-orange-100 dark:bg-orange-950", iconText: "text-orange-700 dark:text-orange-300",
+    borderTint: "border-l-orange-400 dark:border-l-orange-600",
+  },
+  {
+    value: "proposta_valor", label: "Proposta de Valor", hint: "O que você oferece?",
+    description: "Descreva o valor único que você entrega aos clientes",
+    alimenta: ["Estratégias", "OKRs", "Diagnóstico"], icon: Gift,
+    iconBg: "bg-violet-100 dark:bg-violet-950", iconText: "text-violet-700 dark:text-violet-300",
+    borderTint: "border-l-violet-400 dark:border-l-violet-600",
+  },
+  {
+    value: "relacionamento_clientes", label: "Relacionamento com Clientes", hint: "Como se relaciona?",
+    description: "Explique como você mantém relacionamento com clientes",
+    alimenta: ["Estratégias"], icon: Heart,
+    iconBg: "bg-rose-100 dark:bg-rose-950", iconText: "text-rose-700 dark:text-rose-300",
+    borderTint: "border-l-rose-400 dark:border-l-rose-600",
+  },
+  {
+    value: "canais", label: "Canais", hint: "Como entrega valor?",
+    description: "Liste os canais de comunicação, venda e distribuição",
+    alimenta: ["Estratégias"], icon: Truck,
+    iconBg: "bg-cyan-100 dark:bg-cyan-950", iconText: "text-cyan-700 dark:text-cyan-300",
+    borderTint: "border-l-cyan-400 dark:border-l-cyan-600",
+  },
+  {
+    value: "segmentos_clientes", label: "Segmentos de Clientes", hint: "Quem são seus clientes?",
+    description: "Identifique os diferentes grupos de clientes que você atende",
+    alimenta: ["Estratégias", "OKRs", "Diagnóstico"], icon: Users,
+    iconBg: "bg-emerald-100 dark:bg-emerald-950", iconText: "text-emerald-700 dark:text-emerald-300",
+    borderTint: "border-l-emerald-400 dark:border-l-emerald-600",
+  },
+  {
+    value: "estrutura_custos", label: "Estrutura de Custos", hint: "Quais são os custos?",
+    description: "Liste os principais custos para operar o negócio",
+    alimenta: ["Diagnóstico"], icon: TrendingDown,
+    iconBg: "bg-red-100 dark:bg-red-950", iconText: "text-red-700 dark:text-red-300",
+    borderTint: "border-l-red-400 dark:border-l-red-600",
+  },
+  {
+    value: "fontes_receita", label: "Fontes de Receita", hint: "Como ganha dinheiro?",
+    description: "Descreva como você gera receita com cada segmento",
+    alimenta: ["Estratégias", "Diagnóstico"], icon: TrendingUp,
+    iconBg: "bg-green-100 dark:bg-green-950", iconText: "text-green-700 dark:text-green-300",
+    borderTint: "border-l-green-400 dark:border-l-green-600",
+  },
 ];
 
 export default function ModeloNegocio() {
@@ -49,6 +117,8 @@ export default function ModeloNegocio() {
   const [isSuggestingAll, setIsSuggestingAll] = useState(false);
   const [isSuggestingBloco, setIsSuggestingBloco] = useState(false);
   const [isSavingBloco, setIsSavingBloco] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [formValues, setFormValues] = useState<Record<string, string>>({});
   const [blocoSelecionado, setBlocoSelecionado] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -72,7 +142,6 @@ export default function ModeloNegocio() {
     lastSavedRef.current = { ...valores };
   }, [blocosData]);
 
-  // Sincroniza editValue quando bloco selecionado muda
   useEffect(() => {
     if (blocoSelecionado) {
       setEditValue(formValues[blocoSelecionado] || "");
@@ -81,8 +150,6 @@ export default function ModeloNegocio() {
     }
   }, [blocoSelecionado, formValues]);
 
-  // Salva um bloco específico com valor explícito. Idempotente via inFlightRef
-  // e usa snapshot mais recente de blocosData (ref) para evitar duplicações.
   const saveBloco = useCallback(async (blocoValue: string, valor: string) => {
     if (!empresa?.id) return;
     const valorTrim = valor.trim();
@@ -115,14 +182,12 @@ export default function ModeloNegocio() {
     }
   }, [empresa?.id, toast]);
 
-  // Salva o bloco atualmente selecionado (uso pelo onBlur do textarea)
   const handleAutoSave = useCallback(async () => {
     if (!blocoSelecionado) return;
     await saveBloco(blocoSelecionado, editValue);
   }, [blocoSelecionado, editValue, saveBloco]);
 
   const handleSelectBloco = async (value: string) => {
-    // Salva o bloco anterior (com snapshot de valores) antes de trocar
     if (blocoSelecionado && blocoSelecionado !== value) {
       await saveBloco(blocoSelecionado, editValue);
     }
@@ -154,7 +219,7 @@ export default function ModeloNegocio() {
       });
       const sugestoes: { bloco: string; descricao: string }[] = response.blocos || [];
       for (const s of sugestoes) {
-        const existente = blocosData.find((b) => b.bloco === s.bloco);
+        const existente = blocosDataRef.current.find((b) => b.bloco === s.bloco);
         if (existente) {
           await apiRequest("PATCH", `/api/modelo-negocio/${existente.id}`, { descricao: s.descricao });
         } else {
@@ -188,6 +253,28 @@ export default function ModeloNegocio() {
     }
   };
 
+  const handleResetAll = async () => {
+    if (!empresa?.id) return;
+    setIsResetting(true);
+    try {
+      const blocosExistentes = blocosDataRef.current;
+      for (const b of blocosExistentes) {
+        await apiRequest("DELETE", `/api/modelo-negocio/${b.id}`);
+      }
+      lastSavedRef.current = {};
+      setFormValues({});
+      setBlocoSelecionado(null);
+      setEditValue("");
+      queryClient.invalidateQueries({ queryKey: ["/api/modelo-negocio", empresa.id] });
+      toast({ title: "BMC limpo", description: "Todos os blocos foram resetados." });
+    } catch (error: any) {
+      toast({ title: "Erro ao limpar", description: error.message, variant: "destructive" });
+    } finally {
+      setIsResetting(false);
+      setResetDialogOpen(false);
+    }
+  };
+
   if (!empresa) {
     return (
       <div className="max-w-5xl mx-auto">
@@ -218,38 +305,71 @@ export default function ModeloNegocio() {
 
   const blocoInfo = blocosPadrao.find((b) => b.value === blocoSelecionado);
 
-  // ── Card individual do canvas (desktop e mobile) ─────────────────────────
+  // ── Card individual do canvas ────────────────────────────────────────────
   const renderBlocoCard = (blocoValue: string, className?: string, onClick?: () => void) => {
     const bloco = blocosPadrao.find((b) => b.value === blocoValue);
     if (!bloco) return null;
+    const Icon = bloco.icon;
     const conteudo = formValues[bloco.value];
     const isEmpty = !conteudo || conteudo.trim() === "";
     const isSelecionado = blocoSelecionado === bloco.value;
 
     return (
       <Card
-        className={`cursor-pointer transition-all hover-elevate active-elevate-2 ${
-          isSelecionado ? "border-primary ring-2 ring-primary/20" : ""
+        className={`cursor-pointer transition-all hover-elevate active-elevate-2 border-l-4 ${bloco.borderTint} ${
+          isSelecionado ? "ring-2 ring-primary ring-offset-1" : ""
         } ${className || ""}`}
         onClick={onClick}
         data-testid={`card-bloco-${bloco.value}`}
       >
-        <CardContent className="p-3 h-full flex flex-col">
-          <div className="mb-2">
-            <p className="text-xs font-semibold uppercase tracking-wide">{bloco.label}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">{bloco.hint}</p>
+        <CardContent className="p-3 h-full flex flex-col gap-2">
+          <div className="flex items-start gap-2">
+            <div className={`flex items-center justify-center w-7 h-7 rounded-md ${bloco.iconBg} ${bloco.iconText} flex-shrink-0`}>
+              <Icon className="h-4 w-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold leading-tight">{bloco.label}</p>
+              <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">{bloco.hint}</p>
+            </div>
           </div>
-          <div className="flex-1 overflow-hidden relative">
+
+          <div className="flex-1 overflow-hidden">
             {isEmpty ? (
               <p className="text-xs text-muted-foreground italic">Clique para editar</p>
             ) : (
-              <p className="text-xs whitespace-pre-wrap line-clamp-6">{conteudo}</p>
+              <p className="text-xs whitespace-pre-wrap line-clamp-5">{conteudo}</p>
             )}
           </div>
+
+          {bloco.alimenta.length > 0 && (
+            <div className="flex flex-wrap gap-1 pt-1 border-t border-border/50">
+              {bloco.alimenta.map((dest) => (
+                <Badge key={dest} variant="secondary" className="text-[10px] px-1.5 py-0 h-4 font-normal">
+                  {dest}
+                </Badge>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     );
   };
+
+  const headerAction = (
+    <div className="flex items-center gap-2 flex-wrap">
+      {blocosPreenchidos > 0 && (
+        <Button
+          variant="outline"
+          onClick={() => setResetDialogOpen(true)}
+          disabled={isResetting}
+          data-testid="button-reset-bmc"
+        >
+          <Trash2 className="h-4 w-4 mr-2" />
+          Limpar tudo
+        </Button>
+      )}
+    </div>
+  );
 
   return (
     <div className="flex flex-col h-full">
@@ -257,14 +377,14 @@ export default function ModeloNegocio() {
         title="Modelo de Negócio"
         description="Visualize e edite os 9 elementos do seu modelo de negócio. Ele alimenta as Estratégias, OKRs, Iniciativas e Diagnóstico."
         tooltip="Uma visão completa do seu modelo de negócio: proposta de valor, clientes, canais, receitas, custos, parceiros e mais. Clique em cada bloco para adicionar ou editar."
+        action={headerAction}
       />
 
       {/* ── DESKTOP: vista dividida (canvas + editor) ──────────────────────── */}
       <div className="hidden lg:flex flex-1 gap-4 min-h-0">
-        {/* Painel esquerdo — canvas (60%) */}
         <div className="flex-1 lg:basis-3/5 min-h-0 overflow-auto">
           <div
-            className="grid gap-3 h-full min-h-[560px]"
+            className="grid gap-3 h-full min-h-[600px]"
             style={{
               gridTemplateColumns: "repeat(5, 1fr)",
               gridTemplateRows: "1fr 1fr 1fr",
@@ -305,9 +425,10 @@ export default function ModeloNegocio() {
           <Card className="h-full flex flex-col">
             <CardContent className="p-5 flex flex-col h-full">
               {!blocoInfo ? (
-                /* Estado inicial: nenhum bloco selecionado */
                 <div className="flex-1 flex flex-col items-center justify-center text-center gap-4 py-8">
-                  <LayoutGrid className="h-12 w-12 text-muted-foreground/40" />
+                  <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                    <LayoutGrid className="h-8 w-8 text-primary" />
+                  </div>
                   <div>
                     <p className="font-medium mb-1">
                       Progresso: {blocosPreenchidos} de 9 blocos
@@ -336,19 +457,29 @@ export default function ModeloNegocio() {
                   </Button>
                 </div>
               ) : (
-                /* Estado: bloco selecionado */
                 <div className="flex flex-col h-full gap-3">
-                  <div>
-                    <h3 className="text-base font-semibold" data-testid="text-bloco-titulo">
-                      {blocoInfo.label}
-                    </h3>
-                    <p className="text-sm text-muted-foreground">{blocoInfo.hint}</p>
-                    {blocoInfo.alimenta.length > 0 && (
-                      <p className="text-xs text-muted-foreground mt-1.5" data-testid="text-bloco-alimenta">
-                        Alimenta: {blocoInfo.alimenta.join(" · ")}
-                      </p>
-                    )}
+                  <div className="flex items-start gap-3">
+                    <div className={`flex items-center justify-center w-10 h-10 rounded-md ${blocoInfo.iconBg} ${blocoInfo.iconText} flex-shrink-0`}>
+                      <blocoInfo.icon className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-base font-semibold leading-tight" data-testid="text-bloco-titulo">
+                        {blocoInfo.label}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">{blocoInfo.hint}</p>
+                    </div>
                   </div>
+
+                  {blocoInfo.alimenta.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5" data-testid="text-bloco-alimenta">
+                      <span className="text-xs text-muted-foreground">Alimenta:</span>
+                      {blocoInfo.alimenta.map((dest) => (
+                        <Badge key={dest} variant="secondary" className="text-[10px] px-1.5 py-0 h-5 font-normal">
+                          {dest}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
 
                   <Textarea
                     value={editValue}
@@ -438,13 +569,27 @@ export default function ModeloNegocio() {
       <Dialog open={mobileEditOpen} onOpenChange={(open) => { if (!open) handleCloseMobile(); }}>
         <DialogContent className="max-w-2xl" data-testid="dialog-edit-bloco">
           <DialogHeader>
-            <DialogTitle>{blocoInfo?.label}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              {blocoInfo && (
+                <span className={`flex items-center justify-center w-8 h-8 rounded-md ${blocoInfo.iconBg} ${blocoInfo.iconText}`}>
+                  <blocoInfo.icon className="h-4 w-4" />
+                </span>
+              )}
+              {blocoInfo?.label}
+            </DialogTitle>
             <DialogDescription>
               {blocoInfo?.hint}
-              {blocoInfo && blocoInfo.alimenta.length > 0 && (
-                <span className="block mt-1 text-xs">Alimenta: {blocoInfo.alimenta.join(" · ")}</span>
-              )}
             </DialogDescription>
+            {blocoInfo && blocoInfo.alimenta.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <span className="text-xs text-muted-foreground">Alimenta:</span>
+                {blocoInfo.alimenta.map((dest) => (
+                  <Badge key={dest} variant="secondary" className="text-[10px] px-1.5 py-0 h-5 font-normal">
+                    {dest}
+                  </Badge>
+                ))}
+              </div>
+            )}
           </DialogHeader>
           <div className="py-4">
             <Textarea
@@ -476,6 +621,33 @@ export default function ModeloNegocio() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Confirmação de reset ─────────────────────────────────────────── */}
+      <AlertDialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+        <AlertDialogContent data-testid="dialog-reset-bmc">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Limpar todos os blocos?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação vai apagar o conteúdo de todos os {blocosPreenchidos} bloco{blocosPreenchidos === 1 ? "" : "s"} preenchido{blocosPreenchidos === 1 ? "" : "s"} do seu Modelo de Negócio. Você poderá começar do zero ou gerar um novo modelo com IA. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isResetting} data-testid="button-cancel-reset">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleResetAll}
+              disabled={isResetting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-reset"
+            >
+              {isResetting ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Limpando...</>
+              ) : (
+                <><Trash2 className="h-4 w-4 mr-2" /> Limpar tudo</>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

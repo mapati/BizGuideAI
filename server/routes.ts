@@ -3285,6 +3285,21 @@ ${ctx.join("\n\n")}`;
         return res.status(404).json({ error: "Empresa não encontrada" });
       }
 
+      const todosQuadrantes = ["FO", "FA", "DO", "DA"] as const;
+      const rawQtd = Number(req.body.quantidadePorQuadrante);
+      const quantidadePorQuadrante = Number.isInteger(rawQtd) && rawQtd >= 1 && rawQtd <= 5 ? rawQtd : 3;
+      const rawQuadrantes: unknown = req.body.quadrantesSelecionados;
+      const quadrantesSelecionados: Array<"FO" | "FA" | "DO" | "DA"> =
+        Array.isArray(rawQuadrantes) && rawQuadrantes.length > 0
+          ? (rawQuadrantes.filter((q): q is "FO" | "FA" | "DO" | "DA" =>
+              todosQuadrantes.includes(q as "FO" | "FA" | "DO" | "DA")
+            ))
+          : [...todosQuadrantes];
+      const instrucaoAdicional: string =
+        typeof req.body.instrucaoAdicional === "string"
+          ? req.body.instrucaoAdicional.trim()
+          : "";
+
       const contextoPerfil = buildEmpresaContextoIA(empresa);
 
       const swotExistente = await storage.getAnaliseSwot(empresaId);
@@ -3304,6 +3319,17 @@ ${ctx.join("\n\n")}`;
         `- ${e.tipo}: ${e.titulo}`
       ).join("\n");
 
+      const quadrantesStr = quadrantesSelecionados.join(", ");
+      const quadrantesDetalhes: Record<string, string> = {
+        FO: "FO (Força + Oportunidade — estratégia ofensiva de crescimento)",
+        FA: "FA (Força + Ameaça — estratégia de confronto/proteção)",
+        DO: "DO (Fraqueza + Oportunidade — estratégia de reorientação/melhoria)",
+        DA: "DA (Fraqueza + Ameaça — estratégia defensiva de sobrevivência)",
+      };
+      const quadrantesDescricao = quadrantesSelecionados
+        .map(q => `- ${quadrantesDetalhes[q]}`)
+        .join("\n");
+
       const completion = await openai.chat.completions.create({
         model: getModelForPlan(empresa.planoTipo, "relatorios"),
         messages: await injectMacroCtx([
@@ -3312,11 +3338,12 @@ ${ctx.join("\n\n")}`;
             content: `Você é um consultor estratégico sênior especializado em matriz TOWS (SWOT Cruzada). Sua missão é criar MÚLTIPLAS opções de estratégias práticas e acionáveis combinando elementos internos e externos. Use sempre linguagem simples e direta, sem jargões técnicos.
 
 IMPORTANTE:
-- Para cada quadrante (FO, FA, DO, DA), gere entre 4 e 6 estratégias candidatas DIFERENTES entre si
+- Gere EXATAMENTE ${quantidadePorQuadrante} estratégias candidatas para CADA um dos quadrantes solicitados: ${quadrantesStr}
 - Para cada estratégia, identifique QUAIS itens SWOT específicos (pelos IDs fornecidos) foram usados para criá-la
 - Avalie o potencial de cada estratégia como "alto" ou "medio"
-- Marque como pré-selecionada (selecionada: true) apenas as de maior potencial (no máximo 2 por quadrante)
-- NUNCA repita estratégias já existentes`
+- Marque como pré-selecionada (selecionada: true) apenas as de maior potencial (no máximo 1-2 por quadrante)
+- NUNCA repita estratégias já existentes
+- Gere APENAS os quadrantes listados: ${quadrantesStr}`
           },
           {
             role: "user",
@@ -3341,7 +3368,8 @@ ${swotFormatado(ameacas, "ameaça")}
 ${estrategiasExistentes.length > 0 ? estrategiasResume : "Nenhuma ainda"}
 
 ## TAREFA:
-Gere um CARDÁPIO de estratégias para o usuário escolher. Para cada quadrante, crie 4 a 6 opções distintas.
+Gere um CARDÁPIO de estratégias para o usuário escolher. Gere EXATAMENTE ${quantidadePorQuadrante} estratégias para cada um dos seguintes quadrantes:
+${quadrantesDescricao}
 
 Responda OBRIGATORIAMENTE em JSON com este formato:
 {
@@ -3360,11 +3388,14 @@ Responda OBRIGATORIAMENTE em JSON com este formato:
 }
 
 Regras:
-- tipo: "FO", "FA", "DO" ou "DA"
+- tipo: somente ${quadrantesStr} (apenas os quadrantes solicitados)
 - potencial: "alto" ou "medio"
 - selecionada: true apenas para as 1-2 melhores de cada quadrante
 - swotOrigemIds: array com os IDs dos itens SWOT usados (copie exatamente os IDs do formato [ID:xxx])
-- swotOrigemTextos: array com texto legível de cada item SWOT de origem`
+- swotOrigemTextos: array com texto legível de cada item SWOT de origem${instrucaoAdicional ? `
+
+## INSTRUÇÕES ADICIONAIS DO USUÁRIO:
+${instrucaoAdicional}` : ""}`
           }
         ]),
         response_format: { type: "json_object" },

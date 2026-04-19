@@ -6,13 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/EmptyState";
 import { ExampleCard } from "@/components/ExampleCard";
 import { StrategyPicker } from "@/components/StrategyPicker";
-import { Target, Plus, Sparkles, Trash2, Pencil, ArrowUpRight, Shield, TrendingUp, AlertCircle, Tag, CheckCircle2, Clock, Play, Briefcase, Target as TargetIcon, Link2 } from "lucide-react";
+import { Target, Plus, Sparkles, Trash2, Pencil, ArrowUpRight, Shield, TrendingUp, AlertCircle, Tag, CheckCircle2, Clock, Play, Briefcase, Target as TargetIcon, Link2, Settings2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { PrerequisiteWarning } from "@/components/PrerequisiteWarning";
@@ -398,6 +399,15 @@ export default function Estrategias() {
   const [candidatas, setCandidatas] = useState<Candidata[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSavingCandidatas, setIsSavingCandidatas] = useState(false);
+  const [isPreGenOpen, setIsPreGenOpen] = useState(false);
+  const [quantidadePorQuadrante, setQuantidadePorQuadrante] = useState(3);
+  const [quadrantesSelecionados, setQuadrantesSelecionados] = useState<Record<string, boolean>>({
+    FO: true,
+    FA: true,
+    DO: true,
+    DA: true,
+  });
+  const [instrucaoAdicionalEstrategia, setInstrucaoAdicionalEstrategia] = useState("");
   const [formData, setFormData] = useState({
     tipo: "",
     titulo: "",
@@ -510,15 +520,25 @@ export default function Estrategias() {
     }
   };
 
-  const handleGenerateStrategies = async () => {
+  const handleGenerateStrategies = async (params: {
+    quantidadePorQuadrante: number;
+    quadrantesSelecionados: string[];
+    instrucaoAdicional: string;
+  }) => {
     if (!empresa) {
       toast({ title: "Perfil não encontrado", description: "Complete o perfil da empresa primeiro.", variant: "destructive" });
       return;
     }
+    setIsPreGenOpen(false);
     setIsGenerating(true);
     setIsPickerOpen(true);
     try {
-      const response = await apiRequest("POST", "/api/ai/gerar-estrategias", { empresaId: empresa.id });
+      const response = await apiRequest("POST", "/api/ai/gerar-estrategias", {
+        empresaId: empresa.id,
+        quantidadePorQuadrante: params.quantidadePorQuadrante,
+        quadrantesSelecionados: params.quadrantesSelecionados,
+        instrucaoAdicional: params.instrucaoAdicional,
+      });
       const candidatasRecebidas: Candidata[] = response.candidatas ?? [];
       if (candidatasRecebidas.length === 0) {
         toast({ title: "Sem candidatas", description: "A IA não retornou candidatas. Tente novamente.", variant: "destructive" });
@@ -603,8 +623,108 @@ export default function Estrategias() {
   const concluidas = estrategias.filter(e => e.status === "concluida").length;
   const total = estrategias.length;
 
+  const quadrantesConfig = [
+    { value: "FO", label: "FO — Ofensiva", desc: "Força + Oportunidade (crescimento)" },
+    { value: "FA", label: "FA — Confronto", desc: "Força + Ameaça (proteção)" },
+    { value: "DO", label: "DO — Reorientação", desc: "Fraqueza + Oportunidade (melhoria)" },
+    { value: "DA", label: "DA — Defensiva", desc: "Fraqueza + Ameaça (sobrevivência)" },
+  ];
+  const algumQuadranteSelecionado = Object.values(quadrantesSelecionados).some(Boolean);
+
   return (
     <div className="max-w-6xl mx-auto">
+      <Dialog open={isPreGenOpen} onOpenChange={setIsPreGenOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings2 className="h-5 w-5" />
+              Gerar cardápio de estratégias com IA
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-5 py-2">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <Label className="text-sm font-medium">Quadrantes a gerar</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">Selecione quais tipos de estratégia incluir</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Label htmlFor="select-qtd-global" className="text-sm text-muted-foreground whitespace-nowrap">
+                  Opções por quadrante:
+                </Label>
+                <Select
+                  value={String(quantidadePorQuadrante)}
+                  onValueChange={(val) => setQuantidadePorQuadrante(Number(val))}
+                >
+                  <SelectTrigger className="w-24" id="select-qtd-global" data-testid="select-quantidade-por-quadrante">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <SelectItem key={n} value={String(n)}>
+                        {n} {n === 1 ? "opção" : "opções"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {quadrantesConfig.map((q) => (
+                <div key={q.value} className="flex items-center gap-2 py-1" data-testid={`row-quadrante-${q.value}`}>
+                  <Checkbox
+                    id={`check-quadrante-${q.value}`}
+                    checked={quadrantesSelecionados[q.value]}
+                    onCheckedChange={(checked) =>
+                      setQuadrantesSelecionados((prev) => ({ ...prev, [q.value]: !!checked }))
+                    }
+                    data-testid={`checkbox-quadrante-${q.value}`}
+                  />
+                  <label htmlFor={`check-quadrante-${q.value}`} className="text-sm cursor-pointer select-none">
+                    <span className="font-medium">{q.label}</span>
+                    <span className="text-muted-foreground ml-1">— {q.desc}</span>
+                  </label>
+                </div>
+              ))}
+            </div>
+
+            <div>
+              <Label htmlFor="instrucao-adicional-estrategia" className="text-sm font-medium mb-1 block">
+                Instruções adicionais <span className="text-muted-foreground font-normal">(opcional)</span>
+              </Label>
+              <Textarea
+                id="instrucao-adicional-estrategia"
+                placeholder="Ex: Priorize estratégias que não exijam investimento imediato e que possam ser executadas pela equipe atual."
+                value={instrucaoAdicionalEstrategia}
+                onChange={(e) => setInstrucaoAdicionalEstrategia(e.target.value)}
+                className="min-h-[90px] resize-none text-sm"
+                data-testid="textarea-instrucao-adicional-estrategia"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsPreGenOpen(false)} data-testid="button-cancelar-pregen">
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => handleGenerateStrategies({
+                quantidadePorQuadrante,
+                quadrantesSelecionados: Object.entries(quadrantesSelecionados)
+                  .filter(([, v]) => v)
+                  .map(([k]) => k),
+                instrucaoAdicional: instrucaoAdicionalEstrategia,
+              })}
+              disabled={!algumQuadranteSelecionado}
+              data-testid="button-confirmar-gerar-estrategias"
+            >
+              <Sparkles className="h-4 w-4 mr-2" />
+              Gerar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <StrategyPicker
         open={isPickerOpen}
         onClose={() => { setIsPickerOpen(false); setCandidatas([]); }}
@@ -632,7 +752,7 @@ export default function Estrategias() {
           <div className="flex gap-2">
             <Button
               variant="outline"
-              onClick={handleGenerateStrategies}
+              onClick={() => setIsPreGenOpen(true)}
               disabled={isGenerating}
               data-testid="button-generate-strategies"
             >

@@ -79,6 +79,21 @@ export interface AIGenerationModalProps {
 
   /** ID de origem (objetivoId, estrategiaId etc.) — passado adiante em onConfirm. */
   origemId?: string;
+
+  /**
+   * Seletor de "Origem" — quando fornecido, exibe um Select dentro da modal
+   * para escolher o item de origem (ex.: Estratégia, Oportunidade, Iniciativa).
+   * Quando `required: true`, o botão Confirmar fica desabilitado até haver seleção.
+   */
+  origem?: {
+    label: string;
+    description?: string;
+    placeholder?: string;
+    required?: boolean;
+    items: { id: string; label: string; group?: string }[];
+    defaultId?: string;
+    emptyMessage?: string;
+  };
 }
 
 export function AIGenerationModal({
@@ -96,12 +111,14 @@ export function AIGenerationModal({
   fontesContexto,
   instrucaoAdicional,
   origemId,
+  origem,
 }: AIGenerationModalProps) {
   const [qtd, setQtd] = useState<number>(quantidade?.default ?? 3);
   const [focoSel, setFocoSel] = useState<Record<string, boolean>>({});
   const [focoSecSel, setFocoSecSel] = useState<Record<string, boolean>>({});
   const [fontesSel, setFontesSel] = useState<Record<string, boolean>>({});
   const [instrucao, setInstrucao] = useState("");
+  const [origemSel, setOrigemSel] = useState<string>("");
 
   // Reset state quando o modal abre
   useEffect(() => {
@@ -137,11 +154,17 @@ export function AIGenerationModal({
       setFontesSel({});
     }
     setInstrucao("");
+    if (origem) {
+      setOrigemSel(origem.defaultId ?? origemId ?? "");
+    } else {
+      setOrigemSel("");
+    }
   }, [open]);
 
   const algumFoco = useMemo(() => Object.values(focoSel).some(Boolean), [focoSel]);
   const requireFoco = foco?.requireAtLeastOne !== false;
-  const podeConfirmar = !isGenerating && (!foco || !requireFoco || algumFoco);
+  const origemRequiredOk = !origem?.required || !!origemSel;
+  const podeConfirmar = !isGenerating && (!foco || !requireFoco || algumFoco) && origemRequiredOk;
 
   const handleConfirm = () => {
     const params: AIGenerationParams = {};
@@ -161,7 +184,8 @@ export function AIGenerationModal({
       const trimmed = instrucao.trim();
       if (trimmed) params.instrucaoAdicional = trimmed;
     }
-    if (origemId) params.origemId = origemId;
+    const origemFinal = origemSel || origemId;
+    if (origemFinal) params.origemId = origemFinal;
     onConfirm(params);
   };
 
@@ -179,6 +203,42 @@ export function AIGenerationModal({
         </DialogHeader>
 
         <div className="space-y-5 py-2">
+          {/* Origem (item pai da cascata estratégica) */}
+          {origem && (
+            <div data-testid={`${testIdPrefix}-section-origem`}>
+              <Label className="text-sm font-medium mb-1 block">
+                {origem.label}
+                {origem.required ? (
+                  <span className="text-destructive ml-1">*</span>
+                ) : (
+                  <span className="text-muted-foreground font-normal ml-1">(opcional)</span>
+                )}
+              </Label>
+              {origem.description && (
+                <p className="text-xs text-muted-foreground mb-2">{origem.description}</p>
+              )}
+              {origem.items.length === 0 ? (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  {origem.emptyMessage ?? "Nenhuma opção disponível. Crie um item na etapa anterior antes de continuar."}
+                </p>
+              ) : (
+                <Select value={origemSel || undefined} onValueChange={(v) => setOrigemSel(v)}>
+                  <SelectTrigger data-testid={`${testIdPrefix}-select-origem`}>
+                    <SelectValue placeholder={origem.placeholder ?? "Selecione…"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {origem.items.map((it) => (
+                      <SelectItem key={it.id} value={it.id} data-testid={`${testIdPrefix}-option-origem-${it.id}`}>
+                        {it.group ? <span className="text-muted-foreground mr-1">[{it.group}]</span> : null}
+                        {it.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
+
           {/* Quantidade + Foco */}
           {(quantidade || foco) && (
             <div className="space-y-3">

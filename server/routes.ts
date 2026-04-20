@@ -4021,7 +4021,8 @@ ${instrucaoAdicional}` : ""}`
   app.post("/api/ai/gerar-oportunidades-crescimento", async (req, res) => {
     try {
       const empresaId = req.session.empresaId!;
-      const { estrategiaId: origemEstrategiaId } = req.body || {};
+      // Aceita tanto `estrategiaId` (legado) quanto `origemId` (vindo do <AIGenerationModal>)
+      const origemEstrategiaId: string | undefined = req.body?.estrategiaId || req.body?.origemId;
 
       const empresa = await storage.getEmpresa(empresaId);
       if (!empresa) {
@@ -4352,7 +4353,19 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
   app.post("/api/ai/gerar-iniciativas", async (req, res) => {
     try {
       const empresaId = req.session.empresaId!;
-      const { estrategiaId: origemEstrategiaId, oportunidadeId: origemOportunidadeId } = req.body || {};
+      // Aceita campos legados explícitos ou `origemId` genérico (vindo do <AIGenerationModal>).
+      // origemId pode apontar para uma Oportunidade (preferencial) ou para uma Estratégia — descobrimos por lookup.
+      let origemEstrategiaId: string | undefined = req.body?.estrategiaId;
+      let origemOportunidadeId: string | undefined = req.body?.oportunidadeId;
+      const origemIdGenerico: string | undefined = req.body?.origemId;
+      if (origemIdGenerico && !origemEstrategiaId && !origemOportunidadeId) {
+        const opMaybe = await storage.getOportunidadeCrescimento(origemIdGenerico);
+        if (opMaybe && opMaybe.empresaId === req.session.empresaId) {
+          origemOportunidadeId = origemIdGenerico;
+        } else {
+          origemEstrategiaId = origemIdGenerico;
+        }
+      }
 
       const empresa = await storage.getEmpresa(empresaId);
       if (!empresa) {
@@ -4527,7 +4540,20 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
   app.post("/api/ai/gerar-objetivos", async (req, res) => {
     try {
       const empresaId = req.session.empresaId!;
-      const { perspectiva: perspectivaSolicitada, iniciativaId: origemIniciativaId, estrategiaId: origemEstrategiaId } = req.body;
+      const { perspectiva: perspectivaSolicitada } = req.body;
+      // Aceita campos legados explícitos ou `origemId` genérico (vindo do <AIGenerationModal>).
+      // origemId pode apontar para uma Iniciativa (preferencial) ou para uma Estratégia — descobrimos por lookup.
+      let origemIniciativaId: string | undefined = req.body?.iniciativaId;
+      let origemEstrategiaId: string | undefined = req.body?.estrategiaId;
+      const origemIdGenericoObj: string | undefined = req.body?.origemId;
+      if (origemIdGenericoObj && !origemIniciativaId && !origemEstrategiaId) {
+        const iniMaybe = await storage.getIniciativa(origemIdGenericoObj);
+        if (iniMaybe && iniMaybe.empresaId === empresaId) {
+          origemIniciativaId = origemIdGenericoObj;
+        } else {
+          origemEstrategiaId = origemIdGenericoObj;
+        }
+      }
 
       const empresa = await storage.getEmpresa(empresaId);
       if (!empresa) {

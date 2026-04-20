@@ -385,6 +385,20 @@ export default function OportunidadesCrescimento() {
           description="Configure quais quadrantes da Matriz de Ansoff e quantas oportunidades por quadrante a IA deve gerar."
           isGenerating={isGenerating}
           testIdPrefix="ai-oportunidades"
+          origem={{
+            label: "Estratégia de origem",
+            description: origemObrigatoria
+              ? "Escolha de qual Estratégia derivar as oportunidades. Obrigatório durante a primeira jornada."
+              : "Opcional: vincule as oportunidades a uma Estratégia para manter a cascata.",
+            placeholder: "Selecione uma estratégia…",
+            required: origemObrigatoria,
+            items: estrategias.map((e) => ({
+              id: e.id,
+              label: e.titulo,
+              group: e.tipo,
+            })),
+            emptyMessage: "Nenhuma estratégia cadastrada. Crie estratégias antes de gerar oportunidades.",
+          }}
           quantidade={{
             label: "Por quadrante",
             default: 1,

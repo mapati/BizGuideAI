@@ -337,6 +337,7 @@ export default function OKRs() {
             prazo: obj.prazo,
             perspectiva: obj.perspectiva || perspectiva || "Financeira",
             estrategiaId: obj.estrategiaId || null,
+            iniciativaId: obj.iniciativaId || null,
           });
         }
       } else {
@@ -1231,6 +1232,19 @@ export default function OKRs() {
         description="Configure quantas perspectivas e quantos objetivos por perspectiva a IA deve gerar."
         isGenerating={gerarObjetivosMutation.isPending}
         testIdPrefix="ai-objetivos"
+        origem={{
+          label: "Origem do objetivo",
+          description: origemObrigatoria
+            ? "Escolha de qual Iniciativa ou Estratégia derivar os objetivos. Obrigatório durante a primeira jornada."
+            : "Opcional: vincule os objetivos a uma Iniciativa ou Estratégia para manter a cascata.",
+          placeholder: "Selecione uma origem…",
+          required: origemObrigatoria,
+          items: [
+            ...iniciativas.map((i) => ({ id: i.id, label: i.titulo, group: "Iniciativa" })),
+            ...estrategias.map((e) => ({ id: e.id, label: e.titulo, group: `Estratégia · ${e.tipo}` })),
+          ],
+          emptyMessage: "Nenhuma Iniciativa ou Estratégia cadastrada. Crie uma antes de gerar objetivos.",
+        }}
         quantidade={{
           label: "Por perspectiva",
           default: 1,

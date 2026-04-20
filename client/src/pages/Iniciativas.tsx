@@ -519,6 +519,19 @@ export default function Iniciativas() {
           description="Configure quantas iniciativas e quais prioridades a IA deve gerar."
           isGenerating={isGenerating}
           testIdPrefix="ai-iniciativas"
+          origem={{
+            label: "Origem da iniciativa",
+            description: origemObrigatoria
+              ? "Escolha de qual Oportunidade ou Estratégia derivar as iniciativas. Obrigatório durante a primeira jornada."
+              : "Opcional: vincule as iniciativas a uma Oportunidade ou Estratégia para manter a cascata.",
+            placeholder: "Selecione uma origem…",
+            required: origemObrigatoria,
+            items: [
+              ...oportunidades.map((o) => ({ id: o.id, label: o.titulo, group: "Oportunidade" })),
+              ...estrategias.map((e) => ({ id: e.id, label: e.titulo, group: `Estratégia · ${e.tipo}` })),
+            ],
+            emptyMessage: "Nenhuma Oportunidade ou Estratégia cadastrada. Crie uma antes de gerar iniciativas.",
+          }}
           quantidade={{
             label: "Quantidade",
             default: 5,

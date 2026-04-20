@@ -293,10 +293,13 @@ export default function OportunidadesCrescimento() {
 
       if (response.oportunidades && response.oportunidades.length > 0) {
         let adicionadas = 0;
+        // Garante o vínculo com a Estratégia de origem mesmo que a IA não tenha estampado.
+        const estrategiaIdFallback = params.origemId || null;
         for (const oportunidade of response.oportunidades) {
           try {
             await apiRequest("POST", "/api/oportunidades-crescimento", {
               ...oportunidade,
+              estrategiaId: oportunidade.estrategiaId || estrategiaIdFallback,
               empresaId: empresa.id,
             });
             adicionadas++;

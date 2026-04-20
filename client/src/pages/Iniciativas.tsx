@@ -319,19 +319,25 @@ export default function Iniciativas() {
     },
   });
 
-  const generateMutation = useMutation<{ iniciativas: InsertIniciativa[] }, Error, AIGenerationParams>({
+  const generateMutation = useMutation<{ iniciativas: InsertIniciativa[]; _origemId?: string | null }, Error, AIGenerationParams>({
     mutationFn: async (params: AIGenerationParams) => {
-      return await apiRequest("POST", "/api/ai/gerar-iniciativas", {
+      const data = await apiRequest("POST", "/api/ai/gerar-iniciativas", {
         empresaId: empresa?.id,
         ...params,
       });
+      return { ...data, _origemId: params.origemId ?? null };
     },
-    onSuccess: (data: { iniciativas: InsertIniciativa[] }) => {
+    onSuccess: (data) => {
       if (data.iniciativas && data.iniciativas.length > 0) {
+        // Garante o vínculo da cascata mesmo se a IA não estampou.
+        const origemId = data._origemId || null;
+        const isOportunidade = !!origemId && oportunidades.some((o) => o.id === origemId);
         Promise.all(
           data.iniciativas.map((iniciativa) =>
             apiRequest("POST", "/api/iniciativas", {
               ...iniciativa,
+              oportunidadeId: iniciativa.oportunidadeId || (isOportunidade ? origemId : null),
+              estrategiaId: iniciativa.estrategiaId || (isOportunidade ? null : origemId),
               empresaId: empresa?.id,
             })
           )

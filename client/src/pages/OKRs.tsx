@@ -329,6 +329,9 @@ export default function OKRs() {
           title: "Objetivo(s) Gerado(s)!",
           description: `${data.objetivos.length} objetivo(s) sugerido(s) pela IA para ${label}.`,
         });
+        // Garante o vínculo da cascata mesmo se a IA não estampou.
+        const origemId = vars.params?.origemId || null;
+        const isIniciativa = !!origemId && iniciativas.some((i) => i.id === origemId);
         for (const obj of data.objetivos) {
           await criarObjetivoMutation.mutateAsync({
             empresaId,
@@ -336,8 +339,8 @@ export default function OKRs() {
             descricao: obj.descricao,
             prazo: obj.prazo,
             perspectiva: obj.perspectiva || perspectiva || "Financeira",
-            estrategiaId: obj.estrategiaId || null,
-            iniciativaId: obj.iniciativaId || null,
+            estrategiaId: obj.estrategiaId || (isIniciativa ? null : origemId),
+            iniciativaId: obj.iniciativaId || (isIniciativa ? origemId : null),
           });
         }
       } else {

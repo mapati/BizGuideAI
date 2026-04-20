@@ -4,6 +4,12 @@ import { EnterpriseContactModal } from "@/components/EnterpriseContactModal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   Target,
@@ -1390,13 +1396,105 @@ export default function LandingPage() {
             </p>
             <p className="text-sm text-muted-foreground">
               Dúvidas?{" "}
-              <a href="#contato" className="underline underline-offset-4 hover:text-foreground transition-colors" data-testid="link-precos-faq">
+              <a href="#faq" className="underline underline-offset-4 hover:text-foreground transition-colors" data-testid="link-precos-faq">
                 Veja o FAQ
               </a>
               {" "}ou{" "}
               <a href="#contato" className="underline underline-offset-4 hover:text-foreground transition-colors" data-testid="link-precos-fale-conosco">
                 fale conosco
               </a>
+            </p>
+          </div>
+        </div>
+      </section>
+      {/* FAQ */}
+      <section id="faq" className="py-20 bg-muted/30 border-t" data-testid="section-faq">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-10">
+            <Badge variant="secondary" className="mb-4">
+              <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+              Perguntas frequentes
+            </Badge>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-3">
+              Tudo o que você precisa saber antes de começar
+            </h2>
+            <p className="text-muted-foreground text-lg">
+              Respostas rápidas para as dúvidas mais comuns sobre o trial, segurança e funcionamento.
+            </p>
+          </div>
+          <Accordion type="single" collapsible className="w-full" data-testid="accordion-faq">
+            <AccordionItem value="trial-cartao">
+              <AccordionTrigger data-testid="faq-trigger-trial-cartao" className="text-left">
+                Preciso cadastrar cartão de crédito para testar?
+              </AccordionTrigger>
+              <AccordionContent data-testid="faq-content-trial-cartao" className="text-muted-foreground">
+                Não. O teste gratuito de 7 dias é liberado apenas com seu e-mail, sem cartão de crédito e sem cobrança automática. Se decidir não continuar, sua conta simplesmente expira ao final do período.
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="tempo-configuracao">
+              <AccordionTrigger data-testid="faq-trigger-tempo-configuracao" className="text-left">
+                Quanto tempo leva para configurar e ver valor?
+              </AccordionTrigger>
+              <AccordionContent data-testid="faq-content-tempo-configuracao" className="text-muted-foreground">
+                Em poucos minutos você cria sua conta e o Guia Estratégico te conduz passo a passo. Em uma tarde é possível sair do diagnóstico até um plano de ação inicial. Em uma semana, o Assistente já está acompanhando suas iniciativas e OKRs.
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="seguranca-lgpd">
+              <AccordionTrigger data-testid="faq-trigger-seguranca-lgpd" className="text-left">
+                Meus dados estão seguros? Vocês são compatíveis com a LGPD?
+              </AccordionTrigger>
+              <AccordionContent data-testid="faq-content-seguranca-lgpd" className="text-muted-foreground">
+                Sim. Tratamos seus dados em conformidade com a LGPD, com criptografia em trânsito e em repouso. Suas informações estratégicas pertencem à sua empresa, são usadas apenas para gerar suas análises e nunca são compartilhadas com terceiros nem usadas para treinar modelos públicos de IA.
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="setores">
+              <AccordionTrigger data-testid="faq-trigger-setores" className="text-left">
+                A IA serve para o meu setor ou tipo de negócio?
+              </AccordionTrigger>
+              <AccordionContent data-testid="faq-content-setores" className="text-muted-foreground">
+                Sim. O BizGuideAI funciona para empresas de serviços, indústria, comércio, tecnologia, saúde, educação e muitos outros setores. A IA usa o contexto que você informa sobre o seu negócio (modelo, mercado, concorrentes, metas) para gerar estratégias específicas para a sua realidade — não respostas genéricas.
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="tamanho-empresa">
+              <AccordionTrigger data-testid="faq-trigger-tamanho-empresa" className="text-left">
+                Funciona para empresas pequenas ou só para grandes?
+              </AccordionTrigger>
+              <AccordionContent data-testid="faq-content-tamanho-empresa" className="text-muted-foreground">
+                Funciona para os dois. Pequenas e médias empresas usam para finalmente ter um plano estruturado sem contratar uma consultoria cara. Empresas maiores usam para alinhar diretoria e gerências em torno de OKRs e iniciativas claras, com acompanhamento contínuo.
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="suporte">
+              <AccordionTrigger data-testid="faq-trigger-suporte" className="text-left">
+                Que tipo de suporte recebo durante e depois do trial?
+              </AccordionTrigger>
+              <AccordionContent data-testid="faq-content-suporte" className="text-muted-foreground">
+                Você tem suporte humano por WhatsApp, telefone e e-mail durante todo o período de teste e também depois da contratação. Além disso, o próprio Assistente dentro da plataforma te orienta sobre o próximo passo a cada momento da jornada.
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="cancelamento">
+              <AccordionTrigger data-testid="faq-trigger-cancelamento" className="text-left">
+                Posso cancelar quando quiser? Tem fidelidade?
+              </AccordionTrigger>
+              <AccordionContent data-testid="faq-content-cancelamento" className="text-muted-foreground">
+                Sim, você pode cancelar a qualquer momento, sem multa e sem fidelidade. A cobrança é mensal e, se cancelar, mantém o acesso até o fim do período já pago.
+              </AccordionContent>
+            </AccordionItem>
+            <AccordionItem value="meus-dados-saida">
+              <AccordionTrigger data-testid="faq-trigger-meus-dados-saida" className="text-left">
+                Se eu cancelar, o que acontece com os meus dados?
+              </AccordionTrigger>
+              <AccordionContent data-testid="faq-content-meus-dados-saida" className="text-muted-foreground">
+                Seus dados continuam seus. Antes de encerrar, você pode exportar suas estratégias, OKRs e iniciativas. Após o cancelamento, removemos seus dados dos nossos sistemas conforme as regras da LGPD e o seu pedido.
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+          <div className="mt-10 text-center">
+            <p className="text-sm text-muted-foreground">
+              Ainda com dúvidas?{" "}
+              <a href="#contato" className="underline underline-offset-4 hover:text-foreground transition-colors" data-testid="link-faq-fale-conosco">
+                Fale com a nossa equipe
+              </a>
+              .
             </p>
           </div>
         </div>

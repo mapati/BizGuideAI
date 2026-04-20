@@ -274,6 +274,23 @@ async function runStartupMigrations() {
         AND LOWER(TRIM(u.nome)) = LOWER(TRIM(k.owner))
     `);
 
+    // Task #162 — Cascata estratégica conectada: novos FKs entre Estratégia → Oportunidade → Iniciativa → Objetivo
+    await client.query(`
+      ALTER TABLE oportunidades_crescimento
+      ADD COLUMN IF NOT EXISTS estrategia_id VARCHAR REFERENCES estrategias(id) ON DELETE SET NULL
+    `);
+    await client.query(`
+      ALTER TABLE iniciativas
+      ADD COLUMN IF NOT EXISTS oportunidade_id VARCHAR REFERENCES oportunidades_crescimento(id) ON DELETE SET NULL
+    `);
+    await client.query(`
+      ALTER TABLE objetivos
+      ADD COLUMN IF NOT EXISTS iniciativa_id VARCHAR REFERENCES iniciativas(id) ON DELETE SET NULL
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_oportunidades_estrategia_id ON oportunidades_crescimento(estrategia_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_iniciativas_oportunidade_id ON iniciativas(oportunidade_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_objetivos_iniciativa_id ON objetivos(iniciativa_id)`);
+
     // Task #164 — Preços dos planos exibidos na landing page (editáveis pelo admin)
     await client.query(`
       CREATE TABLE IF NOT EXISTS precos_landing_planos (

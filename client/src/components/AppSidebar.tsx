@@ -400,7 +400,6 @@ export function AppSidebar() {
               {[
                 { title: "Performance das Metas", url: "/bsc", icon: ListChecks, testId: "link-bsc" },
                 { title: "Cenários Estratégicos", url: "/cenarios", icon: CloudLightning, testId: "link-cenarios" },
-                { title: "Alertas por E-mail", url: "/alertas", icon: Bell, testId: "link-alertas" },
                 { title: "Rastreabilidade", url: "/rastreabilidade", icon: GitBranch, testId: "link-rastreabilidade" },
                 { title: "Gestão de Riscos", url: "/riscos", icon: ShieldAlert, testId: "link-riscos" },
                 { title: "Mapa de Performance", url: "/mapa-bsc", icon: Network, testId: "link-mapa-bsc" },
@@ -435,45 +434,56 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {(user?.role === "admin" || user?.isAdmin) && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Configurações</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {(user?.role === "admin" || user?.isAdmin) && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={location === "/equipe"}
-                      data-testid="link-equipe"
-                      tooltip="Equipe"
-                    >
-                      <Link href="/equipe">
-                        <Users />
-                        <span>Equipe</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )}
-                {user?.isAdmin && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={location === "/admin"}
-                      data-testid="link-admin"
-                      tooltip="Administração"
-                    >
-                      <Link href="/admin">
-                        <ShieldCheck />
-                        <span>Administração</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
+        <SidebarGroup>
+          <SidebarGroupLabel>Configurações</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={location === "/alertas"}
+                  data-testid="link-alertas"
+                  tooltip="Alertas por E-mail"
+                >
+                  <Link href="/alertas">
+                    <Bell />
+                    <span>Alertas por E-mail</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              {(user?.role === "admin" || user?.isAdmin) && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location === "/equipe"}
+                    data-testid="link-equipe"
+                    tooltip="Equipe"
+                  >
+                    <Link href="/equipe">
+                      <Users />
+                      <span>Equipe</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {user?.isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={location === "/admin"}
+                    data-testid="link-admin"
+                    tooltip="Administração"
+                  >
+                    <Link href="/admin">
+                      <ShieldCheck />
+                      <span>Administração</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="border-t p-4">
         <SidebarFooterContent />

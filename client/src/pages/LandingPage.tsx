@@ -606,10 +606,10 @@ function MockupJornada() {
   const offset = circumference - (pct / 100) * circumference;
 
   return (
-    <BrowserChrome title="bizguideai.app — Jornada Estratégica" showGuiaChip={false}>
+    <BrowserChrome title="bizguideai.app — Jornada Estratégica">
       <div className="flex bg-gray-50" style={{ minHeight: 400 }}>
         <MockupSidebar active="inicio" />
-        <div className="flex-1 p-3 flex flex-col gap-3 overflow-hidden min-w-0">
+        <div className="flex-1 px-3 pb-3 pt-8 flex flex-col gap-3 overflow-hidden min-w-0">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h1 className="text-[11px] font-bold text-gray-900">Jornada Estratégica</h1>
@@ -841,8 +841,8 @@ export default function LandingPage() {
               <div className="text-xs text-slate-400 mt-0.5">Do diagnóstico à execução</div>
             </div>
             <div className="text-center">
-              <div className="text-xl font-bold text-white">7 frameworks</div>
-              <div className="text-xs text-slate-400 mt-0.5">SWOT, PESTEL, BMC, OKR…</div>
+              <div className="text-xl font-bold text-white">14+ frameworks</div>
+              <div className="text-xs text-slate-400 mt-0.5">SWOT, PESTEL, OKR, BSC…</div>
             </div>
             <div className="text-center">
               <div className="text-xl font-bold text-white">IA integrada</div>

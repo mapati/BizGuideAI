@@ -571,3 +571,18 @@ export const configSistema = pgTable("config_sistema", {
 });
 export type ConfigSistema = typeof configSistema.$inferSelect;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// AI Generation Params (shared across /api/ai/gerar-* endpoints)
+// Used by the reusable <AIGenerationModal> on the client.
+// All fields are optional; endpoints fall back to current defaults when absent.
+// ─────────────────────────────────────────────────────────────────────────────
+export const aiGenerationParamsSchema = z.object({
+  quantidade: z.number().int().min(1).max(10).optional(),
+  foco: z.array(z.string()).optional(),
+  focoSecundario: z.array(z.string()).optional(),
+  instrucaoAdicional: z.string().max(2000).optional(),
+  fontesContexto: z.array(z.string()).optional(),
+  origemId: z.string().optional(),
+});
+export type AIGenerationParams = z.infer<typeof aiGenerationParamsSchema>;
+

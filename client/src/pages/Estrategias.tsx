@@ -21,6 +21,8 @@ import { PrerequisiteWarning } from "@/components/PrerequisiteWarning";
 import { CascataBlock } from "@/components/CascataBlock";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AIGenerationModal } from "@/components/AIGenerationModal";
+import type { AIGenerationParams } from "@shared/schema";
 
 interface Estrategia {
   id: string;
@@ -453,19 +455,6 @@ export default function Estrategias() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSavingCandidatas, setIsSavingCandidatas] = useState(false);
   const [isPreGenOpen, setIsPreGenOpen] = useState(false);
-  const [quantidadePorQuadrante, setQuantidadePorQuadrante] = useState(3);
-  const [quadrantesSelecionados, setQuadrantesSelecionados] = useState<Record<string, boolean>>({
-    FO: true,
-    FA: true,
-    DO: true,
-    DA: true,
-  });
-  const [instrucaoAdicionalEstrategia, setInstrucaoAdicionalEstrategia] = useState("");
-  const [fontesContexto, setFontesContexto] = useState<Record<"pestel" | "cincoForcas" | "modeloNegocio", boolean>>({
-    pestel: true,
-    cincoForcas: true,
-    modeloNegocio: true,
-  });
   const [formData, setFormData] = useState({
     tipo: "",
     titulo: "",
@@ -721,172 +710,74 @@ export default function Estrategias() {
     { value: "DO", label: "DO — Reorientação", desc: "Fraqueza + Oportunidade (melhoria)" },
     { value: "DA", label: "DA — Defensiva", desc: "Fraqueza + Ameaça (sobrevivência)" },
   ];
-  const algumQuadranteSelecionado = Object.values(quadrantesSelecionados).some(Boolean);
 
   return (
     <div className="max-w-6xl mx-auto">
-      <Dialog open={isPreGenOpen} onOpenChange={setIsPreGenOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Settings2 className="h-5 w-5" />
-              Gerar cardápio de estratégias com IA
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-5 py-2">
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div>
-                <Label className="text-sm font-medium">Quadrantes a gerar</Label>
-                <p className="text-xs text-muted-foreground mt-0.5">Selecione quais tipos de estratégia incluir</p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Label htmlFor="select-qtd-global" className="text-sm text-muted-foreground whitespace-nowrap">
-                  Opções por quadrante:
-                </Label>
-                <Select
-                  value={String(quantidadePorQuadrante)}
-                  onValueChange={(val) => setQuantidadePorQuadrante(Number(val))}
-                >
-                  <SelectTrigger className="w-24" id="select-qtd-global" data-testid="select-quantidade-por-quadrante">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[1, 2, 3, 4, 5].map((n) => (
-                      <SelectItem key={n} value={String(n)}>
-                        {n} {n === 1 ? "opção" : "opções"}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="space-y-2">
-              {quadrantesConfig.map((q) => (
-                <div key={q.value} className="flex items-center gap-2 py-1" data-testid={`row-quadrante-${q.value}`}>
-                  <Checkbox
-                    id={`check-quadrante-${q.value}`}
-                    checked={quadrantesSelecionados[q.value]}
-                    onCheckedChange={(checked) =>
-                      setQuadrantesSelecionados((prev) => ({ ...prev, [q.value]: !!checked }))
-                    }
-                    data-testid={`checkbox-quadrante-${q.value}`}
-                  />
-                  <label htmlFor={`check-quadrante-${q.value}`} className="text-sm cursor-pointer select-none">
-                    <span className="font-medium">{q.label}</span>
-                    <span className="text-muted-foreground ml-1">— {q.desc}</span>
-                  </label>
-                </div>
-              ))}
-            </div>
-
-            <div data-testid="section-fontes-contexto">
-              <Label className="text-sm font-medium mb-2 block">
-                Fontes de contexto
-                {!estrategiasContextSummary && <span className="ml-2 text-xs font-normal text-muted-foreground">(carregando…)</span>}
-              </Label>
-              <div className="space-y-2">
-                <div
-                  className="flex items-center justify-between gap-2 py-1"
-                  data-testid="row-fonte-swot"
-                >
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="fonte-estrategia-swot"
-                      checked
-                      disabled
-                      data-testid="checkbox-fonte-swot"
-                    />
-                    <label htmlFor="fonte-estrategia-swot" className="text-sm select-none cursor-default">
-                      <span className="font-medium">SWOT</span>
-                      <span className="text-muted-foreground ml-1">— Diagnóstico estratégico</span>
-                      <span className="text-muted-foreground ml-1 text-xs">(sempre incluído)</span>
-                    </label>
-                  </div>
-                  <Badge variant="secondary" className="text-xs shrink-0" data-testid="badge-count-swot">
-                    {estrategiasContextSummary?.counts?.swot ?? 0} {(estrategiasContextSummary?.counts?.swot ?? 0) === 1 ? "item" : "itens"}
-                  </Badge>
-                </div>
-
-                {([
-                  { id: "pestel" as const,       label: "Cenário Externo",         desc: "Fatores PESTEL" },
-                  { id: "cincoForcas" as const,   label: "Mercado e concorrência",  desc: "5 Forças de Porter" },
-                  { id: "modeloNegocio" as const, label: "Modelo de Negócio",       desc: "Estrutura do negócio" },
-                ]).map((fonte) => {
-                  const count = estrategiasContextSummary?.counts?.[fonte.id] ?? 0;
-                  const isDisabled = count === 0;
-                  return (
-                    <div
-                      key={fonte.id}
-                      className={`flex items-center justify-between gap-2 py-1 ${isDisabled ? "opacity-50" : ""}`}
-                      data-testid={`row-fonte-${fonte.id}`}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          id={`fonte-estrategia-${fonte.id}`}
-                          checked={fontesContexto[fonte.id] && !isDisabled}
-                          disabled={isDisabled}
-                          onCheckedChange={(checked) =>
-                            !isDisabled && setFontesContexto((prev) => ({ ...prev, [fonte.id]: !!checked }))
-                          }
-                          data-testid={`checkbox-fonte-${fonte.id}`}
-                        />
-                        <label
-                          htmlFor={`fonte-estrategia-${fonte.id}`}
-                          className={`text-sm select-none ${isDisabled ? "cursor-default" : "cursor-pointer"}`}
-                        >
-                          <span className="font-medium">{fonte.label}</span>
-                          <span className="text-muted-foreground ml-1">— {fonte.desc}</span>
-                        </label>
-                      </div>
-                      <Badge variant="secondary" className="text-xs shrink-0" data-testid={`badge-count-${fonte.id}`}>
-                        {count} {count === 1 ? "item" : "itens"}
-                      </Badge>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div>
-              <Label htmlFor="instrucao-adicional-estrategia" className="text-sm font-medium mb-1 block">
-                Instruções adicionais <span className="text-muted-foreground font-normal">(opcional)</span>
-              </Label>
-              <Textarea
-                id="instrucao-adicional-estrategia"
-                placeholder="Ex: Priorize estratégias que não exijam investimento imediato e que possam ser executadas pela equipe atual."
-                value={instrucaoAdicionalEstrategia}
-                onChange={(e) => setInstrucaoAdicionalEstrategia(e.target.value)}
-                className="min-h-[90px] resize-none text-sm"
-                data-testid="textarea-instrucao-adicional-estrategia"
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="flex gap-2">
-            <Button variant="outline" onClick={() => setIsPreGenOpen(false)} data-testid="button-cancelar-pregen">
-              Cancelar
-            </Button>
-            <Button
-              onClick={() => handleGenerateStrategies({
-                quantidadePorQuadrante,
-                quadrantesSelecionados: Object.entries(quadrantesSelecionados)
-                  .filter(([, v]) => v)
-                  .map(([k]) => k),
-                instrucaoAdicional: instrucaoAdicionalEstrategia,
-                fontesContexto: Object.entries(fontesContexto)
-                  .filter(([k, v]) => v && (estrategiasContextSummary?.counts?.[k as keyof typeof fontesContexto] ?? 0) > 0)
-                  .map(([k]) => k),
-              })}
-              disabled={!algumQuadranteSelecionado || isGenerating}
-              data-testid="button-confirmar-gerar-estrategias"
-            >
-              <Sparkles className="h-4 w-4 mr-2" />
-              {isGenerating ? "Gerando..." : "Gerar"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <AIGenerationModal
+        open={isPreGenOpen}
+        onOpenChange={setIsPreGenOpen}
+        onConfirm={(params: AIGenerationParams) => {
+          const fontes = (params.fontesContexto ?? []).filter((f) => f !== "swot");
+          handleGenerateStrategies({
+            quantidadePorQuadrante: params.quantidade ?? 3,
+            quadrantesSelecionados: params.foco ?? [],
+            instrucaoAdicional: params.instrucaoAdicional ?? "",
+            fontesContexto: fontes,
+          });
+        }}
+        title="Gerar cardápio de estratégias com IA"
+        description="Configure os quadrantes, fontes de contexto e instruções para a IA."
+        isGenerating={isGenerating}
+        testIdPrefix="estrategias"
+        quantidade={{
+          label: "Opções por quadrante",
+          default: 3,
+          min: 1,
+          max: 5,
+          suffixSingular: "opção",
+          suffixPlural: "opções",
+        }}
+        foco={{
+          label: "Quadrantes a gerar",
+          description: "Selecione quais tipos de estratégia incluir.",
+          items: quadrantesConfig.map((q) => ({ value: q.value, label: q.label, desc: q.desc })),
+          defaultSelected: quadrantesConfig.map((q) => q.value),
+          requireAtLeastOne: true,
+        }}
+        fontesContexto={{
+          label: "Fontes de contexto",
+          items: [
+            {
+              id: "swot",
+              label: "SWOT",
+              desc: "Diagnóstico estratégico",
+              count: estrategiasContextSummary?.counts?.swot ?? 0,
+              alwaysIncluded: true,
+            },
+            {
+              id: "pestel",
+              label: "Cenário Externo",
+              desc: "Fatores PESTEL",
+              count: estrategiasContextSummary?.counts?.pestel ?? 0,
+            },
+            {
+              id: "cincoForcas",
+              label: "Mercado e concorrência",
+              desc: "5 Forças de Porter",
+              count: estrategiasContextSummary?.counts?.cincoForcas ?? 0,
+            },
+            {
+              id: "modeloNegocio",
+              label: "Modelo de Negócio",
+              desc: "Estrutura do negócio",
+              count: estrategiasContextSummary?.counts?.modeloNegocio ?? 0,
+            },
+          ],
+        }}
+        instrucaoAdicional={{
+          placeholder: "Ex: Priorize estratégias que não exijam investimento imediato e que possam ser executadas pela equipe atual.",
+        }}
+      />
 
       <StrategyPicker
         open={isPickerOpen}

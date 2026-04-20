@@ -13,10 +13,11 @@ import { Plus, Sparkles, Target as TargetIcon, Loader2, Trash2, Edit2, TrendingU
 import { PrerequisiteWarning } from "@/components/PrerequisiteWarning";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { Objetivo, ResultadoChave } from "@shared/schema";
+import type { Objetivo, ResultadoChave, AIGenerationParams } from "@shared/schema";
 import { OrigemSelector } from "@/components/OrigemSelector";
 import { CascataBlock } from "@/components/CascataBlock";
 import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
+import { AIGenerationModal } from "@/components/AIGenerationModal";
 import {
   Dialog,
   DialogContent,
@@ -305,13 +306,23 @@ export default function OKRs() {
   const { data: membros = [] } = useQuery<Membro[]>({ queryKey: ["/api/membros"] });
 
   const [gerandoPerspectiva, setGerandoPerspectiva] = useState<string | null>(null);
+  const [aiObjetivosOpen, setAiObjetivosOpen] = useState(false);
+  const [aiObjetivosPerspectivaInicial, setAiObjetivosPerspectivaInicial] = useState<string | null>(null);
+  const [aiResultadosOpen, setAiResultadosOpen] = useState(false);
+  const [aiResultadosObjetivoId, setAiResultadosObjetivoId] = useState<string | null>(null);
 
   const gerarObjetivosMutation = useMutation({
-    mutationFn: async (perspectiva?: string) => {
+    mutationFn: async (vars: { perspectiva?: string; params?: AIGenerationParams }) => {
       if (!empresaId) throw new Error("Empresa não encontrada");
-      return await apiRequest("POST", "/api/ai/gerar-objetivos", { empresaId, perspectiva });
+      const { perspectiva, params } = vars;
+      return await apiRequest("POST", "/api/ai/gerar-objetivos", {
+        empresaId,
+        perspectiva,
+        ...(params || {}),
+      });
     },
-    onSuccess: async (data, perspectiva) => {
+    onSuccess: async (data, vars) => {
+      const perspectiva = vars.perspectiva;
       if (data.objetivos && data.objetivos.length > 0) {
         const label = perspectiva ? `perspectiva ${perspectiva}` : "todas as perspectivas";
         toast({
@@ -347,16 +358,43 @@ export default function OKRs() {
     },
   });
 
-  const handleGerarParaPerspectiva = (perspectiva: string) => {
-    setGerandoPerspectiva(perspectiva);
-    gerarObjetivosMutation.mutate(perspectiva);
+  const handleAbrirModalObjetivos = (perspectivaInicial: string | null) => {
+    setAiObjetivosPerspectivaInicial(perspectivaInicial);
+    setAiObjetivosOpen(true);
+  };
+
+  const handleConfirmAIObjetivos = (params: AIGenerationParams) => {
+    setAiObjetivosOpen(false);
+    if (aiObjetivosPerspectivaInicial) {
+      setGerandoPerspectiva(aiObjetivosPerspectivaInicial);
+    }
+    gerarObjetivosMutation.mutate({
+      perspectiva: aiObjetivosPerspectivaInicial ?? undefined,
+      params,
+    });
+  };
+
+  const handleAbrirModalResultados = (objetivoId: string) => {
+    setAiResultadosObjetivoId(objetivoId);
+    setAiResultadosOpen(true);
+  };
+
+  const handleConfirmAIResultados = (params: AIGenerationParams) => {
+    if (!aiResultadosObjetivoId) return;
+    setAiResultadosOpen(false);
+    gerarResultadosMutation.mutate({ objetivoId: aiResultadosObjetivoId, params });
   };
 
   const gerarResultadosMutation = useMutation({
-    mutationFn: async (objetivoId: string) => {
-      return await apiRequest("POST", "/api/ai/gerar-resultados-chave", { objetivoId });
+    mutationFn: async (vars: { objetivoId: string; params?: AIGenerationParams }) => {
+      const { objetivoId, params } = vars;
+      return await apiRequest("POST", "/api/ai/gerar-resultados-chave", {
+        objetivoId,
+        ...(params || {}),
+      });
     },
-    onSuccess: async (data, objetivoId) => {
+    onSuccess: async (data, vars) => {
+      const objetivoId = vars.objetivoId;
       if (data.resultados && data.resultados.length > 0) {
         toast({
           title: "Métricas Geradas!",
@@ -616,7 +654,7 @@ export default function OKRs() {
         action={
           <div className="flex gap-2">
             <Button
-              onClick={() => gerarObjetivosMutation.mutate(undefined)}
+              onClick={() => handleAbrirModalObjetivos(null)}
               disabled={gerarObjetivosMutation.isPending}
               variant="outline"
               data-testid="button-gerar-objetivos"
@@ -788,7 +826,7 @@ export default function OKRs() {
               Metas claras e mensuráveis traduzem a estratégia em ação. Cada objetivo é ambicioso e tem métricas concretas de progresso com prazo definido. A IA cria metas alinhadas às suas iniciativas e estratégias, garantindo execução focada e rastreável.
             </p>
             <Button
-              onClick={() => gerarObjetivosMutation.mutate(undefined)}
+              onClick={() => handleAbrirModalObjetivos(null)}
               disabled={gerarObjetivosMutation.isPending}
               data-testid="button-gerar-objetivos-empty"
             >
@@ -822,7 +860,7 @@ export default function OKRs() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleGerarParaPerspectiva(perspectiva.valor)}
+                    onClick={() => handleAbrirModalObjetivos(perspectiva.valor)}
                     disabled={gerarObjetivosMutation.isPending}
                     data-testid={`button-gerar-perspectiva-${perspectiva.valor}`}
                   >
@@ -1053,7 +1091,7 @@ export default function OKRs() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => gerarResultadosMutation.mutate(objetivoSelecionado.id)}
+                    onClick={() => handleAbrirModalResultados(objetivoSelecionado.id)}
                     disabled={gerarResultadosMutation.isPending}
                     data-testid={`button-gerar-resultados-${objetivoSelecionado.id}`}
                   >
@@ -1180,6 +1218,82 @@ export default function OKRs() {
           )}
         </DialogContent>
       </Dialog>
+
+      <AIGenerationModal
+        open={aiObjetivosOpen}
+        onOpenChange={setAiObjetivosOpen}
+        onConfirm={handleConfirmAIObjetivos}
+        title={
+          aiObjetivosPerspectivaInicial
+            ? `Gerar objetivos com IA — ${aiObjetivosPerspectivaInicial}`
+            : "Gerar objetivos com IA"
+        }
+        description="Configure quantas perspectivas e quantos objetivos por perspectiva a IA deve gerar."
+        isGenerating={gerarObjetivosMutation.isPending}
+        testIdPrefix="ai-objetivos"
+        quantidade={{
+          label: "Por perspectiva",
+          default: 1,
+          min: 1,
+          max: 3,
+          suffixSingular: "objetivo",
+          suffixPlural: "objetivos",
+        }}
+        foco={{
+          label: "Perspectivas do BSC",
+          description: "Selecione as perspectivas para as quais a IA deve criar objetivos.",
+          items: perspectivas.map((p) => ({ value: p.valor, label: p.label })),
+          defaultSelected: aiObjetivosPerspectivaInicial
+            ? [aiObjetivosPerspectivaInicial]
+            : perspectivas.map((p) => p.valor),
+        }}
+        fontesContexto={{
+          label: "Fontes de contexto",
+          items: [
+            { id: "estrategias", label: "Estratégias TOWS", desc: "Apostas estratégicas já definidas" },
+            { id: "oportunidades", label: "Oportunidades de Crescimento", desc: "Quadrantes da Matriz de Ansoff" },
+            { id: "iniciativas", label: "Iniciativas", desc: "Iniciativas prioritárias" },
+            { id: "modeloNegocio", label: "Modelo de Negócio (BMC)", desc: "Proposta de valor, segmentos e atividades" },
+          ],
+        }}
+        instrucaoAdicional={{
+          placeholder: "Ex: Foque em objetivos relacionados à expansão digital e fidelização.",
+        }}
+      />
+
+      <AIGenerationModal
+        open={aiResultadosOpen}
+        onOpenChange={setAiResultadosOpen}
+        onConfirm={handleConfirmAIResultados}
+        title="Gerar métricas de progresso com IA"
+        description="Configure quantas métricas a IA deve gerar para este objetivo."
+        isGenerating={gerarResultadosMutation.isPending}
+        testIdPrefix="ai-resultados-chave"
+        origemId={aiResultadosObjetivoId ?? undefined}
+        quantidade={{
+          label: "Quantidade",
+          default: 3,
+          min: 1,
+          max: 5,
+          suffixSingular: "métrica",
+          suffixPlural: "métricas",
+        }}
+        foco={{
+          label: "Tipo de métrica",
+          description: "Opcional. Filtre por tipo de métrica. Sem seleção, a IA equilibra os tipos.",
+          requireAtLeastOne: false,
+          items: [
+            { value: "financeira", label: "Financeira", desc: "Receita, margem, custo, ROI" },
+            { value: "operacional", label: "Operacional", desc: "Volumes, produtividade, capacidade" },
+            { value: "satisfacao", label: "Satisfação", desc: "NPS, CSAT, retenção, churn" },
+            { value: "processo", label: "Processo / Qualidade", desc: "SLA, defeitos, conformidade" },
+          ],
+          defaultSelected: [],
+        }}
+        instrucaoAdicional={{
+          placeholder: "Ex: Priorize métricas com fontes de dados já disponíveis.",
+        }}
+      />
     </div>
   );
 }

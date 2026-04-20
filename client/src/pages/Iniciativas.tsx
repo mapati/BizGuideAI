@@ -19,7 +19,8 @@ import { CascataBlock } from "@/components/CascataBlock";
 import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type Iniciativa, type InsertIniciativa } from "@shared/schema";
+import { type Iniciativa, type InsertIniciativa, type AIGenerationParams } from "@shared/schema";
+import { AIGenerationModal } from "@/components/AIGenerationModal";
 import { z } from "zod";
 
 interface Estrategia {
@@ -203,6 +204,7 @@ export default function Iniciativas() {
   const [openDialog, setOpenDialog] = useState(false);
   const [editingIniciativa, setEditingIniciativa] = useState<Iniciativa | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
 
   const { data: empresa } = useQuery<{ id: string; nome: string }>({
     queryKey: ["/api/empresa"],
@@ -317,10 +319,11 @@ export default function Iniciativas() {
     },
   });
 
-  const generateMutation = useMutation<{ iniciativas: InsertIniciativa[] }, Error, void>({
-    mutationFn: async () => {
+  const generateMutation = useMutation<{ iniciativas: InsertIniciativa[] }, Error, AIGenerationParams>({
+    mutationFn: async (params: AIGenerationParams) => {
       return await apiRequest("POST", "/api/ai/gerar-iniciativas", {
         empresaId: empresa?.id,
+        ...params,
       });
     },
     onSuccess: (data: { iniciativas: InsertIniciativa[] }) => {
@@ -366,9 +369,10 @@ export default function Iniciativas() {
     },
   });
 
-  const handleGenerateWithAI = () => {
+  const handleConfirmAIGeneration = (params: AIGenerationParams) => {
+    setIsAIModalOpen(false);
     setIsGenerating(true);
-    generateMutation.mutate();
+    generateMutation.mutate(params);
   };
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
@@ -498,7 +502,7 @@ export default function Iniciativas() {
 
       <div className="flex gap-3 mb-6">
         <Button
-          onClick={handleGenerateWithAI}
+          onClick={() => setIsAIModalOpen(true)}
           disabled={!empresa?.id || isGenerating}
           className="gap-2"
           data-testid="button-generate-ai"
@@ -506,6 +510,46 @@ export default function Iniciativas() {
           <Sparkles className="h-4 w-4" />
           {isGenerating ? "Gerando..." : "Gerar com IA"}
         </Button>
+
+        <AIGenerationModal
+          open={isAIModalOpen}
+          onOpenChange={setIsAIModalOpen}
+          onConfirm={handleConfirmAIGeneration}
+          title="Gerar iniciativas com IA"
+          description="Configure quantas iniciativas e quais prioridades a IA deve gerar."
+          isGenerating={isGenerating}
+          testIdPrefix="ai-iniciativas"
+          quantidade={{
+            label: "Quantidade",
+            default: 5,
+            min: 1,
+            max: 10,
+            suffixSingular: "iniciativa",
+            suffixPlural: "iniciativas",
+          }}
+          foco={{
+            label: "Prioridades",
+            description: "Selecione as prioridades que a IA deve considerar.",
+            items: [
+              { value: "alta", label: "Alta", desc: "Crítico para a estratégia" },
+              { value: "média", label: "Média", desc: "Importante mas não urgente" },
+              { value: "baixa", label: "Baixa", desc: "Pode aguardar próximos ciclos" },
+            ],
+          }}
+          focoSecundario={{
+            label: "Horizonte de prazo",
+            description: "Opcional. Filtre por horizonte de execução. Sem seleção, a IA equilibra prazos.",
+            items: [
+              { value: "curto", label: "Curto prazo", desc: "Até 1 trimestre" },
+              { value: "médio", label: "Médio prazo", desc: "2 a 3 trimestres" },
+              { value: "longo", label: "Longo prazo", desc: "4 trimestres ou mais" },
+            ],
+            defaultSelected: [],
+          }}
+          instrucaoAdicional={{
+            placeholder: "Ex: Priorize iniciativas que possam ser executadas pela equipe atual.",
+          }}
+        />
 
         <Dialog open={openDialog} onOpenChange={handleOpenChange}>
           <DialogTrigger asChild>

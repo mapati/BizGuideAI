@@ -18,7 +18,8 @@ import { PrerequisiteWarning } from "@/components/PrerequisiteWarning";
 import { OrigemSelector } from "@/components/OrigemSelector";
 import { CascataBlock } from "@/components/CascataBlock";
 import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
-import type { Estrategia, Iniciativa, OportunidadeCrescimento as OportunidadeCrescimentoType } from "@shared/schema";
+import { AIGenerationModal } from "@/components/AIGenerationModal";
+import type { Estrategia, Iniciativa, OportunidadeCrescimento as OportunidadeCrescimentoType, AIGenerationParams } from "@shared/schema";
 
 interface OportunidadeCrescimento {
   id: string;
@@ -74,6 +75,7 @@ export default function OportunidadesCrescimento() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isAIModalOpen, setIsAIModalOpen] = useState(false);
   const [formData, setFormData] = useState<{
     tipo: string;
     titulo: string;
@@ -267,7 +269,7 @@ export default function OportunidadesCrescimento() {
     }
   };
 
-  const handleGenerateOpportunities = async () => {
+  const handleOpenAIModal = () => {
     if (!empresa) {
       toast({
         title: "Perfil não encontrado",
@@ -276,11 +278,17 @@ export default function OportunidadesCrescimento() {
       });
       return;
     }
+    setIsAIModalOpen(true);
+  };
 
+  const handleGenerateOpportunities = async (params: AIGenerationParams) => {
+    if (!empresa) return;
+    setIsAIModalOpen(false);
     setIsGenerating(true);
     try {
       const response = await apiRequest("POST", "/api/ai/gerar-oportunidades-crescimento", {
         empresaId: empresa.id,
+        ...params,
       });
 
       if (response.oportunidades && response.oportunidades.length > 0) {
@@ -361,13 +369,48 @@ export default function OportunidadesCrescimento() {
 
       <div className="mt-6 flex gap-3">
         <Button 
-          onClick={handleGenerateOpportunities} 
+          onClick={handleOpenAIModal} 
           disabled={isGenerating}
           data-testid="button-gerar-ai"
         >
           <Sparkles className="mr-2 h-4 w-4" />
           {isGenerating ? "Gerando..." : "Gerar com IA"}
         </Button>
+
+        <AIGenerationModal
+          open={isAIModalOpen}
+          onOpenChange={setIsAIModalOpen}
+          onConfirm={handleGenerateOpportunities}
+          title="Gerar oportunidades de crescimento com IA"
+          description="Configure quais quadrantes da Matriz de Ansoff e quantas oportunidades por quadrante a IA deve gerar."
+          isGenerating={isGenerating}
+          testIdPrefix="ai-oportunidades"
+          quantidade={{
+            label: "Por quadrante",
+            default: 1,
+            min: 1,
+            max: 3,
+            suffixSingular: "oportunidade",
+            suffixPlural: "oportunidades",
+          }}
+          foco={{
+            label: "Quadrantes da Matriz de Ansoff",
+            description: "Selecione quais tipos de crescimento a IA deve gerar.",
+            items: tipos.map((t) => ({ value: t.value, label: t.label, desc: t.desc })),
+          }}
+          fontesContexto={{
+            label: "Fontes de contexto",
+            items: [
+              { id: "swot", label: "SWOT", desc: "Forças e oportunidades identificadas" },
+              { id: "estrategias", label: "Estratégias TOWS", desc: "Apostas estratégicas já definidas" },
+              { id: "modeloNegocio", label: "Modelo de Negócio (BMC)", desc: "Proposta de valor, segmentos e canais" },
+            ],
+            defaultSelected: ["swot"],
+          }}
+          instrucaoAdicional={{
+            placeholder: "Ex: Foque em ações com baixo investimento e que possam ser executadas no próximo trimestre.",
+          }}
+        />
         
         <Dialog open={isDialogOpen} onOpenChange={handleCloseDialog}>
           <DialogTrigger asChild>

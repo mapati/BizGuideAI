@@ -41,6 +41,7 @@ import {
   type Estrategia,
   type Iniciativa,
   type Fatura,
+  aiGenerationParamsSchema,
 } from "@shared/schema";
 import OpenAI from "openai";
 import * as cheerio from "cheerio";
@@ -4036,13 +4037,51 @@ ${instrucaoAdicional}` : ""}`
         estrategiaOrigem = { id: e.id, tipo: e.tipo, titulo: e.titulo, descricao: e.descricao };
       }
 
+      // ── Parâmetros de geração (validados pelo schema compartilhado) ────────
+      const aiParams = aiGenerationParamsSchema.safeParse(req.body);
+      if (!aiParams.success) {
+        return res.status(400).json({ error: "Parâmetros de IA inválidos", issues: aiParams.error.issues });
+      }
+      const tiposPermitidos = [
+        "penetracao_mercado",
+        "desenvolvimento_mercado",
+        "desenvolvimento_produto",
+        "diversificacao",
+      ] as const;
+      type TipoOpor = typeof tiposPermitidos[number];
+      const focoSelecionado: TipoOpor[] = (aiParams.data.foco ?? [])
+        .filter((f): f is TipoOpor => tiposPermitidos.includes(f as TipoOpor));
+      const tiposGerar: TipoOpor[] = focoSelecionado.length > 0 ? focoSelecionado : [...tiposPermitidos];
+
+      const rawQtd = aiParams.data.quantidade;
+      const quantidadePorTipo = rawQtd && rawQtd >= 1 && rawQtd <= 5 ? rawQtd : 1;
+
+      const instrucaoAdicionalOpor = (aiParams.data.instrucaoAdicional ?? "").trim();
+
+      // Fontes de contexto opcionais (escolhidas pelo usuário no modal)
+      const fontesPermitidasOpor = ["swot", "estrategias", "modeloNegocio"] as const;
+      const fontesSelOpor = new Set(
+        (aiParams.data.fontesContexto ?? []).filter((f) => fontesPermitidasOpor.includes(f as typeof fontesPermitidasOpor[number]))
+      );
+      const usarSwotOpor = fontesSelOpor.size === 0 || fontesSelOpor.has("swot");
+      const usarEstrategiasOpor = fontesSelOpor.has("estrategias");
+      const usarBmcOpor = fontesSelOpor.has("modeloNegocio");
+
       const contextoPerfil = buildEmpresaContextoIA(empresa);
 
       const oportunidadesExistentes = await storage.getOportunidadesCrescimento(empresaId);
-      const swotExistente = await storage.getAnaliseSwot(empresaId);
+      const swotExistente = usarSwotOpor ? await storage.getAnaliseSwot(empresaId) : [];
+      const estrategiasOpor = usarEstrategiasOpor ? await storage.getEstrategias(empresaId) : [];
+      const modeloNegocioOpor = usarBmcOpor ? await storage.getModeloNegocio(empresaId) : [];
 
       const forcas = swotExistente.filter(s => s.tipo === "forca").map(s => s.descricao);
       const oportunidades = swotExistente.filter(s => s.tipo === "oportunidade").map(s => s.descricao);
+      const estrategiasOporResume = estrategiasOpor.map(e => `${e.tipo}: ${e.titulo}`).join("\n");
+      const blocosOpor = ["proposta_valor", "segmentos_clientes", "canais"];
+      const bmcOporCtx = modeloNegocioOpor
+        .filter((b) => blocosOpor.includes(b.bloco) && b.descricao?.trim())
+        .map((b) => `- ${b.bloco}: ${b.descricao}`)
+        .join("\n");
 
       const oportunidadesResume = oportunidadesExistentes.map(o => 
         `- ${o.tipo}: ${o.titulo}\n  Descrição: ${o.descricao}`
@@ -4065,7 +4104,7 @@ REGRA CRÍTICA DE DUPLICAÇÃO:
             role: "user",
             content: `## PERFIL DA EMPRESA
 ${contextoPerfil}
-
+${usarSwotOpor ? `
 ## CONTEXTO ESTRATÉGICO (SWOT):
 
 ### FORÇAS:
@@ -4073,8 +4112,18 @@ ${forcas.length > 0 ? forcas.map((f, i) => `${i + 1}. ${f}`).join("\n") : "Nenhu
 
 ### OPORTUNIDADES DE MERCADO:
 ${oportunidades.length > 0 ? oportunidades.map((o, i) => `${i + 1}. ${o}`).join("\n") : "Nenhuma oportunidade identificada"}
-${estrategiaOrigem ? `\n## ESTRATÉGIA DE ORIGEM (CONTEXTO PRIMÁRIO — todas as oportunidades devem derivar diretamente desta estratégia):\nTipo: ${estrategiaOrigem.tipo}\nTítulo: ${estrategiaOrigem.titulo}\nDescrição: ${estrategiaOrigem.descricao}\n` : ""}
-
+` : ""}${estrategiaOrigem ? `
+## ESTRATÉGIA DE ORIGEM (CONTEXTO PRIMÁRIO — todas as oportunidades devem derivar diretamente desta estratégia):
+Tipo: ${estrategiaOrigem.tipo}
+Título: ${estrategiaOrigem.titulo}
+Descrição: ${estrategiaOrigem.descricao}
+` : ""}${usarEstrategiasOpor && estrategiasOporResume ? `
+## ESTRATÉGIAS DEFINIDAS:
+${estrategiasOporResume}
+` : ""}${usarBmcOpor && bmcOporCtx ? `
+## MODELO DE NEGÓCIO (Business Model Canvas):
+${bmcOporCtx}
+` : ""}
 ## OPORTUNIDADES JÁ EXISTENTES (NÃO REPITA NENHUMA DELAS):
 ${oportunidadesExistentes.length > 0 ? oportunidadesResume : "Nenhuma oportunidade criada ainda - esta é a primeira geração"}
 
@@ -4085,15 +4134,22 @@ Analise cada oportunidade existente antes de sugerir algo novo.
 ` : ''}
 
 ## TAREFA:
-Com base na Matriz de Ansoff, crie EXATAMENTE 4 novas oportunidades de crescimento ÚNICAS e DIFERENTES, uma de cada tipo:
+Com base na Matriz de Ansoff, gere EXATAMENTE ${quantidadePorTipo} oportunidade(s) ÚNICA(s) e DIFERENTE(s) para CADA UM dos tipos solicitados abaixo:
 
-1. **penetracao_mercado**: Aumentar participação no mercado atual com produtos/serviços atuais (menor risco)
-2. **desenvolvimento_mercado**: Levar produtos/serviços atuais para novos mercados ou segmentos
-3. **desenvolvimento_produto**: Criar novos produtos/serviços para os mercados atuais
-4. **diversificacao**: Novos produtos/serviços para novos mercados (maior risco)
+${tiposGerar.map((t) => {
+  const desc: Record<TipoOpor, string> = {
+    penetracao_mercado: "Aumentar participação no mercado atual com produtos/serviços atuais (menor risco)",
+    desenvolvimento_mercado: "Levar produtos/serviços atuais para novos mercados ou segmentos",
+    desenvolvimento_produto: "Criar novos produtos/serviços para os mercados atuais",
+    diversificacao: "Novos produtos/serviços para novos mercados (maior risco)",
+  };
+  return `- **${t}**: ${desc[t]}`;
+}).join("\n")}
+
+Total esperado: ${tiposGerar.length * quantidadePorTipo} oportunidade(s).
 
 Para cada oportunidade, forneça:
-- tipo: "penetracao_mercado", "desenvolvimento_mercado", "desenvolvimento_produto" ou "diversificacao"
+- tipo: um dos valores: ${tiposGerar.map((t) => `"${t}"`).join(", ")}
 - titulo: Um título objetivo (máx 80 caracteres)
 - descricao: Descrição detalhada da oportunidade (2-3 frases)
 - potencial: Potencial de crescimento - "alto", "médio" ou "baixo"
@@ -4102,12 +4158,9 @@ Para cada oportunidade, forneça:
 Responda OBRIGATORIAMENTE em JSON com este formato exato:
 {
   "oportunidades": [
-    {"tipo": "penetracao_mercado", "titulo": "...", "descricao": "...", "potencial": "alto", "risco": "baixo"},
-    {"tipo": "desenvolvimento_mercado", "titulo": "...", "descricao": "...", "potencial": "alto", "risco": "médio"},
-    {"tipo": "desenvolvimento_produto", "titulo": "...", "descricao": "...", "potencial": "médio", "risco": "médio"},
-    {"tipo": "diversificacao", "titulo": "...", "descricao": "...", "potencial": "alto", "risco": "alto"}
+    {"tipo": "${tiposGerar[0]}", "titulo": "...", "descricao": "...", "potencial": "alto", "risco": "baixo"}
   ]
-}`
+}${instrucaoAdicionalOpor ? `\n\n## INSTRUÇÕES ADICIONAIS DO USUÁRIO:\n${instrucaoAdicionalOpor}` : ""}`
           }
         ]),
         response_format: { type: "json_object" },
@@ -4115,11 +4168,12 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
       });
 
       const sugestoes = JSON.parse(completion.choices[0].message.content || "{}");
-      if (estrategiaOrigem && Array.isArray(sugestoes.oportunidades)) {
-        sugestoes.oportunidades = sugestoes.oportunidades.map((o: any) => ({
-          ...o,
-          estrategiaId: estrategiaOrigem!.id,
-        }));
+      // Filtra apenas tipos solicitados (defesa contra IA que gerou tipos extras) e adiciona estrategiaId quando aplicável
+      if (Array.isArray(sugestoes.oportunidades)) {
+        const tiposSet = new Set<string>(tiposGerar);
+        sugestoes.oportunidades = sugestoes.oportunidades
+          .filter((o: any) => o && tiposSet.has(o.tipo))
+          .map((o: any) => estrategiaOrigem ? { ...o, estrategiaId: estrategiaOrigem.id } : o);
       }
       res.json(sugestoes);
     } catch (error: any) {
@@ -4328,6 +4382,23 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         };
       }
 
+      // ── Parâmetros de geração (validados pelo schema compartilhado) ────────
+      const aiParamsIni = aiGenerationParamsSchema.safeParse(req.body);
+      if (!aiParamsIni.success) {
+        return res.status(400).json({ error: "Parâmetros de IA inválidos", issues: aiParamsIni.error.issues });
+      }
+      const rawQtdIni = aiParamsIni.data.quantidade;
+      const quantidadeIni = rawQtdIni && rawQtdIni >= 1 && rawQtdIni <= 10 ? rawQtdIni : 5;
+      const prioridadesPermitidas = ["alta", "média", "baixa"] as const;
+      type PrioFoco = typeof prioridadesPermitidas[number];
+      const prioridadesFoco: PrioFoco[] = (aiParamsIni.data.foco ?? [])
+        .filter((p): p is PrioFoco => prioridadesPermitidas.includes(p as PrioFoco));
+      const prazosPermitidos = ["curto", "médio", "longo"] as const;
+      type PrazoFoco = typeof prazosPermitidos[number];
+      const prazosFoco: PrazoFoco[] = (aiParamsIni.data.focoSecundario ?? [])
+        .filter((p): p is PrazoFoco => prazosPermitidos.includes(p as PrazoFoco));
+      const instrucaoAdicionalIni = (aiParamsIni.data.instrucaoAdicional ?? "").trim();
+
       const contextoPerfil = buildEmpresaContextoIA(empresa);
 
       const iniciativasExistentes = await storage.getIniciativas(empresaId);
@@ -4385,27 +4456,31 @@ Analise cada iniciativa existente antes de sugerir algo novo.
 ` : ''}
 
 ## TAREFA:
-Com base nas estratégias e oportunidades identificadas, crie EXATAMENTE 5 novas iniciativas prioritárias ÚNICAS e DIFERENTES para executar a estratégia.
+Com base nas estratégias e oportunidades identificadas, crie EXATAMENTE ${quantidadeIni} nova(s) iniciativa(s) prioritária(s) ÚNICA(s) e DIFERENTE(s) para executar a estratégia.
+
+${prioridadesFoco.length > 0
+  ? `## FOCO DE PRIORIDADES:\nGere iniciativas APENAS com as prioridades: ${prioridadesFoco.map((p) => `"${p}"`).join(", ")}.\nDistribua as ${quantidadeIni} iniciativa(s) entre essas prioridades de forma equilibrada.`
+  : "Distribua as prioridades (alta, média, baixa) de forma equilibrada entre as iniciativas."}
+
+${prazosFoco.length > 0
+  ? `## FOCO DE PRAZO:\nConsidere APENAS iniciativas com horizonte: ${prazosFoco.map((p) => `"${p}"`).join(", ")}.\n- "curto": realizável em até 1 trimestre (Q atual)\n- "médio": 2 a 3 trimestres\n- "longo": 4 trimestres ou mais\nUse o campo "prazo" coerente com o horizonte escolhido (ex: "Q1 2025" para curto, "Q3 2025" para médio, "2026" para longo).`
+  : ""}
 
 Para cada iniciativa, forneça:
 - titulo: Um título claro e objetivo (máx 80 caracteres)
 - descricao: Descrição detalhada da iniciativa e seus objetivos (2-3 frases)
-- status: "planejada", "em_andamento", "concluida" ou "pausada" (todas devem começar como "planejada")
-- prioridade: "alta", "média" ou "baixa" (distribua entre as 5)
-- prazo: Prazo em formato "Q1 2025", "Q2 2025", etc
+- status: sempre "planejada"
+- prioridade: ${prioridadesFoco.length > 0 ? prioridadesFoco.map((p) => `"${p}"`).join(", ") : '"alta", "média" ou "baixa"'}
+- prazo: Prazo em formato "Q1 2025", "Q2 2025", etc${prazosFoco.length > 0 ? ` (alinhado com horizonte ${prazosFoco.map((p) => `"${p}"`).join("/")})` : ""}
 - responsavel: Área ou cargo responsável (ex: "Gerente Comercial", "Time de Marketing")
 - impacto: Impacto esperado - "alto", "médio" ou "baixo"
 
 Responda OBRIGATORIAMENTE em JSON com este formato exato:
 {
   "iniciativas": [
-    {"titulo": "...", "descricao": "...", "status": "planejada", "prioridade": "alta", "prazo": "Q1 2025", "responsavel": "...", "impacto": "alto"},
-    {"titulo": "...", "descricao": "...", "status": "planejada", "prioridade": "alta", "prazo": "Q2 2025", "responsavel": "...", "impacto": "alto"},
-    {"titulo": "...", "descricao": "...", "status": "planejada", "prioridade": "média", "prazo": "Q2 2025", "responsavel": "...", "impacto": "médio"},
-    {"titulo": "...", "descricao": "...", "status": "planejada", "prioridade": "média", "prazo": "Q3 2025", "responsavel": "...", "impacto": "médio"},
-    {"titulo": "...", "descricao": "...", "status": "planejada", "prioridade": "baixa", "prazo": "Q4 2025", "responsavel": "...", "impacto": "baixo"}
+    {"titulo": "...", "descricao": "...", "status": "planejada", "prioridade": "alta", "prazo": "Q1 2025", "responsavel": "...", "impacto": "alto"}
   ]
-}`
+}${instrucaoAdicionalIni ? `\n\n## INSTRUÇÕES ADICIONAIS DO USUÁRIO:\n${instrucaoAdicionalIni}` : ""}`
           }
         ],
         response_format: { type: "json_object" },
@@ -4418,10 +4493,16 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         const seenTitles = new Set(
           iniciativasExistentes.map(i => i.titulo.toLowerCase().trim())
         );
-        
-        sugestoes.iniciativas = sugestoes.iniciativas.filter((iniciativa: any) => {
-          const titulo = iniciativa.titulo?.toLowerCase().trim();
+        const prioridadesSet = prioridadesFoco.length > 0 ? new Set<string>(prioridadesFoco) : null;
+
+        sugestoes.iniciativas = sugestoes.iniciativas.filter((iniciativa: unknown) => {
+          if (!iniciativa || typeof iniciativa !== "object") return false;
+          const ini = iniciativa as { titulo?: unknown; prioridade?: unknown };
+          const titulo = typeof ini.titulo === "string" ? ini.titulo.toLowerCase().trim() : "";
           if (!titulo || seenTitles.has(titulo)) {
+            return false;
+          }
+          if (prioridadesSet && (typeof ini.prioridade !== "string" || !prioridadesSet.has(ini.prioridade))) {
             return false;
           }
           seenTitles.add(titulo);
@@ -4476,13 +4557,36 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         };
       }
 
+      // ── Parâmetros de geração (validados pelo schema compartilhado) ────────
+      const aiParamsObj = aiGenerationParamsSchema.safeParse(req.body);
+      if (!aiParamsObj.success) {
+        return res.status(400).json({ error: "Parâmetros de IA inválidos", issues: aiParamsObj.error.issues });
+      }
+      const todasPerspectivasBSC = ["Financeira", "Clientes", "Processos Internos", "Aprendizado e Crescimento"];
+      const perspectivasFoco: string[] = (aiParamsObj.data.foco ?? [])
+        .filter((p): p is string => typeof p === "string" && todasPerspectivasBSC.includes(p));
+      const rawQtdObj = aiParamsObj.data.quantidade;
+      const quantidadePorPerspectiva = rawQtdObj && rawQtdObj >= 1 && rawQtdObj <= 5 ? rawQtdObj : 1;
+      const instrucaoAdicionalObj = (aiParamsObj.data.instrucaoAdicional ?? "").trim();
+
+      // Fontes de contexto opcionais (usuário escolhe quais incluir)
+      const fontesPermitidasObj = ["estrategias", "oportunidades", "iniciativas", "modeloNegocio"] as const;
+      const fontesSelObj = new Set(
+        (aiParamsObj.data.fontesContexto ?? []).filter((f) => fontesPermitidasObj.includes(f as typeof fontesPermitidasObj[number]))
+      );
+      const todasFontesObj = fontesSelObj.size === 0;
+      const usarEstrategiasObj = todasFontesObj || fontesSelObj.has("estrategias");
+      const usarOportunidadesObj = todasFontesObj || fontesSelObj.has("oportunidades");
+      const usarIniciativasObj = todasFontesObj || fontesSelObj.has("iniciativas");
+      const usarBmcObj = todasFontesObj || fontesSelObj.has("modeloNegocio");
+
       const contextoPerfil = buildEmpresaContextoIA(empresa);
 
       const objetivosExistentes = await storage.getObjetivos(empresaId);
-      const estrategiasLista = await storage.getEstrategias(empresaId);
-      const oportunidades = await storage.getOportunidadesCrescimento(empresaId);
-      const iniciativas = await storage.getIniciativas(empresaId);
-      const modeloNegocio = await storage.getModeloNegocio(empresaId);
+      const estrategiasLista = usarEstrategiasObj ? await storage.getEstrategias(empresaId) : [];
+      const oportunidades = usarOportunidadesObj ? await storage.getOportunidadesCrescimento(empresaId) : [];
+      const iniciativas = usarIniciativasObj ? await storage.getIniciativas(empresaId) : [];
+      const modeloNegocio = usarBmcObj ? await storage.getModeloNegocio(empresaId) : [];
 
       const estrategiasResume = estrategiasLista.map(e => `${e.tipo}: ${e.titulo} - ${e.descricao}`).join("\n");
       const oportunidadesResume = oportunidades.map(o => `${o.tipo}: ${o.titulo} - ${o.descricao}`).join("\n");
@@ -4513,7 +4617,7 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         }
       };
 
-      const gerarParaPerspectiva = async (perspectiva: string) => {
+      const gerarParaPerspectiva = async (perspectiva: string, qtd: number = 1) => {
         const def = definicoesPerspectivasBSC[perspectiva];
         const objetivosDestaPerspectiva = objetivosExistentes.filter(o => o.perspectiva === perspectiva);
         const objetivosResume = objetivosDestaPerspectiva.map(o => `- ${o.titulo}`).join("\n");
@@ -4550,23 +4654,25 @@ ${origemContextObj ? `\n## ORIGEM PRIMÁRIA (o objetivo deve derivar diretamente
 ${objetivosDestaPerspectiva.length > 0 ? objetivosResume : "Nenhum ainda"}
 
 ## TAREFA:
-Crie EXATAMENTE 1 objetivo estratégico para a perspectiva "${perspectiva}" desta empresa.
+Crie EXATAMENTE ${qtd} objetivo(s) estratégico(s) para a perspectiva "${perspectiva}" desta empresa.
 
-O objetivo deve:
+Cada objetivo deve:
 - ser qualitativo e aspiracional (sem números no título)
 - refletir claramente a perspectiva "${perspectiva}"
 - ser relevante para o setor e contexto desta empresa
-- ser diferente dos já existentes
+- ser diferente dos já existentes e diferente entre si
 
 Responda em JSON:
 {
-  "objetivo": {
-    "titulo": "...",
-    "descricao": "...",
-    "prazo": "Anual 2025",
-    "perspectiva": "${perspectiva}"
-  }
-}`
+  "objetivos": [
+    {
+      "titulo": "...",
+      "descricao": "...",
+      "prazo": "Anual 2025",
+      "perspectiva": "${perspectiva}"
+    }
+  ]
+}${instrucaoAdicionalObj ? `\n\n## INSTRUÇÕES ADICIONAIS DO USUÁRIO:\n${instrucaoAdicionalObj}` : ""}`
             }
           ],
           response_format: { type: "json_object" },
@@ -4574,34 +4680,43 @@ Responda em JSON:
         });
 
         const result = JSON.parse(completion.choices[0].message.content || "{}");
-        return result.objetivo || null;
+        // Compat: aceita {objetivo:{...}} antigo ou {objetivos:[...]} novo
+        if (Array.isArray(result.objetivos)) {
+          return result.objetivos
+            .filter((o: unknown): o is { titulo: string; perspectiva?: string } => {
+              return !!o && typeof o === "object" && typeof (o as { titulo?: unknown }).titulo === "string";
+            })
+            .map((o: { titulo: string; perspectiva?: string }) => ({ ...o, perspectiva: o.perspectiva || perspectiva }));
+        }
+        if (result.objetivo && result.objetivo.titulo) {
+          return [{ ...result.objetivo, perspectiva: result.objetivo.perspectiva || perspectiva }];
+        }
+        return [];
       };
 
-      const todasPerspectivas = ["Financeira", "Clientes", "Processos Internos", "Aprendizado e Crescimento"];
       const seenTitles = new Set(objetivosExistentes.map(o => o.titulo.toLowerCase().trim()));
 
-      let objetivosGerados: any[] = [];
-
-      if (perspectivaSolicitada && todasPerspectivas.includes(perspectivaSolicitada)) {
-        const objetivo = await gerarParaPerspectiva(perspectivaSolicitada);
-        if (objetivo && objetivo.titulo) {
-          const titulo = objetivo.titulo.toLowerCase().trim();
-          if (!seenTitles.has(titulo)) {
-            objetivosGerados = [{ ...objetivo, perspectiva: perspectivaSolicitada }];
-          }
-        }
+      // Determina escopo: foco (multi) > perspectiva legacy (single) > todas
+      let perspectivasParaGerar: string[];
+      if (perspectivasFoco.length > 0) {
+        perspectivasParaGerar = perspectivasFoco;
+      } else if (perspectivaSolicitada && todasPerspectivasBSC.includes(perspectivaSolicitada)) {
+        perspectivasParaGerar = [perspectivaSolicitada];
       } else {
-        const resultados = await Promise.all(todasPerspectivas.map(p => gerarParaPerspectiva(p)));
-        objetivosGerados = resultados
-          .filter((obj): obj is NonNullable<typeof obj> => obj !== null && !!obj.titulo)
-          .filter(obj => {
-            const titulo = obj.titulo.toLowerCase().trim();
-            if (seenTitles.has(titulo)) return false;
-            seenTitles.add(titulo);
-            return true;
-          })
-          .map((obj, idx) => ({ ...obj, perspectiva: obj.perspectiva || todasPerspectivas[idx] }));
+        perspectivasParaGerar = [...todasPerspectivasBSC];
       }
+
+      const resultadosPorPersp = await Promise.all(
+        perspectivasParaGerar.map(p => gerarParaPerspectiva(p, quantidadePorPerspectiva))
+      );
+      let objetivosGerados = resultadosPorPersp
+        .flat()
+        .filter(obj => {
+          const titulo = obj.titulo?.toLowerCase().trim();
+          if (!titulo || seenTitles.has(titulo)) return false;
+          seenTitles.add(titulo);
+          return true;
+        });
 
       if (origemContextObj) {
         objetivosGerados = objetivosGerados.map(o => ({
@@ -4619,12 +4734,31 @@ Responda em JSON:
 
   app.post("/api/ai/gerar-resultados-chave", async (req, res) => {
     try {
-      const { objetivoId } = req.body;
       const empresaId = req.session.empresaId!;
-      
+      // Aceita tanto `objetivoId` (legado) quanto `origemId` (vindo do <AIGenerationModal>)
+      const objetivoId: string | undefined = req.body.objetivoId || req.body.origemId;
+
       if (!objetivoId) {
         return res.status(400).json({ error: "objetivoId é obrigatório" });
       }
+
+      const aiParamsRC = aiGenerationParamsSchema.safeParse(req.body);
+      if (!aiParamsRC.success) {
+        return res.status(400).json({ error: "Parâmetros de IA inválidos", issues: aiParamsRC.error.issues });
+      }
+      const rawQtdRC = aiParamsRC.data.quantidade;
+      const quantidadeRC = rawQtdRC && rawQtdRC >= 1 && rawQtdRC <= 5 ? rawQtdRC : 3;
+      const instrucaoAdicionalRC = (aiParamsRC.data.instrucaoAdicional ?? "").trim();
+      const tiposMetricaPermitidos = ["financeira", "operacional", "satisfacao", "processo"] as const;
+      type TipoMetricaFoco = typeof tiposMetricaPermitidos[number];
+      const tiposMetricaFoco: TipoMetricaFoco[] = (aiParamsRC.data.foco ?? [])
+        .filter((f): f is TipoMetricaFoco => tiposMetricaPermitidos.includes(f as TipoMetricaFoco));
+      const tiposMetricaLabels: Record<TipoMetricaFoco, string> = {
+        financeira: "Financeira (receita, margem, custo, ROI, EBITDA)",
+        operacional: "Operacional (volumes, produtividade, capacidade, leadtime)",
+        satisfacao: "Satisfação (NPS, CSAT, retenção, churn, engajamento)",
+        processo: "Processo / Qualidade (SLA, defeitos, conformidade, ciclo)",
+      };
 
       const empresa = await storage.getEmpresa(empresaId);
       if (!empresa) {
@@ -4696,7 +4830,11 @@ Suas sugestões DEVEM medir aspectos DIFERENTES e complementares.
 ` : ''}
 
 ## TAREFA:
-Crie EXATAMENTE 3 resultados-chave ÚNICOS e mensuráveis para este objetivo.
+Crie EXATAMENTE ${quantidadeRC} resultado(s)-chave ÚNICO(s) e mensuráveis para este objetivo.
+
+${tiposMetricaFoco.length > 0
+  ? `## FOCO POR TIPO DE MÉTRICA:\nGere APENAS resultados-chave dos seguintes tipos:\n${tiposMetricaFoco.map((t) => `- ${tiposMetricaLabels[t]}`).join("\n")}\nDistribua os ${quantidadeRC} resultado(s) entre estes tipos de forma equilibrada.`
+  : "Equilibre os tipos de métricas (financeira, operacional, satisfação, processo) quando fizer sentido."}
 
 Cada resultado-chave deve:
 - metrica: Nome claro da métrica (ex: "Margem bruta", "Taxa de retenção de clientes", "Tempo médio de entrega")
@@ -4720,14 +4858,12 @@ Os resultados-chave devem ser:
 ✓ Diferentes entre si (medem coisas distintas)
 ✓ Realistas mas desafiadores
 
-Responda em JSON:
+Responda em JSON com EXATAMENTE ${quantidadeRC} item(ns) no array "resultados":
 {
   "resultados": [
-    {"metrica": "...", "valorInicial": 38.5, "valorAlvo": 42.0, "valorAtual": 38.5, "owner": "...", "prazo": "Q4 2025"},
-    {"metrica": "...", "valorInicial": 3.2, "valorAlvo": 2.0, "valorAtual": 3.2, "owner": "...", "prazo": "Dez 2025"},
-    {"metrica": "...", "valorInicial": 45.0, "valorAlvo": 70.0, "valorAtual": 45.0, "owner": "...", "prazo": "Q2 2026"}
+    {"metrica": "...", "valorInicial": 38.5, "valorAlvo": 42.0, "valorAtual": 38.5, "owner": "...", "prazo": "Q4 2025"}
   ]
-}`
+}${instrucaoAdicionalRC ? `\n\n## INSTRUÇÕES ADICIONAIS DO USUÁRIO:\n${instrucaoAdicionalRC}` : ""}`
           }
         ],
         response_format: { type: "json_object" },
@@ -4741,8 +4877,10 @@ Responda em JSON:
           resultadosExistentes.map(r => r.metrica.toLowerCase().trim())
         );
         
-        sugestoes.resultados = sugestoes.resultados.filter((resultado: any) => {
-          const metrica = resultado.metrica?.toLowerCase().trim();
+        sugestoes.resultados = sugestoes.resultados.filter((resultado: unknown) => {
+          if (!resultado || typeof resultado !== "object") return false;
+          const r = resultado as { metrica?: unknown };
+          const metrica = typeof r.metrica === "string" ? r.metrica.toLowerCase().trim() : "";
           if (!metrica || seenMetricas.has(metrica)) {
             return false;
           }

@@ -28,6 +28,8 @@ import {
   pagamentoEventos,
   mpPlanos,
   configSistema,
+  precosLandingPlanos,
+  type PrecoLandingPlano,
   type ConfigSistema,
   type PagamentoEvento,
   type InsertPagamentoEvento,
@@ -245,6 +247,9 @@ export interface IStorage {
 
   getDiagnosticoIASalvo(empresaId: string): Promise<DiagnosticoIASalvo | null>;
   saveDiagnosticoIASalvo(empresaId: string, payload: string): Promise<void>;
+
+  getPrecosLandingPlanos(): Promise<PrecoLandingPlano[]>;
+  upsertPrecoLandingPlano(plano: string, data: Partial<Omit<PrecoLandingPlano, "plano" | "atualizadoEm">>): Promise<PrecoLandingPlano>;
 }
 
 function omitTenantFields<T extends Record<string, unknown>>(data: T): Omit<T, "empresaId" | "objetivoId"> {
@@ -1068,6 +1073,32 @@ export class DbStorage implements IStorage {
   async getConfigSistema(): Promise<ConfigSistema | null> {
     const rows = await db.select().from(configSistema).where(eq(configSistema.id, 1)).limit(1);
     return rows[0] ?? null;
+  }
+
+  async getPrecosLandingPlanos(): Promise<PrecoLandingPlano[]> {
+    return db.select().from(precosLandingPlanos);
+  }
+
+  async upsertPrecoLandingPlano(
+    plano: string,
+    data: Partial<Omit<PrecoLandingPlano, "plano" | "atualizadoEm">>,
+  ): Promise<PrecoLandingPlano> {
+    const setData: Record<string, unknown> = { ...data, atualizadoEm: new Date() };
+    await db
+      .insert(precosLandingPlanos)
+      .values({
+        plano,
+        precoCentavos: data.precoCentavos ?? 0,
+        promocaoAtiva: data.promocaoAtiva ?? false,
+        precoPromocionalCentavos: data.precoPromocionalCentavos ?? null,
+        promocaoFimEm: data.promocaoFimEm ?? null,
+      } as any)
+      .onConflictDoUpdate({
+        target: precosLandingPlanos.plano,
+        set: setData as any,
+      });
+    const rows = await db.select().from(precosLandingPlanos).where(eq(precosLandingPlanos.plano, plano)).limit(1);
+    return rows[0]!;
   }
 
   async upsertConfigSistema(data: Partial<Omit<ConfigSistema, "id" | "atualizadoEm">>): Promise<ConfigSistema> {

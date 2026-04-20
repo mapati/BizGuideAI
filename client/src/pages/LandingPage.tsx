@@ -55,6 +55,30 @@ import {
   Compass,
 } from "lucide-react";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+
+interface PrecoLandingDTO {
+  plano: "start" | "pro";
+  precoCentavos: number;
+  promocaoAtiva: boolean;
+  precoPromocionalCentavos: number | null;
+  promocaoFimEm: string | null;
+  promocaoVigente: boolean;
+  atualizadoEm: string | null;
+}
+
+function formatBRL(centavos: number): string {
+  const reais = centavos / 100;
+  if (Number.isInteger(reais)) return `R$ ${reais.toLocaleString("pt-BR")}`;
+  return `R$ ${reais.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function formatPromoFim(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
 
 const features = [
   {
@@ -711,6 +735,12 @@ export default function LandingPage() {
   const [enterpriseOpen, setEnterpriseOpen] = useState(false);
   const ActiveMockup = showcaseTabs.find(t => t.id === activeTab)?.component ?? MockupHome;
 
+  const { data: precosLanding = [] } = useQuery<PrecoLandingDTO[]>({
+    queryKey: ["/api/precos-landing"],
+  });
+  const precoStart = precosLanding.find(p => p.plano === "start");
+  const precoPro = precosLanding.find(p => p.plano === "pro");
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* NAV */}
@@ -1277,11 +1307,31 @@ export default function LandingPage() {
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <Badge variant="secondary" className="text-sm px-3 py-1">Start</Badge>
                 </div>
-                <div>
-                  <div className="flex items-end gap-1 mb-1">
-                    <span className="text-3xl font-bold" data-testid="text-preco-start">R$ 187</span>
-                    <span className="text-muted-foreground text-sm mb-1">/mês</span>
-                  </div>
+                <div className="min-h-[88px]">
+                  {!precoStart ? (
+                    <div className="space-y-2 mb-1" aria-hidden="true">
+                      <div className="h-9 w-32 rounded bg-muted animate-pulse" />
+                      <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+                    </div>
+                  ) : precoStart.promocaoVigente && precoStart.precoPromocionalCentavos != null ? (
+                    <>
+                      <div className="flex items-baseline gap-2 mb-1 flex-wrap">
+                        <span className="text-3xl font-bold" data-testid="text-preco-start">{formatBRL(precoStart.precoPromocionalCentavos)}</span>
+                        <span className="text-muted-foreground text-sm">/mês</span>
+                        <span className="text-muted-foreground line-through text-sm" data-testid="text-preco-start-base">{formatBRL(precoStart.precoCentavos)}</span>
+                      </div>
+                      <Badge variant="default" className="mb-2 text-xs" data-testid="badge-promo-start">
+                        {formatPromoFim(precoStart.promocaoFimEm)
+                          ? `Por tempo limitado · até ${formatPromoFim(precoStart.promocaoFimEm)}`
+                          : "Por tempo limitado"}
+                      </Badge>
+                    </>
+                  ) : (
+                    <div className="flex items-end gap-1 mb-1">
+                      <span className="text-3xl font-bold" data-testid="text-preco-start">{formatBRL(precoStart.precoCentavos)}</span>
+                      <span className="text-muted-foreground text-sm mb-1">/mês</span>
+                    </div>
+                  )}
                   <p className="text-muted-foreground text-sm">Para o dono que está organizando a estratégia da empresa pela primeira vez — sai do achismo com método.</p>
                 </div>
                 <ul className="flex flex-col gap-2.5 flex-1">
@@ -1317,11 +1367,31 @@ export default function LandingPage() {
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <Badge className="text-sm px-3 py-1 bg-primary text-primary-foreground">Pro</Badge>
                 </div>
-                <div>
-                  <div className="flex items-end gap-1 mb-1">
-                    <span className="text-3xl font-bold" data-testid="text-preco-pro">R$ 490</span>
-                    <span className="text-muted-foreground text-sm mb-1">/mês</span>
-                  </div>
+                <div className="min-h-[88px]">
+                  {!precoPro ? (
+                    <div className="space-y-2 mb-1" aria-hidden="true">
+                      <div className="h-9 w-32 rounded bg-muted animate-pulse" />
+                      <div className="h-4 w-20 rounded bg-muted animate-pulse" />
+                    </div>
+                  ) : precoPro.promocaoVigente && precoPro.precoPromocionalCentavos != null ? (
+                    <>
+                      <div className="flex items-baseline gap-2 mb-1 flex-wrap">
+                        <span className="text-3xl font-bold" data-testid="text-preco-pro">{formatBRL(precoPro.precoPromocionalCentavos)}</span>
+                        <span className="text-muted-foreground text-sm">/mês</span>
+                        <span className="text-muted-foreground line-through text-sm" data-testid="text-preco-pro-base">{formatBRL(precoPro.precoCentavos)}</span>
+                      </div>
+                      <Badge variant="default" className="mb-2 text-xs" data-testid="badge-promo-pro">
+                        {formatPromoFim(precoPro.promocaoFimEm)
+                          ? `Por tempo limitado · até ${formatPromoFim(precoPro.promocaoFimEm)}`
+                          : "Por tempo limitado"}
+                      </Badge>
+                    </>
+                  ) : (
+                    <div className="flex items-end gap-1 mb-1">
+                      <span className="text-3xl font-bold" data-testid="text-preco-pro">{formatBRL(precoPro.precoCentavos)}</span>
+                      <span className="text-muted-foreground text-sm mb-1">/mês</span>
+                    </div>
+                  )}
                   <p className="text-muted-foreground text-sm">Para empresas em crescimento que precisam alinhar diretoria, gerentes e equipe no mesmo plano — colaboração real e IA premium.</p>
                 </div>
                 <ul className="flex flex-col gap-2.5 flex-1">

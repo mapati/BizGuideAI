@@ -274,6 +274,23 @@ async function runStartupMigrations() {
         AND LOWER(TRIM(u.nome)) = LOWER(TRIM(k.owner))
     `);
 
+    // Task #164 — Preços dos planos exibidos na landing page (editáveis pelo admin)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS precos_landing_planos (
+        plano VARCHAR PRIMARY KEY,
+        preco_centavos INTEGER NOT NULL,
+        promocao_ativa BOOLEAN NOT NULL DEFAULT false,
+        preco_promocional_centavos INTEGER,
+        promocao_fim_em TIMESTAMP,
+        atualizado_em TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query(`
+      INSERT INTO precos_landing_planos (plano, preco_centavos)
+      VALUES ('start', 18700), ('pro', 49000)
+      ON CONFLICT (plano) DO NOTHING
+    `);
+
     // Seed: ensure the platform admin from env vars exists and has the correct password
     const adminEmail = process.env.ADMIN_EMAIL;
     const adminSenha = process.env.ADMIN_SENHA;

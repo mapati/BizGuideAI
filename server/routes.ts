@@ -1252,6 +1252,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Preços dos planos exibidos na landing (Task #164) ──
+  // Resolve se a promoção está ativa considerando flag e prazo (servidor decide)
+  function resolvePromoAtiva(p: { promocaoAtiva: boolean; promocaoFimEm: Date | null; precoPromocionalCentavos: number | null }): boolean {
+    if (!p.promocaoAtiva) return false;
+    if (p.precoPromocionalCentavos == null) return false;
+    if (p.promocaoFimEm && p.promocaoFimEm.getTime() < Date.now()) return false;
+    return true;
+  }
+
+  function serializePrecoLanding(p: any) {
+    const promoAtiva = resolvePromoAtiva(p);
+    return {
+      plano: p.plano,
+      precoCentavos: p.precoCentavos,
+      promocaoAtiva: p.promocaoAtiva,
+      precoPromocionalCentavos: p.precoPromocionalCentavos,
+      promocaoFimEm: p.promocaoFimEm ? new Date(p.promocaoFimEm).toISOString() : null,
+      promocaoVigente: promoAtiva,
+      atualizadoEm: p.atualizadoEm ? new Date(p.atualizadoEm).toISOString() : null,
+    };
+  }
+
+  // Público: usado pela landing
+  app.get("/api/precos-landing", async (_req, res) => {
+    try {
+      const list = await storage.getPrecosLandingPlanos();
+      res.json(list.map(serializePrecoLanding));
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin: leitura completa (sem resolver vigência — admin vê o estado bruto também)
+  app.get("/api/admin/precos-landing", async (_req, res) => {
+    try {
+      const list = await storage.getPrecosLandingPlanos();
+      res.json(list.map(serializePrecoLanding));
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Admin: editar preço de um plano específico
+  app.put("/api/admin/precos-landing/:plano", async (req, res) => {
+    try {
+      const planoParam = req.params.plano;
+      if (planoParam !== "start" && planoParam !== "pro") {
+        return res.status(400).json({ error: "Plano inválido. Use 'start' ou 'pro'." });
+      }
+      const schema = z.object({
+        precoCentavos: z.number().int().positive("O preço base deve ser maior que zero."),
+        promocaoAtiva: z.boolean(),
+        precoPromocionalCentavos: z.number().int().positive().nullable().optional(),
+        promocaoFimEm: z.string().datetime().nullable().optional(),
+      }).superRefine((data, ctx) => {
+        if (data.promocaoAtiva) {
+          if (data.precoPromocionalCentavos == null) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["precoPromocionalCentavos"], message: "Informe o preço promocional." });
+          } else if (data.precoPromocionalCentavos >= data.precoCentavos) {
+            ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["precoPromocionalCentavos"], message: "O preço promocional deve ser menor que o preço base." });
+          }
+          if (data.promocaoFimEm) {
+            const fim = new Date(data.promocaoFimEm).getTime();
+            if (Number.isNaN(fim) || fim <= Date.now()) {
+              ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["promocaoFimEm"], message: "A data de término deve ser no futuro." });
+            }
+          }
+        }
+      });
+      const data = schema.parse(req.body);
+      const updated = await storage.upsertPrecoLandingPlano(planoParam, {
+        precoCentavos: data.precoCentavos,
+        promocaoAtiva: data.promocaoAtiva,
+        precoPromocionalCentavos: data.promocaoAtiva ? (data.precoPromocionalCentavos ?? null) : null,
+        promocaoFimEm: data.promocaoAtiva && data.promocaoFimEm ? new Date(data.promocaoFimEm) : null,
+      });
+      res.json(serializePrecoLanding(updated));
+    } catch (error: any) {
+      const msg = error?.errors?.[0]?.message ?? error.message ?? "Erro ao salvar preço.";
+      res.status(400).json({ error: msg });
+    }
+  });
+
   // ── GitHub Auto-Push config (admin only via /api/admin middleware) ──
   app.get("/api/admin/github-config", async (_req, res) => {
     try {

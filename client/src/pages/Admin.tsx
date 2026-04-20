@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -49,6 +50,7 @@ import {
   CircleCheck,
   CircleX,
   Minus,
+  Tag,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -94,6 +96,16 @@ interface AdminFatura {
 
 type FiltroUsuario = "todos" | "trial" | "expirado" | "ativo" | "suspenso";
 type FiltroPlano = "todos" | "start" | "pro" | "enterprise";
+
+interface PrecoLandingDTO {
+  plano: "start" | "pro";
+  precoCentavos: number;
+  promocaoAtiva: boolean;
+  precoPromocionalCentavos: number | null;
+  promocaoFimEm: string | null;
+  promocaoVigente: boolean;
+  atualizadoEm: string | null;
+}
 
 const PLANO_PRECOS: Record<string, number> = { start: 187, pro: 490 };
 const PLANO_LIMITE: Record<string, string> = { start: "1", pro: "∞", enterprise: "∞" };
@@ -798,6 +810,13 @@ function TabFaturas({
 }
 
 function TabResumo({ empresas, faturas }: { empresas: AdminEmpresa[]; faturas: AdminFatura[] }) {
+  const { data: precosLanding = [] } = useQuery<PrecoLandingDTO[]>({
+    queryKey: ["/api/precos-landing"],
+  });
+  const precoStart = precosLanding.find(p => p.plano === "start")?.precoCentavos;
+  const precoPro = precosLanding.find(p => p.plano === "pro")?.precoCentavos;
+  const valorStart = precoStart != null ? precoStart / 100 : 187;
+  const valorPro = precoPro != null ? precoPro / 100 : 490;
   const total = empresas.length;
   const emTrial = empresas.filter(e => e.planoStatus === "trial").length;
   const trialVencido = empresas.filter(e => e.planoStatus === "expirado").length;
@@ -814,7 +833,7 @@ function TabResumo({ empresas, faturas }: { empresas: AdminEmpresa[]; faturas: A
   const ativosStart = empresas.filter(e => e.planoStatus === "ativo" && e.planoTipo === "start").length;
   const ativosPro = empresas.filter(e => e.planoStatus === "ativo" && e.planoTipo === "pro").length;
   const ativosEnterprise = empresas.filter(e => e.planoStatus === "ativo" && e.planoTipo === "enterprise").length;
-  const mrrEstimado = ativosStart * 187 + ativosPro * 490;
+  const mrrEstimado = ativosStart * valorStart + ativosPro * valorPro;
 
   const formatBRL = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
@@ -861,8 +880,8 @@ function TabResumo({ empresas, faturas }: { empresas: AdminEmpresa[]; faturas: A
                   {ativosStart} empresa{ativosStart !== 1 ? "s" : ""}
                 </Badge>
               </div>
-              <p className="text-xl font-bold">{formatBRL(ativosStart * 187)}</p>
-              <p className="text-xs text-muted-foreground">{ativosStart} × R$ 187/mês</p>
+              <p className="text-xl font-bold">{formatBRL(ativosStart * valorStart)}</p>
+              <p className="text-xs text-muted-foreground">{ativosStart} × {formatBRL(valorStart)}/mês</p>
             </CardContent>
           </Card>
           <Card data-testid="card-mrr-pro">
@@ -873,8 +892,8 @@ function TabResumo({ empresas, faturas }: { empresas: AdminEmpresa[]; faturas: A
                   {ativosPro} empresa{ativosPro !== 1 ? "s" : ""}
                 </Badge>
               </div>
-              <p className="text-xl font-bold">{formatBRL(ativosPro * 490)}</p>
-              <p className="text-xs text-muted-foreground">{ativosPro} × R$ 490/mês</p>
+              <p className="text-xl font-bold">{formatBRL(ativosPro * valorPro)}</p>
+              <p className="text-xs text-muted-foreground">{ativosPro} × {formatBRL(valorPro)}/mês</p>
             </CardContent>
           </Card>
           <Card data-testid="card-mrr-enterprise">
@@ -905,8 +924,8 @@ function TabResumo({ empresas, faturas }: { empresas: AdminEmpresa[]; faturas: A
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Distribuição</p>
           {[
             { label: "Trial", count: emTrial, color: "bg-yellow-400 dark:bg-yellow-600", mrr: null },
-            { label: "Start", count: ativosStart, color: "bg-blue-500", mrr: ativosStart * 187 },
-            { label: "Pro", count: ativosPro, color: "bg-indigo-500", mrr: ativosPro * 490 },
+            { label: "Start", count: ativosStart, color: "bg-blue-500", mrr: ativosStart * valorStart },
+            { label: "Pro", count: ativosPro, color: "bg-indigo-500", mrr: ativosPro * valorPro },
             { label: "Enterprise", count: ativosEnterprise, color: "bg-purple-500", mrr: null },
             { label: "Expirado", count: trialVencido, color: "bg-red-400", mrr: null },
             { label: "Suspenso", count: suspensos, color: "bg-muted-foreground/30", mrr: null },
@@ -1452,6 +1471,174 @@ function TabDadosFiscais() {
   );
 }
 
+function PlanoPrecoForm({ preco, planoLabel }: { preco: PrecoLandingDTO; planoLabel: string }) {
+  const { toast } = useToast();
+  const [precoBase, setPrecoBase] = useState<string>(((preco.precoCentavos ?? 0) / 100).toFixed(2));
+  const [promoAtiva, setPromoAtiva] = useState<boolean>(preco.promocaoAtiva);
+  const [precoPromo, setPrecoPromo] = useState<string>(
+    preco.precoPromocionalCentavos != null ? (preco.precoPromocionalCentavos / 100).toFixed(2) : ""
+  );
+  const [fimEm, setFimEm] = useState<string>(
+    preco.promocaoFimEm ? new Date(preco.promocaoFimEm).toISOString().slice(0, 16) : ""
+  );
+
+  useEffect(() => {
+    setPrecoBase(((preco.precoCentavos ?? 0) / 100).toFixed(2));
+    setPromoAtiva(preco.promocaoAtiva);
+    setPrecoPromo(preco.precoPromocionalCentavos != null ? (preco.precoPromocionalCentavos / 100).toFixed(2) : "");
+    setFimEm(preco.promocaoFimEm ? new Date(preco.promocaoFimEm).toISOString().slice(0, 16) : "");
+  }, [preco]);
+
+  const parseReal = (v: string): number | null => {
+    const normalized = v.replace(",", ".").trim();
+    if (!normalized) return null;
+    const n = Number(normalized);
+    if (!Number.isFinite(n)) return null;
+    return Math.round(n * 100);
+  };
+
+  const salvar = useMutation({
+    mutationFn: async () => {
+      const baseCentavos = parseReal(precoBase);
+      if (baseCentavos == null || baseCentavos <= 0) throw new Error("Informe um preço base maior que zero.");
+      let promoCentavos: number | null = null;
+      let fimIso: string | null = null;
+      if (promoAtiva) {
+        promoCentavos = parseReal(precoPromo);
+        if (promoCentavos == null || promoCentavos <= 0) throw new Error("Informe um preço promocional válido.");
+        if (promoCentavos >= baseCentavos) throw new Error("O preço promocional deve ser menor que o preço base.");
+        if (fimEm) {
+          const d = new Date(fimEm);
+          if (Number.isNaN(d.getTime())) throw new Error("Data de término inválida.");
+          if (d.getTime() <= Date.now()) throw new Error("A data de término deve ser no futuro.");
+          fimIso = d.toISOString();
+        }
+      }
+      return apiRequest("PUT", `/api/admin/precos-landing/${preco.plano}`, {
+        precoCentavos: baseCentavos,
+        promocaoAtiva: promoAtiva,
+        precoPromocionalCentavos: promoCentavos,
+        promocaoFimEm: fimIso,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/precos-landing"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/precos-landing"] });
+      toast({ title: "Preço atualizado", description: `As alterações do plano ${planoLabel} foram salvas.` });
+    },
+    onError: (err: Error) =>
+      toast({ title: "Erro ao salvar", description: err.message, variant: "destructive" }),
+  });
+
+  return (
+    <Card data-testid={`card-precos-${preco.plano}`}>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center justify-between gap-2">
+          <span>Plano {planoLabel}</span>
+          {preco.promocaoVigente && (
+            <Badge variant="default" data-testid={`badge-promo-vigente-${preco.plano}`}>Promoção ativa</Badge>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div>
+          <Label htmlFor={`preco-base-${preco.plano}`}>Preço base mensal (R$)</Label>
+          <Input
+            id={`preco-base-${preco.plano}`}
+            type="number"
+            min="0"
+            step="0.01"
+            value={precoBase}
+            onChange={(e) => setPrecoBase(e.target.value)}
+            data-testid={`input-preco-base-${preco.plano}`}
+          />
+        </div>
+
+        <div className="flex items-center justify-between gap-3 pt-2 border-t">
+          <div>
+            <Label htmlFor={`promo-ativa-${preco.plano}`} className="text-sm">Promoção ativa</Label>
+            <p className="text-xs text-muted-foreground">Mostra preço base riscado e o promocional em destaque na landing.</p>
+          </div>
+          <Switch
+            id={`promo-ativa-${preco.plano}`}
+            checked={promoAtiva}
+            onCheckedChange={setPromoAtiva}
+            data-testid={`switch-promo-${preco.plano}`}
+          />
+        </div>
+
+        {promoAtiva && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor={`preco-promo-${preco.plano}`}>Preço promocional (R$)</Label>
+              <Input
+                id={`preco-promo-${preco.plano}`}
+                type="number"
+                min="0"
+                step="0.01"
+                value={precoPromo}
+                onChange={(e) => setPrecoPromo(e.target.value)}
+                data-testid={`input-preco-promo-${preco.plano}`}
+              />
+            </div>
+            <div>
+              <Label htmlFor={`promo-fim-${preco.plano}`}>Termina em (opcional)</Label>
+              <Input
+                id={`promo-fim-${preco.plano}`}
+                type="datetime-local"
+                value={fimEm}
+                onChange={(e) => setFimEm(e.target.value)}
+                data-testid={`input-promo-fim-${preco.plano}`}
+              />
+              <p className="text-xs text-muted-foreground mt-1">Em branco = por tempo indeterminado.</p>
+            </div>
+          </div>
+        )}
+
+        <div className="flex justify-end pt-2">
+          <Button
+            onClick={() => salvar.mutate()}
+            disabled={salvar.isPending}
+            data-testid={`button-salvar-preco-${preco.plano}`}
+          >
+            <Save className="h-4 w-4 mr-2" />
+            {salvar.isPending ? "Salvando..." : "Salvar alterações"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TabPrecosLanding() {
+  const { data: precos = [], isLoading } = useQuery<PrecoLandingDTO[]>({
+    queryKey: ["/api/admin/precos-landing"],
+  });
+
+  if (isLoading) {
+    return <div className="text-sm text-muted-foreground py-8 text-center">Carregando preços...</div>;
+  }
+
+  const start = precos.find(p => p.plano === "start");
+  const pro = precos.find(p => p.plano === "pro");
+
+  return (
+    <div className="space-y-6 max-w-3xl">
+      <div className="flex items-start gap-3 p-4 rounded-md border bg-muted/40">
+        <Tag className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+        <div>
+          <p className="text-sm font-medium">Preços exibidos na landing pública</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Edite o preço base de cada plano e ative promoções por tempo limitado. As alterações entram em efeito imediatamente na página inicial. O cálculo de MRR usa apenas o preço base.
+          </p>
+        </div>
+      </div>
+      {start && <PlanoPrecoForm preco={start} planoLabel="Start" />}
+      {pro && <PlanoPrecoForm preco={pro} planoLabel="Pro" />}
+    </div>
+  );
+}
+
 interface GithubConfig {
   enabled: boolean;
   frequencia: "1h" | "6h" | "diario";
@@ -1708,6 +1895,10 @@ export default function Admin() {
             <FileText className="h-4 w-4 mr-2" />
             Faturas
           </TabsTrigger>
+          <TabsTrigger value="precos-landing" data-testid="tab-precos-landing">
+            <Tag className="h-4 w-4 mr-2" />
+            Preços dos planos
+          </TabsTrigger>
           <TabsTrigger value="config-ia" data-testid="tab-config-ia">
             <Brain className="h-4 w-4 mr-2" />
             Modelos IA
@@ -1732,6 +1923,10 @@ export default function Admin() {
 
         <TabsContent value="faturas" className="mt-4">
           <TabFaturas faturas={faturas} isLoading={loadingFaturas} empresas={empresas} />
+        </TabsContent>
+
+        <TabsContent value="precos-landing" className="mt-4">
+          <TabPrecosLanding />
         </TabsContent>
 
         <TabsContent value="config-ia" className="mt-4">

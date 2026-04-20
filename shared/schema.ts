@@ -539,6 +539,19 @@ export const googleSearchUsage = pgTable("google_search_usage", {
   count: integer("count").notNull().default(0),
 });
 
+// Task #164 — Preços dos planos exibidos na landing page (chave: 'start' | 'pro')
+export const precosLandingPlanos = pgTable("precos_landing_planos", {
+  plano: varchar("plano").primaryKey(),
+  precoCentavos: integer("preco_centavos").notNull(),
+  promocaoAtiva: boolean("promocao_ativa").notNull().default(false),
+  precoPromocionalCentavos: integer("preco_promocional_centavos"),
+  promocaoFimEm: timestamp("promocao_fim_em"),
+  atualizadoEm: timestamp("atualizado_em").defaultNow().notNull(),
+});
+export const insertPrecoLandingPlanoSchema = createInsertSchema(precosLandingPlanos).omit({ atualizadoEm: true });
+export type InsertPrecoLandingPlano = z.infer<typeof insertPrecoLandingPlanoSchema>;
+export type PrecoLandingPlano = typeof precosLandingPlanos.$inferSelect;
+
 // Dados fiscais da empresa responsável pelo sistema (singleton, sempre id=1)
 export const configSistema = pgTable("config_sistema", {
   id: integer("id").primaryKey().default(1),

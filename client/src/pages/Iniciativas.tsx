@@ -578,7 +578,6 @@ export default function Iniciativas() {
                         onValueChange={(v) => {
                           if (v === "__none__") {
                             field.onChange(null);
-                            form.setValue("responsavel", "");
                           } else {
                             field.onChange(v);
                             const m = membros.find(x => x.id === v);

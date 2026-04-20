@@ -201,27 +201,28 @@ export default function MeuPainel() {
               </p>
             )}
             {objetivos.map((o) => (
-              <Link key={o.id} href="/okrs">
-                <div className="flex items-center justify-between gap-3 p-3 rounded-md hover-elevate cursor-pointer" data-testid={`row-objetivo-${o.id}`}>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{o.titulo}</p>
-                    <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
-                      <Badge variant="outline" className="text-xs">{o.perspectiva}</Badge>
-                      {o.prazo && (
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" /> {o.prazo}
-                        </span>
-                      )}
-                      {o.encerrado && <Badge variant="secondary" className="text-xs">Encerrado</Badge>}
-                    </div>
+              <div key={o.id} className="flex items-center justify-between gap-3 p-3 rounded-md hover-elevate" data-testid={`row-objetivo-${o.id}`}>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{o.titulo}</p>
+                  <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
+                    <Badge variant="outline" className="text-xs">{o.perspectiva}</Badge>
+                    {o.prazo && (
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" /> {o.prazo}
+                      </span>
+                    )}
+                    {o.encerrado && <Badge variant="secondary" className="text-xs">Encerrado</Badge>}
                   </div>
-                  {o.atrasado && (
-                    <Badge className="bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-400" data-testid={`badge-atrasado-${o.id}`}>
-                      Atrasado
-                    </Badge>
-                  )}
                 </div>
-              </Link>
+                {o.atrasado && (
+                  <Badge className="bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-400" data-testid={`badge-atrasado-${o.id}`}>
+                    Atrasado
+                  </Badge>
+                )}
+                <Link href="/okrs">
+                  <Button size="sm" variant="outline" data-testid={`button-abrir-objetivo-${o.id}`}>Abrir</Button>
+                </Link>
+              </div>
             ))}
           </CardContent>
         </Card>
@@ -245,35 +246,36 @@ export default function MeuPainel() {
             {krs.map((k) => {
               const progresso = calcularProgressoKR(k);
               return (
-                <Link key={k.id} href="/okrs">
-                  <div className="p-3 rounded-md hover-elevate cursor-pointer space-y-2" data-testid={`row-kr-${k.id}`}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium">{k.metrica}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                          Objetivo: {k.objetivoTitulo}
-                        </p>
-                      </div>
-                      {k.atrasado && (
-                        <Badge className="bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-400">Atrasado</Badge>
-                      )}
+                <div key={k.id} className="p-3 rounded-md hover-elevate space-y-2" data-testid={`row-kr-${k.id}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium">{k.metrica}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                        Objetivo: {k.objetivoTitulo}
+                      </p>
                     </div>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <span>Inicial: <span className="text-foreground">{k.valorInicial}</span></span>
-                      <span>→ Atual: <span className="text-foreground font-medium">{k.valorAtual}</span></span>
-                      <span>→ Alvo: <span className="text-foreground">{k.valorAlvo}</span></span>
-                      {k.prazo && (
-                        <span className="flex items-center gap-1 ml-auto">
-                          <Clock className="h-3 w-3" /> {k.prazo}
-                        </span>
-                      )}
-                    </div>
-                    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                      <div className="h-full bg-primary" style={{ width: `${progresso}%` }} />
-                    </div>
-                    <p className="text-xs text-muted-foreground text-right">{progresso}% concluído</p>
+                    {k.atrasado && (
+                      <Badge className="bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-400">Atrasado</Badge>
+                    )}
+                    <Link href="/okrs">
+                      <Button size="sm" variant="outline" data-testid={`button-abrir-kr-${k.id}`}>Abrir</Button>
+                    </Link>
                   </div>
-                </Link>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    <span>Inicial: <span className="text-foreground">{k.valorInicial}</span></span>
+                    <span>→ Atual: <span className="text-foreground font-medium">{k.valorAtual}</span></span>
+                    <span>→ Alvo: <span className="text-foreground">{k.valorAlvo}</span></span>
+                    {k.prazo && (
+                      <span className="flex items-center gap-1 ml-auto">
+                        <Clock className="h-3 w-3" /> {k.prazo}
+                      </span>
+                    )}
+                  </div>
+                  <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                    <div className="h-full bg-primary" style={{ width: `${progresso}%` }} />
+                  </div>
+                  <p className="text-xs text-muted-foreground text-right">{progresso}% concluído</p>
+                </div>
               );
             })}
           </CardContent>
@@ -305,25 +307,26 @@ export default function MeuPainel() {
               </p>
             )}
             {iniciativas.map((i) => (
-              <Link key={i.id} href="/iniciativas">
-                <div className="flex items-center justify-between gap-3 p-3 rounded-md hover-elevate cursor-pointer" data-testid={`row-iniciativa-${i.id}`}>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{i.titulo}</p>
-                    <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
-                      <Badge variant="outline" className="text-xs">{i.status}</Badge>
-                      <Badge variant="outline" className="text-xs">Prioridade {i.prioridade}</Badge>
-                      {i.prazo && (
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" /> {i.prazo}
-                        </span>
-                      )}
-                    </div>
+              <div key={i.id} className="flex items-center justify-between gap-3 p-3 rounded-md hover-elevate" data-testid={`row-iniciativa-${i.id}`}>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{i.titulo}</p>
+                  <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
+                    <Badge variant="outline" className="text-xs">{i.status}</Badge>
+                    <Badge variant="outline" className="text-xs">Prioridade {i.prioridade}</Badge>
+                    {i.prazo && (
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" /> {i.prazo}
+                      </span>
+                    )}
                   </div>
-                  {i.atrasado && (
-                    <Badge className="bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-400">Atrasado</Badge>
-                  )}
                 </div>
-              </Link>
+                {i.atrasado && (
+                  <Badge className="bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-400">Atrasado</Badge>
+                )}
+                <Link href="/iniciativas">
+                  <Button size="sm" variant="outline" data-testid={`button-abrir-iniciativa-${i.id}`}>Abrir</Button>
+                </Link>
+              </div>
             ))}
           </CardContent>
         </Card>
@@ -354,19 +357,20 @@ export default function MeuPainel() {
               </p>
             )}
             {indicadores.map((k) => (
-              <Link key={k.id} href="/indicadores">
-                <div className="flex items-center justify-between gap-3 p-3 rounded-md hover-elevate cursor-pointer" data-testid={`row-indicador-${k.id}`}>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{k.nome}</p>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
-                      <Badge variant="outline" className="text-xs">{k.perspectiva}</Badge>
-                      <span>Atual: <span className="text-foreground font-medium">{k.atual}</span></span>
-                      <span>Meta: <span className="text-foreground">{k.meta}</span></span>
-                    </div>
+              <div key={k.id} className="flex items-center justify-between gap-3 p-3 rounded-md hover-elevate" data-testid={`row-indicador-${k.id}`}>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium truncate">{k.nome}</p>
+                  <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+                    <Badge variant="outline" className="text-xs">{k.perspectiva}</Badge>
+                    <span>Atual: <span className="text-foreground font-medium">{k.atual}</span></span>
+                    <span>Meta: <span className="text-foreground">{k.meta}</span></span>
                   </div>
-                  <StatusIndicador status={k.status} />
                 </div>
-              </Link>
+                <StatusIndicador status={k.status} />
+                <Link href="/indicadores">
+                  <Button size="sm" variant="outline" data-testid={`button-abrir-indicador-${k.id}`}>Abrir</Button>
+                </Link>
+              </div>
             ))}
           </CardContent>
         </Card>

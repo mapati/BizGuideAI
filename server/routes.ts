@@ -1430,15 +1430,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
             atrasado: isAtrasado(i.prazo, i.status === "concluido" || i.status === "concluida" || i.status === "concluído"),
           }))
         ),
-        indicadores: indicadoresMeus.map(k => ({
-          id: k.id,
-          nome: k.nome,
-          perspectiva: k.perspectiva,
-          meta: k.meta,
-          atual: k.atual,
-          status: k.status,
-          atrasado: false,
-        })),
+        indicadores: indicadoresMeus
+          .map(k => ({
+            id: k.id,
+            nome: k.nome,
+            perspectiva: k.perspectiva,
+            meta: k.meta,
+            atual: k.atual,
+            status: k.status,
+            atrasado: false,
+          }))
+          .sort((a, b) => {
+            const ordem: Record<string, number> = { vermelho: 0, amarelo: 1, verde: 2 };
+            const va = ordem[a.status] ?? 3;
+            const vb = ordem[b.status] ?? 3;
+            return va - vb;
+          }),
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });

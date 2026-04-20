@@ -36,7 +36,6 @@ const apostasItems = [
 
 const marchaItems = [
   { title: "Metas e Resultados", url: "/okrs", icon: Target, jornadaId: "okrs" },
-  { title: "Performance das Metas", url: "/bsc", icon: ListChecks, jornadaId: null },
   { title: "Indicadores", url: "/indicadores", icon: BarChart3, jornadaId: "indicadores" },
   { title: "Acompanhamento", url: "/ritos", icon: CheckCircle, jornadaId: "acompanhamento" },
 ];
@@ -399,6 +398,7 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {[
+                { title: "Performance das Metas", url: "/bsc", icon: ListChecks, testId: "link-bsc" },
                 { title: "Cenários Estratégicos", url: "/cenarios", icon: CloudLightning, testId: "link-cenarios" },
                 { title: "Alertas por E-mail", url: "/alertas", icon: Bell, testId: "link-alertas" },
                 { title: "Rastreabilidade", url: "/rastreabilidade", icon: GitBranch, testId: "link-rastreabilidade" },

@@ -238,6 +238,42 @@ async function runStartupMigrations() {
     await client.query(`ALTER TABLE config_sistema ADD COLUMN IF NOT EXISTS github_auto_push_enabled BOOLEAN NOT NULL DEFAULT false`);
     await client.query(`ALTER TABLE config_sistema ADD COLUMN IF NOT EXISTS github_auto_push_frequencia TEXT NOT NULL DEFAULT 'diario'`);
 
+    // Task #158 — Meu Painel Pessoal: responsavel_id em iniciativas + indicadores (FK opcional para usuarios)
+    // Mantém colunas legadas (responsavel/owner em texto) intactas para histórico.
+    await client.query(`
+      ALTER TABLE iniciativas
+      ADD COLUMN IF NOT EXISTS responsavel_id VARCHAR REFERENCES usuarios(id) ON DELETE SET NULL
+    `);
+    await client.query(`
+      ALTER TABLE indicadores
+      ADD COLUMN IF NOT EXISTS responsavel_id VARCHAR REFERENCES usuarios(id) ON DELETE SET NULL
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_iniciativas_responsavel_id ON iniciativas(responsavel_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_indicadores_responsavel_id ON indicadores(responsavel_id)`);
+
+    // Backfill best-effort (idempotente): casa texto legado de responsável com nome exato de
+    // usuário da mesma empresa. Só preenche quando responsavel_id ainda é NULL.
+    await client.query(`
+      UPDATE iniciativas i
+      SET responsavel_id = u.id
+      FROM usuarios u
+      WHERE i.responsavel_id IS NULL
+        AND i.responsavel IS NOT NULL
+        AND TRIM(i.responsavel) <> ''
+        AND u.empresa_id = i.empresa_id
+        AND LOWER(TRIM(u.nome)) = LOWER(TRIM(i.responsavel))
+    `);
+    await client.query(`
+      UPDATE indicadores k
+      SET responsavel_id = u.id
+      FROM usuarios u
+      WHERE k.responsavel_id IS NULL
+        AND k.owner IS NOT NULL
+        AND TRIM(k.owner) <> ''
+        AND u.empresa_id = k.empresa_id
+        AND LOWER(TRIM(u.nome)) = LOWER(TRIM(k.owner))
+    `);
+
     // Seed: ensure the platform admin from env vars exists and has the correct password
     const adminEmail = process.env.ADMIN_EMAIL;
     const adminSenha = process.env.ADMIN_SENHA;

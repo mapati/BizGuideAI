@@ -14,6 +14,9 @@ import { PrerequisiteWarning } from "@/components/PrerequisiteWarning";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Objetivo, ResultadoChave } from "@shared/schema";
+import { OrigemSelector } from "@/components/OrigemSelector";
+import { CascataBlock } from "@/components/CascataBlock";
+import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
 import {
   Dialog,
   DialogContent,
@@ -38,6 +41,7 @@ const perspectivas = [
 
 type Membro = { id: string; nome: string; email: string };
 type EstrategiaBasica = { id: string; tipo: string; titulo: string };
+type IniciativaBasica = { id: string; titulo: string };
 
 function calcularProgresso(inicial: string, atual: string, alvo: string): number {
   const ini = parseFloat(inicial);
@@ -53,12 +57,15 @@ interface ObjetivoCardProps {
   objetivo: Objetivo;
   membros: Membro[];
   estrategias: EstrategiaBasica[];
+  iniciativas: IniciativaBasica[];
+  resultadosChave: ResultadoChave[];
+  jornadaConcluida: boolean;
   onSelect: (obj: Objetivo) => void;
   onRetro: (obj: Objetivo) => void;
   onDelete: (id: string) => void;
 }
 
-function ObjetivoCard({ objetivo, membros, estrategias, onSelect, onRetro, onDelete }: ObjetivoCardProps) {
+function ObjetivoCard({ objetivo, membros, estrategias, iniciativas, resultadosChave, jornadaConcluida, onSelect, onRetro, onDelete }: ObjetivoCardProps) {
   return (
     <Card
       className="p-4 hover-elevate cursor-pointer"
@@ -92,6 +99,28 @@ function ObjetivoCard({ objetivo, membros, estrategias, onSelect, onRetro, onDel
               ) : null;
             })()}
           </div>
+          {(() => {
+            const ini = iniciativas.find(i => i.id === objetivo.iniciativaId);
+            const est = estrategias.find(e => e.id === objetivo.estrategiaId);
+            const upstream = ini
+              ? { id: ini.id, titulo: ini.titulo, href: "/iniciativas", rotulo: "Iniciativa" }
+              : est
+              ? { id: est.id, titulo: est.titulo, href: "/estrategias", rotulo: "Estratégia" }
+              : null;
+            const orfao = jornadaConcluida && !objetivo.iniciativaId && !objetivo.estrategiaId;
+            const krs = resultadosChave.filter((kr) => kr.objetivoId === objetivo.id);
+            const downstream = krs.length > 0
+              ? [{ rotulo: "Resultados-chave", itens: krs.map((kr) => ({ id: kr.id, titulo: kr.metrica, rotulo: "KR" })) }]
+              : [];
+            return (
+              <CascataBlock
+                upstream={upstream}
+                downstream={downstream}
+                orfao={orfao}
+                orfaoMensagem="Este objetivo não está conectado a uma Iniciativa ou Estratégia."
+              />
+            );
+          })()}
         </div>
         <div className="flex gap-0.5" onClick={e => e.stopPropagation()}>
           <Button
@@ -223,7 +252,8 @@ export default function OKRs() {
     perspectiva: string;
     responsavelId: string;
     estrategiaId: string | null;
-  }>({ titulo: "", descricao: "", prazo: "", perspectiva: "Financeira", responsavelId: "", estrategiaId: null });
+    iniciativaId: string | null;
+  }>({ titulo: "", descricao: "", prazo: "", perspectiva: "Financeira", responsavelId: "", estrategiaId: null, iniciativaId: null });
   const [objetivoSelecionado, setObjetivoSelecionado] = useState<Objetivo | null>(null);
   const [dialogResultadosOpen, setDialogResultadosOpen] = useState(false);
   const [editandoResultado, setEditandoResultado] = useState<ResultadoChave | null>(null);
@@ -253,6 +283,14 @@ export default function OKRs() {
     queryKey: ["/api/estrategias", empresaId],
     enabled: !!empresaId,
   });
+
+  const { data: iniciativas = [] } = useQuery<IniciativaBasica[]>({
+    queryKey: ["/api/iniciativas", empresaId],
+    enabled: !!empresaId,
+  });
+
+  const { jornadaConcluida } = useJornadaProgresso();
+  const origemObrigatoria = !jornadaConcluida;
 
   const { data: objetivos = [], isLoading } = useQuery<Objetivo[]>({
     queryKey: ["/api/objetivos", empresaId],
@@ -444,12 +482,30 @@ export default function OKRs() {
       return;
     }
 
-    await criarObjetivoMutation.mutateAsync({
-      empresaId,
-      ...novoObjetivo,
-    });
+    if (origemObrigatoria && !novoObjetivo.iniciativaId && !novoObjetivo.estrategiaId) {
+      toast({
+        title: "Origem obrigatória",
+        description: "Durante a 1ª jornada, escolha uma Iniciativa (preferencial) ou Estratégia que origina este objetivo. Você pode criar uma na página de Iniciativas.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    setNovoObjetivo({ titulo: "", descricao: "", prazo: "", perspectiva: "Financeira", responsavelId: "", estrategiaId: null });
+    try {
+      await criarObjetivoMutation.mutateAsync({
+        empresaId,
+        ...novoObjetivo,
+      });
+    } catch (e) {
+      toast({
+        title: "Não foi possível criar o objetivo",
+        description: e instanceof Error ? e.message : String(e),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setNovoObjetivo({ titulo: "", descricao: "", prazo: "", perspectiva: "Financeira", responsavelId: "", estrategiaId: null, iniciativaId: null });
     setIsDialogOpen(false);
     toast({
       title: "Objetivo criado!",
@@ -652,26 +708,24 @@ export default function OKRs() {
                       </Select>
                     </div>
                   )}
+                  <OrigemSelector
+                    label="Iniciativa de origem"
+                    obrigatorio={origemObrigatoria && !novoObjetivo.estrategiaId}
+                    ajuda={origemObrigatoria ? "Durante a 1ª jornada, escolha uma Iniciativa (preferencial) ou Estratégia." : undefined}
+                    opcoes={iniciativas.map(i => ({ id: i.id, label: i.titulo }))}
+                    value={novoObjetivo.iniciativaId || ""}
+                    onChange={(v) => setNovoObjetivo({ ...novoObjetivo, iniciativaId: v || null })}
+                    testId="select-origem-iniciativa-objetivo"
+                  />
                   {estrategias.length > 0 && (
-                    <div>
-                      <Label>Estratégia Relacionada (opcional)</Label>
-                      <Select
-                        value={novoObjetivo.estrategiaId ?? "__none__"}
-                        onValueChange={(v) => setNovoObjetivo({ ...novoObjetivo, estrategiaId: v === "__none__" ? null : v })}
-                      >
-                        <SelectTrigger data-testid="select-estrategia-objetivo">
-                          <SelectValue placeholder="Vincular a uma estratégia" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">Nenhuma</SelectItem>
-                          {estrategias.map((e: EstrategiaBasica) => (
-                            <SelectItem key={e.id} value={e.id}>
-                              {e.tipo} — {e.titulo.length > 50 ? e.titulo.slice(0, 50) + "…" : e.titulo}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    <OrigemSelector
+                      label="Estratégia relacionada"
+                      obrigatorio={origemObrigatoria && !novoObjetivo.iniciativaId}
+                      opcoes={estrategias.map(e => ({ id: e.id, label: `[${e.tipo}] ${e.titulo}` }))}
+                      value={novoObjetivo.estrategiaId || ""}
+                      onChange={(v) => setNovoObjetivo({ ...novoObjetivo, estrategiaId: v || null })}
+                      testId="select-estrategia-objetivo"
+                    />
                   )}
                   <Button
                     onClick={handleCriarObjetivo}
@@ -793,6 +847,9 @@ export default function OKRs() {
                         objetivo={objetivo}
                         membros={membros}
                         estrategias={estrategias}
+                        iniciativas={iniciativas}
+                        resultadosChave={resultadosChave}
+                        jornadaConcluida={!!jornadaConcluida}
                         onSelect={(obj) => { setObjetivoSelecionado(obj); setDialogResultadosOpen(true); }}
                         onRetro={(obj) => { setRetroObjetivo(obj); setRetroDialogOpen(true); }}
                         onDelete={(id) => deletarObjetivoMutation.mutate(id)}

@@ -194,11 +194,13 @@ export interface IStorage {
   }>;
   
   getOportunidadesCrescimento(empresaId: string): Promise<OportunidadeCrescimento[]>;
+  getOportunidadeCrescimento(id: string): Promise<OportunidadeCrescimento | undefined>;
   createOportunidadeCrescimento(oportunidade: InsertOportunidadeCrescimento): Promise<OportunidadeCrescimento>;
   updateOportunidadeCrescimento(id: string, empresaId: string, oportunidade: Partial<InsertOportunidadeCrescimento>): Promise<OportunidadeCrescimento>;
   deleteOportunidadeCrescimento(id: string, empresaId: string): Promise<void>;
   
   getIniciativas(empresaId: string): Promise<Iniciativa[]>;
+  getIniciativa(id: string): Promise<Iniciativa | undefined>;
   createIniciativa(iniciativa: InsertIniciativa): Promise<Iniciativa>;
   updateIniciativa(id: string, empresaId: string, iniciativa: Partial<InsertIniciativa>): Promise<Iniciativa>;
   deleteIniciativa(id: string, empresaId: string): Promise<void>;
@@ -768,6 +770,11 @@ export class DbStorage implements IStorage {
     return db.select().from(oportunidadesCrescimento).where(eq(oportunidadesCrescimento.empresaId, empresaId));
   }
 
+  async getOportunidadeCrescimento(id: string): Promise<OportunidadeCrescimento | undefined> {
+    const r = await db.select().from(oportunidadesCrescimento).where(eq(oportunidadesCrescimento.id, id)).limit(1);
+    return r[0];
+  }
+
   async createOportunidadeCrescimento(oportunidade: InsertOportunidadeCrescimento): Promise<OportunidadeCrescimento> {
     const result = await db.insert(oportunidadesCrescimento).values(oportunidade).returning();
     return result[0];
@@ -790,6 +797,11 @@ export class DbStorage implements IStorage {
 
   async getIniciativas(empresaId: string): Promise<Iniciativa[]> {
     return db.select().from(iniciativas).where(eq(iniciativas.empresaId, empresaId));
+  }
+
+  async getIniciativa(id: string): Promise<Iniciativa | undefined> {
+    const r = await db.select().from(iniciativas).where(eq(iniciativas.id, id)).limit(1);
+    return r[0];
   }
 
   async createIniciativa(iniciativa: InsertIniciativa): Promise<Iniciativa> {

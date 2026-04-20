@@ -11,10 +11,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/EmptyState";
 import { ExampleCard } from "@/components/ExampleCard";
-import { TrendingUp, Plus, Sparkles, Trash2, Pencil, Target, Users, Package, Rocket } from "lucide-react";
+import { TrendingUp, Plus, Sparkles, Trash2, Pencil, Target, Users, Package, Rocket, Wand2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { PrerequisiteWarning } from "@/components/PrerequisiteWarning";
+import { OrigemSelector } from "@/components/OrigemSelector";
+import { CascataBlock } from "@/components/CascataBlock";
+import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
+import type { Estrategia, Iniciativa, OportunidadeCrescimento as OportunidadeCrescimentoType } from "@shared/schema";
 
 interface OportunidadeCrescimento {
   id: string;
@@ -24,6 +28,7 @@ interface OportunidadeCrescimento {
   descricao: string;
   potencial: "alto" | "médio" | "baixo";
   risco: "alto" | "médio" | "baixo";
+  estrategiaId?: string | null;
 }
 
 const PotencialBadge = ({ potencial }: { potencial: "alto" | "médio" | "baixo" }) => {
@@ -75,13 +80,17 @@ export default function OportunidadesCrescimento() {
     descricao: string;
     potencial: "alto" | "médio" | "baixo";
     risco: "alto" | "médio" | "baixo";
+    estrategiaId: string;
   }>({
     tipo: "",
     titulo: "",
     descricao: "",
     potencial: "médio",
     risco: "médio",
+    estrategiaId: "",
   });
+  const { jornadaConcluida } = useJornadaProgresso();
+  const origemObrigatoria = !jornadaConcluida;
 
   const tipos = [
     { 
@@ -119,13 +128,18 @@ export default function OportunidadesCrescimento() {
     enabled: !!empresa?.id,
   });
 
-  const { data: estrategias = [] } = useQuery<any[]>({
+  const { data: estrategias = [] } = useQuery<Estrategia[]>({
     queryKey: ["/api/estrategias", empresa?.id],
     enabled: !!empresa?.id,
   });
 
+  const { data: iniciativasAll = [] } = useQuery<Iniciativa[]>({
+    queryKey: ["/api/iniciativas", empresa?.id],
+    enabled: !!empresa?.id,
+  });
+
   const criarOportunidadeMutation = useMutation({
-    mutationFn: async (data: typeof formData) => {
+    mutationFn: async (data: Omit<typeof formData, "estrategiaId"> & { estrategiaId: string | null }) => {
       if (!empresa?.id) throw new Error("Empresa não encontrada");
       return await apiRequest("POST", "/api/oportunidades-crescimento", { ...data, empresaId: empresa.id });
     },
@@ -135,7 +149,7 @@ export default function OportunidadesCrescimento() {
         title: "Oportunidade adicionada!",
         description: "A oportunidade de crescimento foi salva com sucesso.",
       });
-      setFormData({ tipo: "", titulo: "", descricao: "", potencial: "médio", risco: "médio" });
+      setFormData({ tipo: "", titulo: "", descricao: "", potencial: "médio", risco: "médio", estrategiaId: "" });
       setIsDialogOpen(false);
     },
     onError: (error) => {
@@ -148,7 +162,7 @@ export default function OportunidadesCrescimento() {
   });
 
   const editarOportunidadeMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<typeof formData> }) => {
+    mutationFn: async ({ id, data }: { id: string; data: Partial<Omit<typeof formData, "estrategiaId">> & { estrategiaId?: string | null } }) => {
       return await apiRequest("PATCH", `/api/oportunidades-crescimento/${id}`, data);
     },
     onSuccess: () => {
@@ -157,7 +171,7 @@ export default function OportunidadesCrescimento() {
         title: "Oportunidade atualizada!",
         description: "A oportunidade foi atualizada com sucesso.",
       });
-      setFormData({ tipo: "", titulo: "", descricao: "", potencial: "médio", risco: "médio" });
+      setFormData({ tipo: "", titulo: "", descricao: "", potencial: "médio", risco: "médio", estrategiaId: "" });
       setEditandoId(null);
       setIsDialogOpen(false);
     },
@@ -192,11 +206,20 @@ export default function OportunidadesCrescimento() {
       });
       return;
     }
-    
+    if (origemObrigatoria && !formData.estrategiaId) {
+      toast({
+        title: "Origem obrigatória",
+        description: "Durante a primeira jornada, escolha a Estratégia de origem.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const payload = { ...formData, estrategiaId: formData.estrategiaId || null };
     if (editandoId) {
-      editarOportunidadeMutation.mutate({ id: editandoId, data: formData });
+      editarOportunidadeMutation.mutate({ id: editandoId, data: payload });
     } else {
-      criarOportunidadeMutation.mutate(formData);
+      criarOportunidadeMutation.mutate(payload);
     }
   };
 
@@ -208,6 +231,7 @@ export default function OportunidadesCrescimento() {
       descricao: oportunidade.descricao,
       potencial: oportunidade.potencial,
       risco: oportunidade.risco,
+      estrategiaId: oportunidade.estrategiaId || "",
     });
     setIsDialogOpen(true);
   };
@@ -216,7 +240,30 @@ export default function OportunidadesCrescimento() {
     setIsDialogOpen(open);
     if (!open) {
       setEditandoId(null);
-      setFormData({ tipo: "", titulo: "", descricao: "", potencial: "médio", risco: "médio" });
+      setFormData({ tipo: "", titulo: "", descricao: "", potencial: "médio", risco: "médio", estrategiaId: "" });
+    }
+  };
+
+  const handleGenerateFromEstrategia = async (estrategiaId: string) => {
+    if (!empresa) return;
+    setIsGenerating(true);
+    try {
+      const response = await apiRequest("POST", "/api/ai/gerar-oportunidades-crescimento", { empresaId: empresa.id, estrategiaId });
+      if (response.oportunidades && response.oportunidades.length > 0) {
+        let adicionadas = 0;
+        for (const op of response.oportunidades) {
+          try {
+            await apiRequest("POST", "/api/oportunidades-crescimento", { ...op, empresaId: empresa.id });
+            adicionadas++;
+          } catch (err) { console.error(err); }
+        }
+        queryClient.invalidateQueries({ queryKey: ["/api/oportunidades-crescimento", empresa.id] });
+        toast({ title: "Oportunidades geradas!", description: `${adicionadas} oportunidade(s) criadas a partir desta estratégia.` });
+      }
+    } catch (error: any) {
+      toast({ title: "Erro ao gerar", description: error.message, variant: "destructive" });
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -364,6 +411,17 @@ export default function OportunidadesCrescimento() {
                 )}
               </div>
 
+              <OrigemSelector
+                label="Estratégia de origem"
+                obrigatorio={origemObrigatoria}
+                ajuda={origemObrigatoria ? "Durante a 1ª jornada, toda Oportunidade precisa derivar de uma Estratégia." : undefined}
+                opcoes={estrategias.map((e) => ({ id: e.id, label: `[${e.tipo}] ${e.titulo}` }))}
+                value={formData.estrategiaId}
+                onChange={(v) => setFormData({ ...formData, estrategiaId: v })}
+                placeholder="Selecione a Estratégia que origina esta oportunidade"
+                testId="select-origem-estrategia"
+              />
+
               <div>
                 <Label htmlFor="titulo">Título da Oportunidade</Label>
                 <Input
@@ -508,9 +566,52 @@ export default function OportunidadesCrescimento() {
                       <p className="text-sm text-muted-foreground mb-3" data-testid={`text-descricao-${oportunidade.id}`}>
                         {oportunidade.descricao}
                       </p>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
                         <PotencialBadge potencial={oportunidade.potencial} />
                         <RiscoBadge risco={oportunidade.risco} />
+                      </div>
+                      {(() => {
+                        const est = estrategias.find((e) => e.id === oportunidade.estrategiaId);
+                        const derivadas = iniciativasAll.filter((i) => i.oportunidadeId === oportunidade.id);
+                        const orfao = !!jornadaConcluida && !oportunidade.estrategiaId;
+                        return (
+                          <CascataBlock
+                            upstream={est ? { id: est.id, titulo: est.titulo, href: "/estrategias", rotulo: "Estratégia" } : null}
+                            downstream={[{ rotulo: "Iniciativas derivadas", itens: derivadas.map((i) => ({ id: i.id, titulo: i.titulo, href: "/iniciativas", rotulo: "Iniciativa" })) }]}
+                            orfao={orfao}
+                            orfaoMensagem="Esta oportunidade não está conectada a uma Estratégia."
+                          />
+                        );
+                      })()}
+                      <div className="mt-3 flex justify-end">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={isGenerating}
+                          onClick={async () => {
+                            if (!empresa) return;
+                            setIsGenerating(true);
+                            try {
+                              const response = await apiRequest("POST", "/api/ai/gerar-iniciativas", { empresaId: empresa.id, oportunidadeId: oportunidade.id });
+                              if (response.iniciativas?.length > 0) {
+                                let count = 0;
+                                for (const ini of response.iniciativas) {
+                                  try { await apiRequest("POST", "/api/iniciativas", { ...ini, empresaId: empresa.id }); count++; } catch (e) { console.error(e); }
+                                }
+                                queryClient.invalidateQueries({ queryKey: ["/api/iniciativas", empresa.id] });
+                                toast({ title: "Iniciativas geradas!", description: `${count} iniciativa(s) criadas a partir desta oportunidade.` });
+                              }
+                            } catch (e) {
+                              toast({ title: "Erro ao gerar", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+                            } finally {
+                              setIsGenerating(false);
+                            }
+                          }}
+                          data-testid={`button-gerar-iniciativas-${oportunidade.id}`}
+                        >
+                          <Wand2 className="h-3.5 w-3.5 mr-1.5" />
+                          Gerar iniciativas
+                        </Button>
                       </div>
                     </Card>
                   ))}

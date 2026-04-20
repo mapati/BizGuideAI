@@ -1,6 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { isJornadaConcluida } from "./jornada-helper";
 import { sendVerificationEmail, sendPasswordResetEmail } from "./email";
 import { criarAssinatura, buscarAssinatura, cancelarAssinatura, buscarPagamento, motivoLegivel, validarAssinaturaWebhook, PLANOS_MP, type PlanoTipo, type MpSubscription, type MpPayment } from "./mp";
 import { randomBytes, createHash } from "crypto";
@@ -1957,6 +1958,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ error: "Estratégia inválida ou não pertence à empresa" });
         }
       }
+      if (data.iniciativaId) {
+        const ini = await storage.getIniciativa(data.iniciativaId);
+        if (!ini || ini.empresaId !== empresaId) {
+          return res.status(400).json({ error: "Iniciativa inválida ou não pertence à empresa" });
+        }
+      }
+      if (!data.estrategiaId && !data.iniciativaId) {
+        const concluida = await isJornadaConcluida(empresaId);
+        if (!concluida) {
+          return res.status(400).json({
+            error: "Durante a primeira jornada estratégica, todo Objetivo precisa estar ligado a uma Iniciativa ou Estratégia. Escolha a origem antes de cadastrar.",
+          });
+        }
+      }
       const objetivo = await storage.createObjetivo(data);
       res.json(objetivo);
     } catch (error: any) {
@@ -1973,6 +1988,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const est = await storage.getEstrategia(data.estrategiaId);
         if (!est || est.empresaId !== empresaId) {
           return res.status(400).json({ error: "Estratégia inválida ou não pertence à empresa" });
+        }
+      }
+      if (data.iniciativaId) {
+        const ini = await storage.getIniciativa(data.iniciativaId);
+        if (!ini || ini.empresaId !== empresaId) {
+          return res.status(400).json({ error: "Iniciativa inválida ou não pertence à empresa" });
         }
       }
       const objetivo = await storage.updateObjetivo(id, empresaId, data);
@@ -3946,7 +3967,21 @@ ${instrucaoAdicional}` : ""}`
 
   app.post("/api/oportunidades-crescimento", async (req, res) => {
     try {
-      const data = insertOportunidadeCrescimentoSchema.parse({ ...req.body, empresaId: req.session.empresaId });
+      const empresaId = req.session.empresaId!;
+      const data = insertOportunidadeCrescimentoSchema.parse({ ...req.body, empresaId });
+      if (data.estrategiaId) {
+        const est = await storage.getEstrategia(data.estrategiaId);
+        if (!est || est.empresaId !== empresaId) {
+          return res.status(400).json({ error: "Estratégia inválida ou não pertence à empresa" });
+        }
+      } else {
+        const concluida = await isJornadaConcluida(empresaId);
+        if (!concluida) {
+          return res.status(400).json({
+            error: "Durante a primeira jornada estratégica, toda Oportunidade precisa estar ligada a uma Estratégia. Crie ou escolha uma Estratégia antes de cadastrar a Oportunidade.",
+          });
+        }
+      }
       const oportunidade = await storage.createOportunidadeCrescimento(data);
       res.json(oportunidade);
     } catch (error: any) {
@@ -3956,9 +3991,16 @@ ${instrucaoAdicional}` : ""}`
 
   app.patch("/api/oportunidades-crescimento/:id", async (req, res) => {
     try {
+      const empresaId = req.session.empresaId!;
       const { id } = req.params;
       const data = stripTenantFields(insertOportunidadeCrescimentoSchema.partial().parse(req.body));
-      const oportunidade = await storage.updateOportunidadeCrescimento(id, req.session.empresaId!, data);
+      if (data.estrategiaId) {
+        const est = await storage.getEstrategia(data.estrategiaId);
+        if (!est || est.empresaId !== empresaId) {
+          return res.status(400).json({ error: "Estratégia inválida ou não pertence à empresa" });
+        }
+      }
+      const oportunidade = await storage.updateOportunidadeCrescimento(id, empresaId, data);
       res.json(oportunidade);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -3978,10 +4020,20 @@ ${instrucaoAdicional}` : ""}`
   app.post("/api/ai/gerar-oportunidades-crescimento", async (req, res) => {
     try {
       const empresaId = req.session.empresaId!;
+      const { estrategiaId: origemEstrategiaId } = req.body || {};
 
       const empresa = await storage.getEmpresa(empresaId);
       if (!empresa) {
         return res.status(404).json({ error: "Empresa não encontrada" });
+      }
+
+      let estrategiaOrigem = null as null | { id: string; tipo: string; titulo: string; descricao: string };
+      if (origemEstrategiaId) {
+        const e = await storage.getEstrategia(origemEstrategiaId);
+        if (!e || e.empresaId !== empresaId) {
+          return res.status(400).json({ error: "Estratégia de origem inválida" });
+        }
+        estrategiaOrigem = { id: e.id, tipo: e.tipo, titulo: e.titulo, descricao: e.descricao };
       }
 
       const contextoPerfil = buildEmpresaContextoIA(empresa);
@@ -4021,6 +4073,7 @@ ${forcas.length > 0 ? forcas.map((f, i) => `${i + 1}. ${f}`).join("\n") : "Nenhu
 
 ### OPORTUNIDADES DE MERCADO:
 ${oportunidades.length > 0 ? oportunidades.map((o, i) => `${i + 1}. ${o}`).join("\n") : "Nenhuma oportunidade identificada"}
+${estrategiaOrigem ? `\n## ESTRATÉGIA DE ORIGEM (CONTEXTO PRIMÁRIO — todas as oportunidades devem derivar diretamente desta estratégia):\nTipo: ${estrategiaOrigem.tipo}\nTítulo: ${estrategiaOrigem.titulo}\nDescrição: ${estrategiaOrigem.descricao}\n` : ""}
 
 ## OPORTUNIDADES JÁ EXISTENTES (NÃO REPITA NENHUMA DELAS):
 ${oportunidadesExistentes.length > 0 ? oportunidadesResume : "Nenhuma oportunidade criada ainda - esta é a primeira geração"}
@@ -4062,6 +4115,12 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
       });
 
       const sugestoes = JSON.parse(completion.choices[0].message.content || "{}");
+      if (estrategiaOrigem && Array.isArray(sugestoes.oportunidades)) {
+        sugestoes.oportunidades = sugestoes.oportunidades.map((o: any) => ({
+          ...o,
+          estrategiaId: estrategiaOrigem!.id,
+        }));
+      }
       res.json(sugestoes);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -4089,6 +4148,20 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
           return res.status(400).json({ error: "Estratégia inválida ou não pertence à empresa" });
         }
       }
+      if (data.oportunidadeId) {
+        const op = await storage.getOportunidadeCrescimento(data.oportunidadeId);
+        if (!op || op.empresaId !== empresaId) {
+          return res.status(400).json({ error: "Oportunidade inválida ou não pertence à empresa" });
+        }
+      }
+      if (!data.estrategiaId && !data.oportunidadeId) {
+        const concluida = await isJornadaConcluida(empresaId);
+        if (!concluida) {
+          return res.status(400).json({
+            error: "Durante a primeira jornada estratégica, toda Iniciativa precisa estar ligada a uma Estratégia ou Oportunidade. Escolha a origem antes de cadastrar.",
+          });
+        }
+      }
       const v = await validarResponsavelMesmaEmpresa(data.responsavelId ?? null, empresaId);
       if (!v.ok) return res.status(400).json({ error: v.error });
       const iniciativa = await storage.createIniciativa(data);
@@ -4107,6 +4180,12 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         const est = await storage.getEstrategia(data.estrategiaId);
         if (!est || est.empresaId !== empresaId) {
           return res.status(400).json({ error: "Estratégia inválida ou não pertence à empresa" });
+        }
+      }
+      if (data.oportunidadeId) {
+        const op = await storage.getOportunidadeCrescimento(data.oportunidadeId);
+        if (!op || op.empresaId !== empresaId) {
+          return res.status(400).json({ error: "Oportunidade inválida ou não pertence à empresa" });
         }
       }
       if (data.responsavelId !== undefined) {
@@ -4130,13 +4209,123 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
     }
   });
 
+  // ==================== CASCATA ESTRATÉGICA ====================
+
+  app.get("/api/cascata/:tipo/:id", async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const { tipo, id } = req.params;
+
+      const [oportunidades, iniciativas, objetivos] = await Promise.all([
+        storage.getOportunidadesCrescimento(empresaId),
+        storage.getIniciativas(empresaId),
+        storage.getObjetivos(empresaId),
+      ]);
+
+      const krsPorObjetivo = async (objetivoId: string) =>
+        storage.getResultadosChave(objetivoId, empresaId);
+
+      if (tipo === "estrategia") {
+        const op = oportunidades.filter(o => o.estrategiaId === id);
+        const iniDir = iniciativas.filter(i => i.estrategiaId === id);
+        const iniViaOp = iniciativas.filter(i => i.oportunidadeId && op.some(o => o.id === i.oportunidadeId));
+        const iniciativasAll = [...iniDir, ...iniViaOp.filter(i => !iniDir.some(d => d.id === i.id))];
+        const objDir = objetivos.filter(o => o.estrategiaId === id);
+        const objViaIni = objetivos.filter(o => o.iniciativaId && iniciativasAll.some(i => i.id === o.iniciativaId));
+        const objetivosAll = [...objDir, ...objViaIni.filter(o => !objDir.some(d => d.id === o.id))];
+        const krs = (await Promise.all(objetivosAll.map(o => krsPorObjetivo(o.id)))).flat();
+        return res.json({ oportunidades: op, iniciativas: iniciativasAll, objetivos: objetivosAll, resultadosChave: krs });
+      }
+
+      if (tipo === "oportunidade") {
+        const op = oportunidades.find(o => o.id === id);
+        const iniciativasAll = iniciativas.filter(i => i.oportunidadeId === id);
+        const objetivosAll = objetivos.filter(o => o.iniciativaId && iniciativasAll.some(i => i.id === o.iniciativaId));
+        const krs = (await Promise.all(objetivosAll.map(o => krsPorObjetivo(o.id)))).flat();
+        return res.json({ origem: op?.estrategiaId ? { tipo: "estrategia", id: op.estrategiaId } : null, iniciativas: iniciativasAll, objetivos: objetivosAll, resultadosChave: krs });
+      }
+
+      if (tipo === "iniciativa") {
+        const ini = iniciativas.find(i => i.id === id);
+        const objetivosAll = objetivos.filter(o => o.iniciativaId === id);
+        const krs = (await Promise.all(objetivosAll.map(o => krsPorObjetivo(o.id)))).flat();
+        const origem = ini?.oportunidadeId
+          ? { tipo: "oportunidade", id: ini.oportunidadeId }
+          : ini?.estrategiaId
+          ? { tipo: "estrategia", id: ini.estrategiaId }
+          : null;
+        return res.json({ origem, objetivos: objetivosAll, resultadosChave: krs });
+      }
+
+      if (tipo === "objetivo") {
+        const obj = objetivos.find(o => o.id === id);
+        const krs = obj ? await krsPorObjetivo(obj.id) : [];
+        const origem = obj?.iniciativaId
+          ? { tipo: "iniciativa", id: obj.iniciativaId }
+          : obj?.estrategiaId
+          ? { tipo: "estrategia", id: obj.estrategiaId }
+          : null;
+        return res.json({ origem, resultadosChave: krs });
+      }
+
+      res.status(400).json({ error: "Tipo de cascata inválido" });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/cascata/orfaos", async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const concluida = await isJornadaConcluida(empresaId);
+      if (!concluida) return res.json({ jornadaConcluida: false, oportunidades: [], iniciativas: [], objetivos: [] });
+      const [oportunidades, iniciativas, objetivos] = await Promise.all([
+        storage.getOportunidadesCrescimento(empresaId),
+        storage.getIniciativas(empresaId),
+        storage.getObjetivos(empresaId),
+      ]);
+      res.json({
+        jornadaConcluida: true,
+        oportunidades: oportunidades.filter(o => !o.estrategiaId),
+        iniciativas: iniciativas.filter(i => !i.estrategiaId && !i.oportunidadeId),
+        objetivos: objetivos.filter(o => !o.estrategiaId && !o.iniciativaId),
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/ai/gerar-iniciativas", async (req, res) => {
     try {
       const empresaId = req.session.empresaId!;
+      const { estrategiaId: origemEstrategiaId, oportunidadeId: origemOportunidadeId } = req.body || {};
 
       const empresa = await storage.getEmpresa(empresaId);
       if (!empresa) {
         return res.status(404).json({ error: "Empresa não encontrada" });
+      }
+
+      let origemContext: { tipo: "estrategia" | "oportunidade"; estrategiaId?: string; oportunidadeId?: string; texto: string } | null = null;
+      if (origemOportunidadeId) {
+        const op = await storage.getOportunidadeCrescimento(origemOportunidadeId);
+        if (!op || op.empresaId !== empresaId) {
+          return res.status(400).json({ error: "Oportunidade de origem inválida" });
+        }
+        origemContext = {
+          tipo: "oportunidade",
+          oportunidadeId: op.id,
+          texto: `Oportunidade [${op.tipo}] ${op.titulo}\n${op.descricao}`,
+        };
+      } else if (origemEstrategiaId) {
+        const e = await storage.getEstrategia(origemEstrategiaId);
+        if (!e || e.empresaId !== empresaId) {
+          return res.status(400).json({ error: "Estratégia de origem inválida" });
+        }
+        origemContext = {
+          tipo: "estrategia",
+          estrategiaId: e.id,
+          texto: `Estratégia [${e.tipo}] ${e.titulo}\n${e.descricao}`,
+        };
       }
 
       const contextoPerfil = buildEmpresaContextoIA(empresa);
@@ -4185,6 +4374,7 @@ ${estrategiasLista.length > 0 ? estrategiasResume : "Nenhuma estratégia definid
 ### OPORTUNIDADES DE CRESCIMENTO:
 ${oportunidades.length > 0 ? oportunidadesResume : "Nenhuma oportunidade identificada"}
 ${bmcIniciativasCtx ? `\n### MODELO DE NEGÓCIO (Business Model Canvas):\n${bmcIniciativasCtx}\n` : ""}
+${origemContext ? `\n## ORIGEM PRIMÁRIA (todas as iniciativas devem derivar diretamente desta ${origemContext.tipo}):\n${origemContext.texto}\n` : ""}
 ## INICIATIVAS JÁ EXISTENTES (NÃO REPITA NENHUMA DELAS):
 ${iniciativasExistentes.length > 0 ? iniciativasResume : "Nenhuma iniciativa criada ainda - esta é a primeira geração"}
 
@@ -4237,6 +4427,14 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
           seenTitles.add(titulo);
           return true;
         });
+
+        if (origemContext) {
+          sugestoes.iniciativas = sugestoes.iniciativas.map((i: any) => ({
+            ...i,
+            ...(origemContext!.estrategiaId ? { estrategiaId: origemContext!.estrategiaId } : {}),
+            ...(origemContext!.oportunidadeId ? { oportunidadeId: origemContext!.oportunidadeId } : {}),
+          }));
+        }
       }
       
       res.json(sugestoes);
@@ -4248,11 +4446,34 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
   app.post("/api/ai/gerar-objetivos", async (req, res) => {
     try {
       const empresaId = req.session.empresaId!;
-      const { perspectiva: perspectivaSolicitada } = req.body;
+      const { perspectiva: perspectivaSolicitada, iniciativaId: origemIniciativaId, estrategiaId: origemEstrategiaId } = req.body;
 
       const empresa = await storage.getEmpresa(empresaId);
       if (!empresa) {
         return res.status(404).json({ error: "Empresa não encontrada" });
+      }
+
+      let origemContextObj: { tipo: "iniciativa" | "estrategia"; iniciativaId?: string; estrategiaId?: string; texto: string } | null = null;
+      if (origemIniciativaId) {
+        const ini = await storage.getIniciativa(origemIniciativaId);
+        if (!ini || ini.empresaId !== empresaId) {
+          return res.status(400).json({ error: "Iniciativa de origem inválida" });
+        }
+        origemContextObj = {
+          tipo: "iniciativa",
+          iniciativaId: ini.id,
+          texto: `Iniciativa: ${ini.titulo}\n${ini.descricao}`,
+        };
+      } else if (origemEstrategiaId) {
+        const e = await storage.getEstrategia(origemEstrategiaId);
+        if (!e || e.empresaId !== empresaId) {
+          return res.status(400).json({ error: "Estratégia de origem inválida" });
+        }
+        origemContextObj = {
+          tipo: "estrategia",
+          estrategiaId: e.id,
+          texto: `Estratégia [${e.tipo}] ${e.titulo}\n${e.descricao}`,
+        };
       }
 
       const contextoPerfil = buildEmpresaContextoIA(empresa);
@@ -4323,6 +4544,7 @@ ${estrategiasLista.length > 0 ? `Estratégias:\n${estrategiasResume}` : ""}
 ${oportunidades.length > 0 ? `\nOportunidades de crescimento:\n${oportunidadesResume}` : ""}
 ${iniciativas.length > 0 ? `\nIniciativas prioritárias:\n${iniciativasResume}` : ""}
 ${bmcObjetivosCtx ? `\nModelo de Negócio (Business Model Canvas):\n${bmcObjetivosCtx}` : ""}
+${origemContextObj ? `\n## ORIGEM PRIMÁRIA (o objetivo deve derivar diretamente desta ${origemContextObj.tipo}):\n${origemContextObj.texto}\n` : ""}
 
 ## OBJETIVOS JÁ EXISTENTES NA PERSPECTIVA "${perspectiva}" (NÃO REPITA):
 ${objetivosDestaPerspectiva.length > 0 ? objetivosResume : "Nenhum ainda"}
@@ -4379,6 +4601,14 @@ Responda em JSON:
             return true;
           })
           .map((obj, idx) => ({ ...obj, perspectiva: obj.perspectiva || todasPerspectivas[idx] }));
+      }
+
+      if (origemContextObj) {
+        objetivosGerados = objetivosGerados.map(o => ({
+          ...o,
+          ...(origemContextObj!.iniciativaId ? { iniciativaId: origemContextObj!.iniciativaId } : {}),
+          ...(origemContextObj!.estrategiaId ? { estrategiaId: origemContextObj!.estrategiaId } : {}),
+        }));
       }
 
       res.json({ objetivos: objetivosGerados });

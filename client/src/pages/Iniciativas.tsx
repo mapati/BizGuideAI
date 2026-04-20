@@ -10,10 +10,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/EmptyState";
 import { ExampleCard } from "@/components/ExampleCard";
-import { Briefcase, Plus, Sparkles, Trash2, Pencil, Clock, User, TrendingUp, Link2 } from "lucide-react";
+import { Briefcase, Plus, Sparkles, Trash2, Pencil, Clock, User, TrendingUp, Link2, Wand2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { PrerequisiteWarning } from "@/components/PrerequisiteWarning";
+import { OrigemSelector } from "@/components/OrigemSelector";
+import { CascataBlock } from "@/components/CascataBlock";
+import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type Iniciativa, type InsertIniciativa } from "@shared/schema";
@@ -42,6 +45,7 @@ const formSchema = z.object({
   responsavelId: z.string().optional().nullable(),
   impacto: z.string(),
   estrategiaId: z.string().optional().nullable(),
+  oportunidadeId: z.string().optional().nullable(),
 });
 
 const statusLabels = {
@@ -85,11 +89,16 @@ const impactoVariants: Record<string, "default" | "secondary" | "outline"> = {
 interface IniciativaCardProps {
   iniciativa: Iniciativa;
   estrategias: Estrategia[];
+  oportunidades: Array<{ id: string; titulo: string }>;
+  objetivos: Array<{ id: string; titulo: string; iniciativaId?: string | null }>;
+  jornadaConcluida: boolean;
+  onGerarObjetivos: (iniciativaId: string) => void;
+  isGenerating: boolean;
   onEdit: (iniciativa: Iniciativa) => void;
   onDelete: (id: string) => void;
 }
 
-function IniciativaCard({ iniciativa, estrategias, onEdit, onDelete }: IniciativaCardProps) {
+function IniciativaCard({ iniciativa, estrategias, oportunidades, objetivos, jornadaConcluida, onGerarObjetivos, isGenerating, onEdit, onDelete }: IniciativaCardProps) {
   return (
     <Card className="hover-elevate" data-testid={`card-iniciativa-${iniciativa.id}`}>
       <CardHeader>
@@ -152,6 +161,37 @@ function IniciativaCard({ iniciativa, estrategias, onEdit, onDelete }: Iniciativ
               <span>{iniciativa.responsavel}</span>
             </div>
           </div>
+          {(() => {
+            const op = oportunidades.find(o => o.id === iniciativa.oportunidadeId);
+            const est = estrategias.find(e => e.id === iniciativa.estrategiaId);
+            const upstream = op
+              ? { id: op.id, titulo: op.titulo, href: "/oportunidades-crescimento", rotulo: "Oportunidade" }
+              : est
+              ? { id: est.id, titulo: est.titulo, href: "/estrategias", rotulo: "Estratégia" }
+              : null;
+            const derivados = objetivos.filter(o => o.iniciativaId === iniciativa.id);
+            const orfao = jornadaConcluida && !iniciativa.oportunidadeId && !iniciativa.estrategiaId;
+            return (
+              <CascataBlock
+                upstream={upstream}
+                downstream={[{ rotulo: "Objetivos derivados", itens: derivados.map(o => ({ id: o.id, titulo: o.titulo, href: "/okrs", rotulo: "Objetivo" })) }]}
+                orfao={orfao}
+                orfaoMensagem="Esta iniciativa não está conectada a uma Estratégia ou Oportunidade."
+              />
+            );
+          })()}
+          <div className="flex justify-end">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={isGenerating}
+              onClick={() => onGerarObjetivos(iniciativa.id)}
+              data-testid={`button-gerar-objetivos-${iniciativa.id}`}
+            >
+              <Wand2 className="h-3.5 w-3.5 mr-1.5" />
+              Gerar objetivos
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -178,9 +218,22 @@ export default function Iniciativas() {
     enabled: !!empresa?.id,
   });
 
+  const { data: oportunidades = [] } = useQuery<Array<{ id: string; titulo: string; tipo: string }>>({
+    queryKey: ["/api/oportunidades-crescimento", empresa?.id],
+    enabled: !!empresa?.id,
+  });
+
+  const { data: objetivos = [] } = useQuery<Array<{ id: string; titulo: string; iniciativaId?: string | null }>>({
+    queryKey: ["/api/objetivos", empresa?.id],
+    enabled: !!empresa?.id,
+  });
+
   const { data: membros = [] } = useQuery<Membro[]>({
     queryKey: ["/api/membros"],
   });
+
+  const { jornadaConcluida } = useJornadaProgresso();
+  const origemObrigatoria = !jornadaConcluida;
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -195,6 +248,7 @@ export default function Iniciativas() {
       responsavelId: null,
       impacto: "médio",
       estrategiaId: null,
+      oportunidadeId: null,
     },
   });
 
@@ -318,6 +372,14 @@ export default function Iniciativas() {
   };
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
+    if (origemObrigatoria && !values.estrategiaId && !values.oportunidadeId) {
+      toast({
+        title: "Origem obrigatória",
+        description: "Durante a primeira jornada, escolha a Estratégia ou Oportunidade de origem.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (editingIniciativa) {
       updateMutation.mutate({
         id: editingIniciativa.id,
@@ -344,8 +406,29 @@ export default function Iniciativas() {
       responsavelId: iniciativa.responsavelId ?? null,
       impacto: iniciativa.impacto,
       estrategiaId: iniciativa.estrategiaId ?? null,
+      oportunidadeId: iniciativa.oportunidadeId ?? null,
     });
     setOpenDialog(true);
+  };
+
+  const handleGerarObjetivosFromIniciativa = async (iniciativaId: string) => {
+    if (!empresa) return;
+    setIsGenerating(true);
+    try {
+      const response = await apiRequest("POST", "/api/ai/gerar-objetivos", { empresaId: empresa.id, iniciativaId });
+      if (response.objetivos?.length > 0) {
+        let count = 0;
+        for (const obj of response.objetivos) {
+          try { await apiRequest("POST", "/api/objetivos", { ...obj, empresaId: empresa.id }); count++; } catch (e) { console.error(e); }
+        }
+        queryClient.invalidateQueries({ queryKey: ["/api/objetivos", empresa.id] });
+        toast({ title: "Objetivos gerados!", description: `${count} objetivo(s) criados a partir desta iniciativa.` });
+      }
+    } catch (e: any) {
+      toast({ title: "Erro ao gerar", description: e.message, variant: "destructive" });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleDelete = (id: string) => {
@@ -609,34 +692,24 @@ export default function Iniciativas() {
                   )}
                 />
 
+                <OrigemSelector
+                  label="Oportunidade de origem"
+                  obrigatorio={origemObrigatoria && !form.watch("estrategiaId")}
+                  ajuda={origemObrigatoria ? "Durante a 1ª jornada, escolha uma Oportunidade (preferencial) ou Estratégia." : undefined}
+                  opcoes={oportunidades.map(o => ({ id: o.id, label: `[${o.tipo}] ${o.titulo}` }))}
+                  value={form.watch("oportunidadeId") || ""}
+                  onChange={(v) => form.setValue("oportunidadeId", v || null)}
+                  testId="select-origem-oportunidade"
+                />
+
                 {estrategias.length > 0 && (
-                  <FormField
-                    control={form.control}
-                    name="estrategiaId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Estratégia Relacionada (opcional)</FormLabel>
-                        <Select
-                          onValueChange={(v) => field.onChange(v === "__none__" ? null : v)}
-                          value={field.value ?? "__none__"}
-                        >
-                          <FormControl>
-                            <SelectTrigger data-testid="select-estrategia">
-                              <SelectValue placeholder="Vincular a uma estratégia" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="__none__">Nenhuma</SelectItem>
-                            {estrategias.map(e => (
-                              <SelectItem key={e.id} value={e.id}>
-                                {e.tipo} — {e.titulo.length > 50 ? e.titulo.slice(0, 50) + "…" : e.titulo}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                  <OrigemSelector
+                    label="Estratégia relacionada"
+                    obrigatorio={origemObrigatoria && !form.watch("oportunidadeId")}
+                    opcoes={estrategias.map(e => ({ id: e.id, label: `[${e.tipo}] ${e.titulo}` }))}
+                    value={form.watch("estrategiaId") || ""}
+                    onChange={(v) => form.setValue("estrategiaId", v || null)}
+                    testId="select-estrategia"
                   />
                 )}
 
@@ -715,6 +788,11 @@ export default function Iniciativas() {
                     key={iniciativa.id}
                     iniciativa={iniciativa}
                     estrategias={estrategias}
+                    oportunidades={oportunidades}
+                    objetivos={objetivos}
+                    jornadaConcluida={!!jornadaConcluida}
+                    onGerarObjetivos={handleGerarObjetivosFromIniciativa}
+                    isGenerating={isGenerating}
                     onEdit={handleEdit}
                     onDelete={handleDelete}
                   />

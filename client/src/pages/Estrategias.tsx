@@ -14,10 +14,11 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/EmptyState";
 import { ExampleCard } from "@/components/ExampleCard";
 import { StrategyPicker } from "@/components/StrategyPicker";
-import { Target, Plus, Sparkles, Trash2, Pencil, ArrowUpRight, Shield, TrendingUp, AlertCircle, Tag, CheckCircle2, Clock, Play, Briefcase, Target as TargetIcon, Link2, Settings2, ExternalLink } from "lucide-react";
+import { Target, Plus, Sparkles, Trash2, Pencil, ArrowUpRight, Shield, TrendingUp, AlertCircle, Tag, CheckCircle2, Clock, Play, Briefcase, Target as TargetIcon, Link2, Settings2, ExternalLink, Wand2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { PrerequisiteWarning } from "@/components/PrerequisiteWarning";
+import { CascataBlock } from "@/components/CascataBlock";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -283,15 +284,21 @@ function VinculadosSheet({
 function EstrategiaCard({
   item,
   swotItens,
+  oportunidades,
   onEdit,
   onDelete,
   onStatusChange,
+  onGerarOportunidades,
+  isGenerating,
 }: {
   item: Estrategia;
   swotItens: SwotItem[];
+  oportunidades: Array<{ id: string; titulo: string; estrategiaId?: string | null }>;
   onEdit: (e: Estrategia) => void;
   onDelete: (id: string) => void;
   onStatusChange: (id: string, status: string) => void;
+  onGerarOportunidades: (estrategiaId: string) => void;
+  isGenerating: boolean;
 }) {
   const [vinculadosOpen, setVinculadosOpen] = useState(false);
 
@@ -414,6 +421,24 @@ function EstrategiaCard({
             </Select>
           </div>
         </div>
+        <CascataBlock
+          downstream={[{
+            rotulo: "Oportunidades derivadas",
+            itens: oportunidades.filter(o => o.estrategiaId === item.id).map(o => ({ id: o.id, titulo: o.titulo, href: "/oportunidades-crescimento", rotulo: "Oportunidade" })),
+          }]}
+        />
+        <div className="mt-3 flex justify-end">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={isGenerating}
+            onClick={() => onGerarOportunidades(item.id)}
+            data-testid={`button-gerar-oportunidades-${item.id}`}
+          >
+            <Wand2 className="h-3.5 w-3.5 mr-1.5" />
+            Gerar oportunidades
+          </Button>
+        </div>
       </Card>
     </>
   );
@@ -464,6 +489,10 @@ export default function Estrategias() {
   };
 
   const { data: empresa } = useQuery<{ id: string; nome: string; setor: string; tamanho: string; descricao?: string | null }>({ queryKey: ["/api/empresa"] });
+
+  const { data: oportunidades = [] } = useQuery<Array<{ id: string; titulo: string; estrategiaId?: string | null }>>({
+    queryKey: ["/api/oportunidades-crescimento", undefined],
+  });
 
   const { data: estrategias = [], isLoading } = useQuery<Estrategia[]>({
     queryKey: ["/api/estrategias", empresa?.id],
@@ -537,6 +566,27 @@ export default function Estrategias() {
       editarEstrategiaMutation.mutate({ id: editandoId, data: formData });
     } else {
       criarEstrategiaMutation.mutate(formData);
+    }
+  };
+
+  const handleGerarOportunidades = async (estrategiaId: string) => {
+    if (!empresa) return;
+    setIsGenerating(true);
+    try {
+      const response = await apiRequest("POST", "/api/ai/gerar-oportunidades-crescimento", { empresaId: empresa.id, estrategiaId });
+      if (response.oportunidades?.length > 0) {
+        let count = 0;
+        for (const op of response.oportunidades) {
+          try { await apiRequest("POST", "/api/oportunidades-crescimento", { ...op, empresaId: empresa.id }); count++; } catch (e) { console.error(e); }
+        }
+        queryClient.invalidateQueries({ queryKey: ["/api/oportunidades-crescimento", undefined] });
+        toast({ title: "Oportunidades geradas!", description: `${count} oportunidade(s) criadas a partir desta estratégia.` });
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Erro desconhecido";
+      toast({ title: "Erro ao gerar", description: msg, variant: "destructive" });
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -1046,9 +1096,12 @@ export default function Estrategias() {
                       key={item.id}
                       item={item}
                       swotItens={swotItens}
+                      oportunidades={oportunidades}
                       onEdit={handleEditEstrategia}
                       onDelete={(id) => deletarEstrategiaMutation.mutate(id)}
                       onStatusChange={(id, status) => atualizarStatusMutation.mutate({ id, status })}
+                      onGerarOportunidades={handleGerarOportunidades}
+                      isGenerating={isGenerating}
                     />
                   ))
                 )}

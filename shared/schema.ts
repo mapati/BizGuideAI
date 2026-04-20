@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, decimal, boolean, serial } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, decimal, boolean, serial, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -157,6 +157,7 @@ export const objetivos = pgTable("objetivos", {
   perspectiva: text("perspectiva").notNull().default("Financeira"),
   responsavelId: varchar("responsavel_id").references(() => usuarios.id, { onDelete: "set null" }),
   estrategiaId: varchar("estrategia_id").references(() => estrategias.id, { onDelete: "set null" }),
+  iniciativaId: varchar("iniciativa_id").references((): AnyPgColumn => iniciativas.id, { onDelete: "set null" }),
   encerrado: boolean("encerrado").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -269,6 +270,7 @@ export const oportunidadesCrescimento = pgTable("oportunidades_crescimento", {
   descricao: text("descricao").notNull(),
   potencial: text("potencial").notNull(),
   risco: text("risco").notNull(),
+  estrategiaId: varchar("estrategia_id").references(() => estrategias.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -291,6 +293,7 @@ export const iniciativas = pgTable("iniciativas", {
   responsavelId: varchar("responsavel_id").references(() => usuarios.id, { onDelete: "set null" }),
   impacto: text("impacto").notNull(),
   estrategiaId: varchar("estrategia_id").references(() => estrategias.id, { onDelete: "set null" }),
+  oportunidadeId: varchar("oportunidade_id").references(() => oportunidadesCrescimento.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

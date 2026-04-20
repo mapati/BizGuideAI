@@ -4,7 +4,7 @@ import { Link } from "wouter";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Target, ListChecks, Briefcase, BarChart3, Clock, AlertTriangle, ArrowRight, UserCircle } from "lucide-react";
+import { Target, ListChecks, Briefcase, BarChart3, Clock, AlertTriangle, ArrowRight, UserCircle, Link2 } from "lucide-react";
 
 interface MeuPainelObjetivo {
   id: string;
@@ -78,6 +78,12 @@ export default function MeuPainel() {
     queryKey: ["/api/meu-painel"],
   });
 
+  const { data: orfaos } = useQuery<{ oportunidades: { id: string }[]; iniciativas: { id: string }[]; objetivos: { id: string }[] }>({
+    queryKey: ["/api/cascata/orfaos"],
+  });
+
+  const totalOrfaos = (orfaos?.oportunidades?.length ?? 0) + (orfaos?.iniciativas?.length ?? 0) + (orfaos?.objetivos?.length ?? 0);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -111,6 +117,25 @@ export default function MeuPainel() {
           </p>
         </div>
       </div>
+
+      {totalOrfaos > 0 && (
+        <Card className="border-amber-300 bg-amber-50/30 dark:bg-amber-950/10" data-testid="card-orfaos-warning">
+          <CardContent className="py-4 flex items-start gap-3">
+            <Link2 className="h-5 w-5 text-amber-700 dark:text-amber-400 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                {totalOrfaos} item(ns) sem conexão estratégica
+              </p>
+              <p className="text-xs text-amber-800 dark:text-amber-300 mt-1">
+                Você concluiu sua primeira jornada — agora pode ligar Oportunidades, Iniciativas e Objetivos sem origem à cascata estratégica para garantir alinhamento.
+                {orfaos?.oportunidades?.length ? ` ${orfaos.oportunidades.length} oportunidade(s),` : ""}
+                {orfaos?.iniciativas?.length ? ` ${orfaos.iniciativas.length} iniciativa(s),` : ""}
+                {orfaos?.objetivos?.length ? ` ${orfaos.objetivos.length} objetivo(s)` : ""}.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {total === 0 && (
         <Card data-testid="card-empty-state">

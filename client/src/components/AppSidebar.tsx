@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Home, Map, Target, TrendingUp, CheckCircle, FileText, Compass, Layers, Grid3x3, ListChecks, Briefcase, LogOut, BarChart3, ShieldCheck, Users, CheckCircle2, Circle, ArrowRight, ClipboardList, CloudLightning, ShieldAlert, Network, Share2, GitBranch, Bell, Zap } from "lucide-react";
+import { Home, Map, Target, TrendingUp, CheckCircle, FileText, Compass, Layers, Grid3x3, ListChecks, Briefcase, LogOut, BarChart3, ShieldCheck, Users, CheckCircle2, Circle, ArrowRight, ClipboardList, CloudLightning, ShieldAlert, Network, Share2, GitBranch, Bell, Zap, UserCircle } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -207,6 +207,19 @@ export function AppSidebar() {
                   <Link href="/">
                     <Home />
                     <span>Início</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={location === "/meu-painel"}
+                  data-testid="link-meu-painel"
+                  tooltip="Meu Painel"
+                >
+                  <Link href="/meu-painel">
+                    <UserCircle />
+                    <span>Meu Painel</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

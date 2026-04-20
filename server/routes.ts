@@ -355,6 +355,18 @@ function stripTenantFields<T extends Record<string, unknown>>(data: T): Omit<T, 
   return result as Omit<T, "empresaId" | "objetivoId">;
 }
 
+async function validarResponsavelMesmaEmpresa(
+  responsavelId: string | null | undefined,
+  empresaId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!responsavelId) return { ok: true };
+  const u = await storage.getUsuarioById(responsavelId);
+  if (!u || u.empresaId !== empresaId) {
+    return { ok: false, error: "Responsável inválido ou não pertence à empresa" };
+  }
+  return { ok: true };
+}
+
 function computeTrialInfo(empresa: { planoStatus: string; trialStartedAt: Date | null; createdAt: Date }) {
   const planoStatus = empresa.planoStatus;
   if (planoStatus === "ativo") {
@@ -1321,6 +1333,167 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  function parsePrazoDate(prazo: string | null | undefined): Date | null {
+    if (!prazo) return null;
+    const s = String(prazo).trim();
+    let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) {
+      const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      return isNaN(d.getTime()) ? null : d;
+    }
+    m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (m) {
+      const d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+      return isNaN(d.getTime()) ? null : d;
+    }
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  function isAtrasado(prazo: string | null | undefined, encerrado?: boolean | null): boolean {
+    if (encerrado) return false;
+    const d = parsePrazoDate(prazo);
+    if (!d) return false;
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    return d < hoje;
+  }
+
+  app.get("/api/meu-painel", requireAuth, async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const userId = req.session.userId!;
+
+      const [todasIniciativas, todosObjetivos, todosIndicadores] = await Promise.all([
+        storage.getIniciativas(empresaId),
+        storage.getObjetivos(empresaId),
+        storage.getIndicadores(empresaId),
+      ]);
+
+      const objetivosMeus = todosObjetivos.filter(o => o.responsavelId === userId);
+      const iniciativasMinhas = todasIniciativas.filter(i => i.responsavelId === userId);
+      const indicadoresMeus = todosIndicadores.filter(k => k.responsavelId === userId);
+
+      const krsMeus: Array<{ id: string; metrica: string; objetivoId: string; objetivoTitulo: string; prazo: string; valorInicial: string; valorAtual: string; valorAlvo: string; atrasado: boolean }> = [];
+      const krsPorObjetivo = await Promise.all(
+        todosObjetivos.map(obj => storage.getResultadosChave(obj.id, empresaId).then(krs => ({ obj, krs })))
+      );
+      for (const { obj, krs } of krsPorObjetivo) {
+        for (const kr of krs) {
+          if (kr.responsavelId === userId) {
+            krsMeus.push({
+              id: kr.id,
+              metrica: kr.metrica,
+              objetivoId: obj.id,
+              objetivoTitulo: obj.titulo,
+              prazo: kr.prazo,
+              valorInicial: kr.valorInicial,
+              valorAtual: kr.valorAtual,
+              valorAlvo: kr.valorAlvo,
+              atrasado: isAtrasado(kr.prazo),
+            });
+          }
+        }
+      }
+
+      const ordenarPorUrgencia = <T extends { atrasado: boolean; prazo?: string | null; encerrado?: boolean | null }>(arr: T[]) => {
+        return [...arr].sort((a, b) => {
+          if (a.atrasado !== b.atrasado) return a.atrasado ? -1 : 1;
+          const da = parsePrazoDate(a.prazo);
+          const db = parsePrazoDate(b.prazo);
+          if (!da && !db) return 0;
+          if (!da) return 1;
+          if (!db) return -1;
+          return da.getTime() - db.getTime();
+        });
+      };
+
+      res.json({
+        objetivos: ordenarPorUrgencia(
+          objetivosMeus.map(o => ({
+            id: o.id,
+            titulo: o.titulo,
+            prazo: o.prazo,
+            perspectiva: o.perspectiva,
+            encerrado: !!o.encerrado,
+            atrasado: isAtrasado(o.prazo, !!o.encerrado),
+          }))
+        ),
+        resultadosChave: ordenarPorUrgencia(krsMeus),
+        iniciativas: ordenarPorUrgencia(
+          iniciativasMinhas.map(i => ({
+            id: i.id,
+            titulo: i.titulo,
+            prazo: i.prazo,
+            status: i.status,
+            prioridade: i.prioridade,
+            atrasado: isAtrasado(i.prazo, i.status === "concluido" || i.status === "concluida" || i.status === "concluído"),
+          }))
+        ),
+        indicadores: indicadoresMeus.map(k => ({
+          id: k.id,
+          nome: k.nome,
+          perspectiva: k.perspectiva,
+          meta: k.meta,
+          atual: k.atual,
+          status: k.status,
+          atrasado: false,
+        })),
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/meu-painel/resumo", requireAuth, async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const userId = req.session.userId!;
+
+      const [todasIniciativas, todosObjetivos, todosIndicadores] = await Promise.all([
+        storage.getIniciativas(empresaId),
+        storage.getObjetivos(empresaId),
+        storage.getIndicadores(empresaId),
+      ]);
+
+      const iniciativasMinhas = todasIniciativas.filter(i => i.responsavelId === userId);
+      const objetivosMeus = todosObjetivos.filter(o => o.responsavelId === userId);
+      const indicadoresMeus = todosIndicadores.filter(k => k.responsavelId === userId);
+
+      let krsCount = 0;
+      let krsAtrasados = 0;
+      const krsPorObjetivo = await Promise.all(
+        todosObjetivos.map(obj => storage.getResultadosChave(obj.id, empresaId))
+      );
+      for (const krs of krsPorObjetivo) {
+        for (const kr of krs) {
+          if (kr.responsavelId === userId) {
+            krsCount++;
+            if (isAtrasado(kr.prazo)) krsAtrasados++;
+          }
+        }
+      }
+
+      const objetivosAtrasados = objetivosMeus.filter(o => isAtrasado(o.prazo, !!o.encerrado)).length;
+      const iniciativasAtrasadas = iniciativasMinhas.filter(i => isAtrasado(i.prazo, i.status === "concluido" || i.status === "concluida" || i.status === "concluído")).length;
+      const indicadoresCriticos = indicadoresMeus.filter(k => k.status === "vermelho").length;
+
+      const totalAtrasados = objetivosAtrasados + krsAtrasados + iniciativasAtrasadas;
+
+      res.json({
+        objetivos: objetivosMeus.length,
+        resultadosChave: krsCount,
+        iniciativas: iniciativasMinhas.length,
+        indicadores: indicadoresMeus.length,
+        totalAtrasados,
+        indicadoresCriticos,
+        total: objetivosMeus.length + krsCount + iniciativasMinhas.length + indicadoresMeus.length,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get("/api/empresa", async (req, res) => {
     try {
       const empresa = await storage.getEmpresa(req.session.empresaId!);
@@ -1785,7 +1958,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/indicadores", async (req, res) => {
     try {
-      const data = insertIndicadorSchema.parse({ ...req.body, empresaId: req.session.empresaId });
+      const empresaId = req.session.empresaId!;
+      const data = insertIndicadorSchema.parse({ ...req.body, empresaId });
+      const v = await validarResponsavelMesmaEmpresa(data.responsavelId ?? null, empresaId);
+      if (!v.ok) return res.status(400).json({ error: v.error });
       const indicador = await storage.createIndicador(data);
       res.json(indicador);
     } catch (error: any) {
@@ -1796,8 +1972,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/indicadores/:id", async (req, res) => {
     try {
       const { id } = req.params;
+      const empresaId = req.session.empresaId!;
       const data = stripTenantFields(insertIndicadorSchema.partial().parse(req.body));
-      const indicador = await storage.updateIndicador(id, req.session.empresaId!, data);
+      if (data.responsavelId !== undefined) {
+        const v = await validarResponsavelMesmaEmpresa(data.responsavelId ?? null, empresaId);
+        if (!v.ok) return res.status(400).json({ error: v.error });
+      }
+      const indicador = await storage.updateIndicador(id, empresaId, data);
       res.json(indicador);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -3818,6 +3999,8 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
           return res.status(400).json({ error: "Estratégia inválida ou não pertence à empresa" });
         }
       }
+      const v = await validarResponsavelMesmaEmpresa(data.responsavelId ?? null, empresaId);
+      if (!v.ok) return res.status(400).json({ error: v.error });
       const iniciativa = await storage.createIniciativa(data);
       res.json(iniciativa);
     } catch (error: any) {
@@ -3835,6 +4018,10 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         if (!est || est.empresaId !== empresaId) {
           return res.status(400).json({ error: "Estratégia inválida ou não pertence à empresa" });
         }
+      }
+      if (data.responsavelId !== undefined) {
+        const v = await validarResponsavelMesmaEmpresa(data.responsavelId ?? null, empresaId);
+        if (!v.ok) return res.status(400).json({ error: v.error });
       }
       const iniciativa = await storage.updateIniciativa(id, empresaId, data);
       res.json(iniciativa);

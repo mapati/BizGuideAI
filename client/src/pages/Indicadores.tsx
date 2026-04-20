@@ -136,6 +136,7 @@ const EMPTY_FORM = {
   atual: "",
   status: "verde",
   owner: "",
+  responsavelId: null as string | null,
 };
 
 const PERIOD_OPTIONS = [
@@ -662,6 +663,10 @@ export default function Indicadores() {
     enabled: !!empresa?.id,
   });
 
+  const { data: membros = [] } = useQuery<{ id: string; nome: string; email: string }[]>({
+    queryKey: ["/api/membros"],
+  });
+
   const indicadores = todosIndicadores.filter((i) => i.perspectiva !== "diagnostico");
 
   const invalidate = () =>
@@ -764,6 +769,7 @@ export default function Indicadores() {
       atual: ind.atual,
       status: ind.status,
       owner: ind.owner,
+      responsavelId: ind.responsavelId ?? null,
     });
     setDialogOpen(true);
   };
@@ -1114,13 +1120,31 @@ export default function Indicadores() {
             </div>
             <div>
               <Label htmlFor="owner">Responsável</Label>
-              <Input
-                id="owner"
-                placeholder="Ex: CFO, Gerente Comercial"
-                value={form.owner}
-                onChange={(e) => setForm({ ...form, owner: e.target.value })}
-                data-testid="input-kpi-owner"
-              />
+              <Select
+                value={form.responsavelId ?? "__none__"}
+                onValueChange={(v) => {
+                  if (v === "__none__") {
+                    setForm({ ...form, responsavelId: null });
+                  } else {
+                    const m = membros.find((x) => x.id === v);
+                    setForm({ ...form, responsavelId: v, owner: m ? m.nome : form.owner });
+                  }
+                }}
+              >
+                <SelectTrigger data-testid="select-kpi-owner">
+                  <SelectValue placeholder="Selecione um responsável" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">
+                    {form.owner ? `Não atribuído (texto: ${form.owner})` : "Não atribuído"}
+                  </SelectItem>
+                  {membros.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <Button
               className="w-full"

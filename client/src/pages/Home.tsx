@@ -430,6 +430,7 @@ export default function Home() {
           </p>
         </div>
       </div>
+      <MeuPainelStrip />
       {showIntroPanel && (
         <Card className="border-primary/20 bg-primary/5 dark:bg-primary/10" data-testid="card-intro-boas-vindas">
           <div className="p-6 space-y-5">
@@ -995,5 +996,51 @@ export default function Home() {
         )}
       </Card>
     </div>
+  );
+}
+
+function MeuPainelStrip() {
+  const { data } = useQuery<{
+    objetivos: number;
+    resultadosChave: number;
+    iniciativas: number;
+    indicadores: number;
+    total: number;
+    totalAtrasados: number;
+    indicadoresCriticos: number;
+  }>({
+    queryKey: ["/api/meu-painel/resumo"],
+  });
+  if (!data || data.total === 0) return null;
+  const partes: string[] = [];
+  if (data.objetivos) partes.push(`${data.objetivos} ${data.objetivos === 1 ? "objetivo" : "objetivos"}`);
+  if (data.resultadosChave) partes.push(`${data.resultadosChave} ${data.resultadosChave === 1 ? "KR" : "KRs"}`);
+  if (data.iniciativas) partes.push(`${data.iniciativas} ${data.iniciativas === 1 ? "iniciativa" : "iniciativas"}`);
+  if (data.indicadores) partes.push(`${data.indicadores} ${data.indicadores === 1 ? "indicador" : "indicadores"}`);
+  return (
+    <Card className="border-primary/20 bg-primary/5 dark:bg-primary/10" data-testid="card-meu-painel-strip">
+      <div className="p-4 flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          <Target className="h-5 w-5 text-primary flex-shrink-0" />
+          <div>
+            <p className="text-sm font-medium" data-testid="text-meu-painel-resumo">
+              Você tem {partes.join(", ")} sob sua responsabilidade.
+            </p>
+            {(data.totalAtrasados > 0 || data.indicadoresCriticos > 0) && (
+              <p className="text-xs text-muted-foreground mt-0.5" data-testid="text-meu-painel-alertas">
+                {data.totalAtrasados > 0 && `${data.totalAtrasados} atrasado(s)`}
+                {data.totalAtrasados > 0 && data.indicadoresCriticos > 0 && " · "}
+                {data.indicadoresCriticos > 0 && `${data.indicadoresCriticos} indicador(es) crítico(s)`}
+              </p>
+            )}
+          </div>
+        </div>
+        <Link href="/meu-painel">
+          <Button size="sm" variant="outline" className="gap-1" data-testid="link-meu-painel-strip">
+            Ver Meu Painel <ChevronRight className="h-3 w-3" />
+          </Button>
+        </Link>
+      </div>
+    </Card>
   );
 }

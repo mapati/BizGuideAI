@@ -25,6 +25,12 @@ interface Estrategia {
   titulo: string;
 }
 
+interface Membro {
+  id: string;
+  nome: string;
+  email: string;
+}
+
 const formSchema = z.object({
   empresaId: z.string(),
   titulo: z.string().min(1, "Título é obrigatório"),
@@ -33,6 +39,7 @@ const formSchema = z.object({
   prioridade: z.string(),
   prazo: z.string(),
   responsavel: z.string(),
+  responsavelId: z.string().optional().nullable(),
   impacto: z.string(),
   estrategiaId: z.string().optional().nullable(),
 });
@@ -171,6 +178,10 @@ export default function Iniciativas() {
     enabled: !!empresa?.id,
   });
 
+  const { data: membros = [] } = useQuery<Membro[]>({
+    queryKey: ["/api/membros"],
+  });
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -181,6 +192,7 @@ export default function Iniciativas() {
       prioridade: "média",
       prazo: "",
       responsavel: "",
+      responsavelId: null,
       impacto: "médio",
       estrategiaId: null,
     },
@@ -329,6 +341,7 @@ export default function Iniciativas() {
       prioridade: iniciativa.prioridade,
       prazo: iniciativa.prazo,
       responsavel: iniciativa.responsavel,
+      responsavelId: iniciativa.responsavelId ?? null,
       impacto: iniciativa.impacto,
       estrategiaId: iniciativa.estrategiaId ?? null,
     });
@@ -557,17 +570,41 @@ export default function Iniciativas() {
 
                 <FormField
                   control={form.control}
-                  name="responsavel"
+                  name="responsavelId"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Responsável</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Ex: Gerente de Marketing ou Time Comercial"
-                          {...field}
-                          data-testid="input-responsavel"
-                        />
-                      </FormControl>
+                      <Select
+                        onValueChange={(v) => {
+                          if (v === "__none__") {
+                            field.onChange(null);
+                            form.setValue("responsavel", "");
+                          } else {
+                            field.onChange(v);
+                            const m = membros.find(x => x.id === v);
+                            if (m) form.setValue("responsavel", m.nome);
+                          }
+                        }}
+                        value={field.value ?? "__none__"}
+                      >
+                        <FormControl>
+                          <SelectTrigger data-testid="select-responsavel">
+                            <SelectValue placeholder="Selecione um responsável" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="__none__">
+                            {form.getValues("responsavel")
+                              ? `Não atribuído (texto: ${form.getValues("responsavel")})`
+                              : "Não atribuído"}
+                          </SelectItem>
+                          {membros.map(m => (
+                            <SelectItem key={m.id} value={m.id}>
+                              {m.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}

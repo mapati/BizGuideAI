@@ -11,6 +11,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { Clock, Zap } from "lucide-react";
 
 import Home from "@/pages/Home";
+import MeuPainel from "@/pages/MeuPainel";
 import Onboarding from "@/pages/Onboarding";
 import Pestel from "@/pages/Pestel";
 import CincoForcas from "@/pages/CincoForcas";
@@ -235,6 +236,7 @@ function AppLayout() {
               <Switch>
                 <Route path="/" component={Home} />
                 <Route path="/dashboard" component={Home} />
+                <Route path="/meu-painel" component={MeuPainel} />
                 <Route path="/onboarding" component={Onboarding} />
                 <Route path="/pestel" component={Pestel} />
                 <Route path="/cinco-forcas" component={CincoForcas} />

@@ -403,7 +403,6 @@ export function AppSidebar() {
                 { title: "Rastreabilidade", url: "/rastreabilidade", icon: GitBranch, testId: "link-rastreabilidade" },
                 { title: "Gestão de Riscos", url: "/riscos", icon: ShieldAlert, testId: "link-riscos" },
                 { title: "Mapa de Performance", url: "/mapa-bsc", icon: Network, testId: "link-mapa-bsc" },
-                { title: "Exportar & Compartilhar", url: "/exportacao", icon: Share2, testId: "link-exportacao" },
               ].map((item) => (
                 <SidebarMenuItem key={item.title}>
                   {!jornadaLoading && !jornadaConcluida ? (
@@ -448,6 +447,19 @@ export function AppSidebar() {
                   <Link href="/alertas">
                     <Bell />
                     <span>Alertas por E-mail</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={location === "/exportacao"}
+                  data-testid="link-exportacao"
+                  tooltip="Exportar & Compartilhar"
+                >
+                  <Link href="/exportacao">
+                    <Share2 />
+                    <span>Exportar & Compartilhar</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

@@ -336,6 +336,10 @@ async function requireAuth(req: Request, res: Response, next: NextFunction) {
       return res.status(403).json({ error: "TRIAL_EXPIRADO" });
     }
 
+    if (planoStatus === "cancelado") {
+      return res.status(403).json({ error: "CONTA_CANCELADA" });
+    }
+
     if (planoStatus === "trial") {
       const trialStart = empresa.trialStartedAt || empresa.createdAt;
       const daysSinceStart = Math.floor((Date.now() - trialStart.getTime()) / (1000 * 60 * 60 * 24));
@@ -1707,6 +1711,174 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : "Erro desconhecido";
       res.status(500).json({ error: msg });
+    }
+  });
+
+  // ==================== ZONA DE RISCO (cancelar / resetar / excluir conta) ====================
+
+  // Helper: confere se o usuário logado é o proprietário da conta (empresa).
+  async function isOwnerOfEmpresa(empresaId: string, userId: string): Promise<boolean> {
+    const empresa = await storage.getEmpresa(empresaId);
+    if (!empresa) return false;
+    return empresa.proprietarioUsuarioId === userId;
+  }
+
+  // 1) Cancelar a conta — encerra a assinatura (se houver) e marca a empresa como cancelada.
+  //    Mantém os dados (não exclui), permite reativação futura. Faz logout automático.
+  app.post("/api/empresa/cancelar-conta", async (req, res) => {
+    try {
+      if (!req.session?.userId || !req.session?.empresaId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+      const empresaId = req.session.empresaId;
+      const userId = req.session.userId;
+      const empresa = await storage.getEmpresa(empresaId);
+      if (!empresa) return res.status(404).json({ error: "Empresa não encontrada" });
+
+      if (!(await isOwnerOfEmpresa(empresaId, userId))) {
+        return res.status(403).json({ error: "Apenas o proprietário pode cancelar a conta." });
+      }
+
+      // Confirmação por digitação do nome da empresa.
+      const confirmacao = String(req.body?.confirmacao ?? "").trim();
+      if (confirmacao !== empresa.nome) {
+        return res.status(400).json({ error: "Confirmação inválida. Digite o nome exato da empresa." });
+      }
+
+      // Cancela no Mercado Pago se houver assinatura ativa — falha alto se erro,
+      // para evitar deixar cobrança ativa enquanto a conta consta como cancelada.
+      let mpCancelledNow = false;
+      if (empresa.mpSubscriptionId && empresa.mpSubscriptionStatus !== "cancelled") {
+        try {
+          await cancelarAssinatura(empresa.mpSubscriptionId);
+          mpCancelledNow = true;
+        } catch (err: any) {
+          console.error("[CANCELAR_CONTA] Falha ao cancelar assinatura no MP:", err?.message ?? err);
+          return res.status(502).json({
+            error: "Não foi possível cancelar sua assinatura no Mercado Pago agora. Tente novamente em alguns minutos ou cancele primeiro a assinatura e depois cancele a conta.",
+          });
+        }
+      }
+
+      await storage.updateEmpresaPlano(empresaId, {
+        planoStatus: "cancelado",
+        mpSubscriptionStatus: mpCancelledNow ? "cancelled" : empresa.mpSubscriptionStatus ?? null,
+      });
+
+      await storage.createPagamentoEvento({
+        empresaId,
+        tipo: "cancelamento_conta",
+        acao: "encerrada_pelo_proprietario",
+        mpResourceId: empresa.mpSubscriptionId ?? null,
+        status: "cancelled",
+        statusDetail: null,
+        payload: JSON.stringify({ usuarioId: userId }),
+      }).catch(() => {});
+
+      // Faz logout — sessão é destruída.
+      req.session.destroy(() => {
+        res.clearCookie("connect.sid");
+        res.json({ success: true, loggedOut: true });
+      });
+    } catch (error: any) {
+      console.error("[CANCELAR_CONTA] erro:", error);
+      res.status(500).json({ error: error?.message ?? "Erro interno" });
+    }
+  });
+
+  // 2) Resetar dados de planejamento — apaga apenas o(s) grupo(s) escolhido(s), preservando perfil/usuários.
+  //    Restrito ao proprietário (ação destrutiva irreversível).
+  app.post("/api/empresa/resetar-dados", async (req, res) => {
+    try {
+      if (!req.session?.userId || !req.session?.empresaId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+      const empresaId = req.session.empresaId;
+      const userId = req.session.userId;
+      const empresa = await storage.getEmpresa(empresaId);
+      if (!empresa) return res.status(404).json({ error: "Empresa não encontrada" });
+
+      if (!(await isOwnerOfEmpresa(empresaId, userId))) {
+        return res.status(403).json({ error: "Apenas o proprietário pode resetar os dados de planejamento." });
+      }
+
+      const grupoRaw = String(req.body?.grupo ?? "").trim();
+      const gruposValidos = new Set(["diagnostico", "mapa", "plano-acao", "execucao", "tudo"]);
+      if (!gruposValidos.has(grupoRaw)) {
+        return res.status(400).json({ error: "Grupo inválido. Use: diagnostico | mapa | plano-acao | execucao | tudo." });
+      }
+
+      const confirmacao = String(req.body?.confirmacao ?? "").trim();
+      if (confirmacao !== empresa.nome) {
+        return res.status(400).json({ error: "Confirmação inválida. Digite o nome exato da empresa." });
+      }
+
+      const resultado = await storage.resetDadosEmpresa(empresaId, grupoRaw as any);
+
+      await storage.createPagamentoEvento({
+        empresaId,
+        tipo: "reset_dados",
+        acao: grupoRaw,
+        mpResourceId: null,
+        status: null,
+        statusDetail: null,
+        payload: JSON.stringify({ usuarioId: userId, tabelas: resultado.tabelas }),
+      }).catch(() => {});
+
+      res.json({ success: true, grupo: grupoRaw, tabelas: resultado.tabelas });
+    } catch (error: any) {
+      console.error("[RESETAR_DADOS] erro:", error);
+      res.status(500).json({ error: error?.message ?? "Erro interno" });
+    }
+  });
+
+  // 3) LGPD — exclusão permanente da conta e de todos os dados da empresa (cascata).
+  //    Cancela MP, apaga empresa (cascade remove usuários, planejamento, etc.) e desloga.
+  app.delete("/api/empresa", async (req, res) => {
+    try {
+      if (!req.session?.userId || !req.session?.empresaId) {
+        return res.status(401).json({ error: "Não autenticado" });
+      }
+      const empresaId = req.session.empresaId;
+      const userId = req.session.userId;
+      const empresa = await storage.getEmpresa(empresaId);
+      if (!empresa) return res.status(404).json({ error: "Empresa não encontrada" });
+
+      if (!(await isOwnerOfEmpresa(empresaId, userId))) {
+        return res.status(403).json({ error: "Apenas o proprietário pode excluir permanentemente a conta." });
+      }
+
+      // Confirmação reforçada: nome exato + frase "EXCLUIR PERMANENTEMENTE".
+      const confirmacaoNome = String(req.body?.confirmacaoNome ?? "").trim();
+      const confirmacaoFrase = String(req.body?.confirmacaoFrase ?? "").trim();
+      if (confirmacaoNome !== empresa.nome) {
+        return res.status(400).json({ error: "Nome da empresa não confere." });
+      }
+      if (confirmacaoFrase !== "EXCLUIR PERMANENTEMENTE") {
+        return res.status(400).json({ error: "Digite exatamente: EXCLUIR PERMANENTEMENTE" });
+      }
+
+      // Tenta cancelar a assinatura no MP (best-effort).
+      if (empresa.mpSubscriptionId && empresa.mpSubscriptionStatus !== "cancelled") {
+        try {
+          await cancelarAssinatura(empresa.mpSubscriptionId);
+        } catch (err: any) {
+          console.warn("[LGPD_DELETE] Falha (ignorada) ao cancelar assinatura no MP:", err?.message ?? err);
+        }
+      }
+
+      // Auditoria antes do delete (a empresa some, então o evento ficaria órfão — registra só nos logs).
+      console.info(`[LGPD_DELETE] empresa=${empresaId} usuario=${userId} nome="${empresa.nome}"`);
+
+      await storage.deleteEmpresa(empresaId);
+
+      req.session.destroy(() => {
+        res.clearCookie("connect.sid");
+        res.json({ success: true, loggedOut: true });
+      });
+    } catch (error: any) {
+      console.error("[LGPD_DELETE] erro:", error);
+      res.status(500).json({ error: error?.message ?? "Erro interno" });
     }
   });
 

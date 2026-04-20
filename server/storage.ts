@@ -252,7 +252,11 @@ export interface IStorage {
 
   getPrecosLandingPlanos(): Promise<PrecoLandingPlano[]>;
   upsertPrecoLandingPlano(plano: string, data: Partial<Omit<PrecoLandingPlano, "plano" | "atualizadoEm">>): Promise<PrecoLandingPlano>;
+
+  resetDadosEmpresa(empresaId: string, grupo: ResetGrupo): Promise<{ tabelas: string[] }>;
 }
+
+export type ResetGrupo = "diagnostico" | "mapa" | "plano-acao" | "execucao" | "tudo";
 
 function omitTenantFields<T extends Record<string, unknown>>(data: T): Omit<T, "empresaId" | "objetivoId"> {
   const result = { ...data };
@@ -1111,6 +1115,80 @@ export class DbStorage implements IStorage {
       });
     const rows = await db.select().from(precosLandingPlanos).where(eq(precosLandingPlanos.plano, plano)).limit(1);
     return rows[0]!;
+  }
+
+  async resetDadosEmpresa(empresaId: string, grupo: ResetGrupo): Promise<{ tabelas: string[] }> {
+    const tabelas: string[] = [];
+
+    // Execução atômica via transação: tudo ou nada — evita estado parcialmente apagado.
+    await db.transaction(async (tx) => {
+      const wipeDiagnostico = async () => {
+        await tx.delete(indicadores).where(and(eq(indicadores.empresaId, empresaId), eq(indicadores.perspectiva, "diagnostico")));
+        await tx.delete(diagnosticoIaSalvo).where(eq(diagnosticoIaSalvo.empresaId, empresaId));
+        tabelas.push("indicadores_diagnostico", "diagnostico_ia_salvo");
+      };
+
+      const wipeMapa = async () => {
+        await tx.delete(modeloNegocio).where(eq(modeloNegocio.empresaId, empresaId));
+        await tx.delete(fatoresPestel).where(eq(fatoresPestel.empresaId, empresaId));
+        await tx.delete(cincoForcas).where(eq(cincoForcas.empresaId, empresaId));
+        await tx.delete(analiseSwot).where(eq(analiseSwot.empresaId, empresaId));
+        tabelas.push("modelo_negocio", "fatores_pestel", "cinco_forcas", "analise_swot");
+      };
+
+      const wipePlanoAcao = async () => {
+        await tx.delete(iniciativas).where(eq(iniciativas.empresaId, empresaId));
+        await tx.delete(oportunidadesCrescimento).where(eq(oportunidadesCrescimento.empresaId, empresaId));
+        await tx.delete(estrategias).where(eq(estrategias.empresaId, empresaId));
+        tabelas.push("iniciativas", "oportunidades_crescimento", "estrategias");
+      };
+
+      const wipeExecucao = async () => {
+        await tx.delete(retrospectivas).where(eq(retrospectivas.empresaId, empresaId));
+        // resultados_chave cascateiam ao apagar objetivos (FK onDelete: cascade)
+        await tx.delete(objetivos).where(eq(objetivos.empresaId, empresaId));
+        const indicadoresBsc = await tx.select({ id: indicadores.id }).from(indicadores)
+          .where(and(eq(indicadores.empresaId, empresaId), sql`${indicadores.perspectiva} <> 'diagnostico'`));
+        const ids = indicadoresBsc.map((i) => i.id);
+        if (ids.length > 0) {
+          await tx.delete(kpiLeituras).where(inArray(kpiLeituras.indicadorId, ids));
+        }
+        await tx.delete(indicadores).where(and(eq(indicadores.empresaId, empresaId), sql`${indicadores.perspectiva} <> 'diagnostico'`));
+        await tx.delete(bscRelacoes).where(eq(bscRelacoes.empresaId, empresaId));
+        await tx.delete(rituais).where(eq(rituais.empresaId, empresaId));
+        await tx.delete(eventos).where(eq(eventos.empresaId, empresaId));
+        await tx.delete(riscos).where(eq(riscos.empresaId, empresaId));
+        await tx.delete(cenarios).where(eq(cenarios.empresaId, empresaId));
+        tabelas.push(
+          "retrospectivas",
+          "resultados_chave",
+          "objetivos",
+          "kpi_leituras",
+          "indicadores_bsc",
+          "bsc_relacoes",
+          "rituais",
+          "eventos",
+          "riscos",
+          "cenarios",
+        );
+      };
+
+      if (grupo === "diagnostico") await wipeDiagnostico();
+      else if (grupo === "mapa") await wipeMapa();
+      else if (grupo === "plano-acao") await wipePlanoAcao();
+      else if (grupo === "execucao") await wipeExecucao();
+      else if (grupo === "tudo") {
+        // Ordem: execução → plano-ação → mapa → diagnóstico.
+        await wipeExecucao();
+        await wipePlanoAcao();
+        await wipeMapa();
+        await wipeDiagnostico();
+      } else {
+        throw new Error("Grupo de reset inválido");
+      }
+    });
+
+    return { tabelas };
   }
 
   async upsertConfigSistema(data: Partial<Omit<ConfigSistema, "id" | "atualizadoEm">>): Promise<ConfigSistema> {

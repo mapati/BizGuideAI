@@ -115,6 +115,99 @@ export default function Onboarding() {
 
   const [cancelarDialogOpen, setCancelarDialogOpen] = useState(false);
 
+  // Zona de Risco — estados
+  const [zonaRiscoAberta, setZonaRiscoAberta] = useState(false);
+  const [resetGrupo, setResetGrupo] = useState<"diagnostico" | "mapa" | "plano-acao" | "execucao" | "tudo">("diagnostico");
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  const [resetConfirmacao, setResetConfirmacao] = useState("");
+  const [cancelarContaDialogOpen, setCancelarContaDialogOpen] = useState(false);
+  const [cancelarContaConfirmacao, setCancelarContaConfirmacao] = useState("");
+  const [excluirDialogOpen, setExcluirDialogOpen] = useState(false);
+  const [excluirNome, setExcluirNome] = useState("");
+  const [excluirFrase, setExcluirFrase] = useState("");
+
+  const RESET_LABELS: Record<string, string> = {
+    diagnostico: "Diagnóstico Atual",
+    mapa: "Mapa Estratégico (BMC, PESTEL, 5 Forças, SWOT)",
+    "plano-acao": "Plano de Ação (Estratégias, Oportunidades, Iniciativas)",
+    execucao: "Execução (OKRs, BSC, Rituais, Eventos, Riscos, Cenários)",
+    tudo: "Todos os dados de planejamento",
+  };
+
+  const resetDadosMutation = useMutation({
+    mutationFn: async (grupo: string) => {
+      return await apiRequest("POST", "/api/empresa/resetar-dados", {
+        grupo,
+        confirmacao: resetConfirmacao,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+      setResetDialogOpen(false);
+      setResetConfirmacao("");
+      toast({
+        title: "Dados apagados",
+        description: `Os dados de ${RESET_LABELS[resetGrupo]} foram apagados com sucesso.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Não foi possível apagar",
+        description: error?.message || "Tente novamente.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const cancelarContaMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("POST", "/api/empresa/cancelar-conta", {
+        confirmacao: cancelarContaConfirmacao,
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Conta cancelada",
+        description: "Sua conta foi cancelada. Você será desconectado.",
+      });
+      setTimeout(() => {
+        window.location.href = "/login";
+      }, 1500);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Não foi possível cancelar a conta",
+        description: error?.message || "Tente novamente.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const excluirContaMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("DELETE", "/api/empresa", {
+        confirmacaoNome: excluirNome,
+        confirmacaoFrase: excluirFrase,
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Conta excluída",
+        description: "Todos os dados foram permanentemente apagados.",
+      });
+      setTimeout(() => {
+        window.location.href = "/login";
+      }, 1500);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Não foi possível excluir",
+        description: error?.message || "Tente novamente.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const cancelarAssinaturaMutation = useMutation({
     mutationFn: async () => {
       return await apiRequest("POST", "/api/pagamentos/cancelar-assinatura");
@@ -1363,6 +1456,108 @@ export default function Onboarding() {
                   </div>
                 )}
               </Card>
+
+              {/* ── Zona de Risco — só para o proprietário da conta ── */}
+              {empresaExistente?.souProprietario && (
+                <Card className="overflow-hidden border-destructive/40">
+                  <button
+                    type="button"
+                    className="w-full flex items-center justify-between p-6 text-left hover-elevate"
+                    onClick={() => setZonaRiscoAberta(!zonaRiscoAberta)}
+                    data-testid="button-toggle-zona-risco"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-md bg-destructive/10 flex-shrink-0">
+                        <AlertTriangle className="h-5 w-5 text-destructive" />
+                      </div>
+                      <div>
+                        <div className="font-semibold text-base leading-tight">Zona de Risco</div>
+                        <div className="text-xs text-muted-foreground">Ações irreversíveis sobre os dados da empresa</div>
+                      </div>
+                    </div>
+                    {zonaRiscoAberta ? (
+                      <ChevronUp className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                    ) : (
+                      <ChevronDown className="h-5 w-5 text-muted-foreground flex-shrink-0" />
+                    )}
+                  </button>
+
+                  {zonaRiscoAberta && (
+                    <div className="px-6 pb-6 border-t pt-6 space-y-6">
+                      {/* Resetar dados de planejamento */}
+                      <div className="space-y-3">
+                        <div>
+                          <h4 className="font-semibold text-sm">Resetar dados de planejamento</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Apaga apenas a parte escolhida da jornada. Perfil da empresa, usuários e assinatura permanecem intactos.
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2 items-end">
+                          <div className="flex-1 min-w-[240px]">
+                            <Label htmlFor="reset-grupo">O que apagar</Label>
+                            <Select value={resetGrupo} onValueChange={(v) => setResetGrupo(v as typeof resetGrupo)}>
+                              <SelectTrigger id="reset-grupo" data-testid="select-reset-grupo">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="diagnostico">Diagnóstico Atual</SelectItem>
+                                <SelectItem value="mapa">Mapa Estratégico (BMC, PESTEL, 5 Forças, SWOT)</SelectItem>
+                                <SelectItem value="plano-acao">Plano de Ação (Estratégias, Oportunidades, Iniciativas)</SelectItem>
+                                <SelectItem value="execucao">Execução (OKRs, BSC, Rituais, Eventos, Riscos, Cenários)</SelectItem>
+                                <SelectItem value="tudo">Todos os dados de planejamento</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <Button
+                            variant="outline"
+                            onClick={() => { setResetConfirmacao(""); setResetDialogOpen(true); }}
+                            data-testid="button-abrir-reset-dados"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Apagar dados
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Cancelar conta */}
+                      <div className="space-y-3 pt-4 border-t">
+                        <div>
+                          <h4 className="font-semibold text-sm">Cancelar conta</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Encerra a assinatura (se ativa) e desativa o acesso. Os dados são preservados; reative entrando em contato com o suporte.
+                          </p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          onClick={() => { setCancelarContaConfirmacao(""); setCancelarContaDialogOpen(true); }}
+                          data-testid="button-abrir-cancelar-conta"
+                        >
+                          <X className="h-4 w-4 mr-2" />
+                          Cancelar conta
+                        </Button>
+                      </div>
+
+                      {/* Excluir permanentemente */}
+                      <div className="space-y-3 pt-4 border-t">
+                        <div>
+                          <h4 className="font-semibold text-sm text-destructive">Excluir permanentemente (LGPD)</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Apaga em definitivo a empresa, todos os usuários, planejamento e histórico. Esta ação é irreversível.
+                          </p>
+                        </div>
+                        <Button
+                          variant="destructive"
+                          onClick={() => { setExcluirNome(""); setExcluirFrase(""); setExcluirDialogOpen(true); }}
+                          data-testid="button-abrir-excluir-conta"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Excluir permanentemente
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              )}
             </TabsContent>
           </Tabs>
 
@@ -1400,6 +1595,163 @@ export default function Onboarding() {
                     </>
                   ) : (
                     "Sim, cancelar"
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* ── Reset dados — confirmação ── */}
+          <Dialog open={resetDialogOpen} onOpenChange={(open) => { setResetDialogOpen(open); if (!open) setResetConfirmacao(""); }}>
+            <DialogContent data-testid="dialog-reset-dados">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                  Apagar {RESET_LABELS[resetGrupo]}?
+                </DialogTitle>
+                <DialogDescription>
+                  Esta ação é irreversível. Os registros desta seção serão excluídos permanentemente. Para confirmar, digite o nome exato da empresa: <strong>{empresaExistente?.nome}</strong>.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-2">
+                <Label htmlFor="reset-confirmacao">Nome da empresa</Label>
+                <Input
+                  id="reset-confirmacao"
+                  value={resetConfirmacao}
+                  onChange={(e) => setResetConfirmacao(e.target.value)}
+                  placeholder={empresaExistente?.nome ?? ""}
+                  data-testid="input-reset-confirmacao"
+                />
+              </div>
+              <DialogFooter className="gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setResetDialogOpen(false)}
+                  disabled={resetDadosMutation.isPending}
+                  data-testid="button-cancelar-reset"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => resetDadosMutation.mutate(resetGrupo)}
+                  disabled={resetDadosMutation.isPending || resetConfirmacao !== (empresaExistente?.nome ?? "")}
+                  data-testid="button-confirmar-reset"
+                >
+                  {resetDadosMutation.isPending ? (
+                    <><Loader2 className="h-4 w-4 animate-spin mr-2" />Apagando...</>
+                  ) : (
+                    "Apagar definitivamente"
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* ── Cancelar conta — confirmação ── */}
+          <Dialog open={cancelarContaDialogOpen} onOpenChange={(open) => { setCancelarContaDialogOpen(open); if (!open) setCancelarContaConfirmacao(""); }}>
+            <DialogContent data-testid="dialog-cancelar-conta">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                  Cancelar conta?
+                </DialogTitle>
+                <DialogDescription>
+                  A assinatura será encerrada (se ativa) e o acesso à conta será desativado. Os dados ficam preservados. Você será desconectado em seguida. Para confirmar, digite o nome da empresa: <strong>{empresaExistente?.nome}</strong>.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-2">
+                <Label htmlFor="cancelar-conta-confirmacao">Nome da empresa</Label>
+                <Input
+                  id="cancelar-conta-confirmacao"
+                  value={cancelarContaConfirmacao}
+                  onChange={(e) => setCancelarContaConfirmacao(e.target.value)}
+                  placeholder={empresaExistente?.nome ?? ""}
+                  data-testid="input-cancelar-conta-confirmacao"
+                />
+              </div>
+              <DialogFooter className="gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setCancelarContaDialogOpen(false)}
+                  disabled={cancelarContaMutation.isPending}
+                  data-testid="button-cancelar-cancelar-conta"
+                >
+                  Voltar
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => cancelarContaMutation.mutate()}
+                  disabled={cancelarContaMutation.isPending || cancelarContaConfirmacao !== (empresaExistente?.nome ?? "")}
+                  data-testid="button-confirmar-cancelar-conta"
+                >
+                  {cancelarContaMutation.isPending ? (
+                    <><Loader2 className="h-4 w-4 animate-spin mr-2" />Cancelando...</>
+                  ) : (
+                    "Cancelar conta"
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* ── Excluir permanente (LGPD) ── */}
+          <Dialog open={excluirDialogOpen} onOpenChange={(open) => { setExcluirDialogOpen(open); if (!open) { setExcluirNome(""); setExcluirFrase(""); } }}>
+            <DialogContent data-testid="dialog-excluir-conta">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-destructive" />
+                  Excluir conta permanentemente?
+                </DialogTitle>
+                <DialogDescription>
+                  Esta ação remove em definitivo a empresa, todos os usuários, planejamento e histórico. Não há como desfazer. Para confirmar, digite o nome da empresa e a frase exata abaixo.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 py-2">
+                <div>
+                  <Label htmlFor="excluir-nome">Nome da empresa: <strong>{empresaExistente?.nome}</strong></Label>
+                  <Input
+                    id="excluir-nome"
+                    value={excluirNome}
+                    onChange={(e) => setExcluirNome(e.target.value)}
+                    placeholder={empresaExistente?.nome ?? ""}
+                    data-testid="input-excluir-nome"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="excluir-frase">Digite: <strong>EXCLUIR PERMANENTEMENTE</strong></Label>
+                  <Input
+                    id="excluir-frase"
+                    value={excluirFrase}
+                    onChange={(e) => setExcluirFrase(e.target.value)}
+                    placeholder="EXCLUIR PERMANENTEMENTE"
+                    data-testid="input-excluir-frase"
+                  />
+                </div>
+              </div>
+              <DialogFooter className="gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setExcluirDialogOpen(false)}
+                  disabled={excluirContaMutation.isPending}
+                  data-testid="button-cancelar-excluir"
+                >
+                  Voltar
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => excluirContaMutation.mutate()}
+                  disabled={
+                    excluirContaMutation.isPending ||
+                    excluirNome !== (empresaExistente?.nome ?? "") ||
+                    excluirFrase !== "EXCLUIR PERMANENTEMENTE"
+                  }
+                  data-testid="button-confirmar-excluir"
+                >
+                  {excluirContaMutation.isPending ? (
+                    <><Loader2 className="h-4 w-4 animate-spin mr-2" />Excluindo...</>
+                  ) : (
+                    "Excluir definitivamente"
                   )}
                 </Button>
               </DialogFooter>

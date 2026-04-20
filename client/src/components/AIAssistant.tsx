@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { AssistantChip } from "@/components/AssistantChip";
 import { AssistantDrawer } from "@/components/AssistantDrawer";
 import { useAssistantStatus } from "@/hooks/useAssistantStatus";
@@ -11,30 +11,16 @@ export function AIAssistant() {
   const [showUnlock, setShowUnlock] = useState(false);
   const { nivel, preview, alertas, pagina } = useAssistantStatus();
   const progresso = useJornadaProgresso();
-  const prevConcluidaRef = useRef<boolean | null>(null);
 
   const modo: "guia" | "assistente" = progresso.jornadaConcluida ? "assistente" : "guia";
 
   useEffect(() => {
     if (progresso.isLoading) return;
-    const prev = prevConcluidaRef.current;
-    const atual = progresso.jornadaConcluida;
-    const jaMostrou = localStorage.getItem(UNLOCK_SHOWN_KEY) === "1";
-    if (prev === null) {
-      prevConcluidaRef.current = atual;
-      if (atual && !jaMostrou) {
-        localStorage.setItem(UNLOCK_SHOWN_KEY, "1");
-        setShowUnlock(true);
-        setIsOpen(true);
-      }
-      return;
-    }
-    if (prev === false && atual === true && !jaMostrou) {
-      localStorage.setItem(UNLOCK_SHOWN_KEY, "1");
-      setShowUnlock(true);
-      setIsOpen(true);
-    }
-    prevConcluidaRef.current = atual;
+    if (!progresso.jornadaConcluida) return;
+    if (localStorage.getItem(UNLOCK_SHOWN_KEY) === "1") return;
+    localStorage.setItem(UNLOCK_SHOWN_KEY, "1");
+    setShowUnlock(true);
+    setIsOpen(true);
   }, [progresso.jornadaConcluida, progresso.isLoading]);
 
   if (progresso.isLoading) return null;

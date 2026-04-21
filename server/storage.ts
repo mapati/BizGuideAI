@@ -294,6 +294,10 @@ export interface IStorage {
   getPlanoAgenticoComPassos(id: string): Promise<{ plano: PlanoAgentico; passos: PlanoAgenticoPasso[] } | undefined>;
   listPlanosAgenticosByEmpresa(empresaId: string, opts?: { status?: string; limite?: number }): Promise<PlanoAgentico[]>;
   getPlanoAtivoEmpresaUsuario(empresaId: string, usuarioId: string | null): Promise<PlanoAgentico | undefined>;
+  // Task #199 — plano ativo da empresa que NÃO é do par (empresa, usuário corrente).
+  // Cobre planos compartilhados (usuarioId === null) e planos pertencentes a
+  // outro membro do time. Retorna o plano + nome do dono (null se compartilhado).
+  getPlanoAtivoEmpresaDeOutros(empresaId: string, usuarioId: string | null): Promise<{ plano: PlanoAgentico; donoNome: string | null; donoId: string | null } | undefined>;
   updatePlanoAgentico(id: string, patch: Partial<Pick<PlanoAgentico, "status" | "passoAtual" | "finalizadoEm" | "totalPassos">>): Promise<PlanoAgentico>;
   updatePlanoAgenticoPasso(id: string, patch: Partial<Pick<PlanoAgenticoPasso, "status" | "propostaId" | "resultadoResumo" | "resolvidoEm">>): Promise<PlanoAgenticoPasso>;
   getPassoByPropostaId(propostaId: string): Promise<PlanoAgenticoPasso | undefined>;
@@ -1467,6 +1471,47 @@ export class DbStorage implements IStorage {
         );
     const [row] = await db.select().from(planoAgentico).where(cond).orderBy(desc(planoAgentico.criadoEm)).limit(1);
     return row;
+  }
+
+  async getPlanoAtivoEmpresaDeOutros(
+    empresaId: string,
+    usuarioId: string | null,
+  ): Promise<{ plano: PlanoAgentico; donoNome: string | null; donoId: string | null } | undefined> {
+    // Plano ativo da empresa cujo dono NÃO seja o usuário corrente.
+    // Inclui compartilhados (usuarioId IS NULL) — nesse caso donoNome é null.
+    // Quando usuarioId é null (sessão sem usuário), considera "outros" = qualquer
+    // plano com dono específico (não compartilhado).
+    const cond = usuarioId
+      ? and(
+          eq(planoAgentico.empresaId, empresaId),
+          eq(planoAgentico.status, "ativo"),
+          or(
+            isNull(planoAgentico.usuarioId),
+            sql`${planoAgentico.usuarioId} <> ${usuarioId}`,
+          ),
+        )
+      : and(
+          eq(planoAgentico.empresaId, empresaId),
+          eq(planoAgentico.status, "ativo"),
+          sql`${planoAgentico.usuarioId} IS NOT NULL`,
+        );
+    const rows = await db
+      .select({
+        plano: planoAgentico,
+        donoNome: usuarios.nome,
+      })
+      .from(planoAgentico)
+      .leftJoin(usuarios, eq(usuarios.id, planoAgentico.usuarioId))
+      .where(cond)
+      .orderBy(desc(planoAgentico.criadoEm))
+      .limit(1);
+    if (rows.length === 0) return undefined;
+    const row = rows[0];
+    return {
+      plano: row.plano,
+      donoNome: row.plano.usuarioId ? row.donoNome ?? null : null,
+      donoId: row.plano.usuarioId ?? null,
+    };
   }
 
   async updatePlanoAgentico(

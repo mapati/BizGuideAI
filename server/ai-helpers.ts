@@ -123,24 +123,25 @@ export async function buildPlanoAtivoContextoIA(
   usuarioId: string | null,
 ): Promise<string> {
   try {
+    const blocos: string[] = [];
     const plano = await storage.getPlanoAtivoEmpresaUsuario(empresaId, usuarioId);
-    if (!plano) return "";
-    const passos = await storage.listPassosByPlano(plano.id);
-    const fmtStatus: Record<string, string> = {
-      pendente: "pendente",
-      em_andamento: "EM ANDAMENTO (proposta enviada, aguardando confirmação)",
-      concluido: "✓ concluído",
-      pulado: "pulado",
-      falhou: "✗ falhou",
-    };
-    const linhas = passos.map(
-      (p) => `  ${p.ordem}. [${fmtStatus[p.status] ?? p.status}] ${p.titulo}${p.descricao ? ` — ${p.descricao}` : ""}`,
-    );
-    const proximoPendente = passos.find((p) => p.status === "pendente");
-    const proximoTxt = proximoPendente
-      ? `\nPRÓXIMO PASSO PENDENTE: passo ${proximoPendente.ordem} — "${proximoPendente.titulo}". Quando chamar a tool executora correspondente, inclua planoId="${plano.id}" e passoOrdem=${proximoPendente.ordem}.`
-      : "\nTodos os passos foram tratados — considere chamar concluir_plano_agentico se o objetivo foi cumprido.";
-    return `## PLANO AGÊNTICO ATIVO
+    if (plano) {
+      const passos = await storage.listPassosByPlano(plano.id);
+      const fmtStatus: Record<string, string> = {
+        pendente: "pendente",
+        em_andamento: "EM ANDAMENTO (proposta enviada, aguardando confirmação)",
+        concluido: "✓ concluído",
+        pulado: "pulado",
+        falhou: "✗ falhou",
+      };
+      const linhas = passos.map(
+        (p) => `  ${p.ordem}. [${fmtStatus[p.status] ?? p.status}] ${p.titulo}${p.descricao ? ` — ${p.descricao}` : ""}`,
+      );
+      const proximoPendente = passos.find((p) => p.status === "pendente");
+      const proximoTxt = proximoPendente
+        ? `\nPRÓXIMO PASSO PENDENTE: passo ${proximoPendente.ordem} — "${proximoPendente.titulo}". Quando chamar a tool executora correspondente, inclua planoId="${plano.id}" e passoOrdem=${proximoPendente.ordem}.`
+        : "\nTodos os passos foram tratados — considere chamar concluir_plano_agentico se o objetivo foi cumprido.";
+      blocos.push(`## PLANO AGÊNTICO ATIVO
 ID: ${plano.id}
 Título: ${plano.titulo}
 Objetivo: ${plano.objetivo}
@@ -151,7 +152,31 @@ ${linhas.join("\n")}${proximoTxt}
 REGRAS DO LOOP:
 - Continue o plano um passo por vez. Não proponha vários passos juntos.
 - Sempre vincule a proposta ao plano via planoId/passoOrdem.
-- Se o usuário desistir, use cancelar_plano_agentico. Se já cumpriu o objetivo, use concluir_plano_agentico.`;
+- Se o usuário desistir, use cancelar_plano_agentico. Se já cumpriu o objetivo, use concluir_plano_agentico.`);
+    }
+
+    // Task #199 — também sinaliza plano ativo de OUTRO membro do time
+    // (ou plano compartilhado da empresa) para que o assistente avise antes
+    // de propor um plano novo que cancelaria trabalho coletivo.
+    const outro = await storage.getPlanoAtivoEmpresaDeOutros(empresaId, usuarioId);
+    // Evita bloco duplicado quando o mesmo plano compartilhado já apareceu
+    // como "PLANO AGÊNTICO ATIVO" do usuário corrente.
+    if (outro && outro.plano.id !== plano?.id) {
+      const passosOutro = await storage.listPassosByPlano(outro.plano.id);
+      const concluidos = passosOutro.filter((p) => p.status === "concluido").length;
+      const donoTxt = outro.donoNome
+        ? `de ${outro.donoNome} (outro membro do time)`
+        : "compartilhado da empresa";
+      blocos.push(`## PLANO AGÊNTICO ATIVO DE OUTRO MEMBRO
+Existe um plano agêntico ${donoTxt} em andamento nesta empresa.
+Título: "${outro.plano.titulo}"
+Objetivo: ${outro.plano.objetivo}
+Progresso: passo ${outro.plano.passoAtual}/${outro.plano.totalPassos} (${concluidos} concluído${concluidos === 1 ? "" : "s"}).
+
+REGRA: Se o usuário pedir para criar um novo plano agêntico, NÃO chame criar_plano_agentico direto — primeiro avise em texto que isso vai cancelar o plano ${donoTxt} e pergunte se ele quer mesmo seguir. Só chame a tool depois da confirmação explícita.`);
+    }
+
+    return blocos.join("\n\n");
   } catch {
     return "";
   }

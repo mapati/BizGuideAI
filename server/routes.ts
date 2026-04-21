@@ -3793,6 +3793,7 @@ LOOP AGÊNTICO (planos multi-passo):
 - Se já existe um PLANO AGÊNTICO ATIVO no contexto, foque exclusivamente no PRÓXIMO PASSO PENDENTE: chame a tool executora correspondente vinculando planoId e passoOrdem nos parâmetros.
 - Nunca proponha vários passos do mesmo plano de uma vez — um por vez, sempre HITL.
 - ANTES de chamar criar_plano_agentico, verifique se há um "## PLANO AGÊNTICO ATIVO" no contexto. Se houver, NÃO chame a ferramenta direto: primeiro responda em texto avisando o usuário que ele já tem o plano "<título>" em andamento (cite o progresso) e pergunte explicitamente se ele quer (a) continuar o plano atual, (b) concluí-lo (concluir_plano_agentico), (c) cancelá-lo (cancelar_plano_agentico) ou (d) substituí-lo por um novo plano. Só chame criar_plano_agentico depois que o usuário responder pedindo um plano novo — e mesmo assim deixe claro no texto que o anterior será cancelado.
+- ANTES de chamar criar_plano_agentico, verifique também se há um "## PLANO AGÊNTICO ATIVO DE OUTRO MEMBRO" no contexto (plano compartilhado da empresa ou de outro usuário do time). Se houver, NÃO chame a ferramenta direto: primeiro responda em texto avisando que existe um plano "<título>" do dono indicado (compartilhado da empresa ou de Fulano) em andamento, que criar um novo plano agora vai cancelar esse trabalho coletivo, e pergunte explicitamente se o usuário quer mesmo seguir. Só chame criar_plano_agentico depois da confirmação explícita.
 
 DADOS DA EMPRESA:
 ${ctx.join("\n\n")}`;

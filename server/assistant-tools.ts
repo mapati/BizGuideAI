@@ -668,6 +668,17 @@ const criarPlanoAgentico: ToolDefinition<CriarPlanoAgenticoParams> = {
         finalizadoEm: new Date(),
       });
     }
+    // Task #199 — também cancela plano ativo de outro membro do time / plano
+    // compartilhado, já que o preview HITL avisou explicitamente que isso
+    // aconteceria. Sem esse cancelamento, o índice único parcial do shared
+    // plan ainda permitiria coexistência, mas o aviso ficaria mentiroso.
+    const outro = await storage.getPlanoAtivoEmpresaDeOutros(ctx.empresaId, ctx.usuarioId ?? null);
+    if (outro && outro.plano.id !== existente?.id) {
+      await storage.updatePlanoAgentico(outro.plano.id, {
+        status: "cancelado",
+        finalizadoEm: new Date(),
+      });
+    }
     const passosOrdenados = p.passos
       .slice()
       .sort((a, b) => a.ordem - b.ordem)
@@ -978,6 +989,46 @@ export async function registrarProposta(opts: {
           campos: [...avisoCampos, ...(preview.campos ?? [])],
           ctaConfirmar: "Cancelar atual e iniciar este",
           ctaIgnorar: "Manter plano atual",
+        };
+      }
+
+      // Task #199 — Aviso quando o plano ativo NÃO é do usuário corrente:
+      // pode ser compartilhado da empresa ou de outro membro do time.
+      // Reaproveita o mesmo formato visual, só muda o cabeçalho/CTA pra
+      // deixar claro que o impacto é coletivo.
+      const planoOutro = await storage.getPlanoAtivoEmpresaDeOutros(
+        opts.empresaId,
+        opts.usuarioId ?? null,
+      );
+      // Evita aviso duplicado: getPlanoAtivoEmpresaUsuario também retorna
+      // planos compartilhados (usuarioId IS NULL); se já caiu no bloco
+      // anterior, não renderiza o bloco "de outro membro" para o mesmo plano.
+      if (planoOutro && planoOutro.plano.id !== planoExistente?.id) {
+        const passosOutro = await storage.listPassosByPlano(planoOutro.plano.id);
+        const concluidosOutro = passosOutro.filter((p) => p.status === "concluido").length;
+        const donoTxt = planoOutro.donoNome
+          ? `Plano de ${planoOutro.donoNome}`
+          : "Plano compartilhado da empresa";
+        const avisoCampos = [
+          {
+            label: `⚠ ${donoTxt} em andamento`,
+            valor: `"${planoOutro.plano.titulo}" — passo ${planoOutro.plano.passoAtual}/${planoOutro.plano.totalPassos} (${concluidosOutro} concluído${concluidosOutro === 1 ? "" : "s"}).`,
+          },
+          {
+            label: "O que acontece se você confirmar",
+            valor: planoOutro.donoNome
+              ? `O plano de ${planoOutro.donoNome} será cancelado e este novo plano começará do passo 1.`
+              : "O plano compartilhado do time será cancelado e este novo plano começará do passo 1.",
+          },
+        ];
+        preview = {
+          ...preview,
+          descricao: planoOutro.donoNome
+            ? `Já existe um plano agêntico ativo de ${planoOutro.donoNome} nesta empresa. ${preview.descricao}`
+            : `Já existe um plano agêntico compartilhado do time nesta empresa. ${preview.descricao}`,
+          campos: [...avisoCampos, ...(preview.campos ?? [])],
+          ctaConfirmar: "Cancelar plano do time e iniciar este",
+          ctaIgnorar: "Manter plano do time",
         };
       }
     } catch {

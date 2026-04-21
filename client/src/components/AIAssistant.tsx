@@ -42,36 +42,63 @@ export function AIAssistant() {
     setIsOpen(true);
   }, [progresso.jornadaConcluida, progresso.isLoading]);
 
-  // Proactive briefing — once per session per company, only when journey is completed
+  // Proactive briefing — fires when there are critical signals.
+  // Auto-open is throttled to once per browser session per company,
+  // but the briefing itself can be re-fetched (e.g. when the tab regains focus
+  // after the data has changed). The session lock is only set once we actually
+  // surfaced something to the user.
   useEffect(() => {
     if (progresso.isLoading) return;
     if (!progresso.jornadaConcluida) return;
     if (!empresaId) return;
+
     const sessionKey = `${PROACTIVE_SESSION_KEY_PREFIX}${empresaId}`;
-    if (sessionStorage.getItem(sessionKey) === "1") return;
 
     let cancelled = false;
-    (async () => {
+
+    const fetchBriefing = async (opts?: { force?: boolean }) => {
       try {
         const data = (await apiRequest("GET", "/api/ai/briefing-proativo")) as BriefingResponse;
         if (cancelled) return;
-        sessionStorage.setItem(sessionKey, "1");
         if (data.deveAbrir && data.mensagem) {
           setProactiveMessage({ content: data.mensagem, acoes: data.acoes });
-          // Auto-open the assistant if not in unlock flow
-          if (localStorage.getItem(UNLOCK_SHOWN_KEY) === "1") {
+          const alreadyAutoOpened = sessionStorage.getItem(sessionKey) === "1";
+          // Auto-open at most once per session per company — and only after the
+          // unlock animation has already happened, to avoid two pop-ups on top
+          // of each other. The user can always reopen via the chip.
+          if (
+            !alreadyAutoOpened &&
+            localStorage.getItem(UNLOCK_SHOWN_KEY) === "1" &&
+            (opts?.force || !isOpen)
+          ) {
             setIsOpen(true);
+            sessionStorage.setItem(sessionKey, "1");
           }
         }
       } catch {
         // silently ignore — proactive briefing is best-effort
       }
-    })();
+    };
+
+    fetchBriefing();
+
+    // Re-check when the tab becomes visible again — handles the case where the
+    // user left the tab open all morning and a KPI just turned red.
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        fetchBriefing();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
       cancelled = true;
+      document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [progresso.jornadaConcluida, progresso.isLoading, empresaId]);
+    // isOpen is intentionally omitted: we only want the fetch to react to
+    // identity/load changes, not to the drawer toggling.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [progresso.isLoading, empresaId]);
 
   if (progresso.isLoading) return null;
 

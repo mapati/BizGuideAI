@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { X, Sparkles, Compass } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { AssistantInsights } from "@/components/AssistantInsights";
 import { AssistantChat } from "@/components/AssistantChat";
 import { GuiaContent } from "@/components/GuiaContent";
 import { cn } from "@/lib/utils";
@@ -105,16 +104,6 @@ export function AssistantDrawer({
       ) : (
         hasOpened && (
           <div className="flex flex-col flex-1 min-h-0 overflow-hidden rounded-b-2xl">
-            {pagina && (
-              <div className="flex-shrink-0">
-                <AssistantInsights
-                  pagina={pagina}
-                  isOpen={isOpen}
-                  onAskAbout={(ctx) => setChatContext(ctx)}
-                />
-              </div>
-            )}
-
             <AssistantChat
               alertas={alertas}
               initialContext={chatContext}

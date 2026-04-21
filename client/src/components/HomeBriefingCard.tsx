@@ -30,16 +30,6 @@ function buildHrefFromAcao(acao: AssistantAcao): string {
   return qs ? `${acao.rota}?${qs}` : acao.rota;
 }
 
-function primeiraFrase(markdown: string): string {
-  const limpa = markdown
-    .replace(/[#*_`>\-]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  const idx = limpa.search(/[.!?]\s/);
-  if (idx > 40 && idx < 220) return limpa.slice(0, idx + 1);
-  return limpa.length > 200 ? `${limpa.slice(0, 197)}…` : limpa;
-}
-
 export function HomeBriefingCard() {
   const { jornadaConcluida, isLoading: jornadaLoading } = useJornadaProgresso();
   const enabled = !jornadaLoading && jornadaConcluida;
@@ -65,8 +55,6 @@ export function HomeBriefingCard() {
   }
   if (!data?.mensagem) return null;
 
-  const resumo = primeiraFrase(data.mensagem);
-  const acoes = (data.acoes ?? []).slice(0, 2);
   const fonte = data.fonte;
 
   return (
@@ -106,31 +94,15 @@ export function HomeBriefingCard() {
             className="text-base sm:text-lg font-medium leading-snug text-white"
             data-testid="text-home-briefing-resumo"
           >
-            {resumo}
+            Você tem uma mensagem do Assistente Estratégico esperando por você.
           </p>
 
           <div className="flex flex-wrap items-center gap-2 mt-4">
-            {acoes.map((acao, idx) => {
-              const href = buildHrefFromAcao(acao);
-              if (!href || acao.tipo === "dispensar") return null;
-              return (
-                <Link key={`${acao.label}-${idx}`} href={href}>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="bg-white/10 text-white border-white/30 backdrop-blur hover:bg-white/20"
-                    data-testid={`button-home-briefing-acao-${idx}`}
-                  >
-                    {acao.label}
-                  </Button>
-                </Link>
-              );
-            })}
             <Link href="/assistente">
               <Button
                 size="sm"
-                variant="ghost"
-                className="text-white hover:bg-white/10 gap-1.5"
+                variant="outline"
+                className="bg-white text-violet-700 border-white hover:bg-white/90 gap-1.5"
                 data-testid="link-home-briefing-ver-mais"
               >
                 Ver mais no Assistente <ArrowRight className="h-3.5 w-3.5" />

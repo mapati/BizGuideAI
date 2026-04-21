@@ -127,15 +127,21 @@ async function serperSearch(query: string, numResults = 8): Promise<SerperSearch
 
 // Serper.dev NEWS search — returns real news titles, no LLM involved.
 // Used by pulse_manchetes to source verified headlines directly from publishers.
-async function serperNewsSearch(query: string, numResults = 10): Promise<SerperNewsItem[]> {
+async function serperNewsSearch(query: string, numResults = 10, opts?: { freshDay?: boolean }): Promise<SerperNewsItem[]> {
   const apiKey = process.env.SERPER_API_KEY;
   if (!apiKey) return [];
   storage.incrementSearchUsage().catch(() => {});
   try {
+    const body: Record<string, unknown> = { q: query, num: numResults, gl: "br", hl: "pt" };
+    if (opts?.freshDay) {
+      // Restrict to news from the last 24 hours (qdr:d) and sort by date (sbd:1)
+      // so the most recent headlines come first instead of relevance-ranked top stories.
+      body.tbs = "qdr:d,sbd:1";
+    }
     const res = await fetch("https://google.serper.dev/news", {
       method: "POST",
       headers: { "X-API-KEY": apiKey, "Content-Type": "application/json" },
-      body: JSON.stringify({ q: query, num: numResults, gl: "br", hl: "pt" }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) {
       console.warn(`[serperNewsSearch] HTTP ${res.status} para query: ${query}`);
@@ -7039,9 +7045,36 @@ Seja específico para o setor ${empresa.setor}.`,
     pulse_manchetes:              "dólar IBOVESPA Selic IPCA commodities manchetes negócios Brasil hoje",
   };
 
+  // Pool temático de queries para o pulse_manchetes. Rotacionado a cada execução
+  // para aumentar a diversidade dos títulos exibidos no ticker e evitar que o
+  // Google News devolva sempre o mesmo top-stories.
+  const PULSE_QUERY_POOL: string[] = [
+    "mercado financeiro câmbio dólar Brasil hoje",
+    "Selic Copom política monetária Banco Central Brasil hoje",
+    "política econômica governo Brasília hoje",
+    "varejo consumo e-commerce Brasil hoje",
+    "indústria produção fabril Brasil hoje",
+    "agronegócio safra exportação Brasil hoje",
+    "tecnologia startups inovação Brasil hoje",
+    "PME pequenas empresas negócios Brasil hoje",
+    "commodities petróleo minério soja Brasil hoje",
+    "inflação IPCA preços Brasil hoje",
+  ];
+
+  function escolherQueriesPulse(base: Date, n = 3): string[] {
+    // Seleciona n queries do pool girando pelo horário do dia: queries diferentes
+    // a cada execução (4h em 4h dão 6 janelas/dia, então rotação cobre todo o pool).
+    const offset = base.getUTCHours() + base.getUTCDate() * 7;
+    const out: string[] = [];
+    for (let i = 0; i < n; i++) {
+      out.push(PULSE_QUERY_POOL[(offset + i * 3) % PULSE_QUERY_POOL.length]);
+    }
+    return out;
+  }
+
   async function gerarContextoCategoria(
     categoria: string
-  ): Promise<{ texto: string; modo: "web_search" | "fallback" | "noticias_diretas"; links?: string }> {
+  ): Promise<{ texto: string; modo: "web_search" | "fallback" | "noticias_diretas"; links?: string; mensagemLog?: string }> {
 
     // ── pulse_manchetes: notícias reais direto da fonte, SEM síntese por IA ──
     // Eliminamos o passo de geração por LLM para evitar alucinações no ticker.
@@ -7050,24 +7083,30 @@ Seja específico para o setor ${empresa.setor}.`,
     if (categoria === "pulse_manchetes") {
       if (!process.env.SERPER_API_KEY) {
         console.warn("[pulse_manchetes] SERPER_API_KEY ausente — ticker retorna vazio (sem fallback para IA).");
-        return { texto: "", modo: "noticias_diretas" };
+        return { texto: "", modo: "noticias_diretas", mensagemLog: "SERPER_API_KEY ausente" };
       }
       const record = await storage.getContextoMacroByCategoria(categoria);
       const customQuery = record?.queryBusca?.trim();
 
-      // Duas buscas paralelas para cobertura ampla.
-      // Se admin definiu queryBusca customizada, ela substitui a primeira query-padrão
-      // mas a segunda (negócios/PME) sempre roda para garantir diversidade de temas.
-      const [macroNews, negociosNews] = await Promise.all([
-        serperNewsSearch(customQuery ?? "mercado financeiro economia Brasil hoje", 10),
-        serperNewsSearch("negócios empresas PME Brasil hoje", 8),
-      ]);
+      // Lista final de queries: customizada (se houver) + pool rotativo temático.
+      // Buscas usam tbs:qdr:d para priorizar conteúdo das últimas 24h.
+      const queries = customQuery
+        ? [customQuery, ...escolherQueriesPulse(new Date(), 2)]
+        : escolherQueriesPulse(new Date(), 3);
+
+      const resultados = await Promise.all(
+        queries.map((q) => serperNewsSearch(q, 10, { freshDay: true }))
+      );
+
+      // Estatísticas por query para o log de execução.
+      const statsPorQuery = queries.map((q, i) => ({ q, total: resultados[i].length }));
 
       // Mescla e deduplica por prefixo do título (primeiros 40 chars, case-insensitive)
       const seen = new Set<string>();
       const manchetes: string[] = [];
       const linksColetados: string[] = [];
-      for (const item of [...macroNews, ...negociosNews]) {
+      const todos: SerperNewsItem[] = resultados.flat();
+      for (const item of todos) {
         const title = item.title.trim();
         if (!title) continue;
         const dedupeKey = title.toLowerCase().slice(0, 40);
@@ -7083,8 +7122,10 @@ Seja específico para o setor ${empresa.setor}.`,
       }
 
       const texto = manchetes.join(" | ");
-      console.log(`[pulse_manchetes] ${manchetes.length} manchetes reais coletadas (sem IA, anti-alucinação)`);
-      return { texto, modo: "noticias_diretas", links: linksColetados.join(" | ") };
+      const detalhes = statsPorQuery.map((s) => `"${s.q}"=${s.total}`).join(", ");
+      const mensagemLog = `${manchetes.length} manchetes únicas (após dedupe) | por query: ${detalhes} | total bruto: ${todos.length}`;
+      console.log(`[pulse_manchetes] ${mensagemLog}`);
+      return { texto, modo: "noticias_diretas", links: linksColetados.join(" | "), mensagemLog };
     }
 
     const prompt = CATEGORIAS_PROMPTS[categoria];
@@ -7216,26 +7257,33 @@ Seja específico para o setor ${empresa.setor}.`,
       const record = await storage.getContextoMacroByCategoria(categoria);
       if (!record) return res.status(404).json({ error: "Categoria não encontrada" });
 
-      const { texto, modo, links } = await gerarContextoCategoria(categoria);
+      const { texto, modo, links, mensagemLog } = await gerarContextoCategoria(categoria);
 
+      const baseLogMsg =
+        modo === "noticias_diretas" ? "Manchetes reais coletadas direto da fonte (sem IA)"
+        : modo === "web_search"     ? "Gerado com busca na web"
+        :                             "Gerado sem busca na web (fallback)";
       await storage.addContextoMacroLog({
         categoria,
         executadoEm: agora,
         modo,
         resultado: "sucesso",
-        mensagem:
-          modo === "noticias_diretas" ? "Manchetes reais coletadas direto da fonte (sem IA)"
-          : modo === "web_search"     ? "Gerado com busca na web"
-          :                             "Gerado sem busca na web (fallback)",
+        mensagem: mensagemLog ? `${baseLogMsg} — ${mensagemLog}` : baseLogMsg,
       });
 
-      if (record.agendadorAtivo && record.agendadorFrequencia) {
+      // pulse_manchetes é tratado como "sempre ativo": publica direto em texto_ativo
+      // (nunca em rascunho), com frequência padrão de 4h se nada estiver definido.
+      // Para as demais categorias, mantém o comportamento de rascunho quando o
+      // agendador está desativado.
+      const isPulse = categoria === "pulse_manchetes";
+      if (isPulse || (record.agendadorAtivo && record.agendadorFrequencia)) {
+        const freq = record.agendadorFrequencia ?? (isPulse ? "4h" : "semanal");
         await storage.updateContextoMacro(categoria, {
           textoAtivo: texto,
           linksAtivos: links ?? null,
           ativo: record.ativo,
           ultimaAtualizacao: agora,
-          proximoAgendamento: calcularProximoAgendamento(record.agendadorFrequencia, agora),
+          proximoAgendamento: calcularProximoAgendamento(freq, agora),
           rascunho: null,
         });
         _macroCtxCache = null;
@@ -7297,12 +7345,24 @@ Seja específico para o setor ${empresa.setor}.`,
       const all = await storage.getContextoMacroAll();
       const now = new Date();
       for (const cat of all) {
-        if (!cat.agendadorAtivo || !cat.agendadorFrequencia || !cat.proximoAgendamento) continue;
-        if (new Date(cat.proximoAgendamento) > now) continue;
+        const isPulse = cat.categoria === "pulse_manchetes";
+        // pulse_manchetes é sempre processado pelo agendador, mesmo se o flag estiver
+        // off ou se a frequência não estiver definida (assume 4h). As demais categorias
+        // continuam exigindo agendadorAtivo + frequência + proximoAgendamento.
+        let frequencia: string | null;
+        if (isPulse) {
+          frequencia = cat.agendadorFrequencia ?? "4h";
+          // Se nunca foi agendado, processa imediatamente nesta janela.
+          if (cat.proximoAgendamento && new Date(cat.proximoAgendamento) > now) continue;
+        } else {
+          if (!cat.agendadorAtivo || !cat.agendadorFrequencia || !cat.proximoAgendamento) continue;
+          if (new Date(cat.proximoAgendamento) > now) continue;
+          frequencia = cat.agendadorFrequencia;
+        }
         try {
           console.log(`[CONTEXTO_MACRO] Gerando: ${cat.categoria}`);
-          const { texto, modo, links } = await gerarContextoCategoria(cat.categoria);
-          const proxima = calcularProximoAgendamento(cat.agendadorFrequencia, now);
+          const { texto, modo, links, mensagemLog } = await gerarContextoCategoria(cat.categoria);
+          const proxima = calcularProximoAgendamento(frequencia, now);
           await storage.updateContextoMacro(cat.categoria, {
             textoAtivo: texto,
             linksAtivos: links ?? null,
@@ -7311,15 +7371,16 @@ Seja específico para o setor ${empresa.setor}.`,
             rascunho: null,
           });
           _macroCtxCache = null;
+          const baseLogMsg =
+            modo === "noticias_diretas" ? "Agendador: manchetes reais coletadas direto da fonte (sem IA)"
+            : modo === "web_search"     ? "Agendador: gerado com busca na web"
+            :                             "Agendador: gerado sem busca na web (fallback)";
           await storage.addContextoMacroLog({
             categoria: cat.categoria,
             executadoEm: now,
             modo,
             resultado: "sucesso",
-            mensagem:
-              modo === "noticias_diretas" ? "Agendador: manchetes reais coletadas direto da fonte (sem IA)"
-              : modo === "web_search"     ? "Agendador: gerado com busca na web"
-              :                             "Agendador: gerado sem busca na web (fallback)",
+            mensagem: mensagemLog ? `${baseLogMsg} — ${mensagemLog}` : baseLogMsg,
           });
           console.log(`[CONTEXTO_MACRO] OK: ${cat.categoria} — próximo: ${proxima.toISOString()}`);
         } catch (err: any) {
@@ -7341,6 +7402,42 @@ Seja específico para o setor ${empresa.setor}.`,
       console.error("[CONTEXTO_MACRO] Erro no scheduler:", err?.message ?? err);
     }
   });
+
+  /* ── Migração suave: força um processamento imediato de pulse_manchetes ──
+     ── no boot, para destravar instalações onde o textoAtivo está congelado. ── */
+  (async () => {
+    try {
+      // Pequeno delay para o servidor terminar de subir antes de chamar Serper.
+      await new Promise((r) => setTimeout(r, 5000));
+      const cat = await storage.getContextoMacroByCategoria("pulse_manchetes");
+      if (!cat) return;
+      const ultima = cat.ultimaAtualizacao ? new Date(cat.ultimaAtualizacao).getTime() : 0;
+      const horas = (Date.now() - ultima) / (1000 * 60 * 60);
+      // Se o texto estiver fresco (<3h), não força — evita custo desnecessário em restarts.
+      if (horas < 3) return;
+      console.log(`[PULSE_BOOT] Forçando atualização do pulse_manchetes (última há ${horas.toFixed(1)}h)`);
+      const agora = new Date();
+      const { texto, modo, links, mensagemLog } = await gerarContextoCategoria("pulse_manchetes");
+      const freq = cat.agendadorFrequencia ?? "4h";
+      await storage.updateContextoMacro("pulse_manchetes", {
+        textoAtivo: texto,
+        linksAtivos: links ?? null,
+        ultimaAtualizacao: agora,
+        proximoAgendamento: calcularProximoAgendamento(freq, agora),
+        rascunho: null,
+      });
+      _macroCtxCache = null;
+      await storage.addContextoMacroLog({
+        categoria: "pulse_manchetes",
+        executadoEm: agora,
+        modo,
+        resultado: "sucesso",
+        mensagem: `Boot: pulse_manchetes destravado${mensagemLog ? ` — ${mensagemLog}` : ""}`,
+      });
+    } catch (err: any) {
+      console.error("[PULSE_BOOT] Falhou:", err?.message ?? err);
+    }
+  })();
 
   /* ── Inicializa o agendador de push do GitHub (se ativo no banco) ── */
   (async () => {

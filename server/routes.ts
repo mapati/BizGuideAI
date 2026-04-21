@@ -4113,7 +4113,14 @@ ${ctx.join("\n\n")}`;
             // acoesRestantes = ações que NÃO viraram proposta (foram persistidas
             // no campo `acoes` original; o frontend já entende esse formato).
             // Para hidratação, precisamos filtrar igual à conversão original:
-            const promotaveis = new Set(["criar:/iniciativas", "editar:/iniciativas", "criar:/indicadores", "editar:/indicadores", "criar:/okrs"]);
+            const promotaveis = new Set([
+              "criar:/iniciativas",
+              "editar:/iniciativas",
+              "criar:/indicadores",
+              "editar:/indicadores",
+              "criar:/okrs",
+              "editar:/okrs",
+            ]);
             acoesRestantes = (parsed.data.acoes ?? []).filter(
               (a) => !promotaveis.has(`${a.tipo}:${a.rota ?? ""}`)
             );

@@ -52,12 +52,12 @@ export function HomeBriefingCard() {
 
   // Conta propostas pendentes (status="proposta") da empresa para sinalizar
   // ações aguardando aprovação na home, conforme requisito do HITL.
-  const { data: propostas } = useQuery<Array<{ id: string; status: string }>>({
+  const { data: propostasResp } = useQuery<{ propostas: Array<{ id: string; status: string }> }>({
     queryKey: ["/api/ai/propostas"],
     enabled,
     staleTime: 60 * 1000,
   });
-  const pendentes = (propostas ?? []).filter((p) => p.status === "proposta").length;
+  const pendentes = (propostasResp?.propostas ?? []).filter((p) => p.status === "proposta").length;
 
   if (!enabled) return null;
   if (isLoading) {

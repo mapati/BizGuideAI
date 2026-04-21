@@ -59,9 +59,18 @@ const ROTAS_VALIDAS = [
 ] as const;
 
 // Vocabulário canônico do produto (mantido em sincronia com client/src/pages/*).
+// IMPORTANTE: OKRs e Indicadores usam vocabulários distintos no produto — manter espelhado.
 const PRIORIDADES = ["alta", "média", "baixa"] as const;
 const STATUS_INICIATIVA = ["planejada", "em_andamento", "concluida", "atrasada"] as const;
-const PERSPECTIVAS_BSC = ["Finanças", "Clientes", "Processos", "Aprendizado"] as const;
+// OKRs (client/src/pages/OKRs.tsx): perspectivas do mapa estratégico clássico.
+const PERSPECTIVAS_OKR = [
+  "Financeira",
+  "Clientes",
+  "Processos Internos",
+  "Aprendizado e Crescimento",
+] as const;
+// Indicadores (client/src/pages/Indicadores.tsx): rótulos curtos exibidos na grade.
+const PERSPECTIVAS_INDICADOR = ["Finanças", "Clientes", "Processos", "Pessoas"] as const;
 
 function strField(label: string, valor: string | undefined | null) {
   if (!valor || !String(valor).trim()) return null;
@@ -219,7 +228,7 @@ const atualizarIniciativa: ToolDefinition<AtualizarIniciativaParams> = {
 const criarOkrSchema = z.object({
   objetivoTitulo: z.string().min(3).max(200),
   objetivoDescricao: z.string().max(800).default(""),
-  perspectiva: z.enum(PERSPECTIVAS_BSC).default("Finanças"),
+  perspectiva: z.enum(PERSPECTIVAS_OKR).default("Financeira"),
   prazo: z.string().min(4).max(32),
   resultadosChave: z
     .array(
@@ -248,7 +257,7 @@ const criarOkr: ToolDefinition<CriarOkrParams> = {
     properties: {
       objetivoTitulo: { type: "string" },
       objetivoDescricao: { type: "string" },
-      perspectiva: { type: "string", enum: [...PERSPECTIVAS_BSC] },
+      perspectiva: { type: "string", enum: [...PERSPECTIVAS_OKR] },
       prazo: { type: "string", description: "Ex.: 2026-Q2 ou YYYY-MM-DD" },
       resultadosChave: {
         type: "array",
@@ -324,7 +333,7 @@ const atualizarOkrSchema = z.object({
   objetivoId: z.string().min(8),
   titulo: z.string().min(3).max(200).optional(),
   descricao: z.string().max(800).optional(),
-  perspectiva: z.enum(PERSPECTIVAS_BSC).optional(),
+  perspectiva: z.enum(PERSPECTIVAS_OKR).optional(),
   prazo: z.string().min(4).max(32).optional(),
 });
 type AtualizarOkrParams = z.infer<typeof atualizarOkrSchema>;
@@ -342,7 +351,7 @@ const atualizarOkr: ToolDefinition<AtualizarOkrParams> = {
       objetivoId: { type: "string", description: "ID real do objetivo (OKR)" },
       titulo: { type: "string" },
       descricao: { type: "string" },
-      perspectiva: { type: "string", enum: [...PERSPECTIVAS_BSC] },
+      perspectiva: { type: "string", enum: [...PERSPECTIVAS_OKR] },
       prazo: { type: "string" },
     },
   },
@@ -429,7 +438,7 @@ const atualizarProgressoKr: ToolDefinition<AtualizarProgressoKrParams> = {
 
 // ---------- 5. criar_indicador ----------
 const criarIndicadorSchema = z.object({
-  perspectiva: z.enum(PERSPECTIVAS_BSC).default("Finanças"),
+  perspectiva: z.enum(PERSPECTIVAS_OKR).default("Financeira"),
   nome: z.string().min(3).max(200),
   meta: z.string().min(1).max(80),
   atual: z.string().min(1).max(80).default("0"),
@@ -448,7 +457,7 @@ const criarIndicador: ToolDefinition<CriarIndicadorParams> = {
     additionalProperties: false,
     required: ["perspectiva", "nome", "meta", "owner"],
     properties: {
-      perspectiva: { type: "string", enum: [...PERSPECTIVAS_BSC] },
+      perspectiva: { type: "string", enum: [...PERSPECTIVAS_INDICADOR] },
       nome: { type: "string" },
       meta: { type: "string", description: "Meta numérica em string (ex.: '95', '100k')" },
       atual: { type: "string" },

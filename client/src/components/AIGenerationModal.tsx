@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sparkles, Settings2 } from "lucide-react";
 import type { AIGenerationParams } from "@shared/schema";
+import { useRegisterAIModal } from "@/contexts/ai-modal-lock";
 
 export interface FocoItem {
   value: string;
@@ -189,9 +190,24 @@ export function AIGenerationModal({
     onConfirm(params);
   };
 
+  useRegisterAIModal(open);
+
+  // Bloqueia qualquer pedido automático de fechamento (clique fora, Esc, X).
+  // Fechamento só acontece via chamada explícita do botão Cancelar/Gerar.
+  const handleOpenChange = (next: boolean) => {
+    if (!next) return;
+    onOpenChange(next);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        className="max-w-lg max-h-[90vh] overflow-y-auto"
+        hideClose
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Settings2 className="h-5 w-5" />

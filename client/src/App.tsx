@@ -8,6 +8,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { AIAssistant } from "@/components/AIAssistant";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { AIModalLockProvider, useAIModalLocked } from "@/contexts/ai-modal-lock";
 import { Clock, Zap } from "lucide-react";
 
 import Home from "@/pages/Home";
@@ -109,6 +110,12 @@ function UpgradeBanner() {
       </span>
     </div>
   );
+}
+
+function AssistantSlot() {
+  const locked = useAIModalLocked();
+  if (locked) return null;
+  return <AIAssistant />;
 }
 
 function AppLayout() {
@@ -275,7 +282,7 @@ function AppLayout() {
           </div>
         </div>
       </div>
-      <AIAssistant />
+      <AssistantSlot />
     </SidebarProvider>
   );
 }
@@ -286,8 +293,10 @@ export default function App() {
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <AuthProvider>
-            <AppLayout />
-            <Toaster />
+            <AIModalLockProvider>
+              <AppLayout />
+              <Toaster />
+            </AIModalLockProvider>
           </AuthProvider>
         </TooltipProvider>
       </ThemeProvider>

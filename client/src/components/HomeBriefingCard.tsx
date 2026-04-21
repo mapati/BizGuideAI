@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Sparkles, ArrowRight, AlertTriangle, Cpu, BookOpen, Loader2 } from "lucide-react";
+import { Sparkles, ArrowRight, AlertTriangle, Cpu, BookOpen, Loader2, ListChecks } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +50,15 @@ export function HomeBriefingCard() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Conta propostas pendentes (status="proposta") da empresa para sinalizar
+  // ações aguardando aprovação na home, conforme requisito do HITL.
+  const { data: propostas } = useQuery<Array<{ id: string; status: string }>>({
+    queryKey: ["/api/ai/propostas"],
+    enabled,
+    staleTime: 60 * 1000,
+  });
+  const pendentes = (propostas ?? []).filter((p) => p.status === "proposta").length;
+
   if (!enabled) return null;
   if (isLoading) {
     return (
@@ -97,6 +106,15 @@ export function HomeBriefingCard() {
                 className="bg-white/15 text-white border-white/20 backdrop-blur gap-1 text-[10px]"
               >
                 <AlertTriangle className="h-2.5 w-2.5" /> {data.sinais.total} sina{data.sinais.total === 1 ? "l" : "is"}
+              </Badge>
+            )}
+            {pendentes > 0 && (
+              <Badge
+                variant="secondary"
+                className="bg-white/15 text-white border-white/20 backdrop-blur gap-1 text-[10px]"
+                data-testid="badge-home-briefing-propostas-pendentes"
+              >
+                <ListChecks className="h-2.5 w-2.5" /> {pendentes} aguardando aprovação
               </Badge>
             )}
           </div>

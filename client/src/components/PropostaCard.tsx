@@ -29,9 +29,9 @@ type Estado = "proposta" | "confirmada" | "ignorada" | "ajustada" | "falhou";
 // Mapa tool → campo de identificação da entidade existente (para `?editar=<id>`).
 // Tools de criação ficam fora do mapa e usam `?novo=1`.
 const ENTIDADE_ID_PARAM: Record<string, { idField: string; extra?: Record<string, string> }> = {
-  atualizar_iniciativa: { idField: "iniciativaId" },
+  atualizar_iniciativa: { idField: "id" },
   atualizar_okr: { idField: "objetivoId" },
-  atualizar_progresso_kr: { idField: "krId", extra: { tipo: "kr" } },
+  atualizar_progresso_kr: { idField: "resultadoChaveId", extra: { tipo: "kr" } },
   atualizar_valor_indicador: { idField: "indicadorId" },
 };
 

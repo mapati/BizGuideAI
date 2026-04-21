@@ -4036,6 +4036,12 @@ ${ctx.join("\n\n")}`;
       else if (acao.tipo === "criar" && rota === "/indicadores") toolName = "criar_indicador";
       else if (acao.tipo === "editar" && rota === "/indicadores") toolName = "atualizar_valor_indicador";
       else if (acao.tipo === "criar" && rota === "/okrs") toolName = "criar_okr";
+      else if (acao.tipo === "editar" && rota === "/okrs") {
+        // Heurística: parâmetros com `resultadoChaveId`/`krId` indicam atualização de KR;
+        // caso contrário, é o objetivo em si.
+        const p = acao.params ?? {};
+        toolName = (p.resultadoChaveId || p.krId) ? "atualizar_progresso_kr" : "atualizar_okr";
+      }
 
       if (!toolName) {
         acoesRestantes.push(acao);

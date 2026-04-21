@@ -8,7 +8,6 @@ import { apiRequest } from "@/lib/queryClient";
 import type { AssistantAcao } from "@/components/AssistantChat";
 
 const UNLOCK_SHOWN_KEY = "biz-guide-assistente-desbloqueado";
-const PROACTIVE_SESSION_KEY_PREFIX = "biz-guide-assistente-proativo-sessao:";
 
 interface ProactiveMessage {
   content: string;
@@ -32,48 +31,31 @@ export function AIAssistant() {
 
   const modo: "guia" | "assistente" = progresso.jornadaConcluida ? "assistente" : "guia";
 
-  // Unlock animation (one-time, persistent)
+  // Unlock animation (one-time, persistent). Marca como visto sem abrir o
+  // drawer automaticamente — a Home e a página /assistente já comunicam isso.
   useEffect(() => {
     if (progresso.isLoading) return;
     if (!progresso.jornadaConcluida) return;
     if (localStorage.getItem(UNLOCK_SHOWN_KEY) === "1") return;
     localStorage.setItem(UNLOCK_SHOWN_KEY, "1");
-    setShowUnlock(true);
-    setIsOpen(true);
   }, [progresso.jornadaConcluida, progresso.isLoading]);
 
-  // Proactive briefing — fires when there are critical signals.
-  // Auto-open is throttled to once per browser session per company,
-  // but the briefing itself can be re-fetched (e.g. when the tab regains focus
-  // after the data has changed). The session lock is only set once we actually
-  // surfaced something to the user.
+  // Briefing proativo — busca para alimentar o preview do chip, mas NÃO abre
+  // o drawer sozinho. O cartão na Home e a página /assistente são os pontos
+  // de entrada principais; o usuário abre o chat manualmente quando quiser.
   useEffect(() => {
     if (progresso.isLoading) return;
     if (!progresso.jornadaConcluida) return;
     if (!empresaId) return;
 
-    const sessionKey = `${PROACTIVE_SESSION_KEY_PREFIX}${empresaId}`;
-
     let cancelled = false;
 
-    const fetchBriefing = async (opts?: { force?: boolean }) => {
+    const fetchBriefing = async () => {
       try {
         const data = (await apiRequest("GET", "/api/ai/briefing-proativo")) as BriefingResponse;
         if (cancelled) return;
         if (data.deveAbrir && data.mensagem) {
           setProactiveMessage({ content: data.mensagem, acoes: data.acoes });
-          const alreadyAutoOpened = sessionStorage.getItem(sessionKey) === "1";
-          // Auto-open at most once per session per company — and only after the
-          // unlock animation has already happened, to avoid two pop-ups on top
-          // of each other. The user can always reopen via the chip.
-          if (
-            !alreadyAutoOpened &&
-            localStorage.getItem(UNLOCK_SHOWN_KEY) === "1" &&
-            (opts?.force || !isOpen)
-          ) {
-            setIsOpen(true);
-            sessionStorage.setItem(sessionKey, "1");
-          }
         }
       } catch {
         // silently ignore — proactive briefing is best-effort
@@ -82,8 +64,6 @@ export function AIAssistant() {
 
     fetchBriefing();
 
-    // Re-check when the tab becomes visible again — handles the case where the
-    // user left the tab open all morning and a KPI just turned red.
     const onVisibility = () => {
       if (document.visibilityState === "visible") {
         fetchBriefing();
@@ -95,9 +75,7 @@ export function AIAssistant() {
       cancelled = true;
       document.removeEventListener("visibilitychange", onVisibility);
     };
-    // isOpen is intentionally omitted from deps: we only want the fetch to
-    // react to identity/load changes, not to the drawer toggling.
-  }, [progresso.isLoading, empresaId]);
+  }, [progresso.isLoading, progresso.jornadaConcluida, empresaId]);
 
   if (progresso.isLoading) return null;
 

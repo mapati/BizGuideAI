@@ -75,10 +75,10 @@ function ObjetivoCard({ objetivo, membros, estrategias, iniciativas, resultadosC
       data-testid={`card-objetivo-${objetivo.id}`}
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="flex-1">
-          <h4 className="font-semibold text-sm mb-1">{objetivo.titulo}</h4>
+        <div className="flex-1 min-w-0">
+          <h4 className="font-semibold text-sm mb-1 break-words">{objetivo.titulo}</h4>
           {objetivo.descricao && (
-            <p className="text-xs text-muted-foreground mb-2">{objetivo.descricao}</p>
+            <p className="text-xs text-muted-foreground mb-2 break-words">{objetivo.descricao}</p>
           )}
           <div className="flex items-center flex-wrap gap-2">
             <p className="text-xs text-muted-foreground">Prazo: {objetivo.prazo}</p>
@@ -94,9 +94,9 @@ function ObjetivoCard({ objetivo, membros, estrategias, iniciativas, resultadosC
             {objetivo.estrategiaId && (() => {
               const est = estrategias.find(e => e.id === objetivo.estrategiaId);
               return est ? (
-                <Badge variant="outline" className="gap-1 text-xs" data-testid={`badge-estrategia-objetivo-${objetivo.id}`}>
-                  <Link2 className="h-3 w-3" />
-                  {est.tipo} — {est.titulo.length > 35 ? est.titulo.slice(0, 35) + "…" : est.titulo}
+                <Badge variant="outline" className="gap-1 text-xs max-w-full" data-testid={`badge-estrategia-objetivo-${objetivo.id}`}>
+                  <Link2 className="h-3 w-3 flex-shrink-0" />
+                  <span className="truncate">{est.tipo} — {est.titulo}</span>
                 </Badge>
               ) : null;
             })()}
@@ -910,20 +910,20 @@ export default function OKRs() {
           </div>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6 mt-6">
           {perspectivas.map((perspectiva) => {
             const Icon = perspectiva.icon;
             const objs = objetivosPorPerspectiva(perspectiva.valor);
             
             return (
-              <Card key={perspectiva.valor} className="p-6" data-testid={`card-perspectiva-${perspectiva.valor}`}>
-                <div className="flex items-center justify-between gap-3 mb-4 pb-4 border-b">
-                  <div className="flex items-center gap-3">
+              <Card key={perspectiva.valor} className="p-4 sm:p-6 min-w-0 overflow-hidden" data-testid={`card-perspectiva-${perspectiva.valor}`}>
+                <div className="flex items-center justify-between gap-2 flex-wrap mb-4 pb-4 border-b">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div className={`h-10 w-10 rounded-full ${perspectiva.cor} flex items-center justify-center flex-shrink-0`}>
                       <Icon className="h-5 w-5 text-white" />
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-lg">{perspectiva.label}</h3>
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-base sm:text-lg truncate">{perspectiva.label}</h3>
                       <p className="text-sm text-muted-foreground">{objs.length} objetivo(s)</p>
                     </div>
                   </div>
@@ -939,7 +939,8 @@ export default function OKRs() {
                     ) : (
                       <Sparkles className="h-3.5 w-3.5 mr-1.5" />
                     )}
-                    Gerar com IA
+                    <span className="hidden sm:inline">Gerar com IA</span>
+                    <span className="sm:hidden">IA</span>
                   </Button>
                 </div>
 

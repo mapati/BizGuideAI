@@ -120,23 +120,31 @@ export default function Alertas() {
                   className="flex-shrink-0 mt-0.5"
                 />
               </CardHeader>
-              {ativo && tipo !== "resumo_semanal" && (
-                <CardContent className="pt-0 pb-3">
-                  <div className="flex items-center gap-3 ml-9">
-                    <Label className="text-xs text-muted-foreground flex-shrink-0">Frequência:</Label>
-                    <Select value={frequencia} onValueChange={v => setFrequencia(tipo, v)}>
-                      <SelectTrigger className="h-7 text-xs w-40" data-testid={`select-freq-${tipo}`}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="imediato">Imediato</SelectItem>
-                        <SelectItem value="diario">Diário (1x/dia)</SelectItem>
-                        <SelectItem value="semanal">Semanal</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </CardContent>
-              )}
+              <CardContent className="pt-0 pb-3">
+                <div className="flex items-center gap-3 ml-9 flex-wrap gap-y-2">
+                  {ativo && tipo !== "resumo_semanal" && (
+                    <>
+                      <Label className="text-xs text-muted-foreground flex-shrink-0">Frequência:</Label>
+                      <Select value={frequencia} onValueChange={v => setFrequencia(tipo, v)}>
+                        <SelectTrigger className="h-7 text-xs w-40" data-testid={`select-freq-${tipo}`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="imediato">Imediato</SelectItem>
+                          <SelectItem value="diario">Diário (1x/dia)</SelectItem>
+                          <SelectItem value="semanal">Semanal</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </>
+                  )}
+                  <span
+                    className="text-xs text-muted-foreground"
+                    data-testid={`text-ultimo-envio-${tipo}`}
+                  >
+                    Último envio: {cfg?.ultimoEnvio ? new Date(cfg.ultimoEnvio).toLocaleString("pt-BR") : "nunca"}
+                  </span>
+                </div>
+              </CardContent>
             </Card>
           );
         })}

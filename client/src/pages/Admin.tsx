@@ -51,6 +51,8 @@ import {
   CircleX,
   Minus,
   Tag,
+  Bell,
+  Send,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -1651,6 +1653,125 @@ interface PushLog {
   mensagem: string;
 }
 
+interface AdminEmailStatus {
+  resendApiKey: boolean;
+  emailFrom: string;
+  emailFromConfigured: boolean;
+  emailFromValido: boolean;
+  fromDomain: string | null;
+}
+interface AdminEngineDetalhe {
+  usuarioId: string;
+  email: string;
+  tipoAlerta: string;
+  alvoId?: string;
+  resultado: "enviado" | "pulado" | "erro";
+  motivo?: string;
+}
+interface AdminEngineReport {
+  iniciadoEm: string;
+  finalizadoEm: string;
+  enviados: number;
+  pulados: Record<string, number>;
+  detalhes: AdminEngineDetalhe[];
+  configuracao: AdminEmailStatus;
+}
+
+function TabAlertas() {
+  const { toast } = useToast();
+  const [relatorio, setRelatorio] = useState<AdminEngineReport | null>(null);
+
+  const { data: emailStatus } = useQuery<AdminEmailStatus>({
+    queryKey: ["/api/notificacoes/email-status"],
+  });
+
+  const dispararMut = useMutation<AdminEngineReport, Error>({
+    mutationFn: async () => {
+      const r = await apiRequest("POST", "/api/admin/notificacoes/disparar", {});
+      return r as unknown as AdminEngineReport;
+    },
+    onSuccess: (data) => {
+      setRelatorio(data);
+      toast({ title: "Verificação executada", description: `${data.enviados} e-mail(s) enviado(s)` });
+    },
+    onError: (e) => toast({ title: "Falha ao executar", description: e.message ?? "Erro desconhecido", variant: "destructive" }),
+  });
+
+  return (
+    <div className="space-y-4" data-testid="tab-content-alertas">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" /> Motor de notificações por e-mail</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid sm:grid-cols-2 gap-3 text-sm">
+            <div className="p-3 rounded-md bg-muted/40">
+              <div className="text-xs text-muted-foreground">RESEND_API_KEY</div>
+              <div className="font-medium" data-testid="text-resend-status">
+                {emailStatus?.resendApiKey ? "Configurada" : "Ausente (envios serão pulados)"}
+              </div>
+            </div>
+            <div className="p-3 rounded-md bg-muted/40">
+              <div className="text-xs text-muted-foreground">Remetente (EMAIL_FROM)</div>
+              <div className="font-medium" data-testid="text-email-from">{emailStatus?.emailFrom ?? "—"}</div>
+              <div className="text-xs text-muted-foreground mt-1" data-testid="text-email-from-status">
+                {emailStatus
+                  ? emailStatus.emailFromValido
+                    ? emailStatus.emailFromConfigured
+                      ? `Domínio: ${emailStatus.fromDomain} (deve estar verificado no Resend)`
+                      : `Usando fallback — defina EMAIL_FROM em Secrets (domínio precisa estar verificado no Resend)`
+                    : `Formato inválido — corrija a variável EMAIL_FROM`
+                  : "—"}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              onClick={() => dispararMut.mutate()}
+              disabled={dispararMut.isPending}
+              data-testid="button-disparar-notificacoes"
+            >
+              <Send className="h-4 w-4 mr-2" />
+              {dispararMut.isPending ? "Executando..." : "Rodar agora (forçado)"}
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              Avalia condições para todos os usuários e envia ignorando dedupe/dia da semana.
+            </span>
+          </div>
+
+          {relatorio && (
+            <div className="border rounded-md p-3 space-y-2">
+              <div className="text-sm font-semibold">Último relatório</div>
+              <div className="text-xs grid sm:grid-cols-2 gap-2">
+                <div>Iniciado: <span className="text-muted-foreground">{new Date(relatorio.iniciadoEm).toLocaleString("pt-BR")}</span></div>
+                <div>Finalizado: <span className="text-muted-foreground">{new Date(relatorio.finalizadoEm).toLocaleString("pt-BR")}</span></div>
+                <div>Enviados: <strong data-testid="text-relatorio-enviados">{relatorio.enviados}</strong></div>
+                <div className="text-muted-foreground">Pulados: {Object.entries(relatorio.pulados ?? {}).map(([k, v]) => `${k}=${v}`).join(", ")}</div>
+              </div>
+              <div className="max-h-72 overflow-auto text-xs border-t pt-2 space-y-1">
+                {relatorio.detalhes.slice(0, 100).map((d, i) => (
+                  <div key={i} className="flex items-center gap-2" data-testid={`row-relatorio-${i}`}>
+                    <Badge variant={d.resultado === "enviado" ? "default" : d.resultado === "erro" ? "destructive" : "secondary"}>
+                      {d.resultado}
+                    </Badge>
+                    <span className="font-mono">{d.tipoAlerta}</span>
+                    <span className="text-muted-foreground">→ {d.email}</span>
+                    {d.motivo && <span className="text-muted-foreground">({d.motivo})</span>}
+                  </div>
+                ))}
+                {relatorio.detalhes.length === 0 && (
+                  <div className="text-muted-foreground">Nenhum detalhe nesta execução.</div>
+                )}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function TabGithub() {
   const { toast } = useToast();
 
@@ -1911,6 +2032,10 @@ export default function Admin() {
             <GitBranch className="h-4 w-4 mr-2" />
             GitHub
           </TabsTrigger>
+          <TabsTrigger value="alertas" data-testid="tab-alertas">
+            <Bell className="h-4 w-4 mr-2" />
+            Alertas
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="resumo" className="mt-4">
@@ -1939,6 +2064,10 @@ export default function Admin() {
 
         <TabsContent value="github" className="mt-4">
           <TabGithub />
+        </TabsContent>
+
+        <TabsContent value="alertas" className="mt-4">
+          <TabAlertas />
         </TabsContent>
       </Tabs>
     </div>

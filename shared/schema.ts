@@ -180,11 +180,13 @@ export const resultadosChave = pgTable("resultados_chave", {
   prazo: text("prazo").notNull(),
   responsavelId: varchar("responsavel_id").references(() => usuarios.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  atualizadoEm: timestamp("atualizado_em").defaultNow().notNull(),
 });
 
 export const insertResultadoChaveSchema = createInsertSchema(resultadosChave).omit({
   id: true,
   createdAt: true,
+  atualizadoEm: true,
 });
 export type InsertResultadoChave = z.infer<typeof insertResultadoChaveSchema>;
 export type ResultadoChave = typeof resultadosChave.$inferSelect;
@@ -428,6 +430,16 @@ export const configuracoesNotificacao = pgTable("configuracoes_notificacao", {
 export const insertConfiguracaoNotificacaoSchema = createInsertSchema(configuracoesNotificacao).omit({ id: true });
 export type InsertConfiguracaoNotificacao = z.infer<typeof insertConfiguracaoNotificacaoSchema>;
 export type ConfiguracaoNotificacao = typeof configuracoesNotificacao.$inferSelect;
+
+// Task #174 — Histórico de envios de alertas por (usuário, tipo, alvo) para deduplicação
+export const notificacaoEnvios = pgTable("notificacao_envios", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  usuarioId: varchar("usuario_id").notNull().references(() => usuarios.id, { onDelete: "cascade" }),
+  tipoAlerta: text("tipo_alerta").notNull(),
+  alvoId: text("alvo_id").notNull().default(""),
+  enviadoEm: timestamp("enviado_em").defaultNow().notNull(),
+});
+export type NotificacaoEnvio = typeof notificacaoEnvios.$inferSelect;
 
 export const kpiLeituras = pgTable("kpi_leituras", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

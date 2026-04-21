@@ -9,6 +9,81 @@ function getResend(): Resend | null {
   return new Resend(key);
 }
 
+export interface EmailDiagnostics {
+  resendApiKey: boolean;
+  emailFrom: string;
+  emailFromConfigured: boolean;
+  emailFromValido: boolean;
+  fromDomain: string | null;
+}
+
+export interface EmailSendResult {
+  ok: boolean;
+  errorCategory?: "config_ausente" | "remetente_invalido" | "dominio_nao_verificado" | "provedor";
+  errorMessage?: string;
+}
+
+export function getEmailDiagnostics(): EmailDiagnostics {
+  const fromConfigured = !!process.env.EMAIL_FROM;
+  const valido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(FROM_EMAIL);
+  const dominio = valido ? FROM_EMAIL.split("@")[1] : null;
+  return {
+    resendApiKey: !!process.env.RESEND_API_KEY,
+    emailFrom: FROM_EMAIL,
+    emailFromConfigured: fromConfigured,
+    emailFromValido: valido,
+    fromDomain: dominio,
+  };
+}
+
+interface ResendErrorShape { name?: string; message?: string; statusCode?: number }
+interface ResendSendResponse { id?: string; error?: ResendErrorShape | null }
+
+function classifyResendError(err: ResendErrorShape | Error | null | undefined): EmailSendResult["errorCategory"] {
+  const raw = err && typeof err === "object" && "message" in err ? (err as { message?: string }).message : String(err ?? "");
+  const msg = (raw ?? "").toLowerCase();
+  if (msg.includes("not verified") || (msg.includes("domain") && msg.includes("verif"))) return "dominio_nao_verificado";
+  if (msg.includes("from") && (msg.includes("invalid") || msg.includes("required"))) return "remetente_invalido";
+  return "provedor";
+}
+
+export async function sendAlertEmail(toEmail: string, subject: string, html: string): Promise<EmailSendResult> {
+  const resend = getResend();
+  if (!resend) {
+    console.warn(`[EMAIL] Alerta para ${toEmail} pulado — RESEND_API_KEY ausente`);
+    return { ok: false, errorCategory: "config_ausente", errorMessage: "RESEND_API_KEY não configurada" };
+  }
+  const diag = getEmailDiagnostics();
+  if (!diag.emailFromValido) {
+    console.warn(`[EMAIL] Alerta para ${toEmail} pulado — EMAIL_FROM inválido (${diag.emailFrom})`);
+    return { ok: false, errorCategory: "remetente_invalido", errorMessage: `EMAIL_FROM inválido: ${diag.emailFrom}` };
+  }
+  try {
+    const r = (await resend.emails.send({
+      from: `BizGuideAI <${FROM_EMAIL}>`,
+      to: toEmail,
+      subject,
+      html,
+    })) as unknown as ResendSendResponse;
+    if (r?.error) {
+      const cat = classifyResendError(r.error);
+      const msg = r.error.message || JSON.stringify(r.error);
+      console.error(`[EMAIL] Resend retornou erro (${cat}) para ${toEmail}: ${msg}`);
+      return { ok: false, errorCategory: cat, errorMessage: msg };
+    }
+    return { ok: true };
+  } catch (e) {
+    const err = e instanceof Error ? e : new Error(String(e));
+    const cat = classifyResendError(err);
+    console.error(`[EMAIL] Falha (${cat}) ao enviar alerta para ${toEmail} via Resend (de ${FROM_EMAIL}):`, err.message);
+    return { ok: false, errorCategory: cat, errorMessage: err.message };
+  }
+}
+
+export async function sendWeeklySummaryEmail(toEmail: string, html: string): Promise<void> {
+  await sendAlertEmail(toEmail, "Resumo semanal do seu plano — BizGuideAI", html);
+}
+
 export async function sendVerificationEmail(
   toEmail: string,
   nome: string,

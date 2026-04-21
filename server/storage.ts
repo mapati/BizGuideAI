@@ -16,6 +16,8 @@ import {
   bscRelacoes,
   compartilhamentos,
   configuracoesNotificacao,
+  notificacaoEnvios,
+  type NotificacaoEnvio,
   cincoForcas,
   modeloNegocio,
   estrategias,
@@ -171,6 +173,8 @@ export interface IStorage {
   upsertConfiguracaoNotificacao(conf: InsertConfiguracaoNotificacao): Promise<ConfiguracaoNotificacao>;
   getAllConfiguracoesNotificacaoAtivas(): Promise<ConfiguracaoNotificacao[]>;
   updateUltimoEnvio(id: string): Promise<void>;
+  getUltimoEnvioAlvo(usuarioId: string, tipoAlerta: string, alvoId: string): Promise<Date | null>;
+  registrarEnvio(usuarioId: string, tipoAlerta: string, alvoId: string): Promise<void>;
 
   getCincoForcas(empresaId: string): Promise<CincoForcas[]>;
   createCincoForcas(forca: InsertCincoForcas): Promise<CincoForcas>;
@@ -466,7 +470,7 @@ export class DbStorage implements IStorage {
       .where(and(eq(resultadosChave.id, id), eq(objetivos.empresaId, empresaId)))
       .limit(1);
     if (!existing[0]) throw new Error("Recurso não encontrado ou acesso negado");
-    const updated = await db.update(resultadosChave).set(omitTenantFields(resultado)).where(eq(resultadosChave.id, id)).returning();
+    const updated = await db.update(resultadosChave).set({ ...omitTenantFields(resultado), atualizadoEm: new Date() }).where(eq(resultadosChave.id, id)).returning();
     return updated[0];
   }
 
@@ -619,6 +623,20 @@ export class DbStorage implements IStorage {
   }
   async updateUltimoEnvio(id: string): Promise<void> {
     await db.update(configuracoesNotificacao).set({ ultimoEnvio: new Date() }).where(eq(configuracoesNotificacao.id, id));
+  }
+  async getUltimoEnvioAlvo(usuarioId: string, tipoAlerta: string, alvoId: string): Promise<Date | null> {
+    const r = await db.select().from(notificacaoEnvios)
+      .where(and(
+        eq(notificacaoEnvios.usuarioId, usuarioId),
+        eq(notificacaoEnvios.tipoAlerta, tipoAlerta),
+        eq(notificacaoEnvios.alvoId, alvoId),
+      ))
+      .orderBy(desc(notificacaoEnvios.enviadoEm))
+      .limit(1);
+    return r[0]?.enviadoEm ?? null;
+  }
+  async registrarEnvio(usuarioId: string, tipoAlerta: string, alvoId: string): Promise<void> {
+    await db.insert(notificacaoEnvios).values({ usuarioId, tipoAlerta, alvoId });
   }
 
   async getCincoForcas(empresaId: string): Promise<CincoForcas[]> {

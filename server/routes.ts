@@ -2,7 +2,8 @@ import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { isJornadaConcluida } from "./jornada-helper";
-import { sendVerificationEmail, sendPasswordResetEmail } from "./email";
+import { sendVerificationEmail, sendPasswordResetEmail, getEmailDiagnostics } from "./email";
+import { runNotificationEngine, type EngineReport } from "./notification-engine";
 import { criarAssinatura, buscarAssinatura, cancelarAssinatura, buscarPagamento, motivoLegivel, validarAssinaturaWebhook, PLANOS_MP, type PlanoTipo, type MpSubscription, type MpPayment } from "./mp";
 import { randomBytes, createHash } from "crypto";
 import cron from "node-cron";
@@ -6524,6 +6525,11 @@ Seja específico para o setor ${empresa.setor}.`,
     } catch (e: any) { res.status(400).json({ error: e.message }); }
   });
 
+  // Diagnóstico de e-mail (qualquer usuário autenticado)
+  app.get("/api/notificacoes/email-status", requireAuth, async (_req, res) => {
+    res.json(getEmailDiagnostics());
+  });
+
   // ── Contato Enterprise ───────────────────────────────────────────────────
 
   app.post("/api/contact/enterprise", async (req: Request, res: Response) => {
@@ -7438,6 +7444,32 @@ Seja específico para o setor ${empresa.setor}.`,
       console.error("[PULSE_BOOT] Falhou:", err?.message ?? err);
     }
   })();
+
+  /* ── Notificações por e-mail: endpoint admin para diagnóstico/disparo manual ── */
+  let _ultimoRelatorioEngine: EngineReport | null = null;
+  app.post("/api/admin/notificacoes/disparar", requireSuperAdmin, async (_req, res) => {
+    try {
+      const r = await runNotificationEngine({ trigger: "manual", force: true });
+      _ultimoRelatorioEngine = r;
+      res.json(r);
+    } catch (e: any) {
+      console.error("[NOTIF_ENGINE] Erro no disparo manual:", e?.message ?? e);
+      res.status(500).json({ error: e?.message ?? "Erro ao executar motor" });
+    }
+  });
+  app.get("/api/admin/notificacoes/ultimo-relatorio", requireSuperAdmin, async (_req, res) => {
+    res.json(_ultimoRelatorioEngine ?? { mensagem: "Nenhuma execução registrada nesta sessão." });
+  });
+
+  /* ── Notificações: agendador horário (avalia condições + respeita frequências) ── */
+  cron.schedule("15 * * * *", async () => {
+    try {
+      console.log("[NOTIF_ENGINE] Executando verificação agendada...");
+      _ultimoRelatorioEngine = await runNotificationEngine({ trigger: "agendado" });
+    } catch (err: any) {
+      console.error("[NOTIF_ENGINE] Erro no scheduler:", err?.message ?? err);
+    }
+  });
 
   /* ── Inicializa o agendador de push do GitHub (se ativo no banco) ── */
   (async () => {

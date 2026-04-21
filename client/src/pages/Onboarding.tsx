@@ -143,6 +143,14 @@ export default function Onboarding() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries();
+      // Resetar etapas implica voltar ao modo Guia Estratégico: o assistente
+      // deve ficar bloqueado até o usuário concluir a jornada novamente, e a
+      // animação de desbloqueio deve poder disparar de novo.
+      try {
+        localStorage.removeItem("biz-guide-assistente-desbloqueado");
+      } catch {
+        // localStorage indisponível — segue o fluxo
+      }
       setResetDialogOpen(false);
       setResetConfirmacao("");
       toast({

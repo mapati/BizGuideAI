@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import type { Alerta } from "@/hooks/useAssistantStatus";
 import { AssistantMarkdown } from "@/components/AssistantMarkdown";
 import { dismissBriefingForToday } from "@/lib/briefingDismiss";
+import { PropostaCard, type Proposta } from "@/components/PropostaCard";
 
 export interface AssistantAcao {
   label: string;
@@ -22,12 +23,13 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   acoes?: AssistantAcao[];
+  propostas?: Proposta[];
 }
 
 interface AssistantChatProps {
   alertas: Alerta[];
   initialContext?: string;
-  proactiveMessage?: { content: string; acoes?: AssistantAcao[] } | null;
+  proactiveMessage?: { content: string; acoes?: AssistantAcao[]; propostas?: Proposta[] } | null;
   onProactiveConsumed?: () => void;
   onContextUsed?: () => void;
   onCloseDrawer?: () => void;
@@ -36,6 +38,7 @@ interface AssistantChatProps {
 interface AssistanteResponse {
   resposta: string;
   acoes?: AssistantAcao[];
+  propostas?: Proposta[];
 }
 
 function buildHrefFromAcao(acao: AssistantAcao): string {
@@ -96,6 +99,13 @@ function MessageBubble({
         >
           {isUser ? msg.content : <AssistantMarkdown content={msg.content} />}
         </div>
+        {!isUser && msg.propostas && msg.propostas.length > 0 && (
+          <div className="flex flex-col gap-2 w-full">
+            {msg.propostas.map((p) => (
+              <PropostaCard key={p.logId} proposta={p} />
+            ))}
+          </div>
+        )}
         {!isUser && msg.acoes && msg.acoes.filter((a) => a.tipo !== "dispensar").length > 0 && (
           <div className="flex flex-wrap gap-1.5 pl-1">
             {msg.acoes.filter((a) => a.tipo !== "dispensar").slice(0, 3).map((acao, idx) => (
@@ -189,6 +199,7 @@ export function AssistantChat({
         role: "assistant",
         content: proactiveMessage.content,
         acoes: proactiveMessage.acoes,
+        propostas: proactiveMessage.propostas,
       },
     ]);
     onProactiveConsumed?.();
@@ -223,7 +234,12 @@ export function AssistantChat({
       const typed = json as AssistanteResponse;
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: typed.resposta, acoes: typed.acoes },
+        {
+          role: "assistant",
+          content: typed.resposta,
+          acoes: typed.acoes,
+          propostas: typed.propostas,
+        },
       ]);
     } catch {
       setMessages((prev) => [

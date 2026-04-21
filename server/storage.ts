@@ -93,6 +93,9 @@ import {
   briefingDiarioLogs,
   type BriefingDiario,
   type InsertBriefingDiarioLog,
+  assistenteAcaoLog,
+  type AssistenteAcaoLog,
+  type InsertAssistenteAcaoLog,
 } from "@shared/schema";
 import { eq, and, desc, inArray, sql, lt } from "drizzle-orm";
 
@@ -268,6 +271,12 @@ export interface IStorage {
   upsertBriefingDiario(empresaId: string, data: string, conteudo: unknown, fonte: "ia" | "regra"): Promise<BriefingDiario>;
   purgeBriefingsAntigos(diasMantidos: number): Promise<number>;
   addBriefingDiarioLog(log: InsertBriefingDiarioLog): Promise<void>;
+
+  // Task #188 — Propostas (tool calls) do Assistente
+  createPropostaLog(input: InsertAssistenteAcaoLog): Promise<AssistenteAcaoLog>;
+  getPropostaLog(id: string): Promise<AssistenteAcaoLog | undefined>;
+  updatePropostaLog(id: string, patch: Partial<Pick<AssistenteAcaoLog, "status" | "resultado" | "mensagemErro" | "parametros" | "preview" | "resolvidoEm">>): Promise<AssistenteAcaoLog>;
+  listPropostasByEmpresa(empresaId: string, limite?: number): Promise<AssistenteAcaoLog[]>;
 }
 
 export type ResetGrupo = "diagnostico" | "mapa" | "plano-acao" | "execucao" | "tudo";
@@ -1275,6 +1284,57 @@ export class DbStorage implements IStorage {
 
   async addBriefingDiarioLog(log: InsertBriefingDiarioLog): Promise<void> {
     await db.insert(briefingDiarioLogs).values(log);
+  }
+
+  // ───── Task #188 — Propostas do Assistente ─────
+  async createPropostaLog(input: InsertAssistenteAcaoLog): Promise<AssistenteAcaoLog> {
+    const [row] = await db.insert(assistenteAcaoLog).values(input).returning();
+    return row;
+  }
+
+  async getPropostaLog(id: string): Promise<AssistenteAcaoLog | undefined> {
+    const [row] = await db.select().from(assistenteAcaoLog).where(eq(assistenteAcaoLog.id, id)).limit(1);
+    return row;
+  }
+
+  async updatePropostaLog(
+    id: string,
+    patch: Partial<Pick<AssistenteAcaoLog, "status" | "resultado" | "mensagemErro" | "parametros" | "preview" | "resolvidoEm">>
+  ): Promise<AssistenteAcaoLog> {
+    const [row] = await db.update(assistenteAcaoLog).set(patch).where(eq(assistenteAcaoLog.id, id)).returning();
+    return row;
+  }
+
+  async listPropostasByEmpresa(empresaId: string, limite = 50): Promise<AssistenteAcaoLog[]> {
+    return db
+      .select()
+      .from(assistenteAcaoLog)
+      .where(eq(assistenteAcaoLog.empresaId, empresaId))
+      .orderBy(desc(assistenteAcaoLog.criadoEm))
+      .limit(limite);
+  }
+
+  // Reserva atomicamente uma proposta `pendente` para execução: vira `aplicando`.
+  // Retorna a linha se conseguiu reservar; null se já estava em outro estado
+  // (evita corrida em duplo-clique no botão Confirmar).
+  async claimPropostaPendente(id: string, empresaId: string): Promise<AssistenteAcaoLog | null> {
+    const [row] = await db
+      .update(assistenteAcaoLog)
+      .set({ status: "aplicando" })
+      .where(
+        and(
+          eq(assistenteAcaoLog.id, id),
+          eq(assistenteAcaoLog.empresaId, empresaId),
+          eq(assistenteAcaoLog.status, "pendente")
+        )
+      )
+      .returning();
+    return row ?? null;
+  }
+
+  async listPropostasByIds(ids: string[]): Promise<AssistenteAcaoLog[]> {
+    if (ids.length === 0) return [];
+    return db.select().from(assistenteAcaoLog).where(inArray(assistenteAcaoLog.id, ids));
   }
 }
 

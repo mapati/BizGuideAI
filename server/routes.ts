@@ -6,6 +6,7 @@ import { sendVerificationEmail, sendPasswordResetEmail, getEmailDiagnostics } fr
 import { runNotificationEngine, detectarSinaisCriticos, type EngineReport } from "./notification-engine";
 import { runBriefingDiarioScheduler, gerarEPersistirBriefing, dataDeHojeSP } from "./briefing-engine";
 import { openai, AI_MODELS, loadModelConfig, getModelForPlan, buildEmpresaContextoIA } from "./ai-helpers";
+import { TOOLS, getTool, toOpenAITools, registrarProposta } from "./assistant-tools";
 import { criarAssinatura, buscarAssinatura, cancelarAssinatura, buscarPagamento, motivoLegivel, validarAssinaturaWebhook, PLANOS_MP, type PlanoTipo, type MpSubscription, type MpPayment } from "./mp";
 import { randomBytes, createHash } from "crypto";
 import cron from "node-cron";
@@ -46,6 +47,7 @@ import {
   type Fatura,
   aiGenerationParamsSchema,
   briefingConteudoSchema,
+  type BriefingConteudo,
 } from "@shared/schema";
 import OpenAI from "openai";
 import * as cheerio from "cheerio";
@@ -3769,62 +3771,265 @@ ${ctx.join("\n\n")}`;
         }
       }
 
-      const systemPrompt = `Você é o Assistente Estratégico do BizGuideAI, um consultor sênior de estratégia empresarial com profundo conhecimento em gestão para pequenas e médias empresas brasileiras.
+      const systemPrompt = `Você é o Assistente Estratégico do BizGuideAI, um consultor sênior de estratégia empresarial para PMEs brasileiras.
 
-Você tem acesso completo às informações estratégicas da empresa abaixo. Use esses dados para dar respostas precisas, contextualizadas e acionáveis.
+Você tem acesso completo aos dados da empresa abaixo e a um conjunto de ferramentas (function tools) que executam ações reais quando o usuário aprovar.
 
-REGRAS:
-- Responda SEMPRE em português do Brasil
-- Use linguagem simples e direta, sem jargões desnecessários
-- Baseie suas respostas nos dados reais da empresa quando relevante
-- Seja específico e prático — foque em ações concretas
-- Se a pergunta não tiver relação com os dados da empresa, responda da melhor forma usando seu conhecimento geral de gestão estratégica
-- Limite a resposta a no máximo 400 palavras, exceto quando o usuário pedir algo mais extenso
+PRINCÍPIOS:
+- Responda SEMPRE em português do Brasil, em linguagem simples e direta.
+- Use os dados reais da empresa nas respostas; nunca invente números ou IDs.
+- Seja conciso (≤ 350 palavras), com markdown leve (negrito, itálico, listas curtas).
+- Foque em ações concretas e priorizadas.
 
-FORMATO DA RESPOSTA:
-Você DEVE responder APENAS com um JSON válido (sem markdown, sem cercas de código), com este formato:
-{"resposta": "texto em markdown leve (negrito, itálico, listas, títulos curtos, código inline). Sem HTML, sem imagens, sem links externos.", "acoes": [ ... até 3 ações ... ]}
+QUANDO USAR FERRAMENTAS (tool calls):
+- Se o usuário aprovar/sugerir uma ação concreta executável (ex.: "crie a iniciativa X", "registre a leitura do KPI Y como 92"), CHAME a ferramenta apropriada.
+- Cada chamada vira uma proposta que o usuário ainda precisa CONFIRMAR antes de ser executada — explique brevemente no texto o que está propondo.
+- Use no máximo 3 chamadas de ferramenta por resposta.
+- Se a ação envolver um item existente (atualizar iniciativa/KR/indicador), use SOMENTE IDs reais que aparecem nos dados.
+- Se a melhor coisa for apenas abrir uma página, use a ferramenta "navegar_para".
+- Se a pergunta for analítica ou aberta (ex.: "como estão meus OKRs?"), responda só em texto, sem chamar ferramenta.
 
-Cada ação deve ter este formato:
-{"label": "Texto curto do botão (máx 32 chars)", "tipo": "criar" | "editar" | "abrir", "rota": "/iniciativas" | "/okrs" | "/estrategias" | "/riscos" | "/indicadores" | "/oportunidades-crescimento" | "/meu-painel" | "/dashboard" | "/swot" | "/pestel" | "/cinco-forcas" | "/bmc" | "/ritos" | "/bsc" | "/mapa-bsc" | "/cenarios" | "/alertas" | "/diagnostico" | "/rastreabilidade", "params": { "titulo": "...", "descricao": "...", "prioridade": "alta|media|baixa", "prazo": "YYYY-MM-DD", "estrategiaId": "...", "tipo": "...", "id": "..." }}
+FERRAMENTAS DISPONÍVEIS: criar_iniciativa, atualizar_iniciativa, criar_okr, atualizar_progresso_kr, criar_indicador, atualizar_valor_indicador, navegar_para.
 
-REGRAS DAS AÇÕES:
-- Use "criar" quando sugerir criar um novo item (a página abrirá o diálogo de criação pré-preenchido)
-- Use "editar" quando sugerir editar um item existente (inclua "id" em params)
-- Use "abrir" quando apenas navegar para a página
-- Inclua no máximo 3 ações; pode ser 0 se não fizer sentido sugerir nada
-- Use IDs reais dos dados fornecidos quando referenciar itens existentes
-- Ações devem ser diretamente úteis ao que o usuário acabou de perguntar
-- Se "acoes" estiver vazio, retorne []
-
+DADOS DA EMPRESA:
 ${ctx.join("\n\n")}`;
 
-      const messages: { role: "system" | "user" | "assistant"; content: string }[] = [
+      const baseMessages: { role: "system" | "user" | "assistant"; content: string }[] = [
         { role: "system", content: systemPrompt },
         ...(historico ?? []).slice(-10),
         { role: "user", content: pergunta! },
       ];
 
+      const messages = await injectMacroCtx(baseMessages);
+
       const completion = await openai.chat.completions.create({
         model: getModelForPlan(empresa?.planoTipo, "relatorios"),
-        messages: await injectMacroCtx(messages),
-        temperature: 0.7,
+        messages: messages as Parameters<typeof openai.chat.completions.create>[0]["messages"],
+        temperature: 0.5,
         max_tokens: 900,
-        response_format: { type: "json_object" },
+        tools: toOpenAITools(),
+        tool_choice: "auto",
       });
 
-      const rawContent = completion.choices[0].message.content ?? "{}";
-      const { resposta, acoes } = parseAssistantPayload(rawContent);
-      res.json({ resposta, acoes });
+      const choice = completion.choices[0];
+      const rawText = (choice.message.content ?? "").trim();
+      const toolCalls = (choice.message.tool_calls ?? []).slice(0, 3);
+
+      const propostas: Array<{
+        logId: string;
+        ferramenta: string;
+        preview: unknown;
+        parametros: Record<string, unknown>;
+      }> = [];
+
+      for (const call of toolCalls) {
+        if (call.type !== "function") continue;
+        let args: unknown = {};
+        try {
+          args = JSON.parse(call.function.arguments || "{}");
+        } catch {
+          args = {};
+        }
+        const result = await registrarProposta({
+          toolName: call.function.name,
+          rawArgs: args,
+          empresaId,
+          usuarioId: req.session.userId ?? null,
+          origem: "chat",
+        });
+        if (result.ok) {
+          propostas.push({
+            logId: result.logId,
+            ferramenta: result.ferramenta,
+            preview: result.preview,
+            parametros: result.parametros,
+          });
+        } else {
+          console.warn(`[ASSISTENTE] Tool call rejeitada (${call.function.name}): ${result.mensagem}`);
+        }
+      }
+
+      // Fallback: se modelo não chamou tool e não retornou texto, devolve mensagem padrão
+      const respostaFinal =
+        rawText ||
+        (propostas.length > 0
+          ? "Preparei algumas ações para você revisar abaixo."
+          : "Não consegui formular uma resposta agora. Tente reformular a pergunta.");
+
+      res.json({ resposta: respostaFinal, propostas, acoes: [] });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       res.status(500).json({ error: message });
     }
   });
 
+  // ─── Task #188 — Endpoints HITL (confirmar/ignorar/ajustar proposta) ───
+  app.post("/api/ai/proposta/:logId/confirmar", requireAuth, async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const usuarioId = req.session.userId ?? null;
+
+      // Reserva atômica: só uma requisição consegue passar de `pendente` para `aplicando`.
+      const log = await storage.claimPropostaPendente(req.params.logId, empresaId);
+      if (!log) {
+        // Pode ser inexistente, de outra empresa, ou já resolvida — devolve 409 idempotente
+        const existente = await storage.getPropostaLog(req.params.logId);
+        if (!existente || existente.empresaId !== empresaId) {
+          return res.status(404).json({ error: "Proposta não encontrada." });
+        }
+        return res.status(409).json({ error: `Proposta já está ${existente.status}.`, status: existente.status });
+      }
+
+      const tool = getTool(log.ferramenta);
+      if (!tool) {
+        await storage.updatePropostaLog(log.id, {
+          status: "erro",
+          mensagemErro: "Ferramenta desconhecida.",
+          resolvidoEm: new Date(),
+        });
+        return res.status(400).json({ error: "Ferramenta desconhecida." });
+      }
+
+      const parsed = tool.paramsSchema.safeParse(log.parametros);
+      if (!parsed.success) {
+        await storage.updatePropostaLog(log.id, {
+          status: "erro",
+          mensagemErro: parsed.error.message.slice(0, 500),
+          resolvidoEm: new Date(),
+        });
+        return res.status(400).json({ error: "Parâmetros inválidos." });
+      }
+
+      try {
+        const result = await tool.apply(parsed.data, { empresaId, usuarioId });
+        const updated = await storage.updatePropostaLog(log.id, {
+          status: "aplicado",
+          resultado: result as unknown as Record<string, unknown>,
+          resolvidoEm: new Date(),
+        });
+        res.json({ ok: true, log: updated, resultado: result });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        await storage.updatePropostaLog(log.id, {
+          status: "erro",
+          mensagemErro: msg.slice(0, 500),
+          resolvidoEm: new Date(),
+        });
+        res.status(500).json({ error: msg });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ error: message });
+    }
+  });
+
+  app.post("/api/ai/proposta/:logId/ignorar", requireAuth, async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const log = await storage.getPropostaLog(req.params.logId);
+      if (!log || log.empresaId !== empresaId) return res.status(404).json({ error: "Proposta não encontrada." });
+      if (log.status !== "pendente") return res.status(400).json({ error: `Proposta já está ${log.status}.` });
+      const updated = await storage.updatePropostaLog(log.id, {
+        status: "ignorado",
+        resolvidoEm: new Date(),
+      });
+      res.json({ ok: true, log: updated });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ error: message });
+    }
+  });
+
+  app.post("/api/ai/proposta/:logId/ajustar", requireAuth, async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const log = await storage.getPropostaLog(req.params.logId);
+      if (!log || log.empresaId !== empresaId) return res.status(404).json({ error: "Proposta não encontrada." });
+      if (log.status !== "pendente") return res.status(400).json({ error: `Proposta já está ${log.status}.` });
+
+      const tool = getTool(log.ferramenta);
+      if (!tool) return res.status(400).json({ error: "Ferramenta desconhecida." });
+
+      const novos = req.body?.parametros ?? {};
+      const merged = { ...(log.parametros as Record<string, unknown>), ...novos };
+      const parsed = tool.paramsSchema.safeParse(merged);
+      if (!parsed.success) {
+        return res.status(400).json({ error: "Parâmetros inválidos.", detalhe: parsed.error.message.slice(0, 300) });
+      }
+      const novoPreview = tool.preview(parsed.data);
+      const updated = await storage.updatePropostaLog(log.id, {
+        parametros: parsed.data as Record<string, unknown>,
+        preview: novoPreview as unknown as Record<string, unknown>,
+      });
+      res.json({ ok: true, log: updated, preview: novoPreview });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ error: message });
+    }
+  });
+
+  app.get("/api/ai/propostas", requireAuth, async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const limite = Math.min(Number(req.query.limit ?? 50), 200);
+      const propostas = await storage.listPropostasByEmpresa(empresaId, limite);
+      res.json({ propostas });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ error: message });
+    }
+  });
+
+  // Task #188 — converte ações `criar`/`editar` do briefing em propostas reais (HITL).
+  async function briefingAcoesParaPropostas(
+    acoes: BriefingConteudo["acoes"],
+    empresaId: string,
+    usuarioId: string | null
+  ): Promise<{
+    acoesRestantes: BriefingConteudo["acoes"];
+    propostas: Array<{ logId: string; ferramenta: string; preview: unknown; parametros: Record<string, unknown> }>;
+  }> {
+    const propostas: Array<{ logId: string; ferramenta: string; preview: unknown; parametros: Record<string, unknown> }> = [];
+    const acoesRestantes: BriefingConteudo["acoes"] = [];
+    for (const acao of acoes ?? []) {
+      const rota = acao.rota ?? "";
+      let toolName: string | null = null;
+      if (acao.tipo === "criar" && rota === "/iniciativas") toolName = "criar_iniciativa";
+      else if (acao.tipo === "editar" && rota === "/iniciativas") toolName = "atualizar_iniciativa";
+      else if (acao.tipo === "criar" && rota === "/indicadores") toolName = "criar_indicador";
+      else if (acao.tipo === "editar" && rota === "/indicadores") toolName = "atualizar_valor_indicador";
+      else if (acao.tipo === "criar" && rota === "/okrs") toolName = "criar_okr";
+
+      if (!toolName) {
+        acoesRestantes.push(acao);
+        continue;
+      }
+      const result = await registrarProposta({
+        toolName,
+        rawArgs: acao.params ?? {},
+        empresaId,
+        usuarioId,
+        origem: "briefing",
+      });
+      if (result.ok) {
+        propostas.push({
+          logId: result.logId,
+          ferramenta: result.ferramenta,
+          preview: result.preview,
+          parametros: result.parametros,
+        });
+      } else {
+        // Sem dados suficientes para virar proposta — preserva como ação navegacional
+        acoesRestantes.push({ ...acao, tipo: "abrir" });
+      }
+    }
+    return { acoesRestantes, propostas };
+  }
+
   app.get("/api/ai/briefing-proativo", requireAuth, async (req, res) => {
     try {
       const empresaId = req.session.empresaId!;
+      const usuarioId = req.session.userId ?? null;
       const hoje = dataDeHojeSP();
 
       // 1) Cache do dia: se existe, devolve sempre o MESMO briefing — a
@@ -3839,16 +4044,57 @@ ${ctx.join("\n\n")}`;
         }
         const parsed = briefingConteudoSchema.safeParse(raw);
         if (parsed.success) {
-          // Recalcula sinais apenas para o frontend mostrar contadores reais,
-          // mas a mensagem permanece a do briefing cacheado.
           const sinais = await detectarSinaisCriticos(empresaId).catch(() => ({
             kpisVermelhos: [], iniciativasAtrasadas: [], okrsParados: [], riscosAltosSemMitigacao: [], total: 0,
           }));
+
+          // Idempotência: se o briefing já tem propostaIds persistidos, hidrata
+          // a partir do log (sem criar novas linhas). Caso contrário (briefing
+          // legado), converte agora e re-persiste com os IDs.
+          let propostas: Array<{ logId: string; ferramenta: string; preview: unknown; parametros: Record<string, unknown> }> = [];
+          let acoesRestantes = parsed.data.acoes ?? [];
+          if (parsed.data.propostaIds && parsed.data.propostaIds.length > 0) {
+            const logs = await storage.listPropostasByIds(parsed.data.propostaIds);
+            propostas = logs
+              .filter((l) => l.empresaId === empresaId && l.status === "pendente")
+              .map((l) => ({
+                logId: l.id,
+                ferramenta: l.ferramenta,
+                preview: l.preview,
+                parametros: l.parametros as Record<string, unknown>,
+              }));
+            // acoesRestantes = ações que NÃO viraram proposta (foram persistidas
+            // no campo `acoes` original; o frontend já entende esse formato).
+            // Para hidratação, precisamos filtrar igual à conversão original:
+            const promotaveis = new Set(["criar:/iniciativas", "editar:/iniciativas", "criar:/indicadores", "editar:/indicadores", "criar:/okrs"]);
+            acoesRestantes = (parsed.data.acoes ?? []).filter(
+              (a) => !promotaveis.has(`${a.tipo}:${a.rota ?? ""}`)
+            );
+          } else {
+            const conv = await briefingAcoesParaPropostas(
+              parsed.data.acoes ?? [],
+              empresaId,
+              usuarioId
+            );
+            propostas = conv.propostas;
+            acoesRestantes = conv.acoesRestantes;
+            // Re-persiste o briefing com propostaIds para idempotência futura.
+            if (propostas.length > 0) {
+              const novoConteudo: BriefingConteudo = {
+                ...parsed.data,
+                propostaIds: propostas.map((p) => p.logId),
+              };
+              const fonte = (cacheado.fonte === "ia" || cacheado.fonte === "regra") ? cacheado.fonte : "regra";
+              await storage.upsertBriefingDiario(empresaId, hoje, novoConteudo, fonte);
+            }
+          }
+
           return res.json({
             deveAbrir: true,
             sinais,
             mensagem: parsed.data.corpo,
-            acoes: parsed.data.acoes ?? [],
+            acoes: acoesRestantes,
+            propostas,
             fonte: cacheado.fonte,
           });
         }
@@ -3866,11 +4112,17 @@ ${ctx.join("\n\n")}`;
       if (!gerado) {
         return res.json({ deveAbrir: false, sinais: sinaisAtuais, mensagem: null, acoes: [] });
       }
+      const { acoesRestantes: ar2, propostas: p2 } = await briefingAcoesParaPropostas(
+        gerado.conteudo.acoes ?? [],
+        empresaId,
+        usuarioId
+      );
       return res.json({
         deveAbrir: true,
         sinais: gerado.sinais,
         mensagem: gerado.conteudo.corpo,
-        acoes: gerado.conteudo.acoes ?? [],
+        acoes: ar2,
+        propostas: p2,
         fonte: gerado.fonte,
       });
     } catch (error) {

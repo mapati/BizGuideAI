@@ -625,8 +625,50 @@ export const briefingConteudoSchema = z.object({
   }),
   acoes: z.array(briefingAcaoSchema).max(3).default([]),
   observacoes: z.array(z.string()).max(2).default([]),
+  // Task #188 — IDs das propostas HITL geradas a partir das ações `criar`/`editar`.
+  // Persistidos junto com o briefing para garantir idempotência: GETs subsequentes
+  // ressuscitam as propostas existentes em vez de criar duplicatas.
+  propostaIds: z.array(z.string()).optional(),
 });
 export type BriefingConteudo = z.infer<typeof briefingConteudoSchema>;
+
+// Task #188 — Log de propostas (tool calls) do Assistente Estratégico
+// Cada chamada de ferramenta proposta pelo modelo é persistida aqui antes de
+// ser executada (HITL). O frontend mostra o preview e o usuário decide.
+export const assistenteAcaoLog = pgTable("assistente_acao_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  empresaId: varchar("empresa_id").notNull().references(() => empresas.id, { onDelete: "cascade" }),
+  usuarioId: varchar("usuario_id").references(() => usuarios.id, { onDelete: "set null" }),
+  ferramenta: text("ferramenta").notNull(),
+  parametros: jsonb("parametros").notNull(),
+  preview: jsonb("preview").notNull(),
+  status: text("status").notNull().default("pendente"), // pendente|aplicado|ignorado|erro|ajustado
+  resultado: jsonb("resultado"),
+  origem: text("origem").notNull().default("chat"), // chat|briefing
+  mensagemErro: text("mensagem_erro"),
+  criadoEm: timestamp("criado_em").defaultNow().notNull(),
+  resolvidoEm: timestamp("resolvido_em"),
+});
+export type AssistenteAcaoLog = typeof assistenteAcaoLog.$inferSelect;
+export const insertAssistenteAcaoLogSchema = createInsertSchema(assistenteAcaoLog).omit({
+  id: true,
+  criadoEm: true,
+  resolvidoEm: true,
+});
+export type InsertAssistenteAcaoLog = z.infer<typeof insertAssistenteAcaoLogSchema>;
+
+// Preview enviado ao frontend (depois do apply opcional)
+export const propostaPreviewSchema = z.object({
+  titulo: z.string().min(1).max(120),
+  descricao: z.string().max(600),
+  campos: z.array(z.object({
+    label: z.string(),
+    valor: z.string(),
+  })).default([]),
+  ctaConfirmar: z.string().default("Confirmar"),
+  ctaIgnorar: z.string().default("Ignorar"),
+});
+export type PropostaPreview = z.infer<typeof propostaPreviewSchema>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AI Generation Params (shared across /api/ai/gerar-* endpoints)

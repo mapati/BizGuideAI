@@ -28,6 +28,7 @@ interface BriefingResponse {
   deveAbrir: boolean;
   mensagem: string | null;
   acoes?: AssistantAcao[];
+  propostas?: import("@/components/PropostaCard").Proposta[];
   sinais?: SinaisCriticosResp;
   fonte?: "ia" | "regra";
 }
@@ -101,7 +102,7 @@ export default function Assistente() {
   const fonte = briefing?.fonte;
 
   const proactive = briefing?.mensagem
-    ? { content: briefing.mensagem, acoes: briefing.acoes ?? [] }
+    ? { content: briefing.mensagem, acoes: briefing.acoes ?? [], propostas: briefing.propostas ?? [] }
     : null;
 
   const [briefingDispensado, setBriefingDispensado] = useState(() => isBriefingDismissedToday());

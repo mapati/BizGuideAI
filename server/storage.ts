@@ -277,6 +277,10 @@ export interface IStorage {
   getPropostaLog(id: string): Promise<AssistenteAcaoLog | undefined>;
   updatePropostaLog(id: string, patch: Partial<Pick<AssistenteAcaoLog, "status" | "resultado" | "mensagemErro" | "parametros" | "preview" | "resolvidoEm" | "entidadeTipo" | "entidadeId">>): Promise<AssistenteAcaoLog>;
   listPropostasByEmpresa(empresaId: string, limite?: number): Promise<AssistenteAcaoLog[]>;
+  // Reserva atômica usada pelo endpoint /confirmar para evitar duplo clique.
+  claimPropostaPendente(id: string, empresaId: string): Promise<AssistenteAcaoLog | null>;
+  // Hidratação idempotente do briefing (carrega propostas já persistidas).
+  listPropostasByIds(ids: string[]): Promise<AssistenteAcaoLog[]>;
 }
 
 export type ResetGrupo = "diagnostico" | "mapa" | "plano-acao" | "execucao" | "tudo";

@@ -3789,7 +3789,7 @@ QUANDO USAR FERRAMENTAS (tool calls):
 - Se a melhor coisa for apenas abrir uma página, use a ferramenta "navegar_para".
 - Se a pergunta for analítica ou aberta (ex.: "como estão meus OKRs?"), responda só em texto, sem chamar ferramenta.
 
-FERRAMENTAS DISPONÍVEIS: criar_iniciativa, atualizar_iniciativa, criar_okr, atualizar_progresso_kr, criar_indicador, atualizar_valor_indicador, navegar_para.
+FERRAMENTAS DISPONÍVEIS: criar_iniciativa, atualizar_iniciativa, criar_okr, atualizar_okr, atualizar_progresso_kr, criar_indicador, atualizar_valor_indicador, navegar_para.
 
 DADOS DA EMPRESA:
 ${ctx.join("\n\n")}`;

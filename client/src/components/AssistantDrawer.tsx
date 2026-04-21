@@ -7,6 +7,7 @@ import { GuiaContent } from "@/components/GuiaContent";
 import { cn } from "@/lib/utils";
 import type { Alerta } from "@/hooks/useAssistantStatus";
 import type { JornadaProgresso } from "@/hooks/useJornadaProgresso";
+import type { AssistantAcao } from "@/components/AssistantChat";
 
 interface AssistantDrawerProps {
   isOpen: boolean;
@@ -17,6 +18,8 @@ interface AssistantDrawerProps {
   progresso: JornadaProgresso;
   showUnlock: boolean;
   onUnlockDismiss: () => void;
+  proactiveMessage?: { content: string; acoes?: AssistantAcao[] } | null;
+  onProactiveConsumed?: () => void;
 }
 
 export function AssistantDrawer({
@@ -28,6 +31,8 @@ export function AssistantDrawer({
   progresso,
   showUnlock,
   onUnlockDismiss,
+  proactiveMessage,
+  onProactiveConsumed,
 }: AssistantDrawerProps) {
   const [chatContext, setChatContext] = useState<string | undefined>(undefined);
   const [hasOpened, setHasOpened] = useState(false);
@@ -114,6 +119,9 @@ export function AssistantDrawer({
               alertas={alertas}
               initialContext={chatContext}
               onContextUsed={() => setChatContext(undefined)}
+              proactiveMessage={proactiveMessage}
+              onProactiveConsumed={onProactiveConsumed}
+              onCloseDrawer={onClose}
             />
           </div>
         )

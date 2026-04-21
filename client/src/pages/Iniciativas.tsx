@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useDeepLinkDialog } from "@/hooks/useDeepLinkDialog";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -454,6 +455,50 @@ export default function Iniciativas() {
       form.reset();
     }
   };
+
+  useDeepLinkDialog(!!empresa?.id && !isLoading, ({ novo, editar, params }) => {
+    if (editar) {
+      const found = iniciativas.find((i) => i.id === editar);
+      if (!found) return false;
+      handleEdit(found);
+      // Apply any extra overrides from query params on top of the loaded entity
+      const overrides: Partial<z.infer<typeof formSchema>> = {};
+      if (params.titulo) overrides.titulo = params.titulo;
+      if (params.descricao) overrides.descricao = params.descricao;
+      if (params.status) overrides.status = params.status;
+      if (params.prioridade) {
+        const p = params.prioridade === "media" ? "média" : params.prioridade;
+        if (p === "alta" || p === "média" || p === "baixa") overrides.prioridade = p;
+      }
+      if (params.prazo) overrides.prazo = params.prazo;
+      if (params.responsavel) overrides.responsavel = params.responsavel;
+      if (params.impacto) overrides.impacto = params.impacto;
+      if (Object.keys(overrides).length > 0) {
+        form.reset({ ...form.getValues(), ...overrides });
+      }
+      return true;
+    }
+    if (novo) {
+      setEditingIniciativa(null);
+      form.reset({
+        empresaId: empresa?.id || "",
+        titulo: params.titulo || "",
+        descricao: params.descricao || "",
+        status: params.status || "planejada",
+        prioridade:
+          params.prioridade === "alta" || params.prioridade === "média" || params.prioridade === "media" || params.prioridade === "baixa"
+            ? (params.prioridade === "media" ? "média" : params.prioridade)
+            : "média",
+        prazo: params.prazo || "",
+        responsavel: params.responsavel || "",
+        responsavelId: null,
+        impacto: params.impacto || "médio",
+        estrategiaId: params.estrategiaId || null,
+        oportunidadeId: params.oportunidadeId || null,
+      });
+      setOpenDialog(true);
+    }
+  });
 
   const sortedIniciativas = [...iniciativas].sort((a, b) => {
     const prioridadeOrder = { alta: 1, média: 2, baixa: 3 };

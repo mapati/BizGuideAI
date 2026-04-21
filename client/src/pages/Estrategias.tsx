@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useDeepLinkDialog } from "@/hooks/useDeepLinkDialog";
 import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
@@ -590,6 +591,40 @@ export default function Estrategias() {
     });
     setIsDialogOpen(true);
   };
+
+  useDeepLinkDialog(!!empresa?.id && !isLoading, ({ novo, editar, params }) => {
+    if (editar) {
+      const found = estrategias.find((e) => e.id === editar);
+      if (!found) return false;
+      handleEditEstrategia(found);
+      setFormData((prev) => {
+        const next = { ...prev };
+        if (params.tipo) next.tipo = params.tipo;
+        if (params.titulo) next.titulo = params.titulo;
+        if (params.descricao) next.descricao = params.descricao;
+        if (params.prioridade) {
+          const p = params.prioridade === "media" ? "média" : params.prioridade;
+          if (p === "alta" || p === "média" || p === "baixa") next.prioridade = p;
+        }
+        return next;
+      });
+      return true;
+    }
+    if (novo) {
+      setEditandoId(null);
+      setFormData({
+        tipo: params.tipo || "",
+        titulo: params.titulo || "",
+        descricao: params.descricao || "",
+        prioridade:
+          params.prioridade === "alta" || params.prioridade === "média" || params.prioridade === "media" || params.prioridade === "baixa"
+            ? (params.prioridade === "media" ? "média" : params.prioridade)
+            : "média",
+        swotOrigemIds: [],
+      });
+      setIsDialogOpen(true);
+    }
+  });
 
   const handleCloseDialog = (open: boolean) => {
     setIsDialogOpen(open);

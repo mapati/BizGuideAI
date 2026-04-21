@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useDeepLinkDialog } from "@/hooks/useDeepLinkDialog";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
@@ -74,6 +75,36 @@ export default function Riscos() {
   });
 
   function abrirCriar() { setEditando(null); setForm(emptyForm); setDialogOpen(true); }
+
+  useDeepLinkDialog(!isLoading, ({ novo, editar, params }) => {
+    if (editar) {
+      const found = riscos.find((r) => r.id === editar);
+      if (!found) return false;
+      abrirEditar(found);
+      setForm((prev) => ({
+        ...prev,
+        ...(params.descricao ? { descricao: params.descricao } : {}),
+        ...(params.categoria ? { categoria: params.categoria } : {}),
+        ...(params.probabilidade ? { probabilidade: params.probabilidade } : {}),
+        ...(params.impacto ? { impacto: params.impacto } : {}),
+        ...(params.status ? { status: params.status } : {}),
+        ...(params.planoMitigacao ? { planoMitigacao: params.planoMitigacao } : {}),
+      }));
+      return true;
+    }
+    if (novo) {
+      setEditando(null);
+      setForm({
+        descricao: params.descricao || "",
+        categoria: params.categoria || "estrategico",
+        probabilidade: params.probabilidade || "3",
+        impacto: params.impacto || "3",
+        status: params.status || "identificado",
+        planoMitigacao: params.planoMitigacao || "",
+      });
+      setDialogOpen(true);
+    }
+  });
   function abrirEditar(r: Risco) {
     setEditando(r);
     setForm({ descricao: r.descricao, categoria: r.categoria, probabilidade: String(r.probabilidade), impacto: String(r.impacto), status: r.status, planoMitigacao: r.planoMitigacao });

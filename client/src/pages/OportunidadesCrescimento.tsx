@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useDeepLinkDialog } from "@/hooks/useDeepLinkDialog";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
@@ -245,6 +246,47 @@ export default function OportunidadesCrescimento() {
       setFormData({ tipo: "", titulo: "", descricao: "", potencial: "médio", risco: "médio", estrategiaId: "" });
     }
   };
+
+  useDeepLinkDialog(!!empresa?.id && !isLoading, ({ novo, editar, params }) => {
+    if (editar) {
+      const found = oportunidades.find((o) => o.id === editar);
+      if (!found) return false;
+      handleEditOportunidade(found);
+      setFormData((prev) => {
+        const next = { ...prev };
+        if (params.tipo) next.tipo = params.tipo;
+        if (params.titulo) next.titulo = params.titulo;
+        if (params.descricao) next.descricao = params.descricao;
+        if (params.potencial === "alto" || params.potencial === "médio" || params.potencial === "baixo")
+          next.potencial = params.potencial;
+        if (params.risco === "alto" || params.risco === "médio" || params.risco === "baixo")
+          next.risco = params.risco;
+        if (params.estrategiaId) next.estrategiaId = params.estrategiaId;
+        return next;
+      });
+      return true;
+    }
+    if (novo) {
+      setEditandoId(null);
+      const potencial: "alto" | "médio" | "baixo" =
+        params.potencial === "alto" || params.potencial === "médio" || params.potencial === "baixo"
+          ? params.potencial
+          : "médio";
+      const risco: "alto" | "médio" | "baixo" =
+        params.risco === "alto" || params.risco === "médio" || params.risco === "baixo"
+          ? params.risco
+          : "médio";
+      setFormData({
+        tipo: params.tipo || "",
+        titulo: params.titulo || "",
+        descricao: params.descricao || "",
+        potencial,
+        risco,
+        estrategiaId: params.estrategiaId || "",
+      });
+      setIsDialogOpen(true);
+    }
+  });
 
   const handleGenerateFromEstrategia = async (estrategiaId: string) => {
     if (!empresa) return;

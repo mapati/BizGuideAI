@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { isJornadaConcluida } from "./jornada-helper";
 import { sendVerificationEmail, sendPasswordResetEmail, getEmailDiagnostics } from "./email";
-import { runNotificationEngine, type EngineReport } from "./notification-engine";
+import { runNotificationEngine, detectarSinaisCriticos, type EngineReport } from "./notification-engine";
 import { criarAssinatura, buscarAssinatura, cancelarAssinatura, buscarPagamento, motivoLegivel, validarAssinaturaWebhook, PLANOS_MP, type PlanoTipo, type MpSubscription, type MpPayment } from "./mp";
 import { randomBytes, createHash } from "crypto";
 import cron from "node-cron";
@@ -436,6 +436,70 @@ function getModelForPlan(planoTipo: string | null | undefined, tier: "padrao" | 
     if (raw === "gpt-4o-mini-search-preview") return isPro ? "gpt-4o" : "gpt-4o-mini";
   }
   return raw;
+}
+
+const ROTAS_ASSISTENTE_PERMITIDAS = [
+  "/iniciativas",
+  "/okrs",
+  "/estrategias",
+  "/riscos",
+  "/indicadores",
+  "/oportunidades-crescimento",
+  "/meu-painel",
+  "/dashboard",
+  "/swot",
+  "/pestel",
+  "/cinco-forcas",
+  "/bmc",
+  "/ritos",
+  "/bsc",
+  "/mapa-bsc",
+  "/cenarios",
+  "/alertas",
+  "/diagnostico",
+  "/rastreabilidade",
+] as const;
+
+const assistantAcaoSchema = z.object({
+  label: z.string().min(1).max(60),
+  tipo: z.enum(["criar", "editar", "abrir"]),
+  rota: z.enum(ROTAS_ASSISTENTE_PERMITIDAS),
+  icon: z.string().max(40).optional(),
+  params: z
+    .record(z.union([z.string().max(500), z.number()]).transform((v) => String(v)))
+    .optional()
+    .default({}),
+});
+
+export type AssistantAcao = z.infer<typeof assistantAcaoSchema>;
+
+const assistantPayloadSchema = z.object({
+  resposta: z.string().default(""),
+  acoes: z.array(z.unknown()).default([]),
+});
+
+export function parseAssistantPayload(raw: string): {
+  resposta: string;
+  acoes: AssistantAcao[];
+} {
+  let parsedJson: unknown;
+  try {
+    parsedJson = JSON.parse(raw);
+  } catch {
+    return { resposta: raw, acoes: [] };
+  }
+  const outer = assistantPayloadSchema.safeParse(parsedJson);
+  if (!outer.success) {
+    if (typeof parsedJson === "string") return { resposta: parsedJson, acoes: [] };
+    return { resposta: raw, acoes: [] };
+  }
+  const acoes: AssistantAcao[] = [];
+  for (const candidate of outer.data.acoes) {
+    if (acoes.length >= 3) break;
+    const result = assistantAcaoSchema.safeParse(candidate);
+    if (result.success) acoes.push(result.data);
+  }
+  return { resposta: outer.data.resposta, acoes };
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -3772,6 +3836,22 @@ REGRAS:
 - Se a pergunta não tiver relação com os dados da empresa, responda da melhor forma usando seu conhecimento geral de gestão estratégica
 - Limite a resposta a no máximo 400 palavras, exceto quando o usuário pedir algo mais extenso
 
+FORMATO DA RESPOSTA:
+Você DEVE responder APENAS com um JSON válido (sem markdown, sem cercas de código), com este formato:
+{"resposta": "texto em markdown leve (negrito, itálico, listas, títulos curtos, código inline). Sem HTML, sem imagens, sem links externos.", "acoes": [ ... até 3 ações ... ]}
+
+Cada ação deve ter este formato:
+{"label": "Texto curto do botão (máx 32 chars)", "tipo": "criar" | "editar" | "abrir", "rota": "/iniciativas" | "/okrs" | "/estrategias" | "/riscos" | "/indicadores" | "/oportunidades-crescimento" | "/meu-painel" | "/dashboard" | "/swot" | "/pestel" | "/cinco-forcas" | "/bmc" | "/ritos" | "/bsc" | "/mapa-bsc" | "/cenarios" | "/alertas" | "/diagnostico" | "/rastreabilidade", "params": { "titulo": "...", "descricao": "...", "prioridade": "alta|media|baixa", "prazo": "YYYY-MM-DD", "estrategiaId": "...", "tipo": "...", "id": "..." }}
+
+REGRAS DAS AÇÕES:
+- Use "criar" quando sugerir criar um novo item (a página abrirá o diálogo de criação pré-preenchido)
+- Use "editar" quando sugerir editar um item existente (inclua "id" em params)
+- Use "abrir" quando apenas navegar para a página
+- Inclua no máximo 3 ações; pode ser 0 se não fizer sentido sugerir nada
+- Use IDs reais dos dados fornecidos quando referenciar itens existentes
+- Ações devem ser diretamente úteis ao que o usuário acabou de perguntar
+- Se "acoes" estiver vazio, retorne []
+
 ${ctx.join("\n\n")}`;
 
       const messages: { role: "system" | "user" | "assistant"; content: string }[] = [
@@ -3784,12 +3864,75 @@ ${ctx.join("\n\n")}`;
         model: getModelForPlan(empresa?.planoTipo, "relatorios"),
         messages: await injectMacroCtx(messages),
         temperature: 0.7,
-        max_tokens: 700,
+        max_tokens: 900,
+        response_format: { type: "json_object" },
       });
 
-      res.json({ resposta: completion.choices[0].message.content });
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      const rawContent = completion.choices[0].message.content ?? "{}";
+      const { resposta, acoes } = parseAssistantPayload(rawContent);
+      res.json({ resposta, acoes });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ error: message });
+    }
+  });
+
+  app.get("/api/ai/briefing-proativo", requireAuth, async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const sinais = await detectarSinaisCriticos(empresaId);
+
+      if (sinais.total === 0) {
+        return res.json({ deveAbrir: false, sinais, mensagem: null, acoes: [] });
+      }
+
+      const partes: string[] = [];
+      const acoes: Array<{ label: string; tipo: "criar" | "editar" | "abrir" | "dispensar"; rota?: string; params?: Record<string, string> }> = [];
+
+      partes.push(`### Bom dia! Encontrei pontos que merecem sua atenção hoje`);
+
+      if (sinais.kpisVermelhos.length > 0) {
+        const lista = sinais.kpisVermelhos.slice(0, 3).map((k) => `**${k.nome}** (${k.atual} vs meta ${k.meta})`).join(", ");
+        partes.push(`- 🔴 **${sinais.kpisVermelhos.length} indicador(es) no vermelho**: ${lista}`);
+        if (acoes.length < 3) acoes.push({ label: "Ver indicadores críticos", tipo: "abrir", rota: "/indicadores" });
+      }
+      if (sinais.iniciativasAtrasadas.length > 0) {
+        const top = sinais.iniciativasAtrasadas[0];
+        partes.push(`- ⏰ **${sinais.iniciativasAtrasadas.length} iniciativa(s) atrasada(s)**: a mais crítica é "${top.titulo}" (${top.diasAtraso} dia(s) de atraso)`);
+        if (acoes.length < 3) acoes.push({ label: "Abrir iniciativas atrasadas", tipo: "abrir", rota: "/iniciativas" });
+      }
+      if (sinais.okrsParados.length > 0) {
+        const top = sinais.okrsParados[0];
+        partes.push(`- 📊 **${sinais.okrsParados.length} meta(s) sem atualização há 14+ dias**: ex. "${top.metrica}" (${top.diasParado} dias)`);
+        if (acoes.length < 3) acoes.push({ label: "Atualizar metas", tipo: "abrir", rota: "/okrs" });
+      }
+      if (sinais.riscosAltosSemMitigacao.length > 0) {
+        const top = sinais.riscosAltosSemMitigacao[0];
+        partes.push(`- ⚠️ **${sinais.riscosAltosSemMitigacao.length} risco(s) alto(s) sem plano de mitigação**: ex. "${top.descricao.slice(0, 80)}"`);
+        if (acoes.length < 3) {
+          acoes.push({
+            label: "Adicionar mitigação",
+            tipo: "editar",
+            rota: "/riscos",
+            params: { id: top.id },
+          });
+        }
+      }
+
+      partes.push(`\nQuer que eu te ajude a priorizar e definir o próximo passo?`);
+
+      const finalAcoes = acoes.slice(0, 2);
+      finalAcoes.push({ label: "Mais tarde", tipo: "dispensar" });
+
+      res.json({
+        deveAbrir: true,
+        sinais,
+        mensagem: partes.join("\n"),
+        acoes: finalAcoes,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ error: message });
     }
   });
 

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useDeepLinkDialog } from "@/hooks/useDeepLinkDialog";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
@@ -608,6 +609,71 @@ export default function OKRs() {
   const objetivosPorPerspectiva = (perspectiva: string) => {
     return objetivos.filter(obj => obj.perspectiva === perspectiva);
   };
+
+  useDeepLinkDialog(!!empresa?.id && !isLoading, ({ novo, editar, params }) => {
+    const isKR = params.tipo === "kr" || params.tipo === "resultado-chave";
+    if (editar) {
+      if (isKR) {
+        const kr = resultadosChave.find((r) => r.id === editar);
+        if (!kr) return false;
+        const parent = objetivos.find((o) => o.id === kr.objetivoId);
+        if (!parent) return false;
+        setObjetivoSelecionado(parent);
+        setDialogResultadosOpen(true);
+        setEditandoResultado({
+          ...kr,
+          metrica: params.metrica || kr.metrica,
+          valorInicial: params.valorInicial || kr.valorInicial,
+          valorAtual: params.valorAtual || kr.valorAtual,
+          valorAlvo: params.valorAlvo || kr.valorAlvo,
+          owner: params.owner || kr.owner,
+          prazo: params.prazo || kr.prazo,
+        });
+        return true;
+      }
+      const found = objetivos.find((o) => o.id === editar);
+      if (!found) return false;
+      setObjetivoSelecionado(found);
+      setObjetivoEditado({
+        titulo: params.titulo || found.titulo,
+        descricao: params.descricao || found.descricao || "",
+        prazo: params.prazo || found.prazo,
+        perspectiva: params.perspectiva || found.perspectiva,
+      });
+      setEditandoObjetivo(true);
+      return true;
+    }
+    if (novo) {
+      if (isKR) {
+        const objetivoId = params.objetivoId;
+        const parent = objetivoId ? objetivos.find((o) => o.id === objetivoId) : null;
+        if (!parent) return false;
+        setObjetivoSelecionado(parent);
+        setNovoResultado({
+          metrica: params.metrica || "",
+          valorInicial: params.valorInicial || "",
+          valorAtual: params.valorAtual || "",
+          valorAlvo: params.valorAlvo || "",
+          owner: params.owner || "",
+          prazo: params.prazo || "",
+        });
+        setDialogResultadosOpen(true);
+        return true;
+      }
+      setNovoObjetivo({
+        titulo: params.titulo || "",
+        descricao: params.descricao || "",
+        prazo: params.prazo || "",
+        perspectiva: params.perspectiva || "Financeira",
+        responsavelId: "",
+        estrategiaId: params.estrategiaId || null,
+        iniciativaId: params.iniciativaId || null,
+      });
+      setIsDialogOpen(true);
+      return true;
+    }
+    return false;
+  });
 
   const iniciarEdicaoObjetivo = () => {
     if (objetivoSelecionado) {

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useDeepLinkDialog } from "@/hooks/useDeepLinkDialog";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
@@ -773,6 +774,37 @@ export default function Indicadores() {
     });
     setDialogOpen(true);
   };
+
+  useDeepLinkDialog(!!empresa?.id && !isLoading, ({ novo, editar, params }) => {
+    if (editar) {
+      const found = indicadores.find((i) => i.id === editar);
+      if (!found) return false;
+      abrirEditar(found);
+      setForm((prev) => ({
+        ...prev,
+        ...(params.perspectiva ? { perspectiva: params.perspectiva } : {}),
+        ...(params.nome ? { nome: params.nome } : {}),
+        ...(params.meta ? { meta: params.meta } : {}),
+        ...(params.atual ? { atual: params.atual } : {}),
+        ...(params.status ? { status: params.status } : {}),
+        ...(params.owner ? { owner: params.owner } : {}),
+      }));
+      return true;
+    }
+    if (novo) {
+      setEditando(null);
+      setForm({
+        perspectiva: params.perspectiva || "Finanças",
+        nome: params.nome || "",
+        meta: params.meta || "",
+        atual: params.atual || "",
+        status: params.status || "verde",
+        owner: params.owner || "",
+        responsavelId: null,
+      });
+      setDialogOpen(true);
+    }
+  });
 
   const handleSubmit = () => {
     if (!form.nome || !form.meta || !form.atual || !form.owner) {

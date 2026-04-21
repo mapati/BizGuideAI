@@ -64,6 +64,78 @@ interface AvaliacaoCtx {
   resultadosComObjetivo: Array<{ objetivo: Objetivo; resultado: ResultadoChave }>;
 }
 
+export interface SinaisCriticos {
+  kpisVermelhos: Array<{ id: string; nome: string; perspectiva: string; atual: string; meta: string }>;
+  iniciativasAtrasadas: Array<{ id: string; titulo: string; prazo: string; diasAtraso: number; responsavel: string }>;
+  okrsParados: Array<{ objetivoId: string; resultadoId: string; metrica: string; objetivo: string; diasParado: number }>;
+  riscosAltosSemMitigacao: Array<{ id: string; descricao: string; categoria: string; score: number }>;
+  total: number;
+}
+
+export async function detectarSinaisCriticos(empresaId: string): Promise<SinaisCriticos> {
+  const ctx = await carregarContextoEmpresa(empresaId);
+  let riscos: Array<{ id: string; descricao: string; categoria: string; probabilidade: number; impacto: number; status: string; planoMitigacao: string | null }> = [];
+  try {
+    riscos = (await storage.getRiscos(empresaId)) as typeof riscos;
+  } catch {
+    riscos = [];
+  }
+
+  const kpisVermelhos = ctx.indicadores
+    .filter((i) => i.status === "vermelho")
+    .map((i) => ({ id: i.id, nome: i.nome, perspectiva: i.perspectiva, atual: i.atual, meta: i.meta }));
+
+  const agoraTs = Date.now();
+  const iniciativasAtrasadas = ctx.iniciativas
+    .filter((i) => i.status !== "concluida" && i.status !== "pausada")
+    .map((i) => {
+      const prazo = parsePrazo(i.prazo);
+      if (!prazo) return null;
+      const fimDoDia = new Date(prazo);
+      fimDoDia.setHours(23, 59, 59, 999);
+      if (fimDoDia.getTime() >= agoraTs) return null;
+      const diasAtraso = Math.floor((agoraTs - fimDoDia.getTime()) / DAY_MS);
+      return { id: i.id, titulo: i.titulo, prazo: i.prazo, diasAtraso, responsavel: i.responsavel };
+    })
+    .filter((v): v is NonNullable<typeof v> => v !== null);
+
+  const limite = Date.now() - 14 * DAY_MS;
+  const okrsParados = ctx.resultadosComObjetivo
+    .map(({ objetivo, resultado }) => {
+      const ts = new Date(resultado.atualizadoEm ?? resultado.createdAt).getTime();
+      if (ts >= limite) return null;
+      const diasParado = Math.floor((Date.now() - ts) / DAY_MS);
+      return {
+        objetivoId: objetivo.id,
+        resultadoId: resultado.id,
+        metrica: resultado.metrica,
+        objetivo: objetivo.titulo,
+        diasParado,
+      };
+    })
+    .filter((v): v is NonNullable<typeof v> => v !== null);
+
+  const riscosAltosSemMitigacao = riscos
+    .filter((r) => r.status !== "eliminado" && r.status !== "aceito")
+    .map((r) => ({
+      id: r.id,
+      descricao: r.descricao,
+      categoria: r.categoria,
+      score: Number(r.probabilidade ?? 0) * Number(r.impacto ?? 0),
+      semPlano: !r.planoMitigacao || r.planoMitigacao.trim().length === 0,
+    }))
+    .filter((r) => r.score >= 12 && r.semPlano)
+    .map(({ id, descricao, categoria, score }) => ({ id, descricao, categoria, score }));
+
+  return {
+    kpisVermelhos,
+    iniciativasAtrasadas,
+    okrsParados,
+    riscosAltosSemMitigacao,
+    total: kpisVermelhos.length + iniciativasAtrasadas.length + okrsParados.length + riscosAltosSemMitigacao.length,
+  };
+}
+
 async function carregarContextoEmpresa(empresaId: string): Promise<AvaliacaoCtx> {
   const [indicadores, iniciativas, objetivos] = await Promise.all([
     storage.getIndicadores(empresaId),

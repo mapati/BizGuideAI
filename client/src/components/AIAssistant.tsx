@@ -31,13 +31,16 @@ export function AIAssistant() {
 
   const modo: "guia" | "assistente" = progresso.jornadaConcluida ? "assistente" : "guia";
 
-  // Unlock animation (one-time, persistent). Marca como visto sem abrir o
-  // drawer automaticamente — a Home e a página /assistente já comunicam isso.
+  // Unlock animation (one-time, persistente). Esta é a única abertura
+  // automática mantida: marca o momento em que a jornada de 12 etapas é
+  // concluída e o assistente passa a estar disponível.
   useEffect(() => {
     if (progresso.isLoading) return;
     if (!progresso.jornadaConcluida) return;
     if (localStorage.getItem(UNLOCK_SHOWN_KEY) === "1") return;
     localStorage.setItem(UNLOCK_SHOWN_KEY, "1");
+    setShowUnlock(true);
+    setIsOpen(true);
   }, [progresso.jornadaConcluida, progresso.isLoading]);
 
   // Briefing proativo — busca para alimentar o preview do chip, mas NÃO abre

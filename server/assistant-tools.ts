@@ -58,9 +58,10 @@ const ROTAS_VALIDAS = [
   "/cenarios", "/alertas", "/diagnostico", "/rastreabilidade",
 ] as const;
 
-const PRIORIDADES = ["alta", "media", "baixa"] as const;
-const STATUS_INICIATIVA = ["nao_iniciada", "em_andamento", "concluida", "atrasada"] as const;
-const PERSPECTIVAS_BSC = ["Financeira", "Cliente", "Processos", "Aprendizado"] as const;
+// Vocabulário canônico do produto (mantido em sincronia com client/src/pages/*).
+const PRIORIDADES = ["alta", "média", "baixa"] as const;
+const STATUS_INICIATIVA = ["planejada", "em_andamento", "concluida", "atrasada"] as const;
+const PERSPECTIVAS_BSC = ["Finanças", "Clientes", "Processos", "Aprendizado"] as const;
 
 function strField(label: string, valor: string | undefined | null) {
   if (!valor || !String(valor).trim()) return null;
@@ -71,9 +72,9 @@ function strField(label: string, valor: string | undefined | null) {
 const criarIniciativaSchema = z.object({
   titulo: z.string().min(3).max(200),
   descricao: z.string().min(3).max(1000),
-  prioridade: z.enum(PRIORIDADES).default("media"),
+  prioridade: z.enum(PRIORIDADES).default("média"),
   prazo: z.string().min(4).max(32), // YYYY-MM-DD ou texto livre
-  status: z.enum(STATUS_INICIATIVA).default("nao_iniciada"),
+  status: z.enum(STATUS_INICIATIVA).default("planejada"),
   responsavel: z.string().max(120).default(""),
   impacto: z.string().max(500).default(""),
   estrategiaId: z.string().optional(),
@@ -92,7 +93,7 @@ const criarIniciativa: ToolDefinition<CriarIniciativaParams> = {
     properties: {
       titulo: { type: "string", description: "Nome curto da iniciativa (≤120 chars)" },
       descricao: { type: "string", description: "O que será feito, em 1-3 frases" },
-      prioridade: { type: "string", enum: ["alta", "media", "baixa"] },
+      prioridade: { type: "string", enum: ["alta", "média", "baixa"] },
       prazo: { type: "string", description: "Prazo no formato YYYY-MM-DD ou texto curto" },
       status: { type: "string", enum: [...STATUS_INICIATIVA] },
       responsavel: { type: "string", description: "Nome do responsável (string livre)" },
@@ -169,7 +170,7 @@ const atualizarIniciativa: ToolDefinition<AtualizarIniciativaParams> = {
       id: { type: "string", description: "ID real da iniciativa" },
       titulo: { type: "string" },
       descricao: { type: "string" },
-      prioridade: { type: "string", enum: ["alta", "media", "baixa"] },
+      prioridade: { type: "string", enum: ["alta", "média", "baixa"] },
       prazo: { type: "string" },
       status: { type: "string", enum: [...STATUS_INICIATIVA] },
       responsavel: { type: "string" },
@@ -218,7 +219,7 @@ const atualizarIniciativa: ToolDefinition<AtualizarIniciativaParams> = {
 const criarOkrSchema = z.object({
   objetivoTitulo: z.string().min(3).max(200),
   objetivoDescricao: z.string().max(800).default(""),
-  perspectiva: z.enum(PERSPECTIVAS_BSC).default("Financeira"),
+  perspectiva: z.enum(PERSPECTIVAS_BSC).default("Finanças"),
   prazo: z.string().min(4).max(32),
   resultadosChave: z
     .array(
@@ -428,7 +429,7 @@ const atualizarProgressoKr: ToolDefinition<AtualizarProgressoKrParams> = {
 
 // ---------- 5. criar_indicador ----------
 const criarIndicadorSchema = z.object({
-  perspectiva: z.enum(PERSPECTIVAS_BSC).default("Financeira"),
+  perspectiva: z.enum(PERSPECTIVAS_BSC).default("Finanças"),
   nome: z.string().min(3).max(200),
   meta: z.string().min(1).max(80),
   atual: z.string().min(1).max(80).default("0"),

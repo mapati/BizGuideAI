@@ -26,6 +26,49 @@ export interface Proposta {
 
 type Estado = "proposta" | "confirmada" | "ignorada" | "ajustada" | "falhou";
 
+// Mapa tool → campo de identificação da entidade existente (para `?editar=<id>`).
+// Tools de criação ficam fora do mapa e usam `?novo=1`.
+const ENTIDADE_ID_PARAM: Record<string, { idField: string; extra?: Record<string, string> }> = {
+  atualizar_iniciativa: { idField: "iniciativaId" },
+  atualizar_okr: { idField: "objetivoId" },
+  atualizar_progresso_kr: { idField: "krId", extra: { tipo: "kr" } },
+  atualizar_valor_indicador: { idField: "indicadorId" },
+};
+
+function construirUrlAjuste(
+  formRota: string,
+  ferramenta: string,
+  parametros: Record<string, unknown>,
+): string {
+  // navegar_para não tem formulário a pré-preencher.
+  if (ferramenta === "navegar_para") return formRota;
+
+  const usp = new URLSearchParams();
+  const cfg = ENTIDADE_ID_PARAM[ferramenta];
+  if (cfg) {
+    const id = parametros[cfg.idField];
+    if (typeof id === "string" && id) {
+      usp.set("editar", id);
+    } else {
+      // Sem ID → cai no formulário em modo "novo" para o usuário escolher.
+      usp.set("novo", "1");
+    }
+    if (cfg.extra) for (const [k, v] of Object.entries(cfg.extra)) usp.set(k, v);
+  } else {
+    usp.set("novo", "1");
+  }
+  for (const [k, v] of Object.entries(parametros)) {
+    if (cfg && k === cfg.idField) continue;
+    if (v === null || v === undefined) continue;
+    if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") {
+      const str = String(v);
+      if (str.length > 0) usp.set(k, str);
+    }
+  }
+  const qs = usp.toString();
+  return qs ? `${formRota}?${qs}` : formRota;
+}
+
 const FERRAMENTAS_LABEL: Record<string, string> = {
   criar_iniciativa: "Nova iniciativa",
   atualizar_iniciativa: "Atualizar iniciativa",
@@ -99,9 +142,10 @@ export function PropostaCard({ proposta }: { proposta: Proposta }) {
     }
   };
 
-  // Ajustar = marca proposta como `ajustada` no log e leva o usuário ao
-  // formulário tradicional da entidade, com os parâmetros sugeridos passados
-  // por sessionStorage para pré-preenchimento opcional pela página destino.
+  // Ajustar: marca proposta como `ajustada` no log e leva o usuário ao
+  // formulário tradicional da entidade. Pré-preenchemos via querystring
+  // (?novo=1&campo=valor ou ?editar=<id>&campo=valor) — formato consumido pelo
+  // hook useDeepLinkDialog em todas as páginas-alvo (Iniciativas, OKRs, Indicadores).
   const handleAjustar = async () => {
     setSubmitting("ajustar");
     try {
@@ -112,18 +156,13 @@ export function PropostaCard({ proposta }: { proposta: Proposta }) {
         ferramenta: string;
       };
       setEstado("ajustada");
-      try {
-        sessionStorage.setItem(
-          `proposta-ajuste:${r.ferramenta}`,
-          JSON.stringify({ logId, parametros: r.parametros, recebidoEm: Date.now() })
-        );
-      } catch { /* ignora se sessionStorage não disponível */ }
       queryClient.invalidateQueries({ queryKey: ["/api/ai/propostas"] });
       toast({
         title: "Vamos ajustar",
         description: "Abrindo o formulário com os campos sugeridos.",
       });
-      setTimeout(() => navigate(r.formRota), 400);
+      const url = construirUrlAjuste(r.formRota, r.ferramenta, r.parametros);
+      setTimeout(() => navigate(url), 400);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       toast({ title: "Erro ao ajustar", description: msg, variant: "destructive" });

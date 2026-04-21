@@ -61,7 +61,7 @@ const ROTAS_VALIDAS = [
 // Vocabulário canônico do produto (mantido em sincronia com client/src/pages/*).
 // IMPORTANTE: OKRs e Indicadores usam vocabulários distintos no produto — manter espelhado.
 const PRIORIDADES = ["alta", "média", "baixa"] as const;
-const STATUS_INICIATIVA = ["planejada", "em_andamento", "concluida", "atrasada"] as const;
+const STATUS_INICIATIVA = ["planejada", "em_andamento", "concluida", "pausada"] as const;
 // OKRs (client/src/pages/OKRs.tsx): perspectivas do mapa estratégico clássico.
 const PERSPECTIVAS_OKR = [
   "Financeira",
@@ -438,7 +438,7 @@ const atualizarProgressoKr: ToolDefinition<AtualizarProgressoKrParams> = {
 
 // ---------- 5. criar_indicador ----------
 const criarIndicadorSchema = z.object({
-  perspectiva: z.enum(PERSPECTIVAS_OKR).default("Financeira"),
+  perspectiva: z.enum(PERSPECTIVAS_INDICADOR).default("Finanças"),
   nome: z.string().min(3).max(200),
   meta: z.string().min(1).max(80),
   atual: z.string().min(1).max(80).default("0"),

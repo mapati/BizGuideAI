@@ -947,7 +947,44 @@ export async function registrarProposta(opts: {
     };
   }
 
-  const preview = tool.preview(parsed.data);
+  let preview = tool.preview(parsed.data);
+
+  // Task #193 — Aviso explícito quando o usuário já tem um plano agêntico
+  // ativo. Em vez de cancelar silenciosamente o plano anterior, enriquecemos
+  // o preview HITL para deixar claro o que vai acontecer e dar ao usuário a
+  // chance de revisar antes de confirmar.
+  if (tool.name === "criar_plano_agentico") {
+    try {
+      const planoExistente = await storage.getPlanoAtivoEmpresaUsuario(
+        opts.empresaId,
+        opts.usuarioId ?? null,
+      );
+      if (planoExistente) {
+        const passosExistente = await storage.listPassosByPlano(planoExistente.id);
+        const concluidos = passosExistente.filter((p) => p.status === "concluido").length;
+        const avisoCampos = [
+          {
+            label: "⚠ Plano em andamento",
+            valor: `"${planoExistente.titulo}" — passo ${planoExistente.passoAtual}/${planoExistente.totalPassos} (${concluidos} concluído${concluidos === 1 ? "" : "s"}).`,
+          },
+          {
+            label: "O que acontece se você confirmar",
+            valor: "O plano atual será cancelado e este novo plano começará do passo 1.",
+          },
+        ];
+        preview = {
+          ...preview,
+          descricao: `Você já tem um plano ativo. ${preview.descricao}`,
+          campos: [...avisoCampos, ...(preview.campos ?? [])],
+          ctaConfirmar: "Cancelar atual e iniciar este",
+          ctaIgnorar: "Manter plano atual",
+        };
+      }
+    } catch {
+      /* best-effort — segue com o preview padrão se a checagem falhar */
+    }
+  }
+
   const log = await storage.createPropostaLog({
     empresaId: opts.empresaId,
     usuarioId: opts.usuarioId ?? null,

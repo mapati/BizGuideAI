@@ -148,6 +148,8 @@ export default function Onboarding() {
       // animação de desbloqueio deve poder disparar de novo.
       try {
         localStorage.removeItem("biz-guide-assistente-desbloqueado");
+        localStorage.removeItem("biz-guide-briefing-dispensado-em");
+        window.dispatchEvent(new CustomEvent("biz-guide:briefing-dispensado"));
       } catch {
         // localStorage indisponível — segue o fluxo
       }

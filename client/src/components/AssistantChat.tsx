@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import type { Alerta } from "@/hooks/useAssistantStatus";
 import { AssistantMarkdown } from "@/components/AssistantMarkdown";
+import { dismissBriefingForToday } from "@/lib/briefingDismiss";
 
 export interface AssistantAcao {
   label: string;
@@ -239,6 +240,7 @@ export function AssistantChat({
 
   const handleAcaoClick = (acao: AssistantAcao) => {
     if (acao.tipo === "dispensar") {
+      dismissBriefingForToday();
       onCloseDrawer?.();
       return;
     }

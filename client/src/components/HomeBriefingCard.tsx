@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Sparkles, ArrowRight, AlertTriangle, Cpu, BookOpen, Loader2 } from "lucide-react";
@@ -6,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
 import type { AssistantAcao } from "@/components/AssistantChat";
+import { isBriefingDismissedToday } from "@/lib/briefingDismiss";
 
 interface BriefingResponse {
   deveAbrir: boolean;
@@ -32,7 +34,15 @@ function buildHrefFromAcao(acao: AssistantAcao): string {
 
 export function HomeBriefingCard() {
   const { jornadaConcluida, isLoading: jornadaLoading } = useJornadaProgresso();
-  const enabled = !jornadaLoading && jornadaConcluida;
+  const [dispensado, setDispensado] = useState(() => isBriefingDismissedToday());
+
+  useEffect(() => {
+    const sync = () => setDispensado(isBriefingDismissedToday());
+    window.addEventListener("biz-guide:briefing-dispensado", sync);
+    return () => window.removeEventListener("biz-guide:briefing-dispensado", sync);
+  }, []);
+
+  const enabled = !jornadaLoading && jornadaConcluida && !dispensado;
 
   const { data, isLoading } = useQuery<BriefingResponse>({
     queryKey: ["/api/ai/briefing-proativo"],

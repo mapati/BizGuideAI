@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { dismissBriefingForToday, isBriefingDismissedToday } from "@/lib/briefingDismiss";
 import { Link } from "wouter";
 import {
   Sparkles, AlertTriangle, Target, TrendingDown, MessageSquare,
@@ -103,7 +104,27 @@ export default function Assistente() {
     ? { content: briefing.mensagem, acoes: briefing.acoes ?? [] }
     : null;
 
-  const [briefingDispensado, setBriefingDispensado] = useState(false);
+  const [briefingDispensado, setBriefingDispensado] = useState(() => isBriefingDismissedToday());
+
+  useEffect(() => {
+    const sync = () => setBriefingDispensado(isBriefingDismissedToday());
+    window.addEventListener("biz-guide:briefing-dispensado", sync);
+    return () => window.removeEventListener("biz-guide:briefing-dispensado", sync);
+  }, []);
+
+  const handleReabrir = () => {
+    try {
+      window.localStorage.removeItem("biz-guide-briefing-dispensado-em");
+    } catch {
+      // ignore
+    }
+    setBriefingDispensado(false);
+  };
+
+  const handleDispensar = () => {
+    dismissBriefingForToday();
+    setBriefingDispensado(true);
+  };
 
   return (
     <div className="space-y-5 max-w-7xl mx-auto" data-testid="page-assistente">
@@ -169,12 +190,12 @@ export default function Assistente() {
                   data-testid="text-briefing-dispensado"
                 >
                   <p className="text-sm text-muted-foreground">
-                    Briefing adiado. Volte mais tarde ou reabra agora.
+                    Briefing adiado para amanhã. Você pode reabrir agora se quiser.
                   </p>
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => setBriefingDispensado(false)}
+                    onClick={handleReabrir}
                     data-testid="button-reabrir-briefing"
                   >
                     Mostrar de novo
@@ -205,7 +226,7 @@ export default function Assistente() {
                         <BriefingAcaoCard
                           key={`${acao.label}-${idx}`}
                           acao={acao}
-                          onDispensar={() => setBriefingDispensado(true)}
+                          onDispensar={handleDispensar}
                         />
                       ))}
                     </div>

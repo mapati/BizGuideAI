@@ -103,7 +103,7 @@ import {
   type PlanoAgenticoPasso,
   type InsertPlanoAgenticoPasso,
 } from "@shared/schema";
-import { eq, and, desc, inArray, sql, lt } from "drizzle-orm";
+import { eq, and, or, desc, inArray, sql, lt, isNull } from "drizzle-orm";
 
 export interface IStorage {
   getEmpresa(id: string): Promise<Empresa | undefined>;
@@ -1401,9 +1401,20 @@ export class DbStorage implements IStorage {
   }
 
   async getPlanoAtivoEmpresaUsuario(empresaId: string, usuarioId: string | null): Promise<PlanoAgentico | undefined> {
+    // Plano ativo é visível para o usuário se for dele ou compartilhado
+    // (usuarioId IS NULL). Quando usuarioId não é informado, retorna apenas
+    // os planos compartilhados da empresa.
     const cond = usuarioId
-      ? and(eq(planoAgentico.empresaId, empresaId), eq(planoAgentico.status, "ativo"), eq(planoAgentico.usuarioId, usuarioId))
-      : and(eq(planoAgentico.empresaId, empresaId), eq(planoAgentico.status, "ativo"));
+      ? and(
+          eq(planoAgentico.empresaId, empresaId),
+          eq(planoAgentico.status, "ativo"),
+          or(isNull(planoAgentico.usuarioId), eq(planoAgentico.usuarioId, usuarioId)),
+        )
+      : and(
+          eq(planoAgentico.empresaId, empresaId),
+          eq(planoAgentico.status, "ativo"),
+          isNull(planoAgentico.usuarioId),
+        );
     const [row] = await db.select().from(planoAgentico).where(cond).orderBy(desc(planoAgentico.criadoEm)).limit(1);
     return row;
   }

@@ -18,7 +18,7 @@ interface AssistantDrawerProps {
   progresso: JornadaProgresso;
   showUnlock: boolean;
   onUnlockDismiss: () => void;
-  proactiveMessage?: { content: string; acoes?: AssistantAcao[] } | null;
+  proactiveMessage?: { content: string; acoes?: AssistantAcao[]; propostas?: import("@/components/PropostaCard").Proposta[] } | null;
   onProactiveConsumed?: () => void;
 }
 

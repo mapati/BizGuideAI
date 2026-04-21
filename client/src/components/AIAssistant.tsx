@@ -6,18 +6,21 @@ import { useAssistantStatus } from "@/hooks/useAssistantStatus";
 import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
 import { apiRequest } from "@/lib/queryClient";
 import type { AssistantAcao } from "@/components/AssistantChat";
+import type { Proposta } from "@/components/PropostaCard";
 
 const UNLOCK_SHOWN_KEY = "biz-guide-assistente-desbloqueado";
 
 interface ProactiveMessage {
   content: string;
   acoes?: AssistantAcao[];
+  propostas?: Proposta[];
 }
 
 interface BriefingResponse {
   deveAbrir: boolean;
   mensagem: string | null;
   acoes?: AssistantAcao[];
+  propostas?: Proposta[];
 }
 
 export function AIAssistant() {
@@ -58,7 +61,7 @@ export function AIAssistant() {
         const data = (await apiRequest("GET", "/api/ai/briefing-proativo")) as BriefingResponse;
         if (cancelled) return;
         if (data.deveAbrir && data.mensagem) {
-          setProactiveMessage({ content: data.mensagem, acoes: data.acoes });
+          setProactiveMessage({ content: data.mensagem, acoes: data.acoes, propostas: data.propostas });
         }
       } catch {
         // silently ignore — proactive briefing is best-effort

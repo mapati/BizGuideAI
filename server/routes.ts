@@ -4019,10 +4019,16 @@ INSTRUÇÕES:
       const full = await storage.getPlanoAgenticoComPassos(passo.planoId);
       if (!full || full.plano.empresaId !== empresaId || full.plano.status !== "ativo") return null;
 
-      // Marca passo como concluído (schema usa resolvidoEm).
+      // Marca passo como concluído + persiste resumo do resultado para
+      // auditoria/timeline (sem precisar refazer join com a proposta).
+      const resumoResultado = (() => {
+        const r = contexto.resultado as { resumo?: unknown } | null;
+        return typeof r?.resumo === "string" ? r.resumo.slice(0, 500) : null;
+      })();
       await storage.updatePlanoAgenticoPasso(passo.id, {
         status: "concluido",
         resolvidoEm: new Date(),
+        resultadoResumo: resumoResultado,
       });
 
       const cont = await proporProximoPassoDoPlano(passo.planoId, empresaId, usuarioId, {
@@ -4162,7 +4168,10 @@ INSTRUÇÕES:
       }
       const cont = await proporProximoPassoDoPlano(plano.id, empresaId, userId);
       if (!cont) return res.status(500).json({ error: "Falha ao propor próximo passo." });
-      res.json({ ok: true, continuacao: cont });
+      // Normaliza payload para o mesmo shape de ContinuacaoPlano emitido por
+      // /confirmar e /ignorar (inclui passoConcluidoOrdem=0, pois /avancar é
+      // disparado manualmente sem ter acabado de concluir um passo).
+      res.json({ ok: true, continuacao: { ...cont, passoConcluidoOrdem: 0 } });
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }

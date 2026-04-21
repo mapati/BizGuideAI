@@ -39,10 +39,14 @@ export function HomeCard() {
                   <Sparkles className="h-6 w-6 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 text-xs text-white/80 mb-1.5">
-                    <span className="uppercase tracking-wide font-semibold">Briefing de hoje</span>
-                    <span>·</span>
-                    <span>gerado às 07:42</span>
+                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                    <Badge className="bg-white text-violet-700 hover:bg-white text-[10px] uppercase tracking-wide">
+                      Briefing de hoje
+                    </Badge>
+                    <Badge variant="secondary" className="bg-white/15 text-white border-white/20 backdrop-blur gap-1 text-[10px]">
+                      <Sparkles className="h-2.5 w-2.5" /> via IA
+                    </Badge>
+                    <span className="text-xs text-white/80">07:42</span>
                   </div>
                   <h2 className="text-2xl font-semibold leading-tight mb-2">
                     Bom dia, Marina. Um ponto crítico precisa da sua atenção hoje.
@@ -60,8 +64,8 @@ export function HomeCard() {
                     <Button size="sm" variant="outline" className="bg-white/10 text-white border-white/30 backdrop-blur hover:bg-white/20">
                       <Lightbulb className="h-4 w-4" /> Sugerir ações
                     </Button>
-                    <Button size="sm" variant="ghost" className="text-white hover:bg-white/10">
-                      Abrir hub completo
+                    <Button size="sm" variant="ghost" className="text-white hover:bg-white/10 gap-1.5">
+                      Ver mais no Assistente <ArrowRight className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 </div>

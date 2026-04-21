@@ -48,9 +48,16 @@ export function Hub() {
                     <Sparkles className="h-5 w-5 text-white" />
                   </div>
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-1">
-                      <Calendar className="h-3 w-3" />
-                      <span>Briefing diário · gerado às 07:42</span>
+                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                      <Badge className="bg-violet-600 text-white hover:bg-violet-600 text-[10px] uppercase tracking-wide">
+                        Briefing de hoje
+                      </Badge>
+                      <Badge variant="secondary" className="gap-1 text-[10px]">
+                        <Sparkles className="h-2.5 w-2.5" /> via IA
+                      </Badge>
+                      <span className="text-xs text-slate-500 dark:text-slate-400 inline-flex items-center gap-1">
+                        <Calendar className="h-3 w-3" /> 07:42
+                      </span>
                     </div>
                     <CardTitle className="text-xl leading-tight">
                       Bom dia, Marina. Um KPI crítico precisa da sua atenção hoje.
@@ -149,26 +156,6 @@ export function Hub() {
             </CardContent>
           </Card>
 
-          {/* Histórico de briefings */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Últimos 7 dias</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1">
-              {[
-                { d: "20 abr", t: "OKR de receita avançou 12% — boa semana de fechamento" },
-                { d: "19 abr", t: "Risco regulatório novo apareceu no PESTEL" },
-                { d: "18 abr", t: "Iniciativa de marca com 3 entregas em atraso" },
-                { d: "17 abr", t: "KPI de NPS bateu meta pela primeira vez no trimestre" },
-              ].map((b, i) => (
-                <div key={i} className="flex items-center gap-3 py-2 px-2 rounded-md hover-elevate">
-                  <div className="text-xs font-mono text-slate-500 dark:text-slate-400 w-14 shrink-0">{b.d}</div>
-                  <div className="text-sm flex-1">{b.t}</div>
-                  <ChevronRight className="h-4 w-4 text-slate-400" />
-                </div>
-              ))}
-            </CardContent>
-          </Card>
         </div>
 
         {/* RIGHT — Chat persistente */}

@@ -95,9 +95,8 @@ export function AIAssistant() {
       cancelled = true;
       document.removeEventListener("visibilitychange", onVisibility);
     };
-    // isOpen is intentionally omitted: we only want the fetch to react to
-    // identity/load changes, not to the drawer toggling.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // isOpen is intentionally omitted from deps: we only want the fetch to
+    // react to identity/load changes, not to the drawer toggling.
   }, [progresso.isLoading, empresaId]);
 
   if (progresso.isLoading) return null;

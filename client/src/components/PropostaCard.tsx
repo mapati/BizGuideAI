@@ -24,6 +24,15 @@ export interface Proposta {
   parametros: Record<string, unknown>;
 }
 
+// Task #189 — Resposta de continuação após confirmação (loop agêntico).
+export interface ContinuacaoPlano {
+  plano: { plano: { id: string; titulo: string; status: string; passoAtual: number; totalPassos: number }; passos: Array<{ id: string; ordem: number; titulo: string; status: string }> } | null;
+  passoConcluidoOrdem: number;
+  proximasPropostas: Proposta[];
+  mensagem: string;
+  finalizado: boolean;
+}
+
 type Estado = "proposta" | "confirmada" | "ignorada" | "ajustada" | "falhou";
 
 // Mapa tool → campo de identificação da entidade existente (para `?editar=<id>`).
@@ -80,7 +89,13 @@ const FERRAMENTAS_LABEL: Record<string, string> = {
   navegar_para: "Abrir página",
 };
 
-export function PropostaCard({ proposta }: { proposta: Proposta }) {
+export function PropostaCard({
+  proposta,
+  onContinuacao,
+}: {
+  proposta: Proposta;
+  onContinuacao?: (cont: ContinuacaoPlano) => void;
+}) {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const [estado, setEstado] = useState<Estado>("proposta");
@@ -98,6 +113,7 @@ export function PropostaCard({ proposta }: { proposta: Proposta }) {
       const r = (await apiRequest("POST", `/api/ai/proposta/${logId}/confirmar`, {})) as {
         ok: true;
         resultado: { resumo: string; rota?: string; entidadeTipo?: string; entidadeId?: string };
+        continuacao?: ContinuacaoPlano | null;
       };
       setEstado("confirmada");
       setResolvidoEm(new Date());
@@ -116,8 +132,9 @@ export function PropostaCard({ proposta }: { proposta: Proposta }) {
           </ToastAction>
         ) : undefined,
       });
-      const queries = ["/api/iniciativas", "/api/objetivos", "/api/indicadores", "/api/meu-painel/resumo", "/api/ai/propostas"];
+      const queries = ["/api/iniciativas", "/api/objetivos", "/api/indicadores", "/api/meu-painel/resumo", "/api/ai/propostas", "/api/ai/planos", "/api/ai/planos/ativo"];
       for (const q of queries) queryClient.invalidateQueries({ queryKey: [q] });
+      if (r.continuacao && onContinuacao) onContinuacao(r.continuacao);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setErro(msg);

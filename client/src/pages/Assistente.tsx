@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { AssistantChat, type AssistantAcao } from "@/components/AssistantChat";
 import { AssistantMarkdown } from "@/components/AssistantMarkdown";
 import { PropostaHistorico } from "@/components/PropostaHistorico";
+import { PlanoAgenticoCard, type PlanoAgenticoView, type PlanoAgenticoPassoView } from "@/components/PlanoAgenticoCard";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useAssistantStatus } from "@/hooks/useAssistantStatus";
 import { cn } from "@/lib/utils";
@@ -308,6 +309,7 @@ export default function Assistente() {
               <CardTitle className="text-base">Conversa com o assistente</CardTitle>
               <TabsList className="ml-auto" data-testid="tabs-assistente">
                 <TabsTrigger value="chat" data-testid="tab-chat">Chat</TabsTrigger>
+                <TabsTrigger value="planos" data-testid="tab-planos">Planos</TabsTrigger>
                 <TabsTrigger value="historico" data-testid="tab-historico">Histórico</TabsTrigger>
               </TabsList>
               <Badge variant="secondary" className="text-xs gap-1">
@@ -320,6 +322,11 @@ export default function Assistente() {
               <AssistantChat alertas={alertas} proactiveMessage={proactive} />
             </div>
           </TabsContent>
+          <TabsContent value="planos" className="m-0">
+            <div className="h-[520px] overflow-y-auto p-4">
+              <PlanosAgenticosLista />
+            </div>
+          </TabsContent>
           <TabsContent value="historico" className="m-0">
             <div className="h-[520px] flex flex-col">
               <PropostaHistorico />
@@ -329,6 +336,53 @@ export default function Assistente() {
       </Card>
     </div>
   );
+}
+
+function PlanosAgenticosLista() {
+  const { data, isLoading } = useQuery<{ planos: Array<PlanoAgenticoView> }>({
+    queryKey: ["/api/ai/planos"],
+    refetchInterval: 30000,
+  });
+  const planos = data?.planos ?? [];
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center">
+        <Loader2 className="h-4 w-4 animate-spin" /> Carregando planos…
+      </div>
+    );
+  }
+  if (planos.length === 0) {
+    return (
+      <div className="text-center py-8 space-y-2">
+        <Target className="h-10 w-10 text-muted-foreground mx-auto" />
+        <p className="text-sm text-muted-foreground" data-testid="text-planos-vazio">
+          Nenhum plano agêntico ainda. Quando você pedir algo amplo no chat, o assistente pode propor um plano de vários passos.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3" data-testid="lista-planos-agenticos">
+      {planos.map((p) => (
+        <PlanoComPassos key={p.id} plano={p} />
+      ))}
+    </div>
+  );
+}
+
+function PlanoComPassos({ plano }: { plano: PlanoAgenticoView }) {
+  const { data } = useQuery<{ plano: PlanoAgenticoView; passos: PlanoAgenticoPassoView[] }>({
+    queryKey: ["/api/ai/planos", plano.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/ai/planos/${plano.id}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Falha ao carregar plano");
+      return res.json();
+    },
+  });
+  const passos = data?.passos ?? [];
+  return <PlanoAgenticoCard plano={data?.plano ?? plano} passos={passos} />;
 }
 
 function buildHrefFromAcao(acao: AssistantAcao): string {

@@ -96,6 +96,12 @@ import {
   assistenteAcaoLog,
   type AssistenteAcaoLog,
   type InsertAssistenteAcaoLog,
+  planoAgentico,
+  type PlanoAgentico,
+  type InsertPlanoAgentico,
+  planoAgenticoPasso,
+  type PlanoAgenticoPasso,
+  type InsertPlanoAgenticoPasso,
 } from "@shared/schema";
 import { eq, and, desc, inArray, sql, lt } from "drizzle-orm";
 
@@ -281,6 +287,18 @@ export interface IStorage {
   claimPropostaPendente(id: string, empresaId: string): Promise<AssistenteAcaoLog | null>;
   // Hidratação idempotente do briefing (carrega propostas já persistidas).
   listPropostasByIds(ids: string[]): Promise<AssistenteAcaoLog[]>;
+
+  // Task #189 — Planos agênticos (loop multi-passo)
+  createPlanoAgentico(plano: InsertPlanoAgentico, passos: Array<Omit<InsertPlanoAgenticoPasso, "planoId" | "empresaId">>): Promise<{ plano: PlanoAgentico; passos: PlanoAgenticoPasso[] }>;
+  getPlanoAgentico(id: string): Promise<PlanoAgentico | undefined>;
+  getPlanoAgenticoComPassos(id: string): Promise<{ plano: PlanoAgentico; passos: PlanoAgenticoPasso[] } | undefined>;
+  listPlanosAgenticosByEmpresa(empresaId: string, opts?: { status?: string; limite?: number }): Promise<PlanoAgentico[]>;
+  getPlanoAtivoEmpresaUsuario(empresaId: string, usuarioId: string | null): Promise<PlanoAgentico | undefined>;
+  updatePlanoAgentico(id: string, patch: Partial<Pick<PlanoAgentico, "status" | "passoAtual" | "finalizadoEm" | "totalPassos">>): Promise<PlanoAgentico>;
+  updatePlanoAgenticoPasso(id: string, patch: Partial<Pick<PlanoAgenticoPasso, "status" | "propostaId" | "resultadoResumo" | "resolvidoEm">>): Promise<PlanoAgenticoPasso>;
+  getPassoByPropostaId(propostaId: string): Promise<PlanoAgenticoPasso | undefined>;
+  getPassoByPlanoOrdem(planoId: string, ordem: number): Promise<PlanoAgenticoPasso | undefined>;
+  listPassosByPlano(planoId: string): Promise<PlanoAgenticoPasso[]>;
 }
 
 export type ResetGrupo = "diagnostico" | "mapa" | "plano-acao" | "execucao" | "tudo";
@@ -1340,6 +1358,100 @@ export class DbStorage implements IStorage {
   async listPropostasByIds(ids: string[]): Promise<AssistenteAcaoLog[]> {
     if (ids.length === 0) return [];
     return db.select().from(assistenteAcaoLog).where(inArray(assistenteAcaoLog.id, ids));
+  }
+
+  // ─── Task #189 — Planos agênticos ───
+  async createPlanoAgentico(
+    plano: InsertPlanoAgentico,
+    passos: Array<Omit<InsertPlanoAgenticoPasso, "planoId" | "empresaId">>,
+  ): Promise<{ plano: PlanoAgentico; passos: PlanoAgenticoPasso[] }> {
+    const [planoRow] = await db
+      .insert(planoAgentico)
+      .values({ ...plano, totalPassos: passos.length })
+      .returning();
+    const inseridos: PlanoAgenticoPasso[] = [];
+    for (const p of passos) {
+      const [row] = await db
+        .insert(planoAgenticoPasso)
+        .values({ ...p, planoId: planoRow.id, empresaId: planoRow.empresaId })
+        .returning();
+      inseridos.push(row);
+    }
+    return { plano: planoRow, passos: inseridos };
+  }
+
+  async getPlanoAgentico(id: string): Promise<PlanoAgentico | undefined> {
+    const [row] = await db.select().from(planoAgentico).where(eq(planoAgentico.id, id)).limit(1);
+    return row;
+  }
+
+  async getPlanoAgenticoComPassos(id: string) {
+    const plano = await this.getPlanoAgentico(id);
+    if (!plano) return undefined;
+    const passos = await this.listPassosByPlano(id);
+    return { plano, passos };
+  }
+
+  async listPlanosAgenticosByEmpresa(empresaId: string, opts: { status?: string; limite?: number } = {}) {
+    const limite = opts.limite ?? 50;
+    const where = opts.status
+      ? and(eq(planoAgentico.empresaId, empresaId), eq(planoAgentico.status, opts.status))
+      : eq(planoAgentico.empresaId, empresaId);
+    return db.select().from(planoAgentico).where(where).orderBy(desc(planoAgentico.criadoEm)).limit(limite);
+  }
+
+  async getPlanoAtivoEmpresaUsuario(empresaId: string, usuarioId: string | null): Promise<PlanoAgentico | undefined> {
+    const cond = usuarioId
+      ? and(eq(planoAgentico.empresaId, empresaId), eq(planoAgentico.status, "ativo"), eq(planoAgentico.usuarioId, usuarioId))
+      : and(eq(planoAgentico.empresaId, empresaId), eq(planoAgentico.status, "ativo"));
+    const [row] = await db.select().from(planoAgentico).where(cond).orderBy(desc(planoAgentico.criadoEm)).limit(1);
+    return row;
+  }
+
+  async updatePlanoAgentico(
+    id: string,
+    patch: Partial<Pick<PlanoAgentico, "status" | "passoAtual" | "finalizadoEm" | "totalPassos">>,
+  ): Promise<PlanoAgentico> {
+    const [row] = await db
+      .update(planoAgentico)
+      .set({ ...patch, atualizadoEm: new Date() })
+      .where(eq(planoAgentico.id, id))
+      .returning();
+    return row;
+  }
+
+  async updatePlanoAgenticoPasso(
+    id: string,
+    patch: Partial<Pick<PlanoAgenticoPasso, "status" | "propostaId" | "resultadoResumo" | "resolvidoEm">>,
+  ): Promise<PlanoAgenticoPasso> {
+    const [row] = await db.update(planoAgenticoPasso).set(patch).where(eq(planoAgenticoPasso.id, id)).returning();
+    return row;
+  }
+
+  async getPassoByPropostaId(propostaId: string): Promise<PlanoAgenticoPasso | undefined> {
+    const [row] = await db
+      .select()
+      .from(planoAgenticoPasso)
+      .where(eq(planoAgenticoPasso.propostaId, propostaId))
+      .limit(1);
+    return row;
+  }
+
+  async getPassoByPlanoOrdem(planoId: string, ordem: number): Promise<PlanoAgenticoPasso | undefined> {
+    const [row] = await db
+      .select()
+      .from(planoAgenticoPasso)
+      .where(and(eq(planoAgenticoPasso.planoId, planoId), eq(planoAgenticoPasso.ordem, ordem)))
+      .limit(1);
+    return row;
+  }
+
+  async listPassosByPlano(planoId: string): Promise<PlanoAgenticoPasso[]> {
+    return db
+      .select()
+      .from(planoAgenticoPasso)
+      .where(eq(planoAgenticoPasso.planoId, planoId))
+      .orderBy(planoAgenticoPasso.ordem);
   }
 }
 

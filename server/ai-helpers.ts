@@ -113,6 +113,49 @@ REGRA DE MEMÓRIA:
 - Se o usuário disser que algo já foi feito (ex.: "já resolvi o KPI X", "concluí a iniciativa Y"), use as ferramentas de atualização (atualizar_iniciativa com status "concluida"/"pausada", atualizar_valor_indicador, atualizar_progresso_kr) para refletir isso no sistema.`;
 }
 
+/**
+ * Task #189 — Bloco de contexto sobre o plano agêntico ativo (se houver).
+ * Anexado ao system prompt do assistente para que ele lembre do plano em
+ * andamento, do passo atual e dos próximos passos planejados.
+ */
+export async function buildPlanoAtivoContextoIA(
+  empresaId: string,
+  usuarioId: string | null,
+): Promise<string> {
+  try {
+    const plano = await storage.getPlanoAtivoEmpresaUsuario(empresaId, usuarioId);
+    if (!plano) return "";
+    const passos = await storage.listPassosByPlano(plano.id);
+    const fmtStatus: Record<string, string> = {
+      pendente: "pendente",
+      em_andamento: "EM ANDAMENTO (proposta enviada, aguardando confirmação)",
+      concluido: "✓ concluído",
+      pulado: "pulado",
+    };
+    const linhas = passos.map(
+      (p) => `  ${p.ordem}. [${fmtStatus[p.status] ?? p.status}] ${p.titulo}${p.descricao ? ` — ${p.descricao}` : ""}`,
+    );
+    const proximoPendente = passos.find((p) => p.status === "pendente");
+    const proximoTxt = proximoPendente
+      ? `\nPRÓXIMO PASSO PENDENTE: passo ${proximoPendente.ordem} — "${proximoPendente.titulo}". Quando chamar a tool executora correspondente, inclua planoId="${plano.id}" e passoOrdem=${proximoPendente.ordem}.`
+      : "\nTodos os passos foram tratados — considere chamar concluir_plano_agentico se o objetivo foi cumprido.";
+    return `## PLANO AGÊNTICO ATIVO
+ID: ${plano.id}
+Título: ${plano.titulo}
+Objetivo: ${plano.objetivo}
+Progresso: passo ${plano.passoAtual}/${plano.totalPassos}
+Passos:
+${linhas.join("\n")}${proximoTxt}
+
+REGRAS DO LOOP:
+- Continue o plano um passo por vez. Não proponha vários passos juntos.
+- Sempre vincule a proposta ao plano via planoId/passoOrdem.
+- Se o usuário desistir, use cancelar_plano_agentico. Se já cumpriu o objetivo, use concluir_plano_agentico.`;
+  } catch {
+    return "";
+  }
+}
+
 /** Versão sem dependência de fetch para ser injetada quando os logs já foram carregados. */
 export function formatAcoesRecentesContextoIA(
   logs: AssistenteAcaoLog[],

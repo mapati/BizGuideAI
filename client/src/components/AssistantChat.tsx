@@ -9,7 +9,9 @@ import { cn } from "@/lib/utils";
 import type { Alerta } from "@/hooks/useAssistantStatus";
 import { AssistantMarkdown } from "@/components/AssistantMarkdown";
 import { dismissBriefingForToday } from "@/lib/briefingDismiss";
-import { PropostaCard, type Proposta } from "@/components/PropostaCard";
+import { PropostaCard, type Proposta, type ContinuacaoPlano } from "@/components/PropostaCard";
+import { PlanoAgenticoCard, type PlanoAgenticoView, type PlanoAgenticoPassoView } from "@/components/PlanoAgenticoCard";
+import { useQuery } from "@tanstack/react-query";
 
 export interface AssistantAcao {
   label: string;
@@ -39,6 +41,7 @@ interface AssistanteResponse {
   resposta: string;
   acoes?: AssistantAcao[];
   propostas?: Proposta[];
+  planoAtivo?: { plano: PlanoAgenticoView; passos: PlanoAgenticoPassoView[] } | null;
 }
 
 function buildHrefFromAcao(acao: AssistantAcao): string {
@@ -69,9 +72,11 @@ function ActionIcon({ tipo }: { tipo: AssistantAcao["tipo"] }) {
 function MessageBubble({
   msg,
   onAcaoClick,
+  onContinuacao,
 }: {
   msg: Message;
   onAcaoClick: (acao: AssistantAcao) => void;
+  onContinuacao?: (cont: ContinuacaoPlano) => void;
 }) {
   const isUser = msg.role === "user";
   return (
@@ -102,7 +107,7 @@ function MessageBubble({
         {!isUser && msg.propostas && msg.propostas.length > 0 && (
           <div className="flex flex-col gap-2 w-full">
             {msg.propostas.map((p) => (
-              <PropostaCard key={p.logId} proposta={p} />
+              <PropostaCard key={p.logId} proposta={p} onContinuacao={onContinuacao} />
             ))}
           </div>
         )}
@@ -168,6 +173,13 @@ export function AssistantChat({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const initializedRef = useRef(false);
   const proactiveAppliedRef = useRef(false);
+
+  // Task #189 — Plano agêntico ativo (renderiza no topo do chat).
+  const planoAtivoQuery = useQuery<{ plano: (PlanoAgenticoView & { passos: PlanoAgenticoPassoView[] }) | null }>({
+    queryKey: ["/api/ai/planos/ativo"],
+    refetchInterval: 30000,
+  });
+  const planoAtivo = planoAtivoQuery.data?.plano ?? null;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -241,6 +253,7 @@ export function AssistantChat({
           propostas: typed.propostas,
         },
       ]);
+      planoAtivoQuery.refetch();
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -252,6 +265,18 @@ export function AssistantChat({
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleContinuacao = (cont: ContinuacaoPlano) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "assistant",
+        content: cont.mensagem || (cont.finalizado ? "Plano concluído." : "Próximo passo proposto."),
+        propostas: cont.proximasPropostas,
+      },
+    ]);
+    planoAtivoQuery.refetch();
   };
 
   const handleAcaoClick = (acao: AssistantAcao) => {
@@ -278,8 +303,16 @@ export function AssistantChat({
   return (
     <div className="flex flex-col flex-1 min-h-0">
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        {planoAtivo && (
+          <PlanoAgenticoCard
+            plano={planoAtivo}
+            passos={planoAtivo.passos}
+            compacto
+            onCancelado={() => planoAtivoQuery.refetch()}
+          />
+        )}
         {messages.map((msg, i) => (
-          <MessageBubble key={i} msg={msg} onAcaoClick={handleAcaoClick} />
+          <MessageBubble key={i} msg={msg} onAcaoClick={handleAcaoClick} onContinuacao={handleContinuacao} />
         ))}
 
         {isLoading && (

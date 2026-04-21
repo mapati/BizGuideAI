@@ -679,6 +679,66 @@ export const propostaPreviewSchema = z.object({
 export type PropostaPreview = z.infer<typeof propostaPreviewSchema>;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Task #189 — Plano agêntico (loop multi-passo do Assistente Estratégico)
+// O agente quebra metas maiores em uma sequência de passos, e cada passo é
+// confirmado individualmente pelo usuário (HITL obrigatório). Após cada
+// confirmação o backend pode reabrir o tool calling e propor o próximo passo.
+// ─────────────────────────────────────────────────────────────────────────────
+export const planoAgentico = pgTable("plano_agentico", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  empresaId: varchar("empresa_id").notNull().references(() => empresas.id, { onDelete: "cascade" }),
+  usuarioId: varchar("usuario_id").references(() => usuarios.id, { onDelete: "set null" }),
+  titulo: text("titulo").notNull(),
+  objetivo: text("objetivo").notNull(),
+  // ativo | concluido | cancelado
+  status: text("status").notNull().default("ativo"),
+  origem: text("origem").notNull().default("chat"), // chat|briefing
+  totalPassos: integer("total_passos").notNull().default(0),
+  passoAtual: integer("passo_atual").notNull().default(1),
+  criadoEm: timestamp("criado_em").defaultNow().notNull(),
+  atualizadoEm: timestamp("atualizado_em").defaultNow().notNull(),
+  finalizadoEm: timestamp("finalizado_em"),
+});
+
+export const planoAgenticoStatusEnum = z.enum(["ativo", "concluido", "cancelado"]);
+export type PlanoAgenticoStatus = z.infer<typeof planoAgenticoStatusEnum>;
+export type PlanoAgentico = typeof planoAgentico.$inferSelect;
+export const insertPlanoAgenticoSchema = createInsertSchema(planoAgentico).omit({
+  id: true,
+  criadoEm: true,
+  atualizadoEm: true,
+  finalizadoEm: true,
+});
+export type InsertPlanoAgentico = z.infer<typeof insertPlanoAgenticoSchema>;
+
+export const planoAgenticoPasso = pgTable("plano_agentico_passo", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  planoId: varchar("plano_id").notNull().references(() => planoAgentico.id, { onDelete: "cascade" }),
+  empresaId: varchar("empresa_id").notNull().references(() => empresas.id, { onDelete: "cascade" }),
+  ordem: integer("ordem").notNull(),
+  titulo: text("titulo").notNull(),
+  descricao: text("descricao").notNull().default(""),
+  // pendente | em_andamento | concluido | pulado
+  status: text("status").notNull().default("pendente"),
+  // ID da proposta HITL gerada para este passo (preenchido quando o agente
+  // realmente cria a tool call). Permite rastrear passo↔proposta.
+  propostaId: varchar("proposta_id"),
+  resultadoResumo: text("resultado_resumo"),
+  criadoEm: timestamp("criado_em").defaultNow().notNull(),
+  resolvidoEm: timestamp("resolvido_em"),
+});
+
+export const planoAgenticoPassoStatusEnum = z.enum(["pendente", "em_andamento", "concluido", "pulado"]);
+export type PlanoAgenticoPassoStatus = z.infer<typeof planoAgenticoPassoStatusEnum>;
+export type PlanoAgenticoPasso = typeof planoAgenticoPasso.$inferSelect;
+export const insertPlanoAgenticoPassoSchema = createInsertSchema(planoAgenticoPasso).omit({
+  id: true,
+  criadoEm: true,
+  resolvidoEm: true,
+});
+export type InsertPlanoAgenticoPasso = z.infer<typeof insertPlanoAgenticoPassoSchema>;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // AI Generation Params (shared across /api/ai/gerar-* endpoints)
 // Used by the reusable <AIGenerationModal> on the client.
 // All fields are optional; endpoints fall back to current defaults when absent.

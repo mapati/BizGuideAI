@@ -5,7 +5,7 @@ import { isJornadaConcluida } from "./jornada-helper";
 import { sendVerificationEmail, sendPasswordResetEmail, getEmailDiagnostics } from "./email";
 import { runNotificationEngine, detectarSinaisCriticos, type EngineReport } from "./notification-engine";
 import { runBriefingDiarioScheduler, gerarEPersistirBriefing, dataDeHojeSP } from "./briefing-engine";
-import { openai, AI_MODELS, loadModelConfig, getModelForPlan, buildEmpresaContextoIA, buildAcoesRecentesContextoIA } from "./ai-helpers";
+import { openai, AI_MODELS, loadModelConfig, getModelForPlan, buildEmpresaContextoIA, buildAcoesRecentesContextoIA, buildPlanoAtivoContextoIA } from "./ai-helpers";
 import { TOOLS, getTool, toOpenAITools, registrarProposta } from "./assistant-tools";
 import { criarAssinatura, buscarAssinatura, cancelarAssinatura, buscarPagamento, motivoLegivel, validarAssinaturaWebhook, PLANOS_MP, type PlanoTipo, type MpSubscription, type MpPayment } from "./mp";
 import { randomBytes, createHash } from "crypto";
@@ -48,6 +48,8 @@ import {
   aiGenerationParamsSchema,
   briefingConteudoSchema,
   type BriefingConteudo,
+  type PlanoAgentico,
+  type PlanoAgenticoPasso,
 } from "@shared/schema";
 import OpenAI from "openai";
 import * as cheerio from "cheerio";
@@ -3735,6 +3737,10 @@ Responda OBRIGATORIAMENTE em JSON:
       const acoesRecentesTxt = await buildAcoesRecentesContextoIA(empresaId, { sinceDays: 7 });
       if (acoesRecentesTxt) ctx.push(acoesRecentesTxt);
 
+      // Task #189 — bloco do plano agêntico ativo (loop multi-passo)
+      const planoAtivoTxt = await buildPlanoAtivoContextoIA(empresaId, req.session.userId ?? null);
+      if (planoAtivoTxt) ctx.push(planoAtivoTxt);
+
       const systemPrompt = `Você é o Assistente Estratégico do BizGuideAI, um consultor sênior de estratégia empresarial para PMEs brasileiras.
 
 Você tem acesso completo aos dados da empresa abaixo e a um conjunto de ferramentas (function tools) que executam ações reais quando o usuário aprovar.
@@ -3762,7 +3768,15 @@ MEMÓRIA E "DAR BAIXA":
   • progresso de KR avançou → atualizar_progresso_kr
 - Reconheça explicitamente no texto o que está sendo "dado baixa" antes de chamar a ferramenta.
 
-FERRAMENTAS DISPONÍVEIS: criar_iniciativa, atualizar_iniciativa, criar_okr, atualizar_okr, atualizar_progresso_kr, criar_indicador, atualizar_valor_indicador, navegar_para.
+FERRAMENTAS DISPONÍVEIS:
+- Executoras: criar_iniciativa, atualizar_iniciativa, criar_okr, atualizar_okr, atualizar_progresso_kr, criar_indicador, atualizar_valor_indicador, navegar_para.
+- Planos agênticos (loop multi-passo): criar_plano_agentico (quando o objetivo do usuário exigir 2+ ações encadeadas), concluir_plano_agentico (quando os passos foram cumpridos), cancelar_plano_agentico (quando o usuário desistir).
+
+LOOP AGÊNTICO (planos multi-passo):
+- Quando o pedido for AMPLO ("monte um plano de retomada de vendas", "estruture meu trimestre", "ataque o problema do KPI X de ponta a ponta"), prefira chamar criar_plano_agentico com 3 a 6 passos curtos antes de executar qualquer ação.
+- Para pedidos pontuais ("crie a iniciativa X", "registre a leitura Y"), chame direto a tool executora — não abra plano.
+- Se já existe um PLANO AGÊNTICO ATIVO no contexto, foque exclusivamente no PRÓXIMO PASSO PENDENTE: chame a tool executora correspondente vinculando planoId e passoOrdem nos parâmetros.
+- Nunca proponha vários passos do mesmo plano de uma vez — um por vez, sempre HITL.
 
 DADOS DA EMPRESA:
 ${ctx.join("\n\n")}`;
@@ -3822,6 +3836,15 @@ ${ctx.join("\n\n")}`;
         }
       }
 
+      // Task #189 — devolve plano agêntico ativo para o frontend exibir o card.
+      const planoAtivo = await storage.getPlanoAtivoEmpresaUsuario(empresaId, req.session.userId ?? null);
+      const planoAtivoOut = planoAtivo
+        ? await (async () => {
+            const passos = await storage.listPassosByPlano(planoAtivo.id);
+            return { plano: planoAtivo, passos };
+          })()
+        : null;
+
       // Fallback: se modelo não chamou tool e não retornou texto, devolve mensagem padrão
       const respostaFinal =
         rawText ||
@@ -3829,12 +3852,217 @@ ${ctx.join("\n\n")}`;
           ? "Preparei algumas ações para você revisar abaixo."
           : "Não consegui formular uma resposta agora. Tente reformular a pergunta.");
 
-      res.json({ resposta: respostaFinal, propostas, acoes: [] });
+      res.json({ resposta: respostaFinal, propostas, acoes: [], planoAtivo: planoAtivoOut });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       res.status(500).json({ error: message });
     }
   });
+
+  // ─── Task #189 — Loop agêntico: avança um passo de plano após confirmação ───
+  /**
+   * Marca o passo vinculado à proposta como concluído (se houver) e, se ainda
+   * restarem passos pendentes, executa UMA rodada do modelo para propor a
+   * próxima ação (HITL). Hard cap: 1 rodada, ≤3 propostas, max_tokens=700.
+   */
+  async function avancarPlanoAgenticoPorProposta(
+    propostaId: string,
+    empresaId: string,
+    usuarioId: string,
+    contexto: { ferramenta: string; parametros: unknown; resultado: unknown },
+  ): Promise<{
+    plano: { plano: PlanoAgentico; passos: PlanoAgenticoPasso[] } | null;
+    passoConcluidoOrdem: number;
+    proximasPropostas: Array<{ logId: string; ferramenta: string; preview: unknown; parametros: Record<string, unknown> }>;
+    mensagem: string;
+    finalizado: boolean;
+  } | null> {
+    try {
+      const passo = await storage.getPassoByPropostaId(propostaId);
+      if (!passo) return null;
+      const full = await storage.getPlanoAgenticoComPassos(passo.planoId);
+      if (!full || full.plano.empresaId !== empresaId || full.plano.status !== "ativo") return null;
+
+      // Marca passo como concluído (schema usa resolvidoEm).
+      await storage.updatePlanoAgenticoPasso(passo.id, {
+        status: "concluido",
+        resolvidoEm: new Date(),
+      });
+
+      // Recalcula passoAtual = primeiro passo pendente; se não houver, conclui plano.
+      const refreshed = await storage.getPlanoAgenticoComPassos(passo.planoId);
+      if (!refreshed) return null;
+      const planoRow = refreshed.plano;
+      const proxPendente = refreshed.passos.find((p) => p.status === "pendente");
+
+      if (!proxPendente) {
+        const planoFinalizado = await storage.updatePlanoAgentico(planoRow.id, {
+          status: "concluido",
+          finalizadoEm: new Date(),
+          passoAtual: planoRow.totalPassos,
+        });
+        return {
+          plano: { plano: planoFinalizado, passos: refreshed.passos },
+          passoConcluidoOrdem: passo.ordem,
+          proximasPropostas: [],
+          mensagem: `Plano "${planoRow.titulo}" concluído. Todos os ${planoRow.totalPassos} passos foram cumpridos.`,
+          finalizado: true,
+        };
+      }
+
+      await storage.updatePlanoAgentico(planoRow.id, { passoAtual: proxPendente.ordem });
+
+      // Loop de continuação: chama modelo para propor o próximo passo (1 rodada).
+      const empresa = await storage.getEmpresa(empresaId);
+      const modelo = empresa ? getModelForPlan(empresa.planoTipo, "relatorios") : AI_MODELS.basico;
+
+      const planoAtivoTxt = await buildPlanoAtivoContextoIA(empresaId, usuarioId);
+      const ctxAcoes = await buildAcoesRecentesContextoIA(empresaId, { sinceDays: 3 });
+
+      const sysPrompt = `Você é o Assistente Estratégico do BizGuideAI executando um plano agêntico passo a passo.
+
+ACABOU DE CONCLUIR: passo ${passo.ordem} ("${passo.titulo}") — ferramenta ${contexto.ferramenta}.
+Resultado da execução: ${JSON.stringify(contexto.resultado).slice(0, 400)}
+
+${planoAtivoTxt}
+
+${ctxAcoes}
+
+INSTRUÇÕES:
+- Avalie o resultado do passo recém-concluído.
+- Proponha O PRÓXIMO PASSO (passo ${proxPendente.ordem}: "${proxPendente.titulo}") chamando a tool executora apropriada com planoId="${planoRow.id}" e passoOrdem=${proxPendente.ordem}.
+- Apenas UMA proposta. Texto curto (1-2 frases) explicando o que está sendo proposto e por quê.
+- Se o resultado anterior já invalidou o passo seguinte, prefira pular: chame cancelar_plano_agentico explicando o motivo.`;
+
+      const completion = await openai.chat.completions.create({
+        model: modelo,
+        messages: [
+          { role: "system", content: sysPrompt },
+          { role: "user", content: `Continue o plano. Próximo passo: ${proxPendente.titulo}.` },
+        ],
+        tools: toOpenAITools(),
+        tool_choice: "auto",
+        temperature: 0.4,
+        max_tokens: 700,
+      });
+
+      const choice = completion.choices?.[0];
+      const msg = choice?.message;
+      const toolCalls = msg?.tool_calls ?? [];
+      const proximasPropostas: Array<{ logId: string; ferramenta: string; preview: unknown; parametros: Record<string, unknown> }> = [];
+
+      for (const call of toolCalls.slice(0, 1)) {
+        if (call.type !== "function") continue;
+        let args: unknown = {};
+        try { args = JSON.parse(call.function.arguments || "{}"); } catch { args = {}; }
+        const r = await registrarProposta({
+          toolName: call.function.name,
+          rawArgs: args,
+          empresaId,
+          usuarioId,
+          origem: "chat",
+          vinculoPlano: { planoId: planoRow.id, passoOrdem: proxPendente.ordem },
+        });
+        if (r.ok) {
+          proximasPropostas.push({
+            logId: r.logId,
+            ferramenta: r.ferramenta,
+            preview: r.preview,
+            parametros: r.parametros,
+          });
+        }
+      }
+
+      const planoFinal = await storage.getPlanoAgenticoComPassos(planoRow.id);
+      return {
+        plano: planoFinal ?? null,
+        passoConcluidoOrdem: passo.ordem,
+        proximasPropostas,
+        mensagem: msg?.content ?? `Passo ${passo.ordem} concluído. Próximo: ${proxPendente.titulo}.`,
+        finalizado: false,
+      };
+    } catch (err) {
+      console.warn("[PLANO-AGENTICO] Falha ao avançar:", err);
+      return null;
+    }
+  }
+
+  // ─── Task #189 — Endpoints REST de planos agênticos ───
+  app.get("/api/ai/planos", requireAuth, async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const limite = Math.min(Number(req.query.limit ?? 20), 100);
+      const planos = await storage.listPlanosAgenticosByEmpresa(empresaId, { limite });
+      res.json({ planos });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  app.get("/api/ai/planos/ativo", requireAuth, async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const userId = req.session.userId!;
+      const plano = await storage.getPlanoAtivoEmpresaUsuario(empresaId, userId);
+      if (!plano) return res.json({ plano: null });
+      const passos = await storage.listPassosByPlano(plano.id);
+      res.json({ plano: { ...plano, passos } });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  app.get("/api/ai/planos/:id", requireAuth, async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const full = await storage.getPlanoAgenticoComPassos(req.params.id);
+      if (!full || full.plano.empresaId !== empresaId) {
+        return res.status(404).json({ error: "Plano não encontrado." });
+      }
+      res.json({ plano: full.plano, passos: full.passos });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  app.post("/api/ai/planos/:id/cancelar", requireAuth, async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const plano = await storage.getPlanoAgentico(req.params.id);
+      if (!plano || plano.empresaId !== empresaId) {
+        return res.status(404).json({ error: "Plano não encontrado." });
+      }
+      if (plano.status !== "ativo") {
+        return res.status(409).json({ error: `Plano já está ${plano.status}.` });
+      }
+      const updated = await storage.updatePlanoAgentico(plano.id, {
+        status: "cancelado",
+        finalizadoEm: new Date(),
+      });
+      res.json({ ok: true, plano: updated });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  // ─── Task #189 — Helper: rollback do passo se proposta não foi confirmada ───
+  // Quando uma proposta vinculada a um passo é ignorada/ajustada/falha, o passo
+  // estava em `em_andamento`; precisa voltar para `pendente` (e limpar
+  // propostaId) para que o loop possa re-propor uma nova ação.
+  async function rollbackPassoIfVinculado(propostaId: string): Promise<void> {
+    try {
+      const passo = await storage.getPassoByPropostaId(propostaId);
+      if (!passo) return;
+      if (passo.status === "em_andamento") {
+        await storage.updatePlanoAgenticoPasso(passo.id, {
+          status: "pendente",
+          propostaId: null,
+        });
+      }
+    } catch (err) {
+      console.warn("[PLANO-AGENTICO] rollback passo falhou:", err);
+    }
+  }
 
   // ─── Task #188 — Endpoints HITL (confirmar/ignorar/ajustar proposta) ───
   // Helper: garante que o usuário da sessão pode atuar sobre a proposta.
@@ -3901,7 +4129,16 @@ ${ctx.join("\n\n")}`;
           entidadeId: result.entidadeId ?? null,
           resolvidoEm: new Date(),
         });
-        res.json({ ok: true, log: updated, resultado: result });
+
+        // Task #189 — Loop agêntico: marca passo como concluído e propõe continuação.
+        const continuacao = await avancarPlanoAgenticoPorProposta(
+          log.id,
+          empresaId,
+          userId,
+          { ferramenta: log.ferramenta, parametros: log.parametros, resultado: result },
+        );
+
+        res.json({ ok: true, log: updated, resultado: result, continuacao });
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         await storage.updatePropostaLog(log.id, {
@@ -3909,6 +4146,7 @@ ${ctx.join("\n\n")}`;
           mensagemErro: msg.slice(0, 500),
           resolvidoEm: new Date(),
         });
+        await rollbackPassoIfVinculado(log.id);
         res.status(500).json({ error: msg });
       }
     } catch (error) {
@@ -3932,6 +4170,7 @@ ${ctx.join("\n\n")}`;
         status: "ignorada",
         resolvidoEm: new Date(),
       });
+      await rollbackPassoIfVinculado(log.id);
       res.json({ ok: true, log: updated });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -3960,6 +4199,7 @@ ${ctx.join("\n\n")}`;
         status: "ajustada",
         resolvidoEm: new Date(),
       });
+      await rollbackPassoIfVinculado(log.id);
       res.json({
         ok: true,
         log: updated,

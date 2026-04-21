@@ -1,4 +1,6 @@
 // Task #188 — Registro central de tools do Assistente Estratégico (HITL).
+// Task #189 — Adicionado loop agêntico (criar/concluir/cancelar plano) +
+// vínculo opcional `planoId`/`passoOrdem` em todas as tools executoras.
 // Cada tool tem (1) JSON Schema para a OpenAI, (2) validação Zod dos parâmetros,
 // (3) preview() que descreve a ação para o humano e (4) apply() que executa via storage.
 
@@ -15,7 +17,10 @@ export type ToolName =
   | "atualizar_progresso_kr"
   | "criar_indicador"
   | "atualizar_valor_indicador"
-  | "navegar_para";
+  | "navegar_para"
+  | "criar_plano_agentico"
+  | "concluir_plano_agentico"
+  | "cancelar_plano_agentico";
 
 export interface ToolApplyContext {
   empresaId: string;
@@ -597,6 +602,213 @@ const navegarPara: ToolDefinition<NavegarParaParams> = {
   formRota: "/dashboard",
 };
 
+// ─── Task #189 — Tools de gerenciamento de plano agêntico ───
+// O agente usa estas tools para abrir / encerrar planos multi-passo.
+// Continuam HITL: a "criação" do plano também precisa de aprovação humana.
+
+const passoPlanoSchema = z.object({
+  ordem: z.number().int().min(1).max(20),
+  titulo: z.string().min(2).max(160),
+  descricao: z.string().max(400).default(""),
+});
+
+const criarPlanoAgenticoSchema = z.object({
+  titulo: z.string().min(3).max(160),
+  objetivo: z.string().min(3).max(600),
+  passos: z.array(passoPlanoSchema).min(2).max(8),
+});
+type CriarPlanoAgenticoParams = z.infer<typeof criarPlanoAgenticoSchema>;
+
+const criarPlanoAgentico: ToolDefinition<CriarPlanoAgenticoParams> = {
+  name: "criar_plano_agentico",
+  description:
+    "Cria um PLANO AGÊNTICO multi-passo: usado quando o objetivo do usuário é grande e exige uma sequência de ações (ex.: \"montar plano completo de retomada de vendas\"). Quebre em 2 a 8 passos curtos e ordenados; cada passo será proposto e confirmado individualmente depois. NÃO use esta tool para ações isoladas — use a ferramenta executora direta.",
+  paramsSchema: criarPlanoAgenticoSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["titulo", "objetivo", "passos"],
+    properties: {
+      titulo: { type: "string", description: "Nome curto do plano (até 80 chars)." },
+      objetivo: { type: "string", description: "O que este plano busca alcançar." },
+      passos: {
+        type: "array",
+        minItems: 2,
+        maxItems: 8,
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["ordem", "titulo"],
+          properties: {
+            ordem: { type: "integer", minimum: 1, maximum: 20 },
+            titulo: { type: "string" },
+            descricao: { type: "string" },
+          },
+        },
+      },
+    },
+  },
+  preview: (p) => ({
+    titulo: `Plano: ${p.titulo}`,
+    descricao: p.objetivo,
+    campos: p.passos
+      .slice()
+      .sort((a, b) => a.ordem - b.ordem)
+      .map((s) => ({ label: `Passo ${s.ordem}`, valor: s.titulo })),
+    ctaConfirmar: "Iniciar plano",
+    ctaIgnorar: "Não agora",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    // Garante 1 plano ativo por usuário+empresa: cancela o anterior, se houver.
+    const existente = await storage.getPlanoAtivoEmpresaUsuario(ctx.empresaId, ctx.usuarioId ?? null);
+    if (existente) {
+      await storage.updatePlanoAgentico(existente.id, {
+        status: "cancelado",
+        finalizadoEm: new Date(),
+      });
+    }
+    const passosOrdenados = p.passos
+      .slice()
+      .sort((a, b) => a.ordem - b.ordem)
+      .map((s, idx) => ({
+        ordem: idx + 1, // re-normaliza
+        titulo: s.titulo,
+        descricao: s.descricao ?? "",
+        status: "pendente" as const,
+      }));
+    const { plano } = await storage.createPlanoAgentico(
+      {
+        empresaId: ctx.empresaId,
+        usuarioId: ctx.usuarioId ?? null,
+        titulo: p.titulo,
+        objetivo: p.objetivo,
+        status: "ativo",
+        origem: "chat",
+        totalPassos: passosOrdenados.length,
+        passoAtual: 1,
+      },
+      passosOrdenados,
+    );
+    return {
+      resumo: `Plano "${plano.titulo}" iniciado (${passosOrdenados.length} passos).`,
+      dados: { planoId: plano.id, totalPassos: passosOrdenados.length },
+      rota: "/assistente",
+      entidadeTipo: "navegacao",
+      entidadeId: plano.id,
+    };
+  },
+  formRota: "/assistente",
+};
+
+const concluirPlanoAgenticoSchema = z.object({
+  planoId: z.string().min(8),
+  resumo: z.string().max(400).default(""),
+});
+type ConcluirPlanoAgenticoParams = z.infer<typeof concluirPlanoAgenticoSchema>;
+
+const concluirPlanoAgentico: ToolDefinition<ConcluirPlanoAgenticoParams> = {
+  name: "concluir_plano_agentico",
+  description:
+    "Marca um plano agêntico como CONCLUÍDO quando todos os passos relevantes foram executados. Use somente quando os objetivos do plano foram cumpridos.",
+  paramsSchema: concluirPlanoAgenticoSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["planoId"],
+    properties: {
+      planoId: { type: "string" },
+      resumo: { type: "string", description: "Resumo curto do que foi entregue." },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Concluir plano agêntico",
+    descricao: p.resumo || "Marcar este plano como concluído.",
+    campos: [{ label: "Plano", valor: p.planoId }],
+    ctaConfirmar: "Concluir plano",
+    ctaIgnorar: "Manter aberto",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const plano = await storage.getPlanoAgentico(p.planoId);
+    if (!plano || plano.empresaId !== ctx.empresaId) {
+      throw new Error("Plano não encontrado nesta empresa.");
+    }
+    if (plano.usuarioId && ctx.usuarioId && plano.usuarioId !== ctx.usuarioId) {
+      throw new Error("Apenas o dono do plano pode concluí-lo.");
+    }
+    if (plano.status !== "ativo") {
+      throw new Error(`Plano já está ${plano.status}.`);
+    }
+    const atualizado = await storage.updatePlanoAgentico(p.planoId, {
+      status: "concluido",
+      finalizadoEm: new Date(),
+    });
+    return {
+      resumo: `Plano "${atualizado.titulo}" concluído.`,
+      dados: { planoId: p.planoId },
+      rota: "/assistente",
+      entidadeTipo: "navegacao",
+      entidadeId: p.planoId,
+    };
+  },
+  formRota: "/assistente",
+};
+
+const cancelarPlanoAgenticoSchema = z.object({
+  planoId: z.string().min(8),
+  motivo: z.string().max(400).default(""),
+});
+type CancelarPlanoAgenticoParams = z.infer<typeof cancelarPlanoAgenticoSchema>;
+
+const cancelarPlanoAgentico: ToolDefinition<CancelarPlanoAgenticoParams> = {
+  name: "cancelar_plano_agentico",
+  description:
+    "Cancela um plano agêntico em andamento. Use quando o usuário desistir do objetivo ou pedir para parar.",
+  paramsSchema: cancelarPlanoAgenticoSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["planoId"],
+    properties: {
+      planoId: { type: "string" },
+      motivo: { type: "string" },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Cancelar plano agêntico",
+    descricao: p.motivo || "Cancelar e arquivar este plano.",
+    campos: [{ label: "Plano", valor: p.planoId }],
+    ctaConfirmar: "Cancelar plano",
+    ctaIgnorar: "Manter aberto",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const plano = await storage.getPlanoAgentico(p.planoId);
+    if (!plano || plano.empresaId !== ctx.empresaId) {
+      throw new Error("Plano não encontrado nesta empresa.");
+    }
+    if (plano.usuarioId && ctx.usuarioId && plano.usuarioId !== ctx.usuarioId) {
+      throw new Error("Apenas o dono do plano pode cancelá-lo.");
+    }
+    if (plano.status !== "ativo") {
+      throw new Error(`Plano já está ${plano.status}.`);
+    }
+    const atualizado = await storage.updatePlanoAgentico(p.planoId, {
+      status: "cancelado",
+      finalizadoEm: new Date(),
+    });
+    return {
+      resumo: `Plano "${atualizado.titulo}" cancelado.`,
+      dados: { planoId: p.planoId },
+      rota: "/assistente",
+      entidadeTipo: "navegacao",
+      entidadeId: p.planoId,
+    };
+  },
+  formRota: "/assistente",
+};
+
 // ---------- Registry ----------
 // Cada ToolDefinition tem um TParams concreto; o registry, porém, precisa
 // guardar todos juntos. `wrap` faz o "sealing" para `unknown` em um único
@@ -615,23 +827,63 @@ export const TOOLS: Record<ToolName, ToolDefinition<unknown>> = {
   criar_indicador: wrap(criarIndicador),
   atualizar_valor_indicador: wrap(atualizarValorIndicador),
   navegar_para: wrap(navegarPara),
+  criar_plano_agentico: wrap(criarPlanoAgentico),
+  concluir_plano_agentico: wrap(concluirPlanoAgentico),
+  cancelar_plano_agentico: wrap(cancelarPlanoAgentico),
 };
+
+// Tools que executam ações de negócio (passíveis de vínculo com plano).
+// As tools de gerenciamento de plano agêntico não são consideradas "passos".
+const TOOLS_EXECUTORAS: ReadonlySet<ToolName> = new Set<ToolName>([
+  "criar_iniciativa",
+  "atualizar_iniciativa",
+  "criar_okr",
+  "atualizar_okr",
+  "atualizar_progresso_kr",
+  "criar_indicador",
+  "atualizar_valor_indicador",
+  "navegar_para",
+]);
+
+export function isToolExecutora(name: string): boolean {
+  return TOOLS_EXECUTORAS.has(name as ToolName);
+}
 
 export function getTool(name: string): ToolDefinition<unknown> | null {
   if (name in TOOLS) return TOOLS[name as ToolName];
   return null;
 }
 
-/** Devolve as definições no formato esperado pelo OpenAI Chat Completions API. */
+/** Devolve as definições no formato esperado pelo OpenAI Chat Completions API.
+ * Para tools executoras, injeta `planoId`/`passoOrdem` opcionais no JSON schema
+ * permitindo ao modelo vincular a proposta a um passo de plano agêntico ativo.
+ */
 export function toOpenAITools() {
-  return Object.values(TOOLS).map((t) => ({
-    type: "function" as const,
-    function: {
-      name: t.name,
-      description: t.description,
-      parameters: t.jsonSchema,
-    },
-  }));
+  return Object.values(TOOLS).map((t) => {
+    let parameters: Record<string, unknown> = t.jsonSchema;
+    if (isToolExecutora(t.name)) {
+      const base = t.jsonSchema as { properties?: Record<string, unknown>; [k: string]: unknown };
+      parameters = {
+        ...base,
+        properties: {
+          ...(base.properties ?? {}),
+          planoId: {
+            type: "string",
+            description: "Opcional: ID do plano agêntico ativo ao qual este passo pertence.",
+          },
+          passoOrdem: {
+            type: "integer",
+            minimum: 1,
+            description: "Opcional: número do passo (1-based) dentro do plano.",
+          },
+        },
+      };
+    }
+    return {
+      type: "function" as const,
+      function: { name: t.name, description: t.description, parameters },
+    };
+  });
 }
 
 /**
@@ -644,17 +896,38 @@ export async function registrarProposta(opts: {
   empresaId: string;
   usuarioId?: string | null;
   origem?: "chat" | "briefing";
+  // Task #189 — vínculo opcional com plano agêntico (passo).
+  vinculoPlano?: { planoId: string; passoOrdem: number } | null;
 }): Promise<{
   ok: true;
   logId: string;
   ferramenta: ToolName;
   preview: PropostaPreview;
   parametros: Record<string, unknown>;
+  passo?: { planoId: string; passoOrdem: number; passoId: string } | null;
 } | { ok: false; mensagem: string }> {
   const tool = getTool(opts.toolName);
   if (!tool) return { ok: false, mensagem: `Ferramenta desconhecida: ${opts.toolName}` };
 
-  const parsed = tool.paramsSchema.safeParse(opts.rawArgs);
+  // Extrai metadados de plano dos argumentos (o LLM pode tê-los enviado
+  // inline mesmo sem estarem no schema da tool — strip antes de validar).
+  let inlinePlanoId: string | undefined;
+  let inlinePassoOrdem: number | undefined;
+  let argsLimpos: unknown = opts.rawArgs;
+  if (opts.rawArgs && typeof opts.rawArgs === "object" && !Array.isArray(opts.rawArgs)) {
+    const r = { ...(opts.rawArgs as Record<string, unknown>) };
+    if (typeof r.planoId === "string") {
+      inlinePlanoId = r.planoId;
+      delete r.planoId;
+    }
+    if (typeof r.passoOrdem === "number") {
+      inlinePassoOrdem = r.passoOrdem;
+      delete r.passoOrdem;
+    }
+    argsLimpos = r;
+  }
+
+  const parsed = tool.paramsSchema.safeParse(argsLimpos);
   if (!parsed.success) {
     return {
       ok: false,
@@ -673,11 +946,33 @@ export async function registrarProposta(opts: {
     origem: opts.origem ?? "chat",
   });
 
+  // Vincula ao passo do plano, se aplicável (só para tools executoras).
+  let passo: { planoId: string; passoOrdem: number; passoId: string } | null = null;
+  const vinculo = opts.vinculoPlano ?? (inlinePlanoId && inlinePassoOrdem ? { planoId: inlinePlanoId, passoOrdem: inlinePassoOrdem } : null);
+  if (vinculo && isToolExecutora(tool.name)) {
+    try {
+      const plano = await storage.getPlanoAgentico(vinculo.planoId);
+      if (plano && plano.empresaId === opts.empresaId && plano.status === "ativo") {
+        const passoRow = await storage.getPassoByPlanoOrdem(vinculo.planoId, vinculo.passoOrdem);
+        if (passoRow && passoRow.status === "pendente") {
+          await storage.updatePlanoAgenticoPasso(passoRow.id, {
+            status: "em_andamento",
+            propostaId: log.id,
+          });
+          passo = { planoId: vinculo.planoId, passoOrdem: vinculo.passoOrdem, passoId: passoRow.id };
+        }
+      }
+    } catch {
+      /* vínculo é best-effort — proposta segue mesmo sem o link */
+    }
+  }
+
   return {
     ok: true,
     logId: log.id,
     ferramenta: tool.name,
     preview,
     parametros: parsed.data as Record<string, unknown>,
+    passo,
   };
 }

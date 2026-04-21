@@ -96,9 +96,9 @@ function MessageBubble({
         >
           {isUser ? msg.content : <AssistantMarkdown content={msg.content} />}
         </div>
-        {!isUser && msg.acoes && msg.acoes.length > 0 && (
+        {!isUser && msg.acoes && msg.acoes.filter((a) => a.tipo !== "dispensar").length > 0 && (
           <div className="flex flex-wrap gap-1.5 pl-1">
-            {msg.acoes.slice(0, 3).map((acao, idx) => (
+            {msg.acoes.filter((a) => a.tipo !== "dispensar").slice(0, 3).map((acao, idx) => (
               <Button
                 key={`${acao.rota}-${idx}`}
                 size="sm"

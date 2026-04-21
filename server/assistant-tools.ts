@@ -952,7 +952,12 @@ export async function registrarProposta(opts: {
   if (vinculo && isToolExecutora(tool.name)) {
     try {
       const plano = await storage.getPlanoAgentico(vinculo.planoId);
-      if (plano && plano.empresaId === opts.empresaId && plano.status === "ativo") {
+      // Ownership: empresa correta + (plano compartilhado OU dono do plano).
+      const ownerOk =
+        !!plano &&
+        plano.empresaId === opts.empresaId &&
+        (plano.usuarioId == null || plano.usuarioId === (opts.usuarioId ?? null));
+      if (plano && ownerOk && plano.status === "ativo") {
         const passoRow = await storage.getPassoByPlanoOrdem(vinculo.planoId, vinculo.passoOrdem);
         if (passoRow && passoRow.status === "pendente") {
           await storage.updatePlanoAgenticoPasso(passoRow.id, {

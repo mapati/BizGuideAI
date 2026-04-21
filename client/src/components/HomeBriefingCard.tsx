@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { Sparkles, ArrowRight, AlertTriangle, Cpu, BookOpen, Loader2, ListChecks } from "lucide-react";
+import { Sparkles, ArrowRight, AlertTriangle, Cpu, BookOpen, Loader2, ListChecks, Target } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +58,26 @@ export function HomeBriefingCard() {
     staleTime: 60 * 1000,
   });
   const pendentes = (propostasResp?.propostas ?? []).filter((p) => p.status === "proposta").length;
+
+  // Task #189 — bloco "Plano em andamento" para dar visibilidade fora do chat.
+  const { data: planoResp } = useQuery<{
+    plano: {
+      id: string;
+      titulo: string;
+      passoAtual: number;
+      totalPassos: number;
+      passos: Array<{ id: string; ordem: number; titulo: string; status: string }>;
+    } | null;
+  }>({
+    queryKey: ["/api/ai/planos/ativo"],
+    enabled,
+    staleTime: 30 * 1000,
+  });
+  const planoAtivo = planoResp?.plano ?? null;
+  const proximoPasso = planoAtivo?.passos.find((p) => p.status === "pendente" || p.status === "em_andamento") ?? null;
+  const ultimoConcluido = planoAtivo
+    ? [...planoAtivo.passos].reverse().find((p) => p.status === "concluido") ?? null
+    : null;
 
   if (!enabled) return null;
   if (isLoading) {
@@ -125,6 +145,37 @@ export function HomeBriefingCard() {
             Você tem uma mensagem do Assistente Estratégico esperando por você.
           </p>
 
+          {planoAtivo && (
+            <div
+              className="mt-3 rounded-md bg-white/10 border border-white/20 backdrop-blur p-3 text-sm"
+              data-testid={`block-home-briefing-plano-${planoAtivo.id}`}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <Target className="h-4 w-4" />
+                <span className="font-medium" data-testid="text-home-briefing-plano-titulo">
+                  Plano em andamento: {planoAtivo.titulo}
+                </span>
+                <Badge
+                  variant="secondary"
+                  className="bg-white/20 text-white border-white/20 text-[10px]"
+                  data-testid="badge-home-briefing-plano-progresso"
+                >
+                  passo {planoAtivo.passoAtual}/{planoAtivo.totalPassos}
+                </Badge>
+              </div>
+              {ultimoConcluido && (
+                <div className="text-white/85 text-xs" data-testid="text-home-briefing-plano-ultimo">
+                  Último: passo {ultimoConcluido.ordem} — {ultimoConcluido.titulo}
+                </div>
+              )}
+              {proximoPasso && (
+                <div className="text-white/95 text-xs" data-testid="text-home-briefing-plano-proximo">
+                  Próximo: passo {proximoPasso.ordem} — {proximoPasso.titulo}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center gap-2 mt-4">
             <Link href="/assistente">
               <Button
@@ -133,7 +184,8 @@ export function HomeBriefingCard() {
                 className="bg-white text-violet-700 border-white hover:bg-white/90 gap-1.5"
                 data-testid="link-home-briefing-ver-mais"
               >
-                Ver mais no Assistente <ArrowRight className="h-3.5 w-3.5" />
+                {planoAtivo ? "Continuar plano no Assistente" : "Ver mais no Assistente"}
+                <ArrowRight className="h-3.5 w-3.5" />
               </Button>
             </Link>
           </div>

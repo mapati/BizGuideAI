@@ -9,7 +9,7 @@
 import { storage } from "./storage";
 import { detectarSinaisCriticos, type SinaisCriticos } from "./notification-engine";
 import { isJornadaConcluida } from "./jornada-helper";
-import { openai, getModelForPlan, buildEmpresaContextoIA, buildAcoesRecentesContextoIA } from "./ai-helpers";
+import { openai, getModelForPlan, buildEmpresaContextoIA, buildAcoesRecentesContextoIA, buildPlanoAtivoContextoIA } from "./ai-helpers";
 import {
   briefingConteudoSchema,
   type BriefingConteudo,
@@ -267,7 +267,17 @@ export async function gerarBriefingParaEmpresa(
     /* ignorar — memória é best-effort */
   }
 
-  const prompt = montarPromptIA({ empresa, sinais, briefingOntemTexto, tendencias, acoesRecentesTxt });
+  // Task #189 — plano agêntico ativo (compartilhado da empresa) entra no
+  // contexto do briefing para que o texto referencie o plano em vez de propor
+  // ações soltas que duplicariam passos já planejados.
+  let planoAtivoTxt = "";
+  try {
+    planoAtivoTxt = await buildPlanoAtivoContextoIA(empresaId, null);
+  } catch {
+    /* best-effort */
+  }
+
+  const prompt = montarPromptIA({ empresa, sinais, briefingOntemTexto, tendencias, acoesRecentesTxt, planoAtivoTxt });
 
   try {
     const completion = await openai.chat.completions.create({
@@ -310,8 +320,9 @@ function montarPromptIA(args: {
   briefingOntemTexto: string;
   tendencias: Array<{ id: string; nome: string; tendencia: string }>;
   acoesRecentesTxt?: string;
+  planoAtivoTxt?: string;
 }): { system: string; user: string } {
-  const { empresa, sinais, briefingOntemTexto, tendencias, acoesRecentesTxt = "" } = args;
+  const { empresa, sinais, briefingOntemTexto, tendencias, acoesRecentesTxt = "", planoAtivoTxt = "" } = args;
   const perfil = buildEmpresaContextoIA(empresa, { includeDocument: false });
 
   const system = `Você é um consultor sênior de gestão estratégica falando diretamente com o dono ou CEO de uma PME brasileira. Seu papel é redigir um BRIEFING DIÁRIO curto, priorizado e acionável, em português do Brasil, no tom de um sócio experiente — direto, calmo, sem jargão e sem floreio.
@@ -324,6 +335,7 @@ REGRAS DE FORMATO (obrigatórias):
 - Use APENAS números, nomes e IDs que aparecem nos dados fornecidos. Não invente métricas.
 - Compare brevemente com o briefing de ontem: se a situação está igual, reconheça isso (ex.: "mesmo cenário de ontem"); se mudou, explicite.
 - Considere as AÇÕES RECENTES DO ASSISTENTE: se algo já foi proposto e CONFIRMADO/EXECUTADO, NÃO repita como se fosse novo — reconheça o avanço (ex.: "a iniciativa criada ontem está em andamento"). Se algo foi IGNORADO, evite ressuscitar a mesma sugestão. Se há proposta PENDENTE de confirmação, lembre-a brevemente.
+- Se houver PLANO AGÊNTICO ATIVO, ancore o briefing nele: cite o objetivo do plano, o passo atual e o próximo passo pendente — em vez de propor ações soltas que dupliquem passos já planejados.
 
 SAÍDA: responda APENAS com um objeto JSON válido (sem markdown ao redor) com este formato:
 {
@@ -361,7 +373,7 @@ ${tendenciasJson}
 ## Briefing de ontem (para evitar repetição literal)
 ${briefingOntemTexto}
 
-${acoesRecentesTxt ? acoesRecentesTxt + "\n\n" : ""}Gere agora o briefing de hoje seguindo estritamente o formato JSON definido.`;
+${planoAtivoTxt ? planoAtivoTxt + "\n\n" : ""}${acoesRecentesTxt ? acoesRecentesTxt + "\n\n" : ""}Gere agora o briefing de hoje seguindo estritamente o formato JSON definido.`;
 
   return { system, user };
 }

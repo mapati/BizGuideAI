@@ -1,6 +1,7 @@
 import { Sparkles, Compass } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { NivelStatus } from "@/hooks/useAssistantStatus";
+import { useAnyDialogOpen } from "@/hooks/useAnyDialogOpen";
 
 interface AssistantChipProps {
   nivel: NivelStatus;
@@ -49,10 +50,14 @@ export function AssistantChip({ nivel, preview, onClick, isOpen, modo }: Assista
   const cfg = isGuia ? GUIA_CONFIG : CONFIG[nivel];
   const Icon = isGuia ? Compass : Sparkles;
   const title = isGuia ? "Abrir Guia Estratégico" : "Abrir Assistente Estratégico";
+  const anyDialogOpen = useAnyDialogOpen();
+  const hidden = isOpen || anyDialogOpen;
 
   return (
     <button
       onClick={onClick}
+      aria-hidden={hidden}
+      tabIndex={hidden ? -1 : 0}
       className={cn(
         "fixed top-[5.5rem] right-5 flex items-center gap-2 px-4 py-2.5",
         "rounded-full border shadow-md transition-all duration-300",
@@ -61,7 +66,7 @@ export function AssistantChip({ nivel, preview, onClick, isOpen, modo }: Assista
         cfg.border,
         cfg.text,
         isGuia && "guide-chip-glow font-semibold",
-        isOpen ? "opacity-0 pointer-events-none translate-x-full" : "opacity-100 translate-x-0",
+        hidden ? "opacity-0 pointer-events-none translate-x-full" : "opacity-100 translate-x-0",
       )}
       style={{ zIndex: 9990 }}
       data-testid="button-assistant-chip"

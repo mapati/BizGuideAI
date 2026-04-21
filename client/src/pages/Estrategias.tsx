@@ -855,7 +855,12 @@ export default function Estrategias() {
                   Adicionar Estratégia
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogContent
+                className="max-w-2xl max-h-[90vh] overflow-y-auto"
+                hideClose
+                onPointerDownOutside={(e) => e.preventDefault()}
+                onInteractOutside={(e) => e.preventDefault()}
+              >
                 <DialogHeader>
                   <DialogTitle>{editandoId ? "Editar Estratégia" : "Nova Estratégia"}</DialogTitle>
                 </DialogHeader>

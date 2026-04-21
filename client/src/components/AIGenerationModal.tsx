@@ -192,21 +192,13 @@ export function AIGenerationModal({
 
   useRegisterAIModal(open);
 
-  // Bloqueia qualquer pedido automático de fechamento (clique fora, Esc, X).
-  // Fechamento só acontece via chamada explícita do botão Cancelar/Gerar.
-  const handleOpenChange = (next: boolean) => {
-    if (!next) return;
-    onOpenChange(next);
-  };
-
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="max-w-lg max-h-[90vh] overflow-y-auto"
         hideClose
         onPointerDownOutside={(e) => e.preventDefault()}
         onInteractOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

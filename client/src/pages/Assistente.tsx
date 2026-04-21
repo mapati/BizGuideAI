@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
@@ -102,6 +103,8 @@ export default function Assistente() {
     ? { content: briefing.mensagem, acoes: briefing.acoes ?? [] }
     : null;
 
+  const [briefingDispensado, setBriefingDispensado] = useState(false);
+
   return (
     <div className="space-y-5 max-w-7xl mx-auto" data-testid="page-assistente">
       <div className="flex items-center gap-3 flex-wrap">
@@ -160,6 +163,23 @@ export default function Assistente() {
                 <div className="flex items-center gap-2 text-sm text-muted-foreground py-6">
                   <Loader2 className="h-4 w-4 animate-spin" /> Analisando seus dados…
                 </div>
+              ) : briefingDispensado ? (
+                <div
+                  className="flex items-center justify-between gap-3 rounded-md border border-dashed p-3"
+                  data-testid="text-briefing-dispensado"
+                >
+                  <p className="text-sm text-muted-foreground">
+                    Briefing adiado. Volte mais tarde ou reabra agora.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setBriefingDispensado(false)}
+                    data-testid="button-reabrir-briefing"
+                  >
+                    Mostrar de novo
+                  </Button>
+                </div>
               ) : briefing?.mensagem ? (
                 <div
                   className="text-sm leading-relaxed text-foreground/90"
@@ -173,7 +193,7 @@ export default function Assistente() {
                 </p>
               )}
 
-              {briefing?.acoes && briefing.acoes.length > 0 && (
+              {!briefingDispensado && briefing?.acoes && briefing.acoes.length > 0 && (
                 <>
                   <Separator />
                   <div className="space-y-2">
@@ -182,7 +202,11 @@ export default function Assistente() {
                     </div>
                     <div className="grid sm:grid-cols-2 gap-2">
                       {briefing.acoes.slice(0, 3).map((acao, idx) => (
-                        <BriefingAcaoCard key={`${acao.label}-${idx}`} acao={acao} />
+                        <BriefingAcaoCard
+                          key={`${acao.label}-${idx}`}
+                          acao={acao}
+                          onDispensar={() => setBriefingDispensado(true)}
+                        />
                       ))}
                     </div>
                   </div>
@@ -288,7 +312,7 @@ function buildHrefFromAcao(acao: AssistantAcao): string {
   return qs ? `${acao.rota}?${qs}` : acao.rota;
 }
 
-function BriefingAcaoCard({ acao }: { acao: AssistantAcao }) {
+function BriefingAcaoCard({ acao, onDispensar }: { acao: AssistantAcao; onDispensar?: () => void }) {
   const href = buildHrefFromAcao(acao);
   const inner = (
     <div className="flex items-start gap-2.5 rounded-md border p-3 text-left bg-card hover-elevate h-full">
@@ -303,7 +327,19 @@ function BriefingAcaoCard({ acao }: { acao: AssistantAcao }) {
       </div>
     </div>
   );
-  if (!href || acao.tipo === "dispensar") {
+  if (acao.tipo === "dispensar") {
+    return (
+      <button
+        type="button"
+        onClick={onDispensar}
+        className="text-left w-full"
+        data-testid="button-briefing-acao-dispensar"
+      >
+        {inner}
+      </button>
+    );
+  }
+  if (!href) {
     return <div data-testid={`card-briefing-acao-${acao.tipo}`}>{inner}</div>;
   }
   return (

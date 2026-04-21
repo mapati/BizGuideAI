@@ -3865,6 +3865,104 @@ ${ctx.join("\n\n")}`;
    * restarem passos pendentes, executa UMA rodada do modelo para propor a
    * próxima ação (HITL). Hard cap: 1 rodada, ≤3 propostas, max_tokens=700.
    */
+  // Roda 1 rodada do LLM para propor o próximo passo de um plano. Retorna a
+  // proposta criada (vinculada ao passo) ou null se não houver passo pendente.
+  async function proporProximoPassoDoPlano(
+    planoId: string,
+    empresaId: string,
+    usuarioId: string,
+    contextoAnterior?: { passoOrdem: number; passoTitulo: string; ferramenta: string; resultado: unknown },
+  ): Promise<{
+    plano: { plano: PlanoAgentico; passos: PlanoAgenticoPasso[] } | null;
+    proximasPropostas: Array<{ logId: string; ferramenta: string; preview: unknown; parametros: Record<string, unknown> }>;
+    mensagem: string;
+    finalizado: boolean;
+  } | null> {
+    const refreshed = await storage.getPlanoAgenticoComPassos(planoId);
+    if (!refreshed || refreshed.plano.empresaId !== empresaId || refreshed.plano.status !== "ativo") return null;
+    const planoRow = refreshed.plano;
+    const proxPendente = refreshed.passos.find((p) => p.status === "pendente");
+
+    if (!proxPendente) {
+      const planoFinalizado = await storage.updatePlanoAgentico(planoRow.id, {
+        status: "concluido",
+        finalizadoEm: new Date(),
+        passoAtual: planoRow.totalPassos,
+      });
+      return {
+        plano: { plano: planoFinalizado, passos: refreshed.passos },
+        proximasPropostas: [],
+        mensagem: `Plano "${planoRow.titulo}" concluído. Todos os ${planoRow.totalPassos} passos foram cumpridos.`,
+        finalizado: true,
+      };
+    }
+
+    await storage.updatePlanoAgentico(planoRow.id, { passoAtual: proxPendente.ordem });
+
+    const empresa = await storage.getEmpresa(empresaId);
+    const modelo = empresa ? getModelForPlan(empresa.planoTipo, "relatorios") : AI_MODELS.basico;
+    const planoAtivoTxt = await buildPlanoAtivoContextoIA(empresaId, usuarioId);
+    const ctxAcoes = await buildAcoesRecentesContextoIA(empresaId, { sinceDays: 3 });
+
+    const cabecalho = contextoAnterior
+      ? `ACABOU DE CONCLUIR: passo ${contextoAnterior.passoOrdem} ("${contextoAnterior.passoTitulo}") — ferramenta ${contextoAnterior.ferramenta}.\nResultado: ${JSON.stringify(contextoAnterior.resultado).slice(0, 400)}`
+      : `Plano recém-iniciado: "${planoRow.titulo}". Vamos começar pelo passo 1.`;
+
+    const sysPrompt = `Você é o Assistente Estratégico do BizGuideAI executando um plano agêntico passo a passo.
+
+${cabecalho}
+
+${planoAtivoTxt}
+
+${ctxAcoes}
+
+INSTRUÇÕES:
+- Proponha O PRÓXIMO PASSO (passo ${proxPendente.ordem}: "${proxPendente.titulo}") chamando a tool executora apropriada com planoId="${planoRow.id}" e passoOrdem=${proxPendente.ordem}.
+- Apenas UMA proposta. Texto curto (1-2 frases) explicando o que está sendo proposto e por quê.
+- Se o resultado anterior já invalidou o passo seguinte, prefira pular: chame cancelar_plano_agentico explicando o motivo.`;
+
+    const completion = await openai.chat.completions.create({
+      model: modelo,
+      messages: [
+        { role: "system", content: sysPrompt },
+        { role: "user", content: `Continue o plano. Próximo passo: ${proxPendente.titulo}.` },
+      ],
+      tools: toOpenAITools(),
+      tool_choice: "auto",
+      temperature: 0.4,
+      max_tokens: 700,
+    });
+
+    const msg = completion.choices?.[0]?.message;
+    const toolCalls = msg?.tool_calls ?? [];
+    const proximasPropostas: Array<{ logId: string; ferramenta: string; preview: unknown; parametros: Record<string, unknown> }> = [];
+
+    for (const call of toolCalls.slice(0, 1)) {
+      if (call.type !== "function") continue;
+      let args: unknown = {};
+      try { args = JSON.parse(call.function.arguments || "{}"); } catch { args = {}; }
+      const r = await registrarProposta({
+        toolName: call.function.name,
+        rawArgs: args,
+        empresaId,
+        usuarioId,
+        origem: "chat",
+        vinculoPlano: { planoId: planoRow.id, passoOrdem: proxPendente.ordem },
+      });
+      if (r.ok) {
+        proximasPropostas.push({ logId: r.logId, ferramenta: r.ferramenta, preview: r.preview, parametros: r.parametros });
+      }
+    }
+
+    const planoFinal = await storage.getPlanoAgenticoComPassos(planoRow.id);
+    return {
+      plano: planoFinal ?? null,
+      proximasPropostas,
+      mensagem: msg?.content ?? `Próximo passo: ${proxPendente.titulo}.`,
+      finalizado: false,
+    };
+  }
+
   async function avancarPlanoAgenticoPorProposta(
     propostaId: string,
     empresaId: string,
@@ -3878,6 +3976,24 @@ ${ctx.join("\n\n")}`;
     finalizado: boolean;
   } | null> {
     try {
+      // Caso 1: bootstrap — confirmação de criar_plano_agentico ainda não tem
+      // passo vinculado, mas o resultado expõe o planoId. Disparamos a primeira
+      // proposta do passo 1 imediatamente.
+      if (contexto.ferramenta === "criar_plano_agentico") {
+        const dados = (contexto.resultado as { dados?: { planoId?: string } } | null)?.dados;
+        const planoId = dados?.planoId;
+        if (!planoId) return null;
+        const cont = await proporProximoPassoDoPlano(planoId, empresaId, usuarioId);
+        if (!cont) return null;
+        return {
+          plano: cont.plano,
+          passoConcluidoOrdem: 0,
+          proximasPropostas: cont.proximasPropostas,
+          mensagem: cont.mensagem,
+          finalizado: cont.finalizado,
+        };
+      }
+
       const passo = await storage.getPassoByPropostaId(propostaId);
       if (!passo) return null;
       const full = await storage.getPlanoAgenticoComPassos(passo.planoId);
@@ -3889,97 +4005,19 @@ ${ctx.join("\n\n")}`;
         resolvidoEm: new Date(),
       });
 
-      // Recalcula passoAtual = primeiro passo pendente; se não houver, conclui plano.
-      const refreshed = await storage.getPlanoAgenticoComPassos(passo.planoId);
-      if (!refreshed) return null;
-      const planoRow = refreshed.plano;
-      const proxPendente = refreshed.passos.find((p) => p.status === "pendente");
-
-      if (!proxPendente) {
-        const planoFinalizado = await storage.updatePlanoAgentico(planoRow.id, {
-          status: "concluido",
-          finalizadoEm: new Date(),
-          passoAtual: planoRow.totalPassos,
-        });
-        return {
-          plano: { plano: planoFinalizado, passos: refreshed.passos },
-          passoConcluidoOrdem: passo.ordem,
-          proximasPropostas: [],
-          mensagem: `Plano "${planoRow.titulo}" concluído. Todos os ${planoRow.totalPassos} passos foram cumpridos.`,
-          finalizado: true,
-        };
-      }
-
-      await storage.updatePlanoAgentico(planoRow.id, { passoAtual: proxPendente.ordem });
-
-      // Loop de continuação: chama modelo para propor o próximo passo (1 rodada).
-      const empresa = await storage.getEmpresa(empresaId);
-      const modelo = empresa ? getModelForPlan(empresa.planoTipo, "relatorios") : AI_MODELS.basico;
-
-      const planoAtivoTxt = await buildPlanoAtivoContextoIA(empresaId, usuarioId);
-      const ctxAcoes = await buildAcoesRecentesContextoIA(empresaId, { sinceDays: 3 });
-
-      const sysPrompt = `Você é o Assistente Estratégico do BizGuideAI executando um plano agêntico passo a passo.
-
-ACABOU DE CONCLUIR: passo ${passo.ordem} ("${passo.titulo}") — ferramenta ${contexto.ferramenta}.
-Resultado da execução: ${JSON.stringify(contexto.resultado).slice(0, 400)}
-
-${planoAtivoTxt}
-
-${ctxAcoes}
-
-INSTRUÇÕES:
-- Avalie o resultado do passo recém-concluído.
-- Proponha O PRÓXIMO PASSO (passo ${proxPendente.ordem}: "${proxPendente.titulo}") chamando a tool executora apropriada com planoId="${planoRow.id}" e passoOrdem=${proxPendente.ordem}.
-- Apenas UMA proposta. Texto curto (1-2 frases) explicando o que está sendo proposto e por quê.
-- Se o resultado anterior já invalidou o passo seguinte, prefira pular: chame cancelar_plano_agentico explicando o motivo.`;
-
-      const completion = await openai.chat.completions.create({
-        model: modelo,
-        messages: [
-          { role: "system", content: sysPrompt },
-          { role: "user", content: `Continue o plano. Próximo passo: ${proxPendente.titulo}.` },
-        ],
-        tools: toOpenAITools(),
-        tool_choice: "auto",
-        temperature: 0.4,
-        max_tokens: 700,
+      const cont = await proporProximoPassoDoPlano(passo.planoId, empresaId, usuarioId, {
+        passoOrdem: passo.ordem,
+        passoTitulo: passo.titulo,
+        ferramenta: contexto.ferramenta,
+        resultado: contexto.resultado,
       });
-
-      const choice = completion.choices?.[0];
-      const msg = choice?.message;
-      const toolCalls = msg?.tool_calls ?? [];
-      const proximasPropostas: Array<{ logId: string; ferramenta: string; preview: unknown; parametros: Record<string, unknown> }> = [];
-
-      for (const call of toolCalls.slice(0, 1)) {
-        if (call.type !== "function") continue;
-        let args: unknown = {};
-        try { args = JSON.parse(call.function.arguments || "{}"); } catch { args = {}; }
-        const r = await registrarProposta({
-          toolName: call.function.name,
-          rawArgs: args,
-          empresaId,
-          usuarioId,
-          origem: "chat",
-          vinculoPlano: { planoId: planoRow.id, passoOrdem: proxPendente.ordem },
-        });
-        if (r.ok) {
-          proximasPropostas.push({
-            logId: r.logId,
-            ferramenta: r.ferramenta,
-            preview: r.preview,
-            parametros: r.parametros,
-          });
-        }
-      }
-
-      const planoFinal = await storage.getPlanoAgenticoComPassos(planoRow.id);
+      if (!cont) return null;
       return {
-        plano: planoFinal ?? null,
+        plano: cont.plano,
         passoConcluidoOrdem: passo.ordem,
-        proximasPropostas,
-        mensagem: msg?.content ?? `Passo ${passo.ordem} concluído. Próximo: ${proxPendente.titulo}.`,
-        finalizado: false,
+        proximasPropostas: cont.proximasPropostas,
+        mensagem: cont.mensagem,
+        finalizado: cont.finalizado,
       };
     } catch (err) {
       console.warn("[PLANO-AGENTICO] Falha ao avançar:", err);
@@ -3988,11 +4026,22 @@ INSTRUÇÕES:
   }
 
   // ─── Task #189 — Endpoints REST de planos agênticos ───
+  // Regra de visibilidade: planos privados (usuarioId !== null) só são visíveis
+  // ao próprio dono; planos compartilhados (usuarioId === null) ficam visíveis
+  // a qualquer membro da empresa.
+  function podeVerPlano(plano: { empresaId: string; usuarioId: string | null }, sessao: { empresaId: string; userId: string }): boolean {
+    if (plano.empresaId !== sessao.empresaId) return false;
+    if (plano.usuarioId && plano.usuarioId !== sessao.userId) return false;
+    return true;
+  }
+
   app.get("/api/ai/planos", requireAuth, async (req, res) => {
     try {
       const empresaId = req.session.empresaId!;
+      const userId = req.session.userId!;
       const limite = Math.min(Number(req.query.limit ?? 20), 100);
-      const planos = await storage.listPlanosAgenticosByEmpresa(empresaId, { limite });
+      const todos = await storage.listPlanosAgenticosByEmpresa(empresaId, { limite });
+      const planos = todos.filter((p) => podeVerPlano(p, { empresaId, userId }));
       res.json({ planos });
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
@@ -4015,8 +4064,9 @@ INSTRUÇÕES:
   app.get("/api/ai/planos/:id", requireAuth, async (req, res) => {
     try {
       const empresaId = req.session.empresaId!;
+      const userId = req.session.userId!;
       const full = await storage.getPlanoAgenticoComPassos(req.params.id);
-      if (!full || full.plano.empresaId !== empresaId) {
+      if (!full || !podeVerPlano(full.plano, { empresaId, userId })) {
         return res.status(404).json({ error: "Plano não encontrado." });
       }
       res.json({ plano: full.plano, passos: full.passos });
@@ -4028,8 +4078,9 @@ INSTRUÇÕES:
   app.post("/api/ai/planos/:id/cancelar", requireAuth, async (req, res) => {
     try {
       const empresaId = req.session.empresaId!;
+      const userId = req.session.userId!;
       const plano = await storage.getPlanoAgentico(req.params.id);
-      if (!plano || plano.empresaId !== empresaId) {
+      if (!plano || !podeVerPlano(plano, { empresaId, userId })) {
         return res.status(404).json({ error: "Plano não encontrado." });
       }
       if (plano.status !== "ativo") {
@@ -4040,6 +4091,28 @@ INSTRUÇÕES:
         finalizadoEm: new Date(),
       });
       res.json({ ok: true, plano: updated });
+    } catch (error) {
+      res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  // Avança manualmente o plano: roda 1 rodada do LLM e devolve a próxima
+  // proposta vinculada ao próximo passo pendente. Útil quando o usuário quer
+  // "Sugerir próximo passo" sem precisar conversar com o chat.
+  app.post("/api/ai/planos/:id/avancar", requireAuth, async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const userId = req.session.userId!;
+      const plano = await storage.getPlanoAgentico(req.params.id);
+      if (!plano || !podeVerPlano(plano, { empresaId, userId })) {
+        return res.status(404).json({ error: "Plano não encontrado." });
+      }
+      if (plano.status !== "ativo") {
+        return res.status(409).json({ error: `Plano já está ${plano.status}.` });
+      }
+      const cont = await proporProximoPassoDoPlano(plano.id, empresaId, userId);
+      if (!cont) return res.status(500).json({ error: "Falha ao propor próximo passo." });
+      res.json({ ok: true, continuacao: cont });
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }

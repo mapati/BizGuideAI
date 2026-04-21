@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Circle, Loader2, Target, X, ChevronDown, ChevronUp, PlayCircle } from "lucide-react";
+import { CheckCircle2, Circle, Loader2, Target, X, ChevronDown, ChevronUp, PlayCircle, ArrowRight } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -28,15 +28,50 @@ export function PlanoAgenticoCard({
   passos,
   compacto = false,
   onCancelado,
+  onContinuacao,
 }: {
   plano: PlanoAgenticoView;
   passos: PlanoAgenticoPassoView[];
   compacto?: boolean;
   onCancelado?: () => void;
+  onContinuacao?: (cont: {
+    proximasPropostas: Array<{ logId: string; ferramenta: string; preview: unknown; parametros: Record<string, unknown> }>;
+    mensagem: string;
+    finalizado: boolean;
+  }) => void;
 }) {
   const { toast } = useToast();
   const [expandido, setExpandido] = useState(!compacto);
   const [cancelando, setCancelando] = useState(false);
+  const [avancando, setAvancando] = useState(false);
+
+  const handleAvancar = async () => {
+    setAvancando(true);
+    try {
+      const res = await apiRequest("POST", `/api/ai/planos/${plano.id}/avancar`, {});
+      const json = await res.json();
+      queryClient.invalidateQueries({ queryKey: ["/api/ai/planos"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/ai/planos/ativo"] });
+      if (json?.continuacao) {
+        if (onContinuacao) {
+          onContinuacao(json.continuacao);
+        } else {
+          toast({
+            title: json.continuacao.finalizado ? "Plano concluído" : "Próximo passo proposto",
+            description: json.continuacao.mensagem,
+          });
+        }
+      }
+    } catch (err) {
+      toast({
+        title: "Erro ao avançar",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
+    } finally {
+      setAvancando(false);
+    }
+  };
 
   const concluidos = passos.filter((p) => p.status === "concluido").length;
   const pct = plano.totalPassos > 0 ? Math.round((concluidos / plano.totalPassos) * 100) : 0;
@@ -158,17 +193,27 @@ export function PlanoAgenticoCard({
         )}
 
         {plano.status === "ativo" && (
-          <div className="flex justify-end pt-0.5">
+          <div className="flex justify-end gap-2 pt-0.5 flex-wrap">
             <Button
               size="sm"
               variant="outline"
               onClick={handleCancelar}
-              disabled={cancelando}
+              disabled={cancelando || avancando}
               data-testid={`button-plano-cancelar-${plano.id}`}
               className="gap-1.5 text-xs"
             >
               {cancelando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
               Cancelar plano
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleAvancar}
+              disabled={avancando || cancelando}
+              data-testid={`button-plano-avancar-${plano.id}`}
+              className="gap-1.5 text-xs"
+            >
+              {avancando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowRight className="h-3.5 w-3.5" />}
+              Sugerir próximo passo
             </Button>
           </div>
         )}

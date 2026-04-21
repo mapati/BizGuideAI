@@ -55,7 +55,7 @@ export function HubTabs() {
                           Briefing de hoje
                         </Badge>
                         <Badge variant="secondary" className="gap-1 text-[10px]">
-                          <Cpu className="h-2.5 w-2.5" /> Gerado por IA
+                          <Cpu className="h-2.5 w-2.5" /> via IA
                         </Badge>
                         <span className="text-xs text-slate-500 dark:text-slate-400">07:42</span>
                       </div>

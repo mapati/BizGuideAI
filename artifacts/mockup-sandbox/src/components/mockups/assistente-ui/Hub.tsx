@@ -119,7 +119,7 @@ export function Hub() {
               <div>
                 <CardTitle className="text-base">Sinais ao vivo</CardTitle>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 inline-flex items-center gap-1">
-                  <BookOpen className="h-3 w-3" /> via engine de regras
+                  <BookOpen className="h-3 w-3" /> via regra
                 </p>
               </div>
               <Badge variant="secondary" className="gap-1">

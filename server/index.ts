@@ -308,6 +308,64 @@ async function runStartupMigrations() {
       ON CONFLICT (plano) DO NOTHING
     `);
 
+    // Task #182 — Briefing diário gerado por IA (cache + log de execução)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS briefing_diario (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        empresa_id VARCHAR NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+        data DATE NOT NULL,
+        conteudo JSONB NOT NULL,
+        fonte TEXT NOT NULL DEFAULT 'ia',
+        gerado_em TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    // Caso a tabela exista com tipos antigos (VARCHAR/TEXT), faz upgrade não-destrutivo.
+    // Verifica primeiro se já está no tipo correto para não rodar ALTER à toa.
+    const colCheck = await client.query(`
+      SELECT column_name, data_type
+      FROM information_schema.columns
+      WHERE table_name = 'briefing_diario' AND column_name IN ('data', 'conteudo')
+    `);
+    const tipos = Object.fromEntries(colCheck.rows.map((r) => [r.column_name, r.data_type]));
+    if (tipos.data && tipos.data !== "date") {
+      await client.query(`ALTER TABLE briefing_diario ALTER COLUMN data TYPE DATE USING (data::date)`);
+    }
+    if (tipos.conteudo && tipos.conteudo !== "jsonb") {
+      // Apaga linhas com conteúdo inválido para não quebrar a conversão.
+      await client.query(`
+        DELETE FROM briefing_diario
+        WHERE conteudo IS NULL OR btrim(conteudo) = '' OR left(btrim(conteudo), 1) NOT IN ('{', '[')
+      `);
+      await client.query(`ALTER TABLE briefing_diario ALTER COLUMN conteudo TYPE JSONB USING (conteudo::jsonb)`);
+    }
+    await client.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS briefing_diario_empresa_data_uq
+      ON briefing_diario (empresa_id, data)
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS briefing_diario_logs (
+        id SERIAL PRIMARY KEY,
+        empresa_id VARCHAR NOT NULL,
+        data DATE NOT NULL,
+        executado_em TIMESTAMP NOT NULL DEFAULT NOW(),
+        fonte TEXT NOT NULL,
+        duracao_ms INTEGER NOT NULL DEFAULT 0,
+        resultado TEXT NOT NULL,
+        mensagem TEXT NOT NULL DEFAULT ''
+      )
+    `);
+    const colLogsCheck = await client.query(`
+      SELECT data_type FROM information_schema.columns
+      WHERE table_name = 'briefing_diario_logs' AND column_name = 'data'
+    `);
+    if (colLogsCheck.rows[0] && colLogsCheck.rows[0].data_type !== "date") {
+      await client.query(`ALTER TABLE briefing_diario_logs ALTER COLUMN data TYPE DATE USING (data::date)`);
+    }
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_briefing_diario_logs_empresa_executado
+      ON briefing_diario_logs (empresa_id, executado_em DESC)
+    `);
+
     // Seed: ensure the platform admin from env vars exists and has the correct password
     const adminEmail = process.env.ADMIN_EMAIL;
     const adminSenha = process.env.ADMIN_SENHA;

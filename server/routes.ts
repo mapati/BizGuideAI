@@ -4,6 +4,8 @@ import { storage } from "./storage";
 import { isJornadaConcluida } from "./jornada-helper";
 import { sendVerificationEmail, sendPasswordResetEmail, getEmailDiagnostics } from "./email";
 import { runNotificationEngine, detectarSinaisCriticos, type EngineReport } from "./notification-engine";
+import { runBriefingDiarioScheduler, gerarEPersistirBriefing, dataDeHojeSP } from "./briefing-engine";
+import { openai, AI_MODELS, loadModelConfig, getModelForPlan, buildEmpresaContextoIA } from "./ai-helpers";
 import { criarAssinatura, buscarAssinatura, cancelarAssinatura, buscarPagamento, motivoLegivel, validarAssinaturaWebhook, PLANOS_MP, type PlanoTipo, type MpSubscription, type MpPayment } from "./mp";
 import { randomBytes, createHash } from "crypto";
 import cron from "node-cron";
@@ -43,6 +45,7 @@ import {
   type Iniciativa,
   type Fatura,
   aiGenerationParamsSchema,
+  briefingConteudoSchema,
 } from "@shared/schema";
 import OpenAI from "openai";
 import * as cheerio from "cheerio";
@@ -65,32 +68,9 @@ const upload = multer({
   },
 });
 
-function buildEmpresaContextoIA(empresa: Empresa, options?: { includeDocument?: boolean }): string {
-  const includeDocument = options?.includeDocument ?? true;
-  const linhas: string[] = [];
-  linhas.push(`Empresa: ${empresa.nome}`);
-  linhas.push(`Setor: ${empresa.setor}`);
-  if (empresa.tamanho) linhas.push(`Tamanho: ${empresa.tamanho}`);
-  if (empresa.descricao) linhas.push(`Descrição: ${empresa.descricao}`);
-  if (empresa.modeloNegocio) linhas.push(`Modelo de negócio: ${empresa.modeloNegocio}`);
-  if (empresa.areaAtuacao) linhas.push(`Área de atuação geográfica: ${empresa.areaAtuacao}`);
-  if (empresa.publicoAlvo) linhas.push(`Público-alvo / cliente ideal: ${empresa.publicoAlvo}`);
-  if (empresa.principaisProdutos) linhas.push(`Principais produtos/serviços: ${empresa.principaisProdutos}`);
-  if (empresa.concorrentesConhecidos) linhas.push(`Concorrentes conhecidos: ${empresa.concorrentesConhecidos}`);
-  if (empresa.diferenciaisCompetitivos) linhas.push(`Diferenciais competitivos: ${empresa.diferenciaisCompetitivos}`);
-  if (empresa.anoFundacao) linhas.push(`Ano de fundação: ${empresa.anoFundacao}`);
-  if (empresa.cidade || empresa.estado) linhas.push(`Localização: ${[empresa.cidade, empresa.estado].filter(Boolean).join(", ")}`);
-  if (includeDocument && empresa.documentoInterpretacao) {
-    linhas.push(`\n━━━ DOCUMENTO ESTRATÉGICO DA EMPRESA ━━━`);
-    linhas.push(empresa.documentoInterpretacao);
-  }
-  return linhas.join("\n");
-}
-
-const openai = new OpenAI({
-  apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-  baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-});
+// `openai`, `buildEmpresaContextoIA`, `getModelForPlan`, `AI_MODELS` e
+// `loadModelConfig` agora vivem em `./ai-helpers` (extraídos para evitar
+// dependência circular com o briefing-engine).
 
 // Serper.dev search helper — replaces the previous Google Custom Search integration.
 // Requires SERPER_API_KEY. Returns an empty array if the key is missing,
@@ -398,44 +378,9 @@ function computeTrialInfo(empresa: { planoStatus: string; trialStartedAt: Date |
   return { planoStatus, diasRestantes, trialExpirado };
 }
 
-/* ── Modelos de IA — carregados do banco na inicialização, atualizados ao vivo via PATCH /api/admin/config-ia ── */
-const AI_MODELS: Record<string, string> = {
-  start_padrao:      "",
-  start_relatorios:  "",
-  start_busca:       "",
-  pro_padrao:        "",
-  pro_relatorios:    "",
-  pro_busca:         "",
-};
-
-async function loadModelConfig() {
-  // Throws if DB row missing — startup migration (server/index.ts) guarantees the row exists
-  const cfg = await storage.getConfiguracoesIA();
-  AI_MODELS.start_padrao      = cfg.modeloPadraoStart;
-  AI_MODELS.start_relatorios  = cfg.modeloRelatoriosStart;
-  AI_MODELS.start_busca       = cfg.modeloBuscaStart;
-  AI_MODELS.pro_padrao        = cfg.modeloPadraoProEnt;
-  AI_MODELS.pro_relatorios    = cfg.modeloRelatoriosProEnt;
-  AI_MODELS.pro_busca         = cfg.modeloBuscaProEnt;
-}
-
 function getPlanLimits(planoTipo: string | null | undefined) {
   const tipo = (planoTipo ?? "start") as keyof typeof PLAN_LIMITS;
   return PLAN_LIMITS[tipo] ?? PLAN_LIMITS.start;
-}
-
-function getModelForPlan(planoTipo: string | null | undefined, tier: "padrao" | "relatorios" | "busca"): string {
-  const isPro = planoTipo === "pro" || planoTipo === "enterprise";
-  const prefix = isPro ? "pro" : "start";
-  const raw = AI_MODELS[`${prefix}_${tier}`] || AI_MODELS["start_padrao"] || "";
-  // Defensive: *-search-preview models are Chat-Completions-only and cause a 404 in the
-  // Responses API used by web search. If a stale config still has them, auto-map to a
-  // compatible model so the request never fails because of bad legacy data.
-  if (tier === "busca") {
-    if (raw === "gpt-4o-search-preview") return "gpt-4o";
-    if (raw === "gpt-4o-mini-search-preview") return isPro ? "gpt-4o" : "gpt-4o-mini";
-  }
-  return raw;
 }
 
 const ROTAS_ASSISTENTE_PERMITIDAS = [
@@ -3880,55 +3825,53 @@ ${ctx.join("\n\n")}`;
   app.get("/api/ai/briefing-proativo", requireAuth, async (req, res) => {
     try {
       const empresaId = req.session.empresaId!;
-      const sinais = await detectarSinaisCriticos(empresaId);
+      const hoje = dataDeHojeSP();
 
-      if (sinais.total === 0) {
-        return res.json({ deveAbrir: false, sinais, mensagem: null, acoes: [] });
-      }
-
-      const partes: string[] = [];
-      const acoes: Array<{ label: string; tipo: "criar" | "editar" | "abrir" | "dispensar"; rota?: string; params?: Record<string, string> }> = [];
-
-      partes.push(`### Bom dia! Encontrei pontos que merecem sua atenção hoje`);
-
-      if (sinais.kpisVermelhos.length > 0) {
-        const lista = sinais.kpisVermelhos.slice(0, 3).map((k) => `**${k.nome}** (${k.atual} vs meta ${k.meta})`).join(", ");
-        partes.push(`- 🔴 **${sinais.kpisVermelhos.length} indicador(es) no vermelho**: ${lista}`);
-        if (acoes.length < 3) acoes.push({ label: "Ver indicadores críticos", tipo: "abrir", rota: "/indicadores" });
-      }
-      if (sinais.iniciativasAtrasadas.length > 0) {
-        const top = sinais.iniciativasAtrasadas[0];
-        partes.push(`- ⏰ **${sinais.iniciativasAtrasadas.length} iniciativa(s) atrasada(s)**: a mais crítica é "${top.titulo}" (${top.diasAtraso} dia(s) de atraso)`);
-        if (acoes.length < 3) acoes.push({ label: "Abrir iniciativas atrasadas", tipo: "abrir", rota: "/iniciativas" });
-      }
-      if (sinais.okrsParados.length > 0) {
-        const top = sinais.okrsParados[0];
-        partes.push(`- 📊 **${sinais.okrsParados.length} meta(s) sem atualização há 14+ dias**: ex. "${top.metrica}" (${top.diasParado} dias)`);
-        if (acoes.length < 3) acoes.push({ label: "Atualizar metas", tipo: "abrir", rota: "/okrs" });
-      }
-      if (sinais.riscosAltosSemMitigacao.length > 0) {
-        const top = sinais.riscosAltosSemMitigacao[0];
-        partes.push(`- ⚠️ **${sinais.riscosAltosSemMitigacao.length} risco(s) alto(s) sem plano de mitigação**: ex. "${top.descricao.slice(0, 80)}"`);
-        if (acoes.length < 3) {
-          acoes.push({
-            label: "Adicionar mitigação",
-            tipo: "editar",
-            rota: "/riscos",
-            params: { id: top.id },
+      // 1) Cache do dia: se existe, devolve sempre o MESMO briefing — a
+      //    consistência diária é parte do contrato (mesma orientação no dia
+      //    todo, independente da volatilidade dos sinais).
+      const cacheado = await storage.getBriefingDiario(empresaId, hoje);
+      if (cacheado) {
+        // Aceita tanto o formato novo (objeto JSONB) quanto legado (string JSON)
+        let raw: unknown = cacheado.conteudo;
+        if (typeof raw === "string") {
+          try { raw = JSON.parse(raw); } catch { /* deixa cair no safeParse */ }
+        }
+        const parsed = briefingConteudoSchema.safeParse(raw);
+        if (parsed.success) {
+          // Recalcula sinais apenas para o frontend mostrar contadores reais,
+          // mas a mensagem permanece a do briefing cacheado.
+          const sinais = await detectarSinaisCriticos(empresaId).catch(() => ({
+            kpisVermelhos: [], iniciativasAtrasadas: [], okrsParados: [], riscosAltosSemMitigacao: [], total: 0,
+          }));
+          return res.json({
+            deveAbrir: true,
+            sinais,
+            mensagem: parsed.data.corpo,
+            acoes: parsed.data.acoes ?? [],
+            fonte: cacheado.fonte,
           });
         }
+        // Conteúdo corrompido — segue para regerar.
       }
 
-      partes.push(`\nQuer que eu te ajude a priorizar e definir o próximo passo?`);
+      // 2) Sem cache → checa rapidamente sinais antes de chamar IA.
+      const sinaisAtuais = await detectarSinaisCriticos(empresaId);
+      if (sinaisAtuais.total === 0) {
+        return res.json({ deveAbrir: false, sinais: sinaisAtuais, mensagem: null, acoes: [] });
+      }
 
-      const finalAcoes = acoes.slice(0, 2);
-      finalAcoes.push({ label: "Mais tarde", tipo: "dispensar" });
-
-      res.json({
+      // 3) Geração on-demand (com fallback determinístico embutido).
+      const gerado = await gerarEPersistirBriefing(empresaId);
+      if (!gerado) {
+        return res.json({ deveAbrir: false, sinais: sinaisAtuais, mensagem: null, acoes: [] });
+      }
+      return res.json({
         deveAbrir: true,
-        sinais,
-        mensagem: partes.join("\n"),
-        acoes: finalAcoes,
+        sinais: gerado.sinais,
+        mensagem: gerado.conteudo.corpo,
+        acoes: gerado.conteudo.acoes ?? [],
+        fonte: gerado.fonte,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -7602,6 +7545,31 @@ Seja específico para o setor ${empresa.setor}.`,
   });
   app.get("/api/admin/notificacoes/ultimo-relatorio", requireSuperAdmin, async (_req, res) => {
     res.json(_ultimoRelatorioEngine ?? { mensagem: "Nenhuma execução registrada nesta sessão." });
+  });
+
+  /* ── Briefing diário (Task #182): roda 1x por dia às 07:00 America/Sao_Paulo ── */
+  cron.schedule(
+    "0 7 * * *",
+    async () => {
+      try {
+        console.log("[BRIEFING_SCHED] Executando geração diária agendada...");
+        await runBriefingDiarioScheduler();
+      } catch (err: any) {
+        console.error("[BRIEFING_SCHED] Erro no scheduler diário:", err?.message ?? err);
+      }
+    },
+    { timezone: "America/Sao_Paulo" }
+  );
+
+  /* ── Briefing diário: endpoint admin para disparo manual + diagnóstico ── */
+  app.post("/api/admin/briefing-diario/disparar", requireSuperAdmin, async (_req, res) => {
+    try {
+      const r = await runBriefingDiarioScheduler();
+      res.json(r);
+    } catch (e: any) {
+      console.error("[BRIEFING_SCHED] Erro no disparo manual:", e?.message ?? e);
+      res.status(500).json({ error: e?.message ?? "Erro ao executar agendador de briefing" });
+    }
   });
 
   /* ── Notificações: agendador horário (avalia condições + respeita frequências) ── */

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, decimal, boolean, serial, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, decimal, boolean, serial, date, jsonb, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -582,6 +582,51 @@ export const configSistema = pgTable("config_sistema", {
   githubAutoPushFrequencia: text("github_auto_push_frequencia").notNull().default("diario"),
 });
 export type ConfigSistema = typeof configSistema.$inferSelect;
+
+// Task #182 — Briefing diário gerado por IA (uma entrada por empresa por dia)
+export const briefingDiario = pgTable("briefing_diario", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  empresaId: varchar("empresa_id").notNull().references(() => empresas.id, { onDelete: "cascade" }),
+  data: date("data").notNull(), // DATE (America/Sao_Paulo)
+  conteudo: jsonb("conteudo").notNull(), // BriefingConteudo estruturado
+  fonte: text("fonte").notNull().default("ia"), // 'ia' | 'regra'
+  geradoEm: timestamp("gerado_em").defaultNow().notNull(),
+});
+export type BriefingDiario = typeof briefingDiario.$inferSelect;
+
+export const briefingDiarioLogs = pgTable("briefing_diario_logs", {
+  id: serial("id").primaryKey(),
+  empresaId: varchar("empresa_id").notNull(),
+  data: date("data").notNull(),
+  executadoEm: timestamp("executado_em").notNull().defaultNow(),
+  fonte: text("fonte").notNull(), // 'ia' | 'regra' | 'pulado'
+  duracaoMs: integer("duracao_ms").notNull().default(0),
+  resultado: text("resultado").notNull(), // 'sucesso' | 'erro' | 'pulado'
+  mensagem: text("mensagem").notNull().default(""),
+});
+export type BriefingDiarioLog = typeof briefingDiarioLogs.$inferSelect;
+export const insertBriefingDiarioLogSchema = createInsertSchema(briefingDiarioLogs).omit({ id: true });
+export type InsertBriefingDiarioLog = z.infer<typeof insertBriefingDiarioLogSchema>;
+
+// Esquema do conteúdo (validação Zod do que a IA retorna / o que persistimos)
+export const briefingAcaoSchema = z.object({
+  label: z.string().min(1).max(80),
+  tipo: z.enum(["criar", "editar", "abrir", "dispensar"]),
+  rota: z.string().optional(),
+  params: z.record(z.string(), z.string()).optional(),
+});
+export type BriefingAcao = z.infer<typeof briefingAcaoSchema>;
+
+export const briefingConteudoSchema = z.object({
+  corpo: z.string().min(1),
+  prioridade: z.object({
+    titulo: z.string().min(1),
+    tom: z.enum(["positivo", "neutro", "atencao", "critico"]).default("atencao"),
+  }),
+  acoes: z.array(briefingAcaoSchema).max(3).default([]),
+  observacoes: z.array(z.string()).max(2).default([]),
+});
+export type BriefingConteudo = z.infer<typeof briefingConteudoSchema>;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AI Generation Params (shared across /api/ai/gerar-* endpoints)

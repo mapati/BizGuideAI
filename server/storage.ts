@@ -89,8 +89,12 @@ import {
   type ContextoMacroLog,
   type InsertContextoMacroLog,
   googleSearchUsage,
+  briefingDiario,
+  briefingDiarioLogs,
+  type BriefingDiario,
+  type InsertBriefingDiarioLog,
 } from "@shared/schema";
-import { eq, and, desc, inArray, sql } from "drizzle-orm";
+import { eq, and, desc, inArray, sql, lt } from "drizzle-orm";
 
 export interface IStorage {
   getEmpresa(id: string): Promise<Empresa | undefined>;
@@ -258,6 +262,12 @@ export interface IStorage {
   upsertPrecoLandingPlano(plano: string, data: Partial<Omit<PrecoLandingPlano, "plano" | "atualizadoEm">>): Promise<PrecoLandingPlano>;
 
   resetDadosEmpresa(empresaId: string, grupo: ResetGrupo): Promise<{ tabelas: string[] }>;
+
+  // Task #182 — Briefing diário
+  getBriefingDiario(empresaId: string, data: string): Promise<BriefingDiario | undefined>;
+  upsertBriefingDiario(empresaId: string, data: string, conteudo: unknown, fonte: "ia" | "regra"): Promise<BriefingDiario>;
+  purgeBriefingsAntigos(diasMantidos: number): Promise<number>;
+  addBriefingDiarioLog(log: InsertBriefingDiarioLog): Promise<void>;
 }
 
 export type ResetGrupo = "diagnostico" | "mapa" | "plano-acao" | "execucao" | "tudo";
@@ -1221,6 +1231,51 @@ export class DbStorage implements IStorage {
     return rows[0]!;
   }
 
+  // ── Task #182 — Briefing diário ──
+  async getBriefingDiario(empresaId: string, data: string): Promise<BriefingDiario | undefined> {
+    const rows = await db
+      .select()
+      .from(briefingDiario)
+      .where(and(eq(briefingDiario.empresaId, empresaId), eq(briefingDiario.data, data)))
+      .limit(1);
+    return rows[0];
+  }
+
+  async upsertBriefingDiario(
+    empresaId: string,
+    data: string,
+    conteudo: unknown,
+    fonte: "ia" | "regra"
+  ): Promise<BriefingDiario> {
+    // Upsert atômico via ON CONFLICT no índice único (empresa_id, data) —
+    // evita corrida quando o endpoint on-demand e o scheduler diário rodam
+    // ao mesmo tempo para a mesma empresa.
+    const inserted = await db
+      .insert(briefingDiario)
+      .values({ empresaId, data, conteudo: conteudo as object, fonte })
+      .onConflictDoUpdate({
+        target: [briefingDiario.empresaId, briefingDiario.data],
+        set: { conteudo: conteudo as object, fonte, geradoEm: new Date() },
+      })
+      .returning();
+    return inserted[0]!;
+  }
+
+  async purgeBriefingsAntigos(diasMantidos: number): Promise<number> {
+    const limite = new Date(Date.now() - diasMantidos * 24 * 60 * 60 * 1000);
+    const removed = await db
+      .delete(briefingDiario)
+      .where(lt(briefingDiario.geradoEm, limite))
+      .returning({ id: briefingDiario.id });
+    await db
+      .delete(briefingDiarioLogs)
+      .where(lt(briefingDiarioLogs.executadoEm, limite));
+    return removed.length;
+  }
+
+  async addBriefingDiarioLog(log: InsertBriefingDiarioLog): Promise<void> {
+    await db.insert(briefingDiarioLogs).values(log);
+  }
 }
 
 export const storage = new DbStorage();

@@ -3957,7 +3957,7 @@ INSTRUÇÕES:
     const toolCalls = msg?.tool_calls ?? [];
     const proximasPropostas: Array<{ logId: string; ferramenta: string; preview: unknown; parametros: Record<string, unknown> }> = [];
 
-    for (const call of toolCalls.slice(0, 1)) {
+    for (const call of toolCalls.slice(0, 3)) {
       if (call.type !== "function") continue;
       let args: unknown = {};
       try { args = JSON.parse(call.function.arguments || "{}"); } catch { args = {}; }

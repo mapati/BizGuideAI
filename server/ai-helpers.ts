@@ -131,6 +131,7 @@ export async function buildPlanoAtivoContextoIA(
       em_andamento: "EM ANDAMENTO (proposta enviada, aguardando confirmação)",
       concluido: "✓ concluído",
       pulado: "pulado",
+      falhou: "✗ falhou",
     };
     const linhas = passos.map(
       (p) => `  ${p.ordem}. [${fmtStatus[p.status] ?? p.status}] ${p.titulo}${p.descricao ? ` — ${p.descricao}` : ""}`,

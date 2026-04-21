@@ -12,7 +12,7 @@ export interface PlanoAgenticoPassoView {
   ordem: number;
   titulo: string;
   descricao?: string;
-  status: "pendente" | "em_andamento" | "concluido" | "pulado";
+  status: "pendente" | "em_andamento" | "concluido" | "pulado" | "falhou";
 }
 
 export interface PlanoAgenticoView {
@@ -156,6 +156,8 @@ export function PlanoAgenticoCard({
                   <Loader2 className="h-3.5 w-3.5 text-violet-600 animate-spin shrink-0" />
                 ) : p.status === "pulado" ? (
                   <X className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                ) : p.status === "falhou" ? (
+                  <X className="h-3.5 w-3.5 text-destructive shrink-0" />
                 ) : (
                   <Circle className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                 );

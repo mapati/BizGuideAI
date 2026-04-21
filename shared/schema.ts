@@ -728,7 +728,7 @@ export const planoAgenticoPasso = pgTable("plano_agentico_passo", {
   resolvidoEm: timestamp("resolvido_em"),
 });
 
-export const planoAgenticoPassoStatusEnum = z.enum(["pendente", "em_andamento", "concluido", "pulado"]);
+export const planoAgenticoPassoStatusEnum = z.enum(["pendente", "em_andamento", "concluido", "pulado", "falhou"]);
 export type PlanoAgenticoPassoStatus = z.infer<typeof planoAgenticoPassoStatusEnum>;
 export type PlanoAgenticoPasso = typeof planoAgenticoPasso.$inferSelect;
 export const insertPlanoAgenticoPassoSchema = createInsertSchema(planoAgenticoPasso).omit({

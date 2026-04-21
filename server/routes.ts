@@ -11,6 +11,7 @@ import { criarAssinatura, buscarAssinatura, cancelarAssinatura, buscarPagamento,
 import { randomBytes, createHash } from "crypto";
 import cron from "node-cron";
 import { runGithubPush, getPushLogs, startGithubScheduler, stopGithubScheduler, isGitRepository, type PushFrequencia } from "./github-scheduler";
+import { runPlanoAgenticoHealing, getHealingLogs, startPlanoAgenticoHealingScheduler } from "./plano-agentico-healing";
 import { 
   insertEmpresaSchema,
   PLAN_LIMITS,
@@ -1411,6 +1412,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/admin/github-push-logs", (_req, res) => {
     res.json(getPushLogs());
+  });
+
+  // Task #194 — Self-healing de planos agênticos travados.
+  app.get("/api/admin/planos-agenticos/healing-logs", (_req, res) => {
+    res.json({ logs: getHealingLogs() });
+  });
+
+  app.post("/api/admin/planos-agenticos/healing-run", async (_req, res) => {
+    try {
+      const resumo = await runPlanoAgenticoHealing();
+      res.json({ ok: true, resumo });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message ?? String(e) });
+    }
   });
 
   // All routes below require authentication
@@ -3972,6 +3987,13 @@ INSTRUÇÕES:
       });
       if (r.ok) {
         proximasPropostas.push({ logId: r.logId, ferramenta: r.ferramenta, preview: r.preview, parametros: r.parametros });
+        console.info("[PLANO-AGENTICO]", {
+          acao: "proposta_proximo_passo_criada",
+          planoId: planoRow.id,
+          passoOrdem: proxPendente.ordem,
+          ferramenta: r.ferramenta,
+          propostaId: r.logId,
+        });
       }
     }
 
@@ -4030,6 +4052,14 @@ INSTRUÇÕES:
         status: "concluido",
         resolvidoEm: new Date(),
         resultadoResumo: resumoResultado,
+      });
+      console.info("[PLANO-AGENTICO]", {
+        acao: "passo_concluido",
+        planoId: passo.planoId,
+        passoId: passo.id,
+        passoOrdem: passo.ordem,
+        ferramenta: contexto.ferramenta,
+        propostaId,
       });
 
       const cont = await proporProximoPassoDoPlano(passo.planoId, empresaId, usuarioId, {
@@ -8299,6 +8329,9 @@ Seja específico para o setor ${empresa.setor}.`,
       console.error("[GITHUB_SCHEDULER] Falha ao inicializar agendador:", e?.message ?? e);
     }
   })();
+
+  /* ── Task #194 — Inicializa o self-healing de planos agênticos ── */
+  startPlanoAgenticoHealingScheduler();
 
   const httpServer = createServer(app);
   return httpServer;

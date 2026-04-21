@@ -5,7 +5,7 @@
 // (3) preview() que descreve a ação para o humano e (4) apply() que executa via storage.
 
 import { z } from "zod/v4";
-import { storage } from "./storage";
+import { storage, PlanoAtivoJaExisteError } from "./storage";
 import type { PropostaPreview } from "@shared/schema";
 
 // ---------- Tipos públicos ----------
@@ -677,19 +677,31 @@ const criarPlanoAgentico: ToolDefinition<CriarPlanoAgenticoParams> = {
         descricao: s.descricao ?? "",
         status: "pendente" as const,
       }));
-    const { plano } = await storage.createPlanoAgentico(
-      {
-        empresaId: ctx.empresaId,
-        usuarioId: ctx.usuarioId ?? null,
-        titulo: p.titulo,
-        objetivo: p.objetivo,
-        status: "ativo",
-        origem: "chat",
-        totalPassos: passosOrdenados.length,
-        passoAtual: 1,
-      },
-      passosOrdenados,
-    );
+    let plano;
+    try {
+      ({ plano } = await storage.createPlanoAgentico(
+        {
+          empresaId: ctx.empresaId,
+          usuarioId: ctx.usuarioId ?? null,
+          titulo: p.titulo,
+          objetivo: p.objetivo,
+          status: "ativo",
+          origem: "chat",
+          totalPassos: passosOrdenados.length,
+          passoAtual: 1,
+        },
+        passosOrdenados,
+      ));
+    } catch (err) {
+      // Task #190 — outro request paralelo já criou o plano ativo. Mostra
+      // mensagem clara para o usuário em vez de quebrar a conversa.
+      if (err instanceof PlanoAtivoJaExisteError) {
+        throw new Error(
+          "Já existe um plano agêntico ativo para você nesta empresa. Conclua ou cancele o plano atual antes de iniciar outro.",
+        );
+      }
+      throw err;
+    }
     return {
       resumo: `Plano "${plano.titulo}" iniciado (${passosOrdenados.length} passos).`,
       dados: { planoId: plano.id, totalPassos: passosOrdenados.length },

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, decimal, boolean, serial, date, jsonb, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, decimal, boolean, serial, date, jsonb, uniqueIndex, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -698,7 +698,14 @@ export const planoAgentico = pgTable("plano_agentico", {
   criadoEm: timestamp("criado_em").defaultNow().notNull(),
   atualizadoEm: timestamp("atualizado_em").defaultNow().notNull(),
   finalizadoEm: timestamp("finalizado_em"),
-});
+}, (t) => ({
+  // Task #190 — garante atomicamente que só exista 1 plano "ativo" por
+  // (empresa, usuário). nullsNotDistinct cobre planos compartilhados
+  // (usuarioId IS NULL), tratando NULL como valor único.
+  unicoPlanoAtivoPorUsuario: uniqueIndex("plano_agentico_unico_ativo_idx")
+    .on(t.empresaId, sql`coalesce(${t.usuarioId}, '')`)
+    .where(sql`${t.status} = 'ativo'`),
+}));
 
 export const planoAgenticoStatusEnum = z.enum(["ativo", "concluido", "cancelado"]);
 export type PlanoAgenticoStatus = z.infer<typeof planoAgenticoStatusEnum>;

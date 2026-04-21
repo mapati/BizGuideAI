@@ -310,6 +310,16 @@ function omitTenantFields<T extends Record<string, unknown>>(data: T): Omit<T, "
   return result as Omit<T, "empresaId" | "objetivoId">;
 }
 
+// Task #190 — sinaliza colisão do índice único parcial de plano agêntico
+// ativo, para que a camada do agente apresente uma mensagem clara ao usuário.
+export class PlanoAtivoJaExisteError extends Error {
+  code = "PLANO_ATIVO_JA_EXISTE" as const;
+  constructor(message = "Já existe um plano agêntico ativo para este usuário.") {
+    super(message);
+    this.name = "PlanoAtivoJaExisteError";
+  }
+}
+
 export class DbStorage implements IStorage {
   async getEmpresa(id: string): Promise<Empresa | undefined> {
     const result = await db.select().from(empresas).where(eq(empresas.id, id)).limit(1);
@@ -1365,10 +1375,22 @@ export class DbStorage implements IStorage {
     plano: InsertPlanoAgentico,
     passos: Array<Omit<InsertPlanoAgenticoPasso, "planoId" | "empresaId">>,
   ): Promise<{ plano: PlanoAgentico; passos: PlanoAgenticoPasso[] }> {
-    const [planoRow] = await db
-      .insert(planoAgentico)
-      .values({ ...plano, totalPassos: passos.length })
-      .returning();
+    let planoRow: PlanoAgentico;
+    try {
+      const inserted = await db
+        .insert(planoAgentico)
+        .values({ ...plano, totalPassos: passos.length })
+        .returning();
+      planoRow = inserted[0];
+    } catch (err: any) {
+      // Task #190 — colisão com índice único parcial (status='ativo').
+      // Pode ocorrer em concorrência: dois pedidos tentam criar plano ativo
+      // ao mesmo tempo para o mesmo (empresa, usuário).
+      if (err?.code === "23505" && String(err?.constraint ?? "").includes("plano_agentico_unico_ativo")) {
+        throw new PlanoAtivoJaExisteError();
+      }
+      throw err;
+    }
     const inseridos: PlanoAgenticoPasso[] = [];
     for (const p of passos) {
       const [row] = await db

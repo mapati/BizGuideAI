@@ -115,7 +115,11 @@ function UpgradeBanner() {
 
 function AssistantSlot() {
   const locked = useAIModalLocked();
+  const [location] = useLocation();
   if (locked) return null;
+  // Na página dedicada do Assistente, o chat já é o conteúdo principal —
+  // o chip flutuante seria redundante.
+  if (location === "/assistente") return null;
   return <AIAssistant />;
 }
 

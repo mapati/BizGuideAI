@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, XCircle, Loader2, Sparkles, AlertTriangle, Pencil } from "lucide-react";
+import { ToastAction } from "@/components/ui/toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -42,6 +43,8 @@ export function PropostaCard({ proposta }: { proposta: Proposta }) {
   const [estado, setEstado] = useState<Estado>("proposta");
   const [erro, setErro] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState<"confirmar" | "ignorar" | "ajustar" | null>(null);
+  const [resolvidoEm, setResolvidoEm] = useState<Date | null>(null);
+  const [rotaEntidade, setRotaEntidade] = useState<string | null>(null);
 
   const { logId, ferramenta, preview, parametros } = proposta;
 
@@ -51,15 +54,27 @@ export function PropostaCard({ proposta }: { proposta: Proposta }) {
     try {
       const r = (await apiRequest("POST", `/api/ai/proposta/${logId}/confirmar`, {})) as {
         ok: true;
-        resultado: { resumo: string; rota?: string };
+        resultado: { resumo: string; rota?: string; entidadeTipo?: string; entidadeId?: string };
       };
       setEstado("confirmada");
-      toast({ title: "Ação aplicada", description: r.resultado?.resumo ?? "Concluído." });
+      setResolvidoEm(new Date());
+      const rotaDestino = r.resultado?.rota ?? null;
+      setRotaEntidade(rotaDestino);
+      toast({
+        title: "Ação aplicada",
+        description: r.resultado?.resumo ?? "Concluído.",
+        action: rotaDestino ? (
+          <ToastAction
+            altText="Abrir item criado"
+            onClick={() => navigate(rotaDestino)}
+            data-testid={`toast-action-abrir-${logId}`}
+          >
+            Abrir
+          </ToastAction>
+        ) : undefined,
+      });
       const queries = ["/api/iniciativas", "/api/objetivos", "/api/indicadores", "/api/meu-painel/resumo", "/api/ai/propostas"];
       for (const q of queries) queryClient.invalidateQueries({ queryKey: [q] });
-      if (r.resultado?.rota) {
-        setTimeout(() => navigate(r.resultado.rota!), 600);
-      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setErro(msg);
@@ -130,9 +145,30 @@ export function PropostaCard({ proposta }: { proposta: Proposta }) {
                 {FERRAMENTAS_LABEL[ferramenta] ?? ferramenta}
               </Badge>
               {estado === "confirmada" && (
-                <Badge className="bg-emerald-600 text-white hover:bg-emerald-600 gap-1 text-[10px]">
-                  <CheckCircle2 className="h-2.5 w-2.5" /> confirmada
-                </Badge>
+                <>
+                  <Badge className="bg-emerald-600 text-white hover:bg-emerald-600 gap-1 text-[10px]">
+                    <CheckCircle2 className="h-2.5 w-2.5" /> confirmada
+                  </Badge>
+                  {resolvidoEm && (
+                    <span
+                      className="text-[10px] text-muted-foreground"
+                      data-testid={`text-proposta-aplicado-em-${logId}`}
+                    >
+                      em {resolvidoEm.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  )}
+                  {rotaEntidade && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => navigate(rotaEntidade)}
+                      data-testid={`button-proposta-abrir-${logId}`}
+                      className="h-6 px-2 text-[10px] gap-1"
+                    >
+                      Abrir item
+                    </Button>
+                  )}
+                </>
               )}
               {estado === "ignorada" && (
                 <Badge variant="outline" className="gap-1 text-[10px]">

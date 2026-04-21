@@ -588,20 +588,27 @@ const navegarPara: ToolDefinition<NavegarParaParams> = {
 };
 
 // ---------- Registry ----------
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const TOOLS: Record<ToolName, ToolDefinition<any>> = {
-  criar_iniciativa: criarIniciativa,
-  atualizar_iniciativa: atualizarIniciativa,
-  criar_okr: criarOkr,
-  atualizar_okr: atualizarOkr,
-  atualizar_progresso_kr: atualizarProgressoKr,
-  criar_indicador: criarIndicador,
-  atualizar_valor_indicador: atualizarValorIndicador,
-  navegar_para: navegarPara,
+// Cada ToolDefinition tem um TParams concreto; o registry, porém, precisa
+// guardar todos juntos. `wrap` faz o "sealing" para `unknown` em um único
+// ponto tipado, evitando `any` espalhado pelo módulo. A validação de runtime
+// continua sendo feita pelo `paramsSchema` Zod de cada tool.
+function wrap<T>(def: ToolDefinition<T>): ToolDefinition<unknown> {
+  return def as unknown as ToolDefinition<unknown>;
+}
+
+export const TOOLS: Record<ToolName, ToolDefinition<unknown>> = {
+  criar_iniciativa: wrap(criarIniciativa),
+  atualizar_iniciativa: wrap(atualizarIniciativa),
+  criar_okr: wrap(criarOkr),
+  atualizar_okr: wrap(atualizarOkr),
+  atualizar_progresso_kr: wrap(atualizarProgressoKr),
+  criar_indicador: wrap(criarIndicador),
+  atualizar_valor_indicador: wrap(atualizarValorIndicador),
+  navegar_para: wrap(navegarPara),
 };
 
 export function getTool(name: string): ToolDefinition<unknown> | null {
-  if (name in TOOLS) return TOOLS[name as ToolName] as ToolDefinition<unknown>;
+  if (name in TOOLS) return TOOLS[name as ToolName];
   return null;
 }
 

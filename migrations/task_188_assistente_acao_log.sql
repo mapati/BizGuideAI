@@ -16,7 +16,7 @@
 CREATE TABLE IF NOT EXISTS assistente_acao_log (
   id            varchar PRIMARY KEY DEFAULT gen_random_uuid(),
   empresa_id    varchar NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
-  usuario_id    varchar REFERENCES users(id) ON DELETE SET NULL,
+  usuario_id    varchar REFERENCES usuarios(id) ON DELETE SET NULL,
   ferramenta    varchar(64) NOT NULL,
   parametros    jsonb NOT NULL,
   preview       jsonb NOT NULL,

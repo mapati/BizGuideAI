@@ -1,0 +1,144 @@
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
+import { Sparkles, ArrowRight, AlertTriangle, Cpu, BookOpen, Loader2 } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
+import type { AssistantAcao } from "@/components/AssistantChat";
+
+interface BriefingResponse {
+  deveAbrir: boolean;
+  mensagem: string | null;
+  acoes?: AssistantAcao[];
+  sinais?: { total: number };
+  fonte?: "ia" | "regra";
+}
+
+function buildHrefFromAcao(acao: AssistantAcao): string {
+  if (!acao.rota) return "";
+  const params = new URLSearchParams();
+  if (acao.tipo === "criar") params.set("novo", "1");
+  else if (acao.tipo === "editar" && acao.params?.id) params.set("editar", acao.params.id);
+  if (acao.params) {
+    for (const [k, v] of Object.entries(acao.params)) {
+      if (k === "id" && acao.tipo === "editar") continue;
+      params.set(k, v);
+    }
+  }
+  const qs = params.toString();
+  return qs ? `${acao.rota}?${qs}` : acao.rota;
+}
+
+function primeiraFrase(markdown: string): string {
+  const limpa = markdown
+    .replace(/[#*_`>\-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const idx = limpa.search(/[.!?]\s/);
+  if (idx > 40 && idx < 220) return limpa.slice(0, idx + 1);
+  return limpa.length > 200 ? `${limpa.slice(0, 197)}…` : limpa;
+}
+
+export function HomeBriefingCard() {
+  const { jornadaConcluida, isLoading: jornadaLoading } = useJornadaProgresso();
+  const enabled = !jornadaLoading && jornadaConcluida;
+
+  const { data, isLoading } = useQuery<BriefingResponse>({
+    queryKey: ["/api/ai/briefing-proativo"],
+    enabled,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  if (!enabled) return null;
+  if (isLoading) {
+    return (
+      <Card
+        className="p-5 border-violet-200 dark:border-violet-900/50 bg-gradient-to-br from-violet-500/5 via-indigo-500/5 to-transparent"
+        data-testid="card-home-briefing-loading"
+      >
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> Preparando seu briefing de hoje…
+        </div>
+      </Card>
+    );
+  }
+  if (!data?.mensagem) return null;
+
+  const resumo = primeiraFrase(data.mensagem);
+  const acoes = (data.acoes ?? []).slice(0, 2);
+  const fonte = data.fonte;
+
+  return (
+    <Card
+      className="overflow-hidden border-violet-200 dark:border-violet-900/50 bg-gradient-to-br from-violet-600 via-indigo-600 to-violet-700 text-white"
+      data-testid="card-home-briefing"
+    >
+      <div className="p-5 sm:p-6 flex gap-4 items-start">
+        <div className="h-11 w-11 rounded-md bg-white/15 backdrop-blur flex items-center justify-center shrink-0 border border-white/20">
+          <Sparkles className="h-5 w-5 text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+            <Badge className="bg-white text-violet-700 hover:bg-white text-[10px] uppercase tracking-wide">
+              Briefing de hoje
+            </Badge>
+            {fonte && (
+              <Badge
+                variant="secondary"
+                className="bg-white/15 text-white border-white/20 backdrop-blur gap-1 text-[10px]"
+                data-testid={`badge-home-briefing-fonte-${fonte}`}
+              >
+                {fonte === "ia" ? <Cpu className="h-2.5 w-2.5" /> : <BookOpen className="h-2.5 w-2.5" />}
+                via {fonte === "ia" ? "IA" : "regra"}
+              </Badge>
+            )}
+            {data.sinais && data.sinais.total > 0 && (
+              <Badge
+                variant="secondary"
+                className="bg-white/15 text-white border-white/20 backdrop-blur gap-1 text-[10px]"
+              >
+                <AlertTriangle className="h-2.5 w-2.5" /> {data.sinais.total} sina{data.sinais.total === 1 ? "l" : "is"}
+              </Badge>
+            )}
+          </div>
+          <p
+            className="text-base sm:text-lg font-medium leading-snug text-white"
+            data-testid="text-home-briefing-resumo"
+          >
+            {resumo}
+          </p>
+
+          <div className="flex flex-wrap items-center gap-2 mt-4">
+            {acoes.map((acao, idx) => {
+              const href = buildHrefFromAcao(acao);
+              if (!href || acao.tipo === "dispensar") return null;
+              return (
+                <Link key={`${acao.label}-${idx}`} href={href}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="bg-white/10 text-white border-white/30 backdrop-blur hover:bg-white/20"
+                    data-testid={`button-home-briefing-acao-${idx}`}
+                  >
+                    {acao.label}
+                  </Button>
+                </Link>
+              );
+            })}
+            <Link href="/assistente">
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-white hover:bg-white/10 gap-1.5"
+                data-testid="link-home-briefing-ver-mais"
+              >
+                Ver mais no Assistente <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}

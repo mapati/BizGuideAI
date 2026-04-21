@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueries, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { PulseMercado } from "@/components/PulseMercado";
+import { HomeBriefingCard } from "@/components/HomeBriefingCard";
 import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -505,6 +506,7 @@ export default function Home() {
           </div>
         </Card>
       )}
+      <HomeBriefingCard />
       <PulseMercado />
       {/* Performance Geral + OKRs por Perspectiva */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">

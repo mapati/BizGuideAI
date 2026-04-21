@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Loader2, CheckCircle2, XCircle, AlertTriangle, Pencil, Sparkles, History } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, AlertTriangle, Pencil, Sparkles, History, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Status = "proposta" | "confirmada" | "ajustada" | "ignorada" | "falhou";
@@ -36,6 +37,25 @@ const STATUS_BADGE: Record<Status, { label: string; className: string; icon: typ
   ignorada: { label: "ignorada", className: "", icon: XCircle },
   falhou: { label: "falhou", className: "bg-destructive text-destructive-foreground", icon: AlertTriangle },
 };
+
+// Mapeia entidadeTipo retornado pelas tools para a rota de detalhe correspondente.
+function rotaParaEntidade(tipo: string | null, id: string | null): string | null {
+  if (!tipo || !id) return null;
+  switch (tipo) {
+    case "iniciativa":
+      return `/iniciativas?editar=${id}`;
+    case "objetivo":
+    case "resultado_chave":
+      return `/okrs`;
+    case "indicador":
+    case "kpi_leitura":
+      return `/indicadores`;
+    case "navegacao":
+      return id;
+    default:
+      return null;
+  }
+}
 
 const FERRAMENTAS_LABEL: Record<string, string> = {
   criar_iniciativa: "Nova iniciativa",
@@ -130,12 +150,24 @@ export function PropostaHistorico() {
                 {p.preview?.descricao && (
                   <div className="text-xs text-muted-foreground line-clamp-2">{p.preview.descricao}</div>
                 )}
-                {p.entidadeTipo && p.entidadeId && (
-                  <div className="text-[11px] text-muted-foreground">
-                    Resultado: <code className="text-foreground">{p.entidadeTipo}</code>
-                    {" "}#{p.entidadeId.slice(0, 8)}
-                  </div>
-                )}
+                {p.entidadeTipo && p.entidadeId && (() => {
+                  const rota = rotaParaEntidade(p.entidadeTipo, p.entidadeId);
+                  return (
+                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                      <span>
+                        Resultado: <code className="text-foreground">{p.entidadeTipo}</code>
+                        {" "}#{p.entidadeId.slice(0, 8)}
+                      </span>
+                      {rota && (
+                        <Link href={rota} data-testid={`link-historico-entidade-${p.id}`}>
+                          <span className="inline-flex items-center gap-1 text-violet-600 hover:underline cursor-pointer">
+                            <ExternalLink className="h-3 w-3" /> abrir
+                          </span>
+                        </Link>
+                      )}
+                    </div>
+                  );
+                })()}
                 {p.mensagemErro && (
                   <div className="text-[11px] text-destructive">Erro: {p.mensagemErro}</div>
                 )}

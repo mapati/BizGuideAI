@@ -4066,7 +4066,11 @@ ${ctx.join("\n\n")}`;
   app.get("/api/ai/briefing-proativo", requireAuth, async (req, res) => {
     try {
       const empresaId = req.session.empresaId!;
-      const usuarioId = req.session.userId ?? null;
+      // Briefing diário é compartilhado entre toda a empresa: as propostas
+      // geradas a partir dele devem poder ser resolvidas por qualquer membro,
+      // não apenas pelo primeiro usuário que disparou a geração. Por isso
+      // passamos `usuarioId=null` em vez de `req.session.userId`.
+      const usuarioId: string | null = null;
       const hoje = dataDeHojeSP();
 
       // 1) Cache do dia: se existe, devolve sempre o MESMO briefing — a
@@ -4154,6 +4158,16 @@ ${ctx.join("\n\n")}`;
         empresaId,
         usuarioId
       );
+      // Persiste propostaIds imediatamente para garantir idempotência: se a UI
+      // recarregar antes do cache "envelhecer", a próxima requisição cai no
+      // branch de hidratação e não cria propostas duplicadas.
+      if (p2.length > 0) {
+        const novoConteudo: BriefingConteudo = {
+          ...gerado.conteudo,
+          propostaIds: p2.map((p) => p.logId),
+        };
+        await storage.upsertBriefingDiario(empresaId, hoje, novoConteudo, gerado.fonte);
+      }
       return res.json({
         deveAbrir: true,
         sinais: gerado.sinais,

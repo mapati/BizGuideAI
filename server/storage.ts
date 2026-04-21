@@ -1375,13 +1375,37 @@ export class DbStorage implements IStorage {
     plano: InsertPlanoAgentico,
     passos: Array<Omit<InsertPlanoAgenticoPasso, "planoId" | "empresaId">>,
   ): Promise<{ plano: PlanoAgentico; passos: PlanoAgenticoPasso[] }> {
-    let planoRow: PlanoAgentico;
+    // Atomicidade: INSERT do plano + INSERT dos passos numa única transação,
+    // eliminando na origem o cenário "count(passos) != totalPassos" que o
+    // self-healing (Task #194) só conseguia detectar 15 min depois.
+    // O avanço de passo (avancarPlanoAgenticoPorProposta) continua sem
+    // transação porque envolve chamada LLM no meio — o self-healing segue
+    // sendo a rede de proteção daquele caminho.
     try {
-      const inserted = await db
-        .insert(planoAgentico)
-        .values({ ...plano, totalPassos: passos.length })
-        .returning();
-      planoRow = inserted[0];
+      const resultado = await db.transaction(async (tx) => {
+        const [planoRow] = await tx
+          .insert(planoAgentico)
+          .values({ ...plano, totalPassos: passos.length })
+          .returning();
+        const inseridos: PlanoAgenticoPasso[] = [];
+        for (const p of passos) {
+          const [row] = await tx
+            .insert(planoAgenticoPasso)
+            .values({ ...p, planoId: planoRow.id, empresaId: planoRow.empresaId })
+            .returning();
+          inseridos.push(row);
+        }
+        return { plano: planoRow, passos: inseridos };
+      });
+      console.info("[PLANO-AGENTICO]", {
+        acao: "criar_plano_sucesso",
+        planoId: resultado.plano.id,
+        empresaId: resultado.plano.empresaId,
+        usuarioId: resultado.plano.usuarioId ?? null,
+        totalPassosEsperado: passos.length,
+        totalPassosPersistidos: resultado.passos.length,
+      });
+      return resultado;
     } catch (err: any) {
       // Task #190 — colisão com índice único parcial (status='ativo').
       // Pode ocorrer em concorrência: dois pedidos tentam criar plano ativo
@@ -1404,42 +1428,6 @@ export class DbStorage implements IStorage {
       });
       throw err;
     }
-    const inseridos: PlanoAgenticoPasso[] = [];
-    try {
-      for (const p of passos) {
-        const [row] = await db
-          .insert(planoAgenticoPasso)
-          .values({ ...p, planoId: planoRow.id, empresaId: planoRow.empresaId })
-          .returning();
-        inseridos.push(row);
-      }
-    } catch (err) {
-      // Task #194 — falha na inserção parcial dos passos é o cenário-raiz que
-      // o self-healing resolve (count != totalPassos). Aqui só registramos o
-      // gap para diagnóstico; o plano já existe e ficará marcado como
-      // estruturalmente inconsistente até o healing rodar.
-      console.error("[PLANO-AGENTICO]", {
-        acao: "criar_plano_passos_falha_parcial",
-        planoId: planoRow.id,
-        empresaId: planoRow.empresaId,
-        usuarioId: planoRow.usuarioId ?? null,
-        totalPassosEsperado: passos.length,
-        totalPassosPersistidos: inseridos.length,
-        erro: err instanceof Error ? err.message : String(err),
-      });
-      throw err;
-    }
-    // Task #194 — log estruturado: cobre o caso onde a inserção parcial falha
-    // entre o INSERT do plano e dos passos (count != totalPassos).
-    console.info("[PLANO-AGENTICO]", {
-      acao: "criar_plano_sucesso",
-      planoId: planoRow.id,
-      empresaId: planoRow.empresaId,
-      usuarioId: planoRow.usuarioId ?? null,
-      totalPassosEsperado: passos.length,
-      totalPassosPersistidos: inseridos.length,
-    });
-    return { plano: planoRow, passos: inseridos };
   }
 
   async getPlanoAgentico(id: string): Promise<PlanoAgentico | undefined> {

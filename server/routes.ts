@@ -3881,6 +3881,26 @@ ${ctx.join("\n\n")}`;
     const refreshed = await storage.getPlanoAgenticoComPassos(planoId);
     if (!refreshed || refreshed.plano.empresaId !== empresaId || refreshed.plano.status !== "ativo") return null;
     const planoRow = refreshed.plano;
+
+    // Garante 1 passo em voo: se existe passo em_andamento, devolve a proposta
+    // pendente vinculada (sem criar nova) — respeita o contrato "um passo por vez".
+    const emAndamento = refreshed.passos.find((p) => p.status === "em_andamento");
+    if (emAndamento && emAndamento.propostaId) {
+      const log = await storage.getPropostaLog(emAndamento.propostaId);
+      const proximas = log && log.status === "proposta" ? [{
+        logId: log.id,
+        ferramenta: log.ferramenta,
+        preview: log.preview,
+        parametros: log.parametros as Record<string, unknown>,
+      }] : [];
+      return {
+        plano: refreshed,
+        proximasPropostas: proximas,
+        mensagem: `O passo ${emAndamento.ordem} ("${emAndamento.titulo}") já está em andamento. Conclua ou ignore a proposta atual antes de avançar.`,
+        finalizado: false,
+      };
+    }
+
     const proxPendente = refreshed.passos.find((p) => p.status === "pendente");
 
     if (!proxPendente) {
@@ -4041,7 +4061,12 @@ INSTRUÇÕES:
       const userId = req.session.userId!;
       const limite = Math.min(Number(req.query.limit ?? 20), 100);
       const todos = await storage.listPlanosAgenticosByEmpresa(empresaId, { limite });
-      const planos = todos.filter((p) => podeVerPlano(p, { empresaId, userId }));
+      const visiveis = todos.filter((p) => podeVerPlano(p, { empresaId, userId }));
+      // Ativos primeiro; concluídos/cancelados depois (mantém ordem original).
+      const planos = [
+        ...visiveis.filter((p) => p.status === "ativo"),
+        ...visiveis.filter((p) => p.status !== "ativo"),
+      ];
       res.json({ planos });
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
@@ -4119,9 +4144,9 @@ INSTRUÇÕES:
   });
 
   // ─── Task #189 — Helper: rollback do passo se proposta não foi confirmada ───
-  // Quando uma proposta vinculada a um passo é ignorada/ajustada/falha, o passo
-  // estava em `em_andamento`; precisa voltar para `pendente` (e limpar
-  // propostaId) para que o loop possa re-propor uma nova ação.
+  // Quando uma proposta vinculada a um passo é ajustada/falha, o passo estava
+  // em `em_andamento`; precisa voltar para `pendente` (e limpar propostaId)
+  // para que o loop possa re-propor uma nova ação.
   async function rollbackPassoIfVinculado(propostaId: string): Promise<void> {
     try {
       const passo = await storage.getPassoByPropostaId(propostaId);
@@ -4134,6 +4159,49 @@ INSTRUÇÕES:
       }
     } catch (err) {
       console.warn("[PLANO-AGENTICO] rollback passo falhou:", err);
+    }
+  }
+
+  // Quando o usuário IGNORA uma proposta vinculada a um passo, marcamos o
+  // passo como `pulado` (estado terminal) e disparamos a continuação do plano
+  // — exigência do contrato HITL "confirmar OU ignorar continua o plano".
+  async function pularPassoEContinuar(
+    propostaId: string,
+    empresaId: string,
+    usuarioId: string,
+  ): Promise<{
+    plano: { plano: PlanoAgentico; passos: PlanoAgenticoPasso[] } | null;
+    passoConcluidoOrdem: number;
+    proximasPropostas: Array<{ logId: string; ferramenta: string; preview: unknown; parametros: Record<string, unknown> }>;
+    mensagem: string;
+    finalizado: boolean;
+  } | null> {
+    try {
+      const passo = await storage.getPassoByPropostaId(propostaId);
+      if (!passo) return null;
+      if (passo.status === "em_andamento") {
+        await storage.updatePlanoAgenticoPasso(passo.id, {
+          status: "pulado",
+          resolvidoEm: new Date(),
+        });
+      }
+      const cont = await proporProximoPassoDoPlano(passo.planoId, empresaId, usuarioId, {
+        passoOrdem: passo.ordem,
+        passoTitulo: passo.titulo,
+        ferramenta: "(usuário ignorou a proposta)",
+        resultado: { ignorado: true },
+      });
+      if (!cont) return null;
+      return {
+        plano: cont.plano,
+        passoConcluidoOrdem: passo.ordem,
+        proximasPropostas: cont.proximasPropostas,
+        mensagem: cont.mensagem,
+        finalizado: cont.finalizado,
+      };
+    } catch (err) {
+      console.warn("[PLANO-AGENTICO] pularPassoEContinuar falhou:", err);
+      return null;
     }
   }
 
@@ -4243,8 +4311,9 @@ INSTRUÇÕES:
         status: "ignorada",
         resolvidoEm: new Date(),
       });
-      await rollbackPassoIfVinculado(log.id);
-      res.json({ ok: true, log: updated });
+      // Task #189: ignorar passo vinculado também avança o plano (passo → pulado).
+      const continuacao = await pularPassoEContinuar(log.id, empresaId, userId);
+      res.json({ ok: true, log: updated, continuacao });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       res.status(500).json({ error: message });

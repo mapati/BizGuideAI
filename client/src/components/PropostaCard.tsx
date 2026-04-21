@@ -148,9 +148,14 @@ export function PropostaCard({
   const handleIgnorar = async () => {
     setSubmitting("ignorar");
     try {
-      await apiRequest("POST", `/api/ai/proposta/${logId}/ignorar`, {});
+      const r = (await apiRequest("POST", `/api/ai/proposta/${logId}/ignorar`, {})) as {
+        ok: true;
+        continuacao?: ContinuacaoPlano | null;
+      };
       setEstado("ignorada");
-      queryClient.invalidateQueries({ queryKey: ["/api/ai/propostas"] });
+      const queries = ["/api/ai/propostas", "/api/ai/planos", "/api/ai/planos/ativo"];
+      for (const q of queries) queryClient.invalidateQueries({ queryKey: [q] });
+      if (r.continuacao && onContinuacao) onContinuacao(r.continuacao);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       toast({ title: "Erro ao ignorar", description: msg, variant: "destructive" });

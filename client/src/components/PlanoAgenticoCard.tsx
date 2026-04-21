@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Circle, Loader2, Target, X, ChevronDown, ChevronUp, PlayCircle, ArrowRight } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import type { ContinuacaoPlano } from "@/components/PropostaCard";
 
 export interface PlanoAgenticoPassoView {
   id: string;
@@ -34,11 +35,7 @@ export function PlanoAgenticoCard({
   passos: PlanoAgenticoPassoView[];
   compacto?: boolean;
   onCancelado?: () => void;
-  onContinuacao?: (cont: {
-    proximasPropostas: Array<{ logId: string; ferramenta: string; preview: unknown; parametros: Record<string, unknown> }>;
-    mensagem: string;
-    finalizado: boolean;
-  }) => void;
+  onContinuacao?: (cont: ContinuacaoPlano) => void;
 }) {
   const { toast } = useToast();
   const [expandido, setExpandido] = useState(!compacto);
@@ -48,8 +45,7 @@ export function PlanoAgenticoCard({
   const handleAvancar = async () => {
     setAvancando(true);
     try {
-      const res = await apiRequest("POST", `/api/ai/planos/${plano.id}/avancar`, {});
-      const json = await res.json();
+      const json = await apiRequest("POST", `/api/ai/planos/${plano.id}/avancar`, {});
       queryClient.invalidateQueries({ queryKey: ["/api/ai/planos"] });
       queryClient.invalidateQueries({ queryKey: ["/api/ai/planos/ativo"] });
       if (json?.continuacao) {

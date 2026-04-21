@@ -309,6 +309,7 @@ export function AssistantChat({
             passos={planoAtivo.passos}
             compacto
             onCancelado={() => planoAtivoQuery.refetch()}
+            onContinuacao={handleContinuacao}
           />
         )}
         {messages.map((msg, i) => (

@@ -4094,7 +4094,32 @@ INSTRUÇÕES:
       if (!full || !podeVerPlano(full.plano, { empresaId, userId })) {
         return res.status(404).json({ error: "Plano não encontrado." });
       }
-      res.json({ plano: full.plano, passos: full.passos });
+      // Enriquece cada passo com a proposta vinculada (status, ferramenta,
+      // resumo) para a timeline/UI conseguir mostrar o histórico HITL.
+      const passosComProposta = await Promise.all(
+        full.passos.map(async (p) => {
+          if (!p.propostaId) return { ...p, proposta: null };
+          try {
+            const log = await storage.getPropostaLog(p.propostaId);
+            return {
+              ...p,
+              proposta: log
+                ? {
+                    id: log.id,
+                    ferramenta: log.ferramenta,
+                    status: log.status,
+                    preview: log.preview,
+                    resumoResultado: (log.resultado as { resumo?: string } | null)?.resumo ?? null,
+                    resolvidoEm: log.resolvidoEm,
+                  }
+                : null,
+            };
+          } catch {
+            return { ...p, proposta: null };
+          }
+        }),
+      );
+      res.json({ plano: full.plano, passos: passosComProposta });
     } catch (error) {
       res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
     }

@@ -228,7 +228,7 @@ function AppLayout() {
   const showUpgradeBanner = trialInfo?.planoStatus === "ativo" && (empresa?.planoTipo === "start" || !empresa?.planoTipo);
 
   return (
-    <SidebarProvider style={style as React.CSSProperties}>
+    <SidebarProvider defaultOpen={false} style={style as React.CSSProperties}>
       <div className="flex h-screen w-full flex-col">
         {showTrialBanner && trialInfo.diasRestantes !== null && (
           <TrialStatusBanner diasRestantes={trialInfo.diasRestantes} />

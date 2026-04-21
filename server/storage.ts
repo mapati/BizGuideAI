@@ -275,7 +275,7 @@ export interface IStorage {
   // Task #188 — Propostas (tool calls) do Assistente
   createPropostaLog(input: InsertAssistenteAcaoLog): Promise<AssistenteAcaoLog>;
   getPropostaLog(id: string): Promise<AssistenteAcaoLog | undefined>;
-  updatePropostaLog(id: string, patch: Partial<Pick<AssistenteAcaoLog, "status" | "resultado" | "mensagemErro" | "parametros" | "preview" | "resolvidoEm">>): Promise<AssistenteAcaoLog>;
+  updatePropostaLog(id: string, patch: Partial<Pick<AssistenteAcaoLog, "status" | "resultado" | "mensagemErro" | "parametros" | "preview" | "resolvidoEm" | "entidadeTipo" | "entidadeId">>): Promise<AssistenteAcaoLog>;
   listPropostasByEmpresa(empresaId: string, limite?: number): Promise<AssistenteAcaoLog[]>;
 }
 
@@ -1299,7 +1299,7 @@ export class DbStorage implements IStorage {
 
   async updatePropostaLog(
     id: string,
-    patch: Partial<Pick<AssistenteAcaoLog, "status" | "resultado" | "mensagemErro" | "parametros" | "preview" | "resolvidoEm">>
+    patch: Partial<Pick<AssistenteAcaoLog, "status" | "resultado" | "mensagemErro" | "parametros" | "preview" | "resolvidoEm" | "entidadeTipo" | "entidadeId">>
   ): Promise<AssistenteAcaoLog> {
     const [row] = await db.update(assistenteAcaoLog).set(patch).where(eq(assistenteAcaoLog.id, id)).returning();
     return row;
@@ -1314,18 +1314,19 @@ export class DbStorage implements IStorage {
       .limit(limite);
   }
 
-  // Reserva atomicamente uma proposta `pendente` para execução: vira `aplicando`.
+  // Reserva atomicamente uma proposta `proposta` para execução: vira `confirmada`.
+  // Em caso de falha do apply o caller transiciona explicitamente para `falhou`.
   // Retorna a linha se conseguiu reservar; null se já estava em outro estado
   // (evita corrida em duplo-clique no botão Confirmar).
   async claimPropostaPendente(id: string, empresaId: string): Promise<AssistenteAcaoLog | null> {
     const [row] = await db
       .update(assistenteAcaoLog)
-      .set({ status: "aplicando" })
+      .set({ status: "confirmada" })
       .where(
         and(
           eq(assistenteAcaoLog.id, id),
           eq(assistenteAcaoLog.empresaId, empresaId),
-          eq(assistenteAcaoLog.status, "pendente")
+          eq(assistenteAcaoLog.status, "proposta")
         )
       )
       .returning();

@@ -642,13 +642,20 @@ export const assistenteAcaoLog = pgTable("assistente_acao_log", {
   ferramenta: text("ferramenta").notNull(),
   parametros: jsonb("parametros").notNull(),
   preview: jsonb("preview").notNull(),
-  status: text("status").notNull().default("pendente"), // pendente|aplicado|ignorado|erro|ajustado
+  // Status conforme contrato HITL: proposta|confirmada|ajustada|ignorada|falhou
+  status: text("status").notNull().default("proposta"),
+  // Entidade resultante (preenchida após confirmação bem-sucedida).
+  entidadeTipo: text("entidade_tipo"), // iniciativa|objetivo|resultado_chave|indicador|kpi_leitura|navegacao
+  entidadeId: text("entidade_id"),
   resultado: jsonb("resultado"),
   origem: text("origem").notNull().default("chat"), // chat|briefing
   mensagemErro: text("mensagem_erro"),
   criadoEm: timestamp("criado_em").defaultNow().notNull(),
   resolvidoEm: timestamp("resolvido_em"),
 });
+
+export const propostaStatusEnum = z.enum(["proposta", "confirmada", "ajustada", "ignorada", "falhou"]);
+export type PropostaStatus = z.infer<typeof propostaStatusEnum>;
 export type AssistenteAcaoLog = typeof assistenteAcaoLog.$inferSelect;
 export const insertAssistenteAcaoLogSchema = createInsertSchema(assistenteAcaoLog).omit({
   id: true,
@@ -667,6 +674,7 @@ export const propostaPreviewSchema = z.object({
   })).default([]),
   ctaConfirmar: z.string().default("Confirmar"),
   ctaIgnorar: z.string().default("Ignorar"),
+  ctaAjustar: z.string().default("Ajustar"),
 });
 export type PropostaPreview = z.infer<typeof propostaPreviewSchema>;
 

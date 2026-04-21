@@ -11,6 +11,7 @@ export type ToolName =
   | "criar_iniciativa"
   | "atualizar_iniciativa"
   | "criar_okr"
+  | "atualizar_okr"
   | "atualizar_progresso_kr"
   | "criar_indicador"
   | "atualizar_valor_indicador"
@@ -21,10 +22,20 @@ export interface ToolApplyContext {
   usuarioId?: string | null;
 }
 
+export type EntidadeTipo =
+  | "iniciativa"
+  | "objetivo"
+  | "resultado_chave"
+  | "indicador"
+  | "kpi_leitura"
+  | "navegacao";
+
 export interface ToolApplyResult {
   resumo: string;
   dados?: Record<string, unknown>;
   rota?: string;
+  entidadeTipo?: EntidadeTipo;
+  entidadeId?: string;
 }
 
 export interface ToolDefinition<TParams> {
@@ -34,6 +45,9 @@ export interface ToolDefinition<TParams> {
   jsonSchema: Record<string, unknown>;
   preview: (params: TParams) => PropostaPreview;
   apply: (params: TParams, ctx: ToolApplyContext) => Promise<ToolApplyResult>;
+  // Rota de formulário tradicional para o fluxo "Ajustar" (HITL).
+  // O usuário é levado a essa rota com os params atuais para edição manual.
+  formRota: string;
 }
 
 // ---------- Helpers ----------
@@ -97,6 +111,7 @@ const criarIniciativa: ToolDefinition<CriarIniciativaParams> = {
     ].filter(Boolean) as { label: string; valor: string }[],
     ctaConfirmar: "Criar iniciativa",
     ctaIgnorar: "Agora não",
+    ctaAjustar: "Ajustar",
   }),
   apply: async (p, ctx) => {
     // Validação de tenant para FK opcional: se estrategiaId vier, precisa
@@ -122,8 +137,11 @@ const criarIniciativa: ToolDefinition<CriarIniciativaParams> = {
       resumo: `Iniciativa "${created.titulo}" criada.`,
       dados: { id: created.id },
       rota: "/iniciativas",
+      entidadeTipo: "iniciativa",
+      entidadeId: created.id,
     };
   },
+  formRota: "/iniciativas",
 };
 
 // ---------- 2. atualizar_iniciativa ----------
@@ -170,6 +188,7 @@ const atualizarIniciativa: ToolDefinition<AtualizarIniciativaParams> = {
     ].filter(Boolean) as { label: string; valor: string }[],
     ctaConfirmar: "Aplicar mudanças",
     ctaIgnorar: "Manter como está",
+    ctaAjustar: "Ajustar",
   }),
   apply: async (p, ctx) => {
     const existing = await storage.getIniciativa(p.id);
@@ -188,8 +207,11 @@ const atualizarIniciativa: ToolDefinition<AtualizarIniciativaParams> = {
       resumo: `Iniciativa "${updated.titulo}" atualizada.`,
       dados: { id: updated.id },
       rota: "/iniciativas",
+      entidadeTipo: "iniciativa",
+      entidadeId: updated.id,
     };
   },
+  formRota: "/iniciativas",
 };
 
 // ---------- 3. criar_okr ----------
@@ -259,6 +281,7 @@ const criarOkr: ToolDefinition<CriarOkrParams> = {
     ],
     ctaConfirmar: "Criar OKR",
     ctaIgnorar: "Agora não",
+    ctaAjustar: "Ajustar",
   }),
   apply: async (p, ctx) => {
     const objetivo = await storage.createObjetivo({
@@ -286,10 +309,72 @@ const criarOkr: ToolDefinition<CriarOkrParams> = {
     }
     return {
       resumo: `OKR "${objetivo.titulo}" criado com ${krsCriados.length} KR(s).`,
-      dados: { objetivoId: objetivo.id, kraIds: krsCriados },
+      dados: { objetivoId: objetivo.id, krIds: krsCriados },
       rota: "/okrs",
+      entidadeTipo: "objetivo",
+      entidadeId: objetivo.id,
     };
   },
+  formRota: "/okrs",
+};
+
+// ---------- 3b. atualizar_okr ----------
+const atualizarOkrSchema = z.object({
+  objetivoId: z.string().min(8),
+  titulo: z.string().min(3).max(200).optional(),
+  descricao: z.string().max(800).optional(),
+  perspectiva: z.enum(PERSPECTIVAS_BSC).optional(),
+  prazo: z.string().min(4).max(32).optional(),
+});
+type AtualizarOkrParams = z.infer<typeof atualizarOkrSchema>;
+
+const atualizarOkr: ToolDefinition<AtualizarOkrParams> = {
+  name: "atualizar_okr",
+  description:
+    "Atualiza campos de um Objetivo (OKR) existente — título, descrição, perspectiva ou prazo. Use quando o usuário aprovar mudança de planejamento de meta.",
+  paramsSchema: atualizarOkrSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["objetivoId"],
+    properties: {
+      objetivoId: { type: "string", description: "ID real do objetivo (OKR)" },
+      titulo: { type: "string" },
+      descricao: { type: "string" },
+      perspectiva: { type: "string", enum: [...PERSPECTIVAS_BSC] },
+      prazo: { type: "string" },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Atualizar OKR",
+    descricao: "Vamos ajustar o objetivo selecionado.",
+    campos: [
+      strField("ID", p.objetivoId),
+      strField("Novo título", p.titulo),
+      strField("Perspectiva", p.perspectiva),
+      strField("Prazo", p.prazo),
+      strField("Descrição", p.descricao),
+    ].filter(Boolean) as { label: string; valor: string }[],
+    ctaConfirmar: "Aplicar mudanças",
+    ctaIgnorar: "Manter como está",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const patch: Record<string, unknown> = {};
+    if (p.titulo) patch.titulo = p.titulo;
+    if (p.descricao !== undefined) patch.descricao = p.descricao;
+    if (p.perspectiva) patch.perspectiva = p.perspectiva;
+    if (p.prazo) patch.prazo = p.prazo;
+    const updated = await storage.updateObjetivo(p.objetivoId, ctx.empresaId, patch);
+    return {
+      resumo: `OKR "${updated.titulo}" atualizado.`,
+      dados: { id: updated.id },
+      rota: "/okrs",
+      entidadeTipo: "objetivo",
+      entidadeId: updated.id,
+    };
+  },
+  formRota: "/okrs",
 };
 
 // ---------- 4. atualizar_progresso_kr ----------
@@ -324,6 +409,7 @@ const atualizarProgressoKr: ToolDefinition<AtualizarProgressoKrParams> = {
     ],
     ctaConfirmar: "Atualizar KR",
     ctaIgnorar: "Cancelar",
+    ctaAjustar: "Ajustar",
   }),
   apply: async (p, ctx) => {
     const updated = await storage.updateResultadoChave(p.resultadoChaveId, ctx.empresaId, {
@@ -333,8 +419,11 @@ const atualizarProgressoKr: ToolDefinition<AtualizarProgressoKrParams> = {
       resumo: `KR atualizado para ${updated.valorAtual}.`,
       dados: { id: updated.id, valorAtual: updated.valorAtual },
       rota: "/okrs",
+      entidadeTipo: "resultado_chave",
+      entidadeId: updated.id,
     };
   },
+  formRota: "/okrs",
 };
 
 // ---------- 5. criar_indicador ----------
@@ -377,6 +466,7 @@ const criarIndicador: ToolDefinition<CriarIndicadorParams> = {
     ],
     ctaConfirmar: "Criar indicador",
     ctaIgnorar: "Agora não",
+    ctaAjustar: "Ajustar",
   }),
   apply: async (p, ctx) => {
     const created = await storage.createIndicador({
@@ -392,8 +482,11 @@ const criarIndicador: ToolDefinition<CriarIndicadorParams> = {
       resumo: `Indicador "${created.nome}" criado.`,
       dados: { id: created.id },
       rota: "/indicadores",
+      entidadeTipo: "indicador",
+      entidadeId: created.id,
     };
   },
+  formRota: "/indicadores",
 };
 
 // ---------- 6. atualizar_valor_indicador ----------
@@ -428,6 +521,7 @@ const atualizarValorIndicador: ToolDefinition<AtualizarValorIndicadorParams> = {
     ],
     ctaConfirmar: "Registrar leitura",
     ctaIgnorar: "Cancelar",
+    ctaAjustar: "Ajustar",
   }),
   apply: async (p, ctx) => {
     const indicador = await storage.getIndicador(p.indicadorId);
@@ -445,8 +539,11 @@ const atualizarValorIndicador: ToolDefinition<AtualizarValorIndicadorParams> = {
       resumo: `Leitura registrada (${p.valor}) para ${indicador.nome}.`,
       dados: { indicadorId: p.indicadorId, valor: p.valor },
       rota: "/indicadores",
+      entidadeTipo: "kpi_leitura",
+      entidadeId: p.indicadorId,
     };
   },
+  formRota: "/indicadores",
 };
 
 // ---------- 7. navegar_para ----------
@@ -476,14 +573,18 @@ const navegarPara: ToolDefinition<NavegarParaParams> = {
     campos: [{ label: "Rota", valor: p.rota }],
     ctaConfirmar: "Abrir agora",
     ctaIgnorar: "Mais tarde",
+    ctaAjustar: "Ajustar",
   }),
   apply: async (p) => {
     return {
       resumo: `Navegar para ${p.rota}.`,
       dados: { rota: p.rota },
       rota: p.rota,
+      entidadeTipo: "navegacao",
+      entidadeId: p.rota,
     };
   },
+  formRota: "/dashboard",
 };
 
 // ---------- Registry ----------
@@ -492,6 +593,7 @@ export const TOOLS: Record<ToolName, ToolDefinition<any>> = {
   criar_iniciativa: criarIniciativa,
   atualizar_iniciativa: atualizarIniciativa,
   criar_okr: criarOkr,
+  atualizar_okr: atualizarOkr,
   atualizar_progresso_kr: atualizarProgressoKr,
   criar_indicador: criarIndicador,
   atualizar_valor_indicador: atualizarValorIndicador,
@@ -550,7 +652,7 @@ export async function registrarProposta(opts: {
     ferramenta: tool.name,
     parametros: parsed.data as Record<string, unknown>,
     preview: preview as unknown as Record<string, unknown>,
-    status: "pendente",
+    status: "proposta",
     origem: opts.origem ?? "chat",
   });
 

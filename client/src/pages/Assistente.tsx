@@ -13,6 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { AssistantChat, type AssistantAcao } from "@/components/AssistantChat";
 import { AssistantMarkdown } from "@/components/AssistantMarkdown";
+import { PropostaHistorico } from "@/components/PropostaHistorico";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useAssistantStatus } from "@/hooks/useAssistantStatus";
 import { cn } from "@/lib/utils";
 
@@ -297,23 +299,33 @@ export default function Assistente() {
         </Card>
       </div>
 
-      {/* CHAT — ancorado abaixo */}
+      {/* CHAT + HISTÓRICO — ancorados abaixo */}
       <Card className="overflow-hidden" data-testid="card-conversa-assistente">
-        <CardHeader className="pb-3 border-b">
-          <div className="flex items-center gap-2">
-            <MessageSquare className="h-4 w-4 text-violet-600" />
-            <CardTitle className="text-base">Conversa com o assistente</CardTitle>
-            <Badge variant="secondary" className="ml-auto text-xs gap-1">
-              <ShieldAlert className="h-3 w-3" /> Contexto: dados da sua empresa
-            </Badge>
-          </div>
-        </CardHeader>
-        <div className="h-[520px] flex flex-col">
-          <AssistantChat
-            alertas={alertas}
-            proactiveMessage={proactive}
-          />
-        </div>
+        <Tabs defaultValue="chat" className="w-full">
+          <CardHeader className="pb-3 border-b">
+            <div className="flex items-center gap-3 flex-wrap">
+              <MessageSquare className="h-4 w-4 text-violet-600" />
+              <CardTitle className="text-base">Conversa com o assistente</CardTitle>
+              <TabsList className="ml-auto" data-testid="tabs-assistente">
+                <TabsTrigger value="chat" data-testid="tab-chat">Chat</TabsTrigger>
+                <TabsTrigger value="historico" data-testid="tab-historico">Histórico</TabsTrigger>
+              </TabsList>
+              <Badge variant="secondary" className="text-xs gap-1">
+                <ShieldAlert className="h-3 w-3" /> Contexto: dados da sua empresa
+              </Badge>
+            </div>
+          </CardHeader>
+          <TabsContent value="chat" className="m-0">
+            <div className="h-[520px] flex flex-col">
+              <AssistantChat alertas={alertas} proactiveMessage={proactive} />
+            </div>
+          </TabsContent>
+          <TabsContent value="historico" className="m-0">
+            <div className="h-[520px] flex flex-col">
+              <PropostaHistorico />
+            </div>
+          </TabsContent>
+        </Tabs>
       </Card>
     </div>
   );

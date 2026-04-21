@@ -3864,26 +3864,45 @@ ${ctx.join("\n\n")}`;
   });
 
   // ─── Task #188 — Endpoints HITL (confirmar/ignorar/ajustar proposta) ───
+  // Helper: garante que o usuário da sessão pode atuar sobre a proposta.
+  // Regras: a proposta deve ser da mesma empresa; se foi gerada com usuarioId
+  // explícito (chat individual), só o próprio dono pode confirmar/ignorar/ajustar.
+  // Propostas com usuarioId=null (briefing diário, multi-usuário) podem ser
+  // resolvidas por qualquer membro da empresa.
+  function podeAtuarNaProposta(
+    log: { empresaId: string; usuarioId: string | null },
+    sessao: { empresaId: string; userId: string }
+  ): boolean {
+    if (log.empresaId !== sessao.empresaId) return false;
+    if (log.usuarioId && log.usuarioId !== sessao.userId) return false;
+    return true;
+  }
+
   app.post("/api/ai/proposta/:logId/confirmar", requireAuth, async (req, res) => {
     try {
       const empresaId = req.session.empresaId!;
-      const usuarioId = req.session.userId ?? null;
+      const userId = req.session.userId!;
 
-      // Reserva atômica: só uma requisição consegue passar de `pendente` para `aplicando`.
+      // Pré-check de ownership antes da reserva atômica.
+      const existente = await storage.getPropostaLog(req.params.logId);
+      if (!existente || !podeAtuarNaProposta(existente, { empresaId, userId })) {
+        return res.status(404).json({ error: "Proposta não encontrada." });
+      }
+      if (existente.status !== "proposta") {
+        return res.status(409).json({ error: `Proposta já está ${existente.status}.`, status: existente.status });
+      }
+
+      // Reserva atômica: única requisição passa de `proposta` para `confirmada`.
       const log = await storage.claimPropostaPendente(req.params.logId, empresaId);
       if (!log) {
-        // Pode ser inexistente, de outra empresa, ou já resolvida — devolve 409 idempotente
-        const existente = await storage.getPropostaLog(req.params.logId);
-        if (!existente || existente.empresaId !== empresaId) {
-          return res.status(404).json({ error: "Proposta não encontrada." });
-        }
-        return res.status(409).json({ error: `Proposta já está ${existente.status}.`, status: existente.status });
+        const atual = await storage.getPropostaLog(req.params.logId);
+        return res.status(409).json({ error: `Proposta já está ${atual?.status ?? "indisponível"}.`, status: atual?.status });
       }
 
       const tool = getTool(log.ferramenta);
       if (!tool) {
         await storage.updatePropostaLog(log.id, {
-          status: "erro",
+          status: "falhou",
           mensagemErro: "Ferramenta desconhecida.",
           resolvidoEm: new Date(),
         });
@@ -3893,7 +3912,7 @@ ${ctx.join("\n\n")}`;
       const parsed = tool.paramsSchema.safeParse(log.parametros);
       if (!parsed.success) {
         await storage.updatePropostaLog(log.id, {
-          status: "erro",
+          status: "falhou",
           mensagemErro: parsed.error.message.slice(0, 500),
           resolvidoEm: new Date(),
         });
@@ -3901,17 +3920,19 @@ ${ctx.join("\n\n")}`;
       }
 
       try {
-        const result = await tool.apply(parsed.data, { empresaId, usuarioId });
+        const result = await tool.apply(parsed.data, { empresaId, usuarioId: userId });
         const updated = await storage.updatePropostaLog(log.id, {
-          status: "aplicado",
+          status: "confirmada",
           resultado: result as unknown as Record<string, unknown>,
+          entidadeTipo: result.entidadeTipo ?? null,
+          entidadeId: result.entidadeId ?? null,
           resolvidoEm: new Date(),
         });
         res.json({ ok: true, log: updated, resultado: result });
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         await storage.updatePropostaLog(log.id, {
-          status: "erro",
+          status: "falhou",
           mensagemErro: msg.slice(0, 500),
           resolvidoEm: new Date(),
         });
@@ -3926,11 +3947,16 @@ ${ctx.join("\n\n")}`;
   app.post("/api/ai/proposta/:logId/ignorar", requireAuth, async (req, res) => {
     try {
       const empresaId = req.session.empresaId!;
+      const userId = req.session.userId!;
       const log = await storage.getPropostaLog(req.params.logId);
-      if (!log || log.empresaId !== empresaId) return res.status(404).json({ error: "Proposta não encontrada." });
-      if (log.status !== "pendente") return res.status(400).json({ error: `Proposta já está ${log.status}.` });
+      if (!log || !podeAtuarNaProposta(log, { empresaId, userId })) {
+        return res.status(404).json({ error: "Proposta não encontrada." });
+      }
+      if (log.status !== "proposta") {
+        return res.status(409).json({ error: `Proposta já está ${log.status}.`, status: log.status });
+      }
       const updated = await storage.updatePropostaLog(log.id, {
-        status: "ignorado",
+        status: "ignorada",
         resolvidoEm: new Date(),
       });
       res.json({ ok: true, log: updated });
@@ -3940,28 +3966,34 @@ ${ctx.join("\n\n")}`;
     }
   });
 
+  // Ajustar = marcar a proposta como `ajustada` (não será aplicada
+  // automaticamente) e devolver os parâmetros + rota do formulário tradicional
+  // para o usuário editar manualmente. Não confirma nem aplica nada.
   app.post("/api/ai/proposta/:logId/ajustar", requireAuth, async (req, res) => {
     try {
       const empresaId = req.session.empresaId!;
+      const userId = req.session.userId!;
       const log = await storage.getPropostaLog(req.params.logId);
-      if (!log || log.empresaId !== empresaId) return res.status(404).json({ error: "Proposta não encontrada." });
-      if (log.status !== "pendente") return res.status(400).json({ error: `Proposta já está ${log.status}.` });
-
+      if (!log || !podeAtuarNaProposta(log, { empresaId, userId })) {
+        return res.status(404).json({ error: "Proposta não encontrada." });
+      }
+      if (log.status !== "proposta") {
+        return res.status(409).json({ error: `Proposta já está ${log.status}.`, status: log.status });
+      }
       const tool = getTool(log.ferramenta);
       if (!tool) return res.status(400).json({ error: "Ferramenta desconhecida." });
 
-      const novos = req.body?.parametros ?? {};
-      const merged = { ...(log.parametros as Record<string, unknown>), ...novos };
-      const parsed = tool.paramsSchema.safeParse(merged);
-      if (!parsed.success) {
-        return res.status(400).json({ error: "Parâmetros inválidos.", detalhe: parsed.error.message.slice(0, 300) });
-      }
-      const novoPreview = tool.preview(parsed.data);
       const updated = await storage.updatePropostaLog(log.id, {
-        parametros: parsed.data as Record<string, unknown>,
-        preview: novoPreview as unknown as Record<string, unknown>,
+        status: "ajustada",
+        resolvidoEm: new Date(),
       });
-      res.json({ ok: true, log: updated, preview: novoPreview });
+      res.json({
+        ok: true,
+        log: updated,
+        formRota: tool.formRota,
+        parametros: log.parametros,
+        ferramenta: log.ferramenta,
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       res.status(500).json({ error: message });
@@ -3972,7 +4004,12 @@ ${ctx.join("\n\n")}`;
     try {
       const empresaId = req.session.empresaId!;
       const limite = Math.min(Number(req.query.limit ?? 50), 200);
-      const propostas = await storage.listPropostasByEmpresa(empresaId, limite);
+      const statusFiltro = typeof req.query.status === "string" ? req.query.status : undefined;
+      let propostas = await storage.listPropostasByEmpresa(empresaId, limite);
+      if (statusFiltro) {
+        const aceitos = new Set(statusFiltro.split(","));
+        propostas = propostas.filter((p) => aceitos.has(p.status));
+      }
       res.json({ propostas });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -4056,7 +4093,7 @@ ${ctx.join("\n\n")}`;
           if (parsed.data.propostaIds && parsed.data.propostaIds.length > 0) {
             const logs = await storage.listPropostasByIds(parsed.data.propostaIds);
             propostas = logs
-              .filter((l) => l.empresaId === empresaId && l.status === "pendente")
+              .filter((l) => l.empresaId === empresaId && l.status === "proposta")
               .map((l) => ({
                 logId: l.id,
                 ferramenta: l.ferramenta,

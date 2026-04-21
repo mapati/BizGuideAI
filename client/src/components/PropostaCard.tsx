@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, XCircle, Loader2, Sparkles, AlertTriangle } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, Sparkles, AlertTriangle, Pencil } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -13,6 +13,7 @@ export interface PropostaPreview {
   campos: Array<{ label: string; valor: string }>;
   ctaConfirmar?: string;
   ctaIgnorar?: string;
+  ctaAjustar?: string;
 }
 
 export interface Proposta {
@@ -22,12 +23,13 @@ export interface Proposta {
   parametros: Record<string, unknown>;
 }
 
-type Estado = "pendente" | "aplicado" | "ignorado" | "erro";
+type Estado = "proposta" | "confirmada" | "ignorada" | "ajustada" | "falhou";
 
 const FERRAMENTAS_LABEL: Record<string, string> = {
   criar_iniciativa: "Nova iniciativa",
   atualizar_iniciativa: "Atualizar iniciativa",
   criar_okr: "Novo OKR",
+  atualizar_okr: "Atualizar OKR",
   atualizar_progresso_kr: "Atualizar KR",
   criar_indicador: "Novo indicador",
   atualizar_valor_indicador: "Registrar leitura",
@@ -37,11 +39,11 @@ const FERRAMENTAS_LABEL: Record<string, string> = {
 export function PropostaCard({ proposta }: { proposta: Proposta }) {
   const [, navigate] = useLocation();
   const { toast } = useToast();
-  const [estado, setEstado] = useState<Estado>("pendente");
+  const [estado, setEstado] = useState<Estado>("proposta");
   const [erro, setErro] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState<"confirmar" | "ignorar" | null>(null);
+  const [submitting, setSubmitting] = useState<"confirmar" | "ignorar" | "ajustar" | null>(null);
 
-  const { logId, ferramenta, preview } = proposta;
+  const { logId, ferramenta, preview, parametros } = proposta;
 
   const handleConfirmar = async () => {
     setSubmitting("confirmar");
@@ -51,22 +53,17 @@ export function PropostaCard({ proposta }: { proposta: Proposta }) {
         ok: true;
         resultado: { resumo: string; rota?: string };
       };
-      setEstado("aplicado");
-      toast({
-        title: "Ação aplicada",
-        description: r.resultado?.resumo ?? "Concluído.",
-      });
-      // invalida caches relacionados ao tipo de objeto criado/alterado
-      const queries = ["/api/iniciativas", "/api/objetivos", "/api/indicadores", "/api/meu-painel/resumo"];
+      setEstado("confirmada");
+      toast({ title: "Ação aplicada", description: r.resultado?.resumo ?? "Concluído." });
+      const queries = ["/api/iniciativas", "/api/objetivos", "/api/indicadores", "/api/meu-painel/resumo", "/api/ai/propostas"];
       for (const q of queries) queryClient.invalidateQueries({ queryKey: [q] });
       if (r.resultado?.rota) {
-        // opcional: levar o usuário até a página afetada
         setTimeout(() => navigate(r.resultado.rota!), 600);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setErro(msg);
-      setEstado("erro");
+      setEstado("falhou");
       toast({ title: "Não foi possível aplicar", description: msg, variant: "destructive" });
     } finally {
       setSubmitting(null);
@@ -77,10 +74,44 @@ export function PropostaCard({ proposta }: { proposta: Proposta }) {
     setSubmitting("ignorar");
     try {
       await apiRequest("POST", `/api/ai/proposta/${logId}/ignorar`, {});
-      setEstado("ignorado");
+      setEstado("ignorada");
+      queryClient.invalidateQueries({ queryKey: ["/api/ai/propostas"] });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       toast({ title: "Erro ao ignorar", description: msg, variant: "destructive" });
+    } finally {
+      setSubmitting(null);
+    }
+  };
+
+  // Ajustar = marca proposta como `ajustada` no log e leva o usuário ao
+  // formulário tradicional da entidade, com os parâmetros sugeridos passados
+  // por sessionStorage para pré-preenchimento opcional pela página destino.
+  const handleAjustar = async () => {
+    setSubmitting("ajustar");
+    try {
+      const r = (await apiRequest("POST", `/api/ai/proposta/${logId}/ajustar`, {})) as {
+        ok: true;
+        formRota: string;
+        parametros: Record<string, unknown>;
+        ferramenta: string;
+      };
+      setEstado("ajustada");
+      try {
+        sessionStorage.setItem(
+          `proposta-ajuste:${r.ferramenta}`,
+          JSON.stringify({ logId, parametros: r.parametros, recebidoEm: Date.now() })
+        );
+      } catch { /* ignora se sessionStorage não disponível */ }
+      queryClient.invalidateQueries({ queryKey: ["/api/ai/propostas"] });
+      toast({
+        title: "Vamos ajustar",
+        description: "Abrindo o formulário com os campos sugeridos.",
+      });
+      setTimeout(() => navigate(r.formRota), 400);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast({ title: "Erro ao ajustar", description: msg, variant: "destructive" });
     } finally {
       setSubmitting(null);
     }
@@ -98,19 +129,24 @@ export function PropostaCard({ proposta }: { proposta: Proposta }) {
               <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
                 {FERRAMENTAS_LABEL[ferramenta] ?? ferramenta}
               </Badge>
-              {estado === "aplicado" && (
+              {estado === "confirmada" && (
                 <Badge className="bg-emerald-600 text-white hover:bg-emerald-600 gap-1 text-[10px]">
-                  <CheckCircle2 className="h-2.5 w-2.5" /> aplicado
+                  <CheckCircle2 className="h-2.5 w-2.5" /> confirmada
                 </Badge>
               )}
-              {estado === "ignorado" && (
+              {estado === "ignorada" && (
                 <Badge variant="outline" className="gap-1 text-[10px]">
-                  <XCircle className="h-2.5 w-2.5" /> ignorado
+                  <XCircle className="h-2.5 w-2.5" /> ignorada
                 </Badge>
               )}
-              {estado === "erro" && (
+              {estado === "ajustada" && (
+                <Badge variant="outline" className="gap-1 text-[10px]">
+                  <Pencil className="h-2.5 w-2.5" /> ajustada
+                </Badge>
+              )}
+              {estado === "falhou" && (
                 <Badge className="bg-destructive text-destructive-foreground gap-1 text-[10px]">
-                  <AlertTriangle className="h-2.5 w-2.5" /> erro
+                  <AlertTriangle className="h-2.5 w-2.5" /> falhou
                 </Badge>
               )}
             </div>
@@ -138,7 +174,7 @@ export function PropostaCard({ proposta }: { proposta: Proposta }) {
           </div>
         )}
 
-        {estado === "pendente" && (
+        {estado === "proposta" && (
           <div className="flex gap-2 flex-wrap pt-0.5">
             <Button
               size="sm"
@@ -153,6 +189,21 @@ export function PropostaCard({ proposta }: { proposta: Proposta }) {
                 <CheckCircle2 className="h-3.5 w-3.5" />
               )}
               {preview.ctaConfirmar ?? "Confirmar"}
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={handleAjustar}
+              disabled={submitting !== null}
+              data-testid={`button-proposta-ajustar-${logId}`}
+              className="gap-1.5"
+            >
+              {submitting === "ajustar" ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Pencil className="h-3.5 w-3.5" />
+              )}
+              {preview.ctaAjustar ?? "Ajustar"}
             </Button>
             <Button
               size="sm"

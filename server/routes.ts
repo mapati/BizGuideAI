@@ -5,7 +5,7 @@ import { isJornadaConcluida } from "./jornada-helper";
 import { sendVerificationEmail, sendPasswordResetEmail, getEmailDiagnostics } from "./email";
 import { runNotificationEngine, detectarSinaisCriticos, type EngineReport } from "./notification-engine";
 import { runBriefingDiarioScheduler, gerarEPersistirBriefing, dataDeHojeSP } from "./briefing-engine";
-import { openai, AI_MODELS, loadModelConfig, getModelForPlan, buildEmpresaContextoIA } from "./ai-helpers";
+import { openai, AI_MODELS, loadModelConfig, getModelForPlan, buildEmpresaContextoIA, buildAcoesRecentesContextoIA } from "./ai-helpers";
 import { TOOLS, getTool, toOpenAITools, registrarProposta } from "./assistant-tools";
 import { criarAssinatura, buscarAssinatura, cancelarAssinatura, buscarPagamento, motivoLegivel, validarAssinaturaWebhook, PLANOS_MP, type PlanoTipo, type MpSubscription, type MpPayment } from "./mp";
 import { randomBytes, createHash } from "crypto";
@@ -3732,6 +3732,9 @@ Responda OBRIGATORIAMENTE em JSON:
         }
       }
 
+      const acoesRecentesTxt = await buildAcoesRecentesContextoIA(empresaId, { sinceDays: 7 });
+      if (acoesRecentesTxt) ctx.push(acoesRecentesTxt);
+
       const systemPrompt = `Você é o Assistente Estratégico do BizGuideAI, um consultor sênior de estratégia empresarial para PMEs brasileiras.
 
 Você tem acesso completo aos dados da empresa abaixo e a um conjunto de ferramentas (function tools) que executam ações reais quando o usuário aprovar.
@@ -3749,6 +3752,15 @@ QUANDO USAR FERRAMENTAS (tool calls):
 - Se a ação envolver um item existente (atualizar iniciativa/KR/indicador), use SOMENTE IDs reais que aparecem nos dados.
 - Se a melhor coisa for apenas abrir uma página, use a ferramenta "navegar_para".
 - Se a pergunta for analítica ou aberta (ex.: "como estão meus OKRs?"), responda só em texto, sem chamar ferramenta.
+
+MEMÓRIA E "DAR BAIXA":
+- ANTES de propor qualquer ação, leia o bloco "AÇÕES RECENTES DO ASSISTENTE" se existir e siga as REGRAS DE MEMÓRIA listadas lá. Não repita propostas já executadas, ajustadas ou ignoradas.
+- Quando o usuário disser que algo já foi resolvido/concluído (ex.: "já fiz a iniciativa X", "esse problema do KPI Y já está resolvido", "marca isso como feito"), proponha a atualização correspondente via ferramenta:
+  • iniciativa concluída → atualizar_iniciativa com status "concluida"
+  • iniciativa pausada/cancelada → atualizar_iniciativa com status "pausada"
+  • KPI atingiu meta ou novo valor → atualizar_valor_indicador
+  • progresso de KR avançou → atualizar_progresso_kr
+- Reconheça explicitamente no texto o que está sendo "dado baixa" antes de chamar a ferramenta.
 
 FERRAMENTAS DISPONÍVEIS: criar_iniciativa, atualizar_iniciativa, criar_okr, atualizar_okr, atualizar_progresso_kr, criar_indicador, atualizar_valor_indicador, navegar_para.
 

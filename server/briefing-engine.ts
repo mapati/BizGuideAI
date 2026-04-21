@@ -9,7 +9,7 @@
 import { storage } from "./storage";
 import { detectarSinaisCriticos, type SinaisCriticos } from "./notification-engine";
 import { isJornadaConcluida } from "./jornada-helper";
-import { openai, getModelForPlan, buildEmpresaContextoIA } from "./ai-helpers";
+import { openai, getModelForPlan, buildEmpresaContextoIA, buildAcoesRecentesContextoIA } from "./ai-helpers";
 import {
   briefingConteudoSchema,
   type BriefingConteudo,
@@ -259,7 +259,15 @@ export async function gerarBriefingParaEmpresa(
   // Tendências simples
   const tendencias = await tendenciaKpisVermelhos(sinais);
 
-  const prompt = montarPromptIA({ empresa, sinais, briefingOntemTexto, tendencias });
+  // Memória do assistente: ações já propostas/confirmadas/ignoradas nos últimos 7 dias.
+  let acoesRecentesTxt = "";
+  try {
+    acoesRecentesTxt = await buildAcoesRecentesContextoIA(empresaId, { sinceDays: 7 });
+  } catch {
+    /* ignorar — memória é best-effort */
+  }
+
+  const prompt = montarPromptIA({ empresa, sinais, briefingOntemTexto, tendencias, acoesRecentesTxt });
 
   try {
     const completion = await openai.chat.completions.create({
@@ -301,8 +309,9 @@ function montarPromptIA(args: {
   sinais: SinaisCriticos;
   briefingOntemTexto: string;
   tendencias: Array<{ id: string; nome: string; tendencia: string }>;
+  acoesRecentesTxt?: string;
 }): { system: string; user: string } {
-  const { empresa, sinais, briefingOntemTexto, tendencias } = args;
+  const { empresa, sinais, briefingOntemTexto, tendencias, acoesRecentesTxt = "" } = args;
   const perfil = buildEmpresaContextoIA(empresa, { includeDocument: false });
 
   const system = `Você é um consultor sênior de gestão estratégica falando diretamente com o dono ou CEO de uma PME brasileira. Seu papel é redigir um BRIEFING DIÁRIO curto, priorizado e acionável, em português do Brasil, no tom de um sócio experiente — direto, calmo, sem jargão e sem floreio.
@@ -314,6 +323,7 @@ REGRAS DE FORMATO (obrigatórias):
 - Sempre sugira o PRÓXIMO PASSO concreto da prioridade principal.
 - Use APENAS números, nomes e IDs que aparecem nos dados fornecidos. Não invente métricas.
 - Compare brevemente com o briefing de ontem: se a situação está igual, reconheça isso (ex.: "mesmo cenário de ontem"); se mudou, explicite.
+- Considere as AÇÕES RECENTES DO ASSISTENTE: se algo já foi proposto e CONFIRMADO/EXECUTADO, NÃO repita como se fosse novo — reconheça o avanço (ex.: "a iniciativa criada ontem está em andamento"). Se algo foi IGNORADO, evite ressuscitar a mesma sugestão. Se há proposta PENDENTE de confirmação, lembre-a brevemente.
 
 SAÍDA: responda APENAS com um objeto JSON válido (sem markdown ao redor) com este formato:
 {
@@ -351,7 +361,7 @@ ${tendenciasJson}
 ## Briefing de ontem (para evitar repetição literal)
 ${briefingOntemTexto}
 
-Gere agora o briefing de hoje seguindo estritamente o formato JSON definido.`;
+${acoesRecentesTxt ? acoesRecentesTxt + "\n\n" : ""}Gere agora o briefing de hoje seguindo estritamente o formato JSON definido.`;
 
   return { system, user };
 }

@@ -5,7 +5,7 @@
 
 import OpenAI from "openai";
 import { storage } from "./storage";
-import type { Empresa } from "@shared/schema";
+import type { Empresa, AssistenteAcaoLog } from "@shared/schema";
 
 export const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -63,4 +63,77 @@ export function buildEmpresaContextoIA(empresa: Empresa, options?: { includeDocu
     linhas.push(empresa.documentoInterpretacao);
   }
   return linhas.join("\n");
+}
+
+/**
+ * Busca as ações recentes do assistente (últimos N dias) e devolve um bloco
+ * de texto pronto para injetar no contexto da IA. Permite que o agente
+ * "lembre" do que já foi proposto/confirmado/ignorado e evite repetir
+ * sugestões já tratadas.
+ */
+export async function buildAcoesRecentesContextoIA(
+  empresaId: string,
+  opts: { sinceDays?: number; limite?: number } = {}
+): Promise<string> {
+  const sinceDays = opts.sinceDays ?? 7;
+  const limite = opts.limite ?? 30;
+  const desde = Date.now() - sinceDays * 24 * 60 * 60 * 1000;
+
+  const todas = await storage.listPropostasByEmpresa(empresaId, 80);
+  const recentes = todas
+    .filter((l) => new Date(l.criadoEm).getTime() >= desde)
+    .slice(0, limite);
+
+  if (recentes.length === 0) return "";
+
+  const fmtStatus: Record<string, string> = {
+    proposta: "PENDENTE (aguardando confirmação do usuário)",
+    confirmada: "JÁ EXECUTADA",
+    ajustada: "AJUSTADA pelo usuário e executada",
+    ignorada: "IGNORADA pelo usuário",
+    falhou: "FALHOU na execução",
+  };
+
+  const linhas = recentes.map((l) => {
+    const preview = (l.preview ?? {}) as { titulo?: string; descricao?: string };
+    const titulo = preview.titulo ?? l.ferramenta;
+    const data = new Date(l.criadoEm).toISOString().slice(0, 10);
+    const statusTxt = fmtStatus[l.status] ?? l.status;
+    const entidade = l.entidadeId ? ` → ${l.entidadeTipo ?? "entidade"}#${l.entidadeId}` : "";
+    return `- [${data}] ${l.ferramenta}: "${titulo}" — ${statusTxt}${entidade}`;
+  });
+
+  return `## AÇÕES RECENTES DO ASSISTENTE (últimos ${sinceDays} dias)
+${linhas.join("\n")}
+
+REGRA DE MEMÓRIA:
+- Não proponha de novo ações JÁ EXECUTADAS ou AJUSTADAS — elas já estão feitas.
+- Não ressuscite ações IGNORADAS recentemente, a menos que o usuário peça explicitamente.
+- Se uma ação está PENDENTE, lembre o usuário para confirmá-la em vez de propor outra equivalente.
+- Se o usuário disser que algo já foi feito (ex.: "já resolvi o KPI X", "concluí a iniciativa Y"), use as ferramentas de atualização (atualizar_iniciativa com status "concluida"/"pausada", atualizar_valor_indicador, atualizar_progresso_kr) para refletir isso no sistema.`;
+}
+
+/** Versão sem dependência de fetch para ser injetada quando os logs já foram carregados. */
+export function formatAcoesRecentesContextoIA(
+  logs: AssistenteAcaoLog[],
+  sinceDays: number = 7,
+): string {
+  if (logs.length === 0) return "";
+  const fmtStatus: Record<string, string> = {
+    proposta: "PENDENTE (aguardando confirmação do usuário)",
+    confirmada: "JÁ EXECUTADA",
+    ajustada: "AJUSTADA pelo usuário e executada",
+    ignorada: "IGNORADA pelo usuário",
+    falhou: "FALHOU na execução",
+  };
+  const linhas = logs.map((l) => {
+    const preview = (l.preview ?? {}) as { titulo?: string; descricao?: string };
+    const titulo = preview.titulo ?? l.ferramenta;
+    const data = new Date(l.criadoEm).toISOString().slice(0, 10);
+    const statusTxt = fmtStatus[l.status] ?? l.status;
+    const entidade = l.entidadeId ? ` → ${l.entidadeTipo ?? "entidade"}#${l.entidadeId}` : "";
+    return `- [${data}] ${l.ferramenta}: "${titulo}" — ${statusTxt}${entidade}`;
+  });
+  return `## AÇÕES RECENTES DO ASSISTENTE (últimos ${sinceDays} dias)
+${linhas.join("\n")}`;
 }

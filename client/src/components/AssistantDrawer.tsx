@@ -11,7 +11,6 @@ import type { AssistantAcao } from "@/components/AssistantChat";
 interface AssistantDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  pagina: string | null;
   alertas: Alerta[];
   modo: "guia" | "assistente";
   progresso: JornadaProgresso;
@@ -24,7 +23,6 @@ interface AssistantDrawerProps {
 export function AssistantDrawer({
   isOpen,
   onClose,
-  pagina,
   alertas,
   modo,
   progresso,

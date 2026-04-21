@@ -103,7 +103,6 @@ export function AIAssistant() {
           setIsOpen(false);
           setShowUnlock(false);
         }}
-        pagina={pagina}
         alertas={alertas}
         modo={modo}
         progresso={progresso}

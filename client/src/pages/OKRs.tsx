@@ -652,7 +652,7 @@ export default function OKRs() {
         />
       )}
       <PageHeader
-        title="Metas e Resultados"
+        title="Objetivos e Metas"
         description="Defina onde quer chegar e como vai medir o progresso. Cada objetivo tem métricas de acompanhamento com prazo definido."
         tooltip="Metas ambiciosas com prazo e progresso mensurável (0–100%). Diferente dos Indicadores, que monitoram a saúde contínua do negócio com status verde/amarelo/vermelho."
         action={

@@ -35,7 +35,7 @@ const apostasItems = [
 ];
 
 const marchaItems = [
-  { title: "Metas e Resultados", url: "/okrs", icon: Target, jornadaId: "okrs" },
+  { title: "Objetivos e Metas", url: "/okrs", icon: Target, jornadaId: "okrs" },
   { title: "Indicadores", url: "/indicadores", icon: BarChart3, jornadaId: "indicadores" },
   { title: "Acompanhamento", url: "/ritos", icon: CheckCircle, jornadaId: "acompanhamento" },
 ];

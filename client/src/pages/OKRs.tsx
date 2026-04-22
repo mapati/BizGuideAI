@@ -591,6 +591,10 @@ export default function OKRs() {
     await criarResultadoMutation.mutateAsync({
       objetivoId: objetivoSelecionado.id,
       ...novoResultado,
+      // valor_atual é NOT NULL no banco; quando o usuário (ou o Assistente
+      // via "ajustar") não informa, assume o valor inicial — o KR começa
+      // com 0% de progresso, o que é o comportamento esperado.
+      valorAtual: novoResultado.valorAtual?.trim() ? novoResultado.valorAtual : novoResultado.valorInicial,
     });
 
     setNovoResultado({

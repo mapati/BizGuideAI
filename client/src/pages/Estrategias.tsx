@@ -456,6 +456,7 @@ export default function Estrategias() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSavingCandidatas, setIsSavingCandidatas] = useState(false);
   const [isPreGenOpen, setIsPreGenOpen] = useState(false);
+  const [generationController, setGenerationController] = useState<AbortController | null>(null);
   const [formData, setFormData] = useState({
     tipo: "",
     titulo: "",
@@ -647,14 +648,27 @@ export default function Estrategias() {
     setIsGenerating(true);
     setIsPreGenOpen(false);
     setIsPickerOpen(true);
+    const controller = new AbortController();
+    setGenerationController(controller);
     try {
-      const response = await apiRequest("POST", "/api/ai/gerar-estrategias", {
-        empresaId: empresa.id,
-        quantidadePorQuadrante: params.quantidadePorQuadrante,
-        quadrantesSelecionados: params.quadrantesSelecionados,
-        instrucaoAdicional: params.instrucaoAdicional,
-        fontesContexto: params.fontesContexto,
+      const res = await fetch("/api/ai/gerar-estrategias", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        signal: controller.signal,
+        body: JSON.stringify({
+          empresaId: empresa.id,
+          quantidadePorQuadrante: params.quantidadePorQuadrante,
+          quadrantesSelecionados: params.quadrantesSelecionados,
+          instrucaoAdicional: params.instrucaoAdicional,
+          fontesContexto: params.fontesContexto,
+        }),
       });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+      const response = await res.json();
       const candidatasRecebidas: Candidata[] = response.candidatas ?? [];
       if (candidatasRecebidas.length === 0) {
         toast({ title: "Sem candidatas", description: "A IA não retornou candidatas. Tente novamente.", variant: "destructive" });
@@ -663,10 +677,22 @@ export default function Estrategias() {
         setCandidatas(candidatasRecebidas);
       }
     } catch (error: any) {
-      toast({ title: "Erro ao gerar estratégias", description: error.message, variant: "destructive" });
-      setIsPickerOpen(false);
+      if (error?.name === "AbortError") {
+        toast({ title: "Geração cancelada", description: "A criação do cardápio foi interrompida." });
+        setIsPickerOpen(false);
+      } else {
+        toast({ title: "Erro ao gerar estratégias", description: error.message, variant: "destructive" });
+        setIsPickerOpen(false);
+      }
     } finally {
       setIsGenerating(false);
+      setGenerationController(null);
+    }
+  };
+
+  const handleAbortGeneration = () => {
+    if (generationController) {
+      generationController.abort();
     }
   };
 
@@ -818,6 +844,7 @@ export default function Estrategias() {
         open={isPickerOpen}
         onClose={() => { setIsPickerOpen(false); setCandidatas([]); }}
         onSave={handleSaveCandidatas}
+        onAbort={handleAbortGeneration}
         candidatas={candidatas}
         isLoading={isGenerating}
         isSaving={isSavingCandidatas}

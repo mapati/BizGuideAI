@@ -3,7 +3,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowUpRight, Shield, TrendingUp, AlertCircle, Sparkles, Tag } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { ArrowUpRight, Shield, TrendingUp, AlertCircle, Sparkles, Tag, CheckCircle2, Circle, X } from "lucide-react";
 import { Loader2 } from "lucide-react";
 
 interface Candidata {
@@ -21,10 +22,21 @@ interface StrategyPickerProps {
   open: boolean;
   onClose: () => void;
   onSave: (selecionadas: Candidata[]) => void;
+  onAbort?: () => void;
   candidatas: Candidata[];
   isLoading: boolean;
   isSaving: boolean;
 }
+
+const ETAPAS_GERACAO = [
+  { label: "Preparando contexto da empresa", durationMs: 5000 },
+  { label: "Analisando suas Forças e Fraquezas", durationMs: 8000 },
+  { label: "Cruzando com Oportunidades e Ameaças", durationMs: 10000 },
+  { label: "Gerando estratégias FO, FA, DO e DA", durationMs: 14000 },
+  { label: "Validando e organizando o cardápio", durationMs: 8000 },
+] as const;
+
+const TOTAL_DURATION = ETAPAS_GERACAO.reduce((acc, e) => acc + e.durationMs, 0);
 
 const TIPO_CONFIG = {
   FO: {
@@ -65,8 +77,9 @@ const TIPO_CONFIG = {
   },
 };
 
-export function StrategyPicker({ open, onClose, onSave, candidatas, isLoading, isSaving }: StrategyPickerProps) {
+export function StrategyPicker({ open, onClose, onSave, onAbort, candidatas, isLoading, isSaving }: StrategyPickerProps) {
   const [selecionadas, setSelecionadas] = useState<Set<number>>(new Set());
+  const [elapsedMs, setElapsedMs] = useState(0);
 
   useEffect(() => {
     if (open && candidatas.length > 0) {
@@ -76,6 +89,36 @@ export function StrategyPicker({ open, onClose, onSave, candidatas, isLoading, i
       setSelecionadas(preSelected);
     }
   }, [open, candidatas]);
+
+  // Avança um cronômetro durante o carregamento para alimentar a barra de
+  // progresso simulada. Limita em ~95% até a resposta real chegar.
+  useEffect(() => {
+    if (!open || !isLoading) {
+      setElapsedMs(0);
+      return;
+    }
+    const start = Date.now();
+    const id = window.setInterval(() => {
+      setElapsedMs(Date.now() - start);
+    }, 250);
+    return () => window.clearInterval(id);
+  }, [open, isLoading]);
+
+  const progressPct = isLoading
+    ? Math.min(95, Math.round((elapsedMs / TOTAL_DURATION) * 95))
+    : 100;
+
+  let etapaAtualIndex = 0;
+  let acc = 0;
+  for (let i = 0; i < ETAPAS_GERACAO.length; i++) {
+    acc += ETAPAS_GERACAO[i].durationMs;
+    if (elapsedMs < acc) {
+      etapaAtualIndex = i;
+      break;
+    }
+    etapaAtualIndex = ETAPAS_GERACAO.length - 1;
+  }
+  if (!isLoading) etapaAtualIndex = ETAPAS_GERACAO.length;
 
   const toggle = (index: number) => {
     setSelecionadas(prev => {
@@ -112,9 +155,70 @@ export function StrategyPicker({ open, onClose, onSave, candidatas, isLoading, i
         </DialogHeader>
 
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-4">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            <p className="text-muted-foreground text-sm">Gerando candidatas com IA...</p>
+          <div className="py-6 space-y-6" data-testid="cardapio-progress">
+            <div className="flex items-center gap-3">
+              <Loader2 className="h-5 w-5 animate-spin text-primary flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium">
+                  Construindo o cardápio de estratégias…
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Isso pode levar alguns segundos. Você pode interromper a qualquer momento.
+                </p>
+              </div>
+              <span className="text-sm font-semibold tabular-nums text-muted-foreground" data-testid="text-progress-pct">
+                {progressPct}%
+              </span>
+            </div>
+
+            <Progress value={progressPct} className="h-2" data-testid="progress-cardapio" />
+
+            <ol className="space-y-2.5">
+              {ETAPAS_GERACAO.map((etapa, i) => {
+                const concluida = i < etapaAtualIndex;
+                const ativa = i === etapaAtualIndex;
+                return (
+                  <li
+                    key={etapa.label}
+                    className="flex items-center gap-3"
+                    data-testid={`etapa-cardapio-${i}`}
+                    data-state={concluida ? "done" : ativa ? "active" : "pending"}
+                  >
+                    {concluida ? (
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+                    ) : ativa ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-primary flex-shrink-0" />
+                    ) : (
+                      <Circle className="h-4 w-4 text-muted-foreground/40 flex-shrink-0" />
+                    )}
+                    <span
+                      className={
+                        concluida
+                          ? "text-sm text-muted-foreground line-through"
+                          : ativa
+                          ? "text-sm font-medium"
+                          : "text-sm text-muted-foreground"
+                      }
+                    >
+                      {etapa.label}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+
+            {onAbort && (
+              <div className="flex justify-end pt-2 border-t">
+                <Button
+                  variant="outline"
+                  onClick={onAbort}
+                  data-testid="button-abortar-cardapio"
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Abortar geração
+                </Button>
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-6 py-2">

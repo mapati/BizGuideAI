@@ -14,6 +14,7 @@ import {
   projetarValorKr,
   contarAtualizacoesKr,
   comparePeriodos,
+  carregarKrsDaEmpresa,
   montarConteudoPauta,
   type EscopoComparacao,
   type PeriodoIso,
@@ -2274,6 +2275,12 @@ const READONLY_TOOL_NAMES = [
   "projetar_kr",
   "simular_impacto",
   "comparar_periodos",
+  // Task #285 — Diagnóstico ativo do plano (read-only puras).
+  "analisar_gap_meta_vs_realizado",
+  "detectar_lacunas_cascata",
+  "detectar_objetivos_descarrilados",
+  "analisar_consistencia_estrategica",
+  "sumarizar_ciclo_atual",
 ] as const;
 export type ReadonlyToolName = typeof READONLY_TOOL_NAMES[number];
 
@@ -2307,6 +2314,21 @@ const compararPeriodosSchema = z.object({
   periodoA: periodoSchema,
   periodoB: periodoSchema,
 });
+
+// --- Task #285: Diagnóstico ativo do plano ---
+const analisarGapSchema = z.object({
+  tipo: z.enum(["kpi", "kr", "objetivo"]),
+  id: z.string().min(8),
+});
+const detectarLacunasCascataSchema = z.object({}).strict();
+const detectarDescarriladosSchema = z.object({
+  diasSemCheckin: z.number().int().min(1).max(365).optional(),
+  pctMinimo: z.number().min(0).max(100).optional(),
+}).strict();
+const consistenciaEstrategicaSchema = z.object({}).strict();
+const sumarizarCicloSchema = z.object({
+  dataReferencia: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+}).strict();
 
 export const READONLY_TOOLS_OPENAI = [
   {
@@ -2396,6 +2418,73 @@ export const READONLY_TOOLS_OPENAI = [
               fim: { type: "string", description: "Data ISO YYYY-MM-DD." },
             },
           },
+        },
+      },
+    },
+  },
+  // ─── Task #285 — Diagnóstico ativo do plano (read-only) ───
+  {
+    type: "function" as const,
+    function: {
+      name: "analisar_gap_meta_vs_realizado",
+      description:
+        "Diagnostica o gap entre meta e realizado de UMA entidade (KPI, KR ou Objetivo). Devolve valor atual, meta, gap absoluto e %, dias até o prazo, projeção linear (para KR/Objetivo), dias desde a última leitura/check-in e uma lista de causas prováveis ('sem leitura há 45 dias', 'tendência caindo', 'iniciativa vinculada parada/atrasada'). Use quando o usuário perguntar 'por que esse KPI/KR/objetivo não está batendo?' ou 'qual o gap?'. NÃO sugira ligar KR a KPI como defeito — são camadas independentes.",
+      parameters: {
+        type: "object",
+        additionalProperties: false,
+        required: ["tipo", "id"],
+        properties: {
+          tipo: { type: "string", enum: ["kpi", "kr", "objetivo"] },
+          id: { type: "string", description: "ID da entidade analisada (use buscar_entidade_por_nome se só souber o nome)." },
+        },
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "detectar_lacunas_cascata",
+      description:
+        "Varre toda a empresa e devolve listas determinísticas de itens órfãos na cascata BSC: iniciativas sem objetivo vinculado, objetivos sem KR, KPIs sem nenhuma iniciativa atacando e estratégias sem iniciativa. KR sem indicadorFonteId NÃO é defeito — é rastreabilidade voluntária e aparece apenas como contagem informativa. Use quando o usuário perguntar 'o que está solto no meu plano?' ou 'tem coisa órfã?'. Cap de 10 itens por categoria.",
+      parameters: { type: "object", additionalProperties: false, properties: {} },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "detectar_objetivos_descarrilados",
+      description:
+        "Lista objetivos não-encerrados que estão descarrilados por DOIS critérios objetivos: (a) % médio dos KRs abaixo de 30% OU (b) sem nenhum check-in de KR há mais de 21 dias. Devolve para cada objetivo o pctMedio, o KR mais atrasado, dias desde o último check-in e o motivo do flag. Use quando o usuário perguntar 'quais objetivos estão em risco?' ou 'o que precisa de atenção?'. Cap de 10.",
+      parameters: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          diasSemCheckin: { type: "integer", minimum: 1, maximum: 365, description: "Override do limiar de dias sem check-in (default 21)." },
+          pctMinimo: { type: "number", minimum: 0, maximum: 100, description: "Override do % médio mínimo aceitável (default 30)." },
+        },
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "analisar_consistencia_estrategica",
+      description:
+        "Avalia a consistência do encadeamento Estratégia → Objetivo → Iniciativa → KPI/KR. Para cada estratégia conta nº de objetivos vinculados, nº de iniciativas vinculadas e nº de iniciativas que tocam algum KPI (via indicadorFonteId). Sinaliza furos: estratégia sem nenhuma iniciativa, estratégia sem nenhum objetivo, estratégia com iniciativas mas nenhuma toca KPI, objetivo sem iniciativa atacando. Use para perguntas tipo 'a execução está conectada à estratégia?' ou 'tem estratégia no papel sem ação?'.",
+      parameters: { type: "object", additionalProperties: false, properties: {} },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "sumarizar_ciclo_atual",
+      description:
+        "Resumo executivo do trimestre vigente (ou do trimestre da `dataReferencia` informada): % de iniciativas concluídas no período, nº de check-ins de KR registrados, nº de decisões estratégicas registradas, top 3 conquistas (iniciativas concluídas + KRs com maior avanço) e top 3 atrasos (iniciativas com prazo vencido em aberto). Use quando o usuário pedir 'me dá o status do trimestre' / 'resume o ciclo' / 'fechamento do quarter'.",
+      parameters: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          dataReferencia: { type: "string", description: "Data ISO YYYY-MM-DD para definir o trimestre. Default = hoje." },
         },
       },
     },
@@ -2670,10 +2759,583 @@ export async function executarFerramentaReadonly(
       return { ok: true, ferramenta: name, dados: r.resultado as unknown as Record<string, unknown> };
     }
 
+    // ─── Task #285 — Diagnóstico ativo do plano ───
+    if (name === "analisar_gap_meta_vs_realizado") {
+      const parsed = analisarGapSchema.safeParse(rawArgs ?? {});
+      if (!parsed.success) return { ok: false, ferramenta: name, mensagem: `Parâmetros inválidos: ${parsed.error.message.slice(0, 200)}` };
+      return { ok: true, ferramenta: name, dados: await runAnalisarGap(parsed.data, ctx.empresaId) };
+    }
+    if (name === "detectar_lacunas_cascata") {
+      const parsed = detectarLacunasCascataSchema.safeParse(rawArgs ?? {});
+      if (!parsed.success) return { ok: false, ferramenta: name, mensagem: `Parâmetros inválidos: ${parsed.error.message.slice(0, 200)}` };
+      return { ok: true, ferramenta: name, dados: await runDetectarLacunasCascata(ctx.empresaId) };
+    }
+    if (name === "detectar_objetivos_descarrilados") {
+      const parsed = detectarDescarriladosSchema.safeParse(rawArgs ?? {});
+      if (!parsed.success) return { ok: false, ferramenta: name, mensagem: `Parâmetros inválidos: ${parsed.error.message.slice(0, 200)}` };
+      return { ok: true, ferramenta: name, dados: await runDetectarDescarrilados(ctx.empresaId, parsed.data) };
+    }
+    if (name === "analisar_consistencia_estrategica") {
+      const parsed = consistenciaEstrategicaSchema.safeParse(rawArgs ?? {});
+      if (!parsed.success) return { ok: false, ferramenta: name, mensagem: `Parâmetros inválidos: ${parsed.error.message.slice(0, 200)}` };
+      return { ok: true, ferramenta: name, dados: await runConsistenciaEstrategica(ctx.empresaId) };
+    }
+    if (name === "sumarizar_ciclo_atual") {
+      const parsed = sumarizarCicloSchema.safeParse(rawArgs ?? {});
+      if (!parsed.success) return { ok: false, ferramenta: name, mensagem: `Parâmetros inválidos: ${parsed.error.message.slice(0, 200)}` };
+      return { ok: true, ferramenta: name, dados: await runSumarizarCiclo(ctx.empresaId, parsed.data.dataReferencia) };
+    }
+
     return { ok: false, ferramenta: name, mensagem: "Caminho não implementado." };
   } catch (err) {
     return { ok: false, ferramenta: name, mensagem: `Falha ao executar ${name}: ${(err as Error).message.slice(0, 160)}` };
   }
+}
+
+// ─── Task #285 — helpers de diagnóstico ativo (read-only, determinísticos) ───
+const DIAGNOSTICO_DAY_MS = 24 * 60 * 60 * 1000;
+
+function pctKr(kr: { valorInicial: unknown; valorAtual: unknown; valorAlvo: unknown }): number | null {
+  const ini = Number(kr.valorInicial);
+  const atual = Number(kr.valorAtual);
+  const alvo = Number(kr.valorAlvo);
+  if (![ini, atual, alvo].every(Number.isFinite)) return null;
+  if (alvo === ini) return atual >= alvo ? 100 : 0;
+  const p = ((atual - ini) / (alvo - ini)) * 100;
+  if (!Number.isFinite(p)) return null;
+  return Math.max(0, Math.min(200, Math.round(p)));
+}
+
+function diasDesde(d: Date | string | null | undefined): number | null {
+  if (!d) return null;
+  const t = typeof d === "string" ? new Date(d).getTime() : d.getTime();
+  if (!Number.isFinite(t)) return null;
+  return Math.floor((Date.now() - t) / DIAGNOSTICO_DAY_MS);
+}
+
+function diasAte(d: string | Date | null | undefined): number | null {
+  if (!d) return null;
+  const t = typeof d === "string" ? new Date(d).getTime() : d.getTime();
+  if (!Number.isFinite(t)) return null;
+  return Math.ceil((t - Date.now()) / DIAGNOSTICO_DAY_MS);
+}
+
+function trimestreDe(ref: Date): { inicio: Date; fim: Date; rotulo: string } {
+  const ano = ref.getFullYear();
+  const trimestreIdx = Math.floor(ref.getMonth() / 3); // 0..3
+  const inicio = new Date(ano, trimestreIdx * 3, 1, 0, 0, 0, 0);
+  const fim = new Date(ano, trimestreIdx * 3 + 3, 0, 23, 59, 59, 999);
+  return { inicio, fim, rotulo: `Q${trimestreIdx + 1}/${ano}` };
+}
+
+function semaforoPct(pct: number | null): "verde" | "amarelo" | "vermelho" | "sem_dados" {
+  if (pct == null) return "sem_dados";
+  if (pct >= 80) return "verde";
+  if (pct >= 50) return "amarelo";
+  return "vermelho";
+}
+
+function semaforoKpi(gapPct: number | null, tendencia: string): "verde" | "amarelo" | "vermelho" | "sem_dados" {
+  if (gapPct == null) return "sem_dados";
+  if (tendencia === "caindo" && gapPct < 0) return "vermelho";
+  if (gapPct < -20) return "vermelho";
+  if (gapPct < 0) return "amarelo";
+  return "verde";
+}
+
+async function runAnalisarGap(
+  args: { tipo: "kpi" | "kr" | "objetivo"; id: string },
+  empresaId: string,
+): Promise<Record<string, unknown>> {
+  const causas: string[] = [];
+
+  if (args.tipo === "kpi") {
+    const ind = await storage.getIndicador(args.id);
+    if (!ind || ind.empresaId !== empresaId) {
+      return { erro: "KPI não encontrado para esta empresa.", id: args.id };
+    }
+    const tendencia = await getKpiTendencia(ind.id);
+    const atual = ind.atual != null ? Number(ind.atual) : null;
+    const meta = ind.meta != null ? Number(ind.meta) : null;
+    const gapAbs = atual != null && meta != null ? Math.round((atual - meta) * 100) / 100 : null;
+    const gapPct = atual != null && meta != null && meta !== 0 ? Math.round(((atual - meta) / meta) * 100) : null;
+    let ultimaLeituraIso: string | null = null;
+    let diasSemLeitura: number | null = null;
+    try {
+      const leituras = await storage.getLeituras(ind.id);
+      const top = leituras[0];
+      if (top?.registradoEm) {
+        const t = new Date(top.registradoEm);
+        ultimaLeituraIso = t.toISOString();
+        diasSemLeitura = Math.floor((Date.now() - t.getTime()) / DIAGNOSTICO_DAY_MS);
+      }
+    } catch { /* ignore */ }
+
+    if (diasSemLeitura != null && diasSemLeitura > 30) causas.push(`Sem leitura há ${diasSemLeitura} dias.`);
+    if (tendencia.tendencia === "caindo") causas.push("Tendência caindo nas últimas leituras.");
+    if (tendencia.tendencia === "estavel" && gapPct != null && gapPct < 0) causas.push("KPI estagnado abaixo da meta.");
+
+    // Iniciativas vinculadas paradas?
+    try {
+      const [iniciativas, krs] = await Promise.all([
+        storage.getIniciativas(empresaId),
+        carregarKrsDaEmpresa(empresaId),
+      ]);
+      const rels = getRelacoesIndicador(ind.id, iniciativas, krs.map((x) => x.kr));
+      const iniAtacando = rels.iniciativasVinculadas;
+      const paradas = iniAtacando.filter((i) => {
+        const s = (i.status ?? "").toLowerCase();
+        return s === "atrasada" || s === "pausada" || s === "cancelada";
+      });
+      if (iniAtacando.length === 0) causas.push("Nenhuma iniciativa ataca este KPI.");
+      else if (paradas.length === iniAtacando.length) causas.push(`Todas as ${iniAtacando.length} iniciativa(s) vinculada(s) estão paradas/atrasadas.`);
+      return {
+        tipo: "kpi",
+        id: ind.id,
+        nome: ind.nome,
+        valorAtual: atual,
+        meta,
+        gapAbsoluto: gapAbs,
+        gapPct,
+        status: semaforoKpi(gapPct, tendencia.tendencia),
+        tendencia: tendencia.tendencia,
+        ultimaLeituraEm: ultimaLeituraIso,
+        diasSemLeitura,
+        iniciativasVinculadas: iniAtacando.length,
+        iniciativasParadas: paradas.length,
+        krsVinculados: rels.krsVinculados.length,
+        causasProvaveis: causas,
+      };
+    } catch {
+      return {
+        tipo: "kpi", id: ind.id, nome: ind.nome,
+        valorAtual: atual, meta, gapAbsoluto: gapAbs, gapPct,
+        status: semaforoKpi(gapPct, tendencia.tendencia),
+        tendencia: tendencia.tendencia,
+        ultimaLeituraEm: ultimaLeituraIso, diasSemLeitura,
+        causasProvaveis: causas,
+      };
+    }
+  }
+
+  if (args.tipo === "kr") {
+    // localizar KR via lookup batched (uma única passada pela cascata).
+    const todos = await carregarKrsDaEmpresa(empresaId);
+    const krEncontrado = todos.find((x) => x.kr.id === args.id) ?? null;
+    if (!krEncontrado) return { erro: "KR não encontrado para esta empresa.", id: args.id };
+    const { kr, objetivo } = krEncontrado;
+    const num = await contarAtualizacoesKr(empresaId, kr.id);
+    const proj = projetarValorKr(kr, num);
+    const pct = pctKr(kr);
+    const prazo = kr.prazoData ?? kr.prazo ?? null;
+    const diasPrazo = diasAte(typeof prazo === "string" ? prazo : null);
+    const ultimoCheckin = kr.ultimoCheckinEm ?? null;
+    const diasSemCheckin = diasDesde(ultimoCheckin);
+
+    if (diasSemCheckin != null && diasSemCheckin > 21) causas.push(`Sem check-in há ${diasSemCheckin} dias.`);
+    else if (ultimoCheckin == null) causas.push("Nenhum check-in registrado ainda.");
+    if (pct != null && pct < 30) causas.push(`Progresso baixo (${pct}% do alvo).`);
+    if (kr.confiancaAtual === "vermelho") causas.push("Último check-in marcado como vermelho.");
+    if (proj.pctProjetadoVsAlvo != null && proj.pctProjetadoVsAlvo < 0.7) {
+      causas.push(`Projeção linear indica chegar a ${Math.round((proj.pctProjetadoVsAlvo ?? 0) * 100)}% do alvo no prazo.`);
+    }
+    if (diasPrazo != null && diasPrazo < 0) causas.push(`Prazo vencido há ${Math.abs(diasPrazo)} dias.`);
+
+    return {
+      tipo: "kr",
+      id: kr.id,
+      metrica: kr.metrica,
+      objetivo: { id: objetivo.id, titulo: objetivo.titulo },
+      valorInicial: Number(kr.valorInicial),
+      valorAtual: Number(kr.valorAtual),
+      valorAlvo: Number(kr.valorAlvo),
+      pctAtingido: pct,
+      status: (kr.confiancaAtual as "verde" | "amarelo" | "vermelho" | undefined) ?? semaforoPct(pct),
+      prazo: typeof prazo === "string" ? prazo : null,
+      diasAtePrazo: diasPrazo,
+      ultimoCheckinEm: ultimoCheckin,
+      diasSemCheckin,
+      confianca: kr.confiancaAtual ?? null,
+      projecao: {
+        valorProjetadoNoPrazo: proj.valorProjetadoNoPrazo,
+        pctProjetadoVsAlvo: proj.pctProjetadoVsAlvo,
+        confianca: proj.confianca,
+      },
+      indicadorFonteId: kr.indicadorFonteId ?? null,
+      causasProvaveis: causas,
+    };
+  }
+
+  // tipo === "objetivo" — usa lookup batched (carregarKrsDaEmpresa) para
+  // evitar N+1 quando há muitos objetivos.
+  const todos = await carregarKrsDaEmpresa(empresaId);
+  const objetivosUnicos = new Map(todos.map((x) => [x.objetivo.id, x.objetivo]));
+  const obj = objetivosUnicos.get(args.id);
+  if (!obj) {
+    // pode ser objetivo sem KR cadastrado — tentar buscar avulsamente
+    const objs = await storage.getObjetivos(empresaId);
+    const objSemKr = objs.find((o) => o.id === args.id);
+    if (!objSemKr) return { erro: "Objetivo não encontrado para esta empresa.", id: args.id };
+    return {
+      tipo: "objetivo", id: objSemKr.id, titulo: objSemKr.titulo,
+      perspectiva: objSemKr.perspectiva ?? null, encerrado: !!objSemKr.encerrado,
+      totalKrs: 0, pctMedio: null, alvoPct: 100, gapPct: null,
+      status: "vermelho" as const,
+      diasAtePrazoMaisProximo: null,
+      projecaoMediaPctVsAlvo: null,
+      krMaisAtrasado: null, ultimoCheckinEm: null, diasSemCheckin: null,
+      causasProvaveis: ["Objetivo sem nenhum KR cadastrado."],
+    };
+  }
+  const krs = todos.filter((x) => x.objetivo.id === obj.id).map((x) => x.kr);
+  const pcts: number[] = [];
+  const projs: number[] = [];
+  let krMaisAtrasado: { id: string; metrica: string; pct: number | null } | null = null;
+  let ultimoCheckinTs: number | null = null;
+  let prazoMaisProximoTs: number | null = null;
+  for (const k of krs) {
+    const p = pctKr(k);
+    if (p != null) pcts.push(p);
+    if (krMaisAtrasado == null || (p != null && (krMaisAtrasado.pct ?? 999) > p)) {
+      krMaisAtrasado = { id: k.id, metrica: k.metrica, pct: p };
+    }
+    const ts = k.ultimoCheckinEm ? new Date(k.ultimoCheckinEm).getTime() : null;
+    if (ts != null && (ultimoCheckinTs == null || ts > ultimoCheckinTs)) ultimoCheckinTs = ts;
+    const prazoTs = k.prazoData ? new Date(k.prazoData).getTime() : NaN;
+    if (Number.isFinite(prazoTs) && prazoTs >= Date.now()) {
+      if (prazoMaisProximoTs == null || prazoTs < prazoMaisProximoTs) prazoMaisProximoTs = prazoTs;
+    }
+    const projKr = projetarValorKr(k, 0);
+    if (projKr.pctProjetadoVsAlvo != null) projs.push(projKr.pctProjetadoVsAlvo * 100);
+  }
+  const pctMedio = pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null;
+  const projMedio = projs.length ? Math.round(projs.reduce((a, b) => a + b, 0) / projs.length) : null;
+  const gapPct = pctMedio != null ? pctMedio - 100 : null;
+  const diasSemCheckin = ultimoCheckinTs ? Math.floor((Date.now() - ultimoCheckinTs) / DIAGNOSTICO_DAY_MS) : null;
+  const diasAtePrazoMaisProximo = prazoMaisProximoTs ? Math.ceil((prazoMaisProximoTs - Date.now()) / DIAGNOSTICO_DAY_MS) : null;
+
+  if (krs.length === 0) causas.push("Objetivo sem nenhum KR cadastrado.");
+  if (pctMedio != null && pctMedio < 30) causas.push(`Progresso médio dos KRs em ${pctMedio}%.`);
+  if (diasSemCheckin != null && diasSemCheckin > 21) causas.push(`Nenhum KR teve check-in há ${diasSemCheckin} dias.`);
+  else if (ultimoCheckinTs == null && krs.length > 0) causas.push("Nenhum KR deste objetivo recebeu check-in ainda.");
+  if (obj.encerrado) causas.push("Objetivo já está encerrado.");
+
+  return {
+    tipo: "objetivo",
+    id: obj.id,
+    titulo: obj.titulo,
+    perspectiva: obj.perspectiva ?? null,
+    encerrado: !!obj.encerrado,
+    totalKrs: krs.length,
+    pctMedio,
+    alvoPct: 100,
+    gapPct,
+    status: semaforoPct(pctMedio),
+    diasAtePrazoMaisProximo,
+    projecaoMediaPctVsAlvo: projMedio,
+    krMaisAtrasado,
+    ultimoCheckinEm: ultimoCheckinTs ? new Date(ultimoCheckinTs).toISOString() : null,
+    diasSemCheckin,
+    causasProvaveis: causas,
+  };
+}
+
+async function runDetectarLacunasCascata(empresaId: string): Promise<Record<string, unknown>> {
+  const [objetivos, indicadoresAll, iniciativas, estrategias, krsAll] = await Promise.all([
+    storage.getObjetivos(empresaId),
+    storage.getIndicadores(empresaId),
+    storage.getIniciativas(empresaId),
+    storage.getEstrategias(empresaId),
+    carregarKrsDaEmpresa(empresaId),
+  ]);
+  const indicadores = indicadoresAll.filter((i) => (i.perspectiva ?? "").toLowerCase() !== "diagnostico");
+  const krs = krsAll.map((x) => x.kr);
+  const objetivosComKr = new Set(krsAll.map((x) => x.objetivo.id));
+
+  const iniciativasSemObjetivo = iniciativas
+    .filter((i) => !i.objetivoOriginadorId)
+    .slice(0, 10)
+    .map((i) => ({ id: i.id, titulo: i.titulo, status: i.status, estrategiaId: i.estrategiaId ?? null }));
+
+  const objetivosSemKr = objetivos
+    .filter((o) => !o.encerrado && !objetivosComKr.has(o.id))
+    .slice(0, 10)
+    .map((o) => ({ id: o.id, titulo: o.titulo, perspectiva: o.perspectiva ?? null }));
+
+  // KPI sem KR atacando: nenhum KR.indicadorFonteId === kpi.id
+  const kpisSemKrAtacando = indicadores
+    .filter((ind) => !krs.some((k) => k.indicadorFonteId === ind.id))
+    .slice(0, 10)
+    .map((ind) => ({ id: ind.id, nome: ind.nome, perspectiva: ind.perspectiva ?? null }));
+
+  // KPI sem iniciativa atacando: nenhuma Iniciativa.indicadorFonteId === kpi.id
+  const kpisSemIniciativaAtacando = indicadores
+    .filter((ind) => !iniciativas.some((i) => i.indicadorFonteId === ind.id))
+    .slice(0, 10)
+    .map((ind) => ({ id: ind.id, nome: ind.nome, perspectiva: ind.perspectiva ?? null }));
+
+  const estrategiasSemIniciativa = estrategias
+    .filter((e) => !iniciativas.some((i) => i.estrategiaId === e.id))
+    .slice(0, 10)
+    .map((e) => ({ id: e.id, titulo: e.titulo }));
+
+  // KR sem indicadorFonteId — listado como informativo (NÃO é defeito por design,
+  // apenas rastreabilidade voluntária entre camadas independentes).
+  const krsSemIndicador = krs
+    .filter((k) => !k.indicadorFonteId)
+    .slice(0, 10)
+    .map((k) => {
+      const obj = krsAll.find((x) => x.kr.id === k.id)?.objetivo;
+      return { id: k.id, metrica: k.metrica, objetivoId: obj?.id ?? null, objetivoTitulo: obj?.titulo ?? null };
+    });
+  const krsSemIndicadorTotal = krs.filter((k) => !k.indicadorFonteId).length;
+
+  return {
+    iniciativasSemObjetivo,
+    objetivosSemKr,
+    kpisSemKrAtacando,
+    kpisSemIniciativaAtacando,
+    estrategiasSemIniciativa,
+    informativo: {
+      krsSemIndicadorFonteTotal: krsSemIndicadorTotal,
+      krsSemIndicadorFonteAmostra: krsSemIndicador,
+      observacao: "KR sem indicadorFonteId NÃO é defeito — KR (alcance no ciclo) e KPI (performance contínua) são camadas independentes. Lista apenas para rastreabilidade voluntária; não recomende ao usuário 'ligar KR ao KPI' como correção do plano.",
+    },
+    totais: {
+      iniciativas: iniciativas.length,
+      objetivos: objetivos.length,
+      kpis: indicadores.length,
+      estrategias: estrategias.length,
+      krs: krs.length,
+    },
+    geradoEm: new Date().toISOString(),
+  };
+}
+
+async function runDetectarDescarrilados(
+  empresaId: string,
+  opts: { diasSemCheckin?: number; pctMinimo?: number },
+): Promise<Record<string, unknown>> {
+  const limiteDias = opts.diasSemCheckin ?? 21;
+  const limitePct = opts.pctMinimo ?? 30;
+  // Carrega cascata inteira em uma única passada (helper batched) e
+  // agrupa KRs por objetivo, evitando N+1 ao escalar para muitos objetivos.
+  const todos = await carregarKrsDaEmpresa(empresaId);
+  const grupos = new Map<string, { obj: typeof todos[number]["objetivo"]; krs: typeof todos[number]["kr"][] }>();
+  for (const { kr, objetivo } of todos) {
+    if (objetivo.encerrado) continue;
+    const g = grupos.get(objetivo.id) ?? { obj: objetivo, krs: [] };
+    g.krs.push(kr);
+    grupos.set(objetivo.id, g);
+  }
+  const krsPorObj = Array.from(grupos.values());
+
+  const descarrilados = krsPorObj
+    .map(({ obj, krs }) => {
+      const pcts = krs.map((k) => pctKr(k)).filter((p): p is number => p != null);
+      const pctMedio = pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null;
+      let krMaisAtrasado: { id: string; metrica: string; pct: number | null } | null = null;
+      let ultimoCheckinTs: number | null = null;
+      for (const k of krs) {
+        const p = pctKr(k);
+        if (krMaisAtrasado == null || (p != null && (krMaisAtrasado.pct ?? 999) > p)) {
+          krMaisAtrasado = { id: k.id, metrica: k.metrica, pct: p };
+        }
+        const ts = k.ultimoCheckinEm ? new Date(k.ultimoCheckinEm).getTime() : null;
+        if (ts != null && (ultimoCheckinTs == null || ts > ultimoCheckinTs)) ultimoCheckinTs = ts;
+      }
+      const diasSemCheckin = ultimoCheckinTs ? Math.floor((Date.now() - ultimoCheckinTs) / DIAGNOSTICO_DAY_MS) : null;
+      const motivos: string[] = [];
+      if (krs.length > 0 && pctMedio != null && pctMedio < limitePct) motivos.push(`pct_medio_${pctMedio}_abaixo_de_${limitePct}`);
+      if (krs.length > 0 && (diasSemCheckin == null || diasSemCheckin > limiteDias)) {
+        motivos.push(diasSemCheckin == null ? "sem_checkin_nunca" : `sem_checkin_${diasSemCheckin}d`);
+      }
+      return { obj, krs, pctMedio, krMaisAtrasado, diasSemCheckin, ultimoCheckinTs, motivos };
+    })
+    .filter((x) => x.krs.length > 0 && x.motivos.length > 0)
+    .sort((a, b) => (a.pctMedio ?? 0) - (b.pctMedio ?? 0))
+    .slice(0, 10)
+    .map((x) => ({
+      id: x.obj.id,
+      titulo: x.obj.titulo,
+      perspectiva: x.obj.perspectiva ?? null,
+      totalKrs: x.krs.length,
+      pctMedio: x.pctMedio,
+      krMaisAtrasado: x.krMaisAtrasado,
+      diasSemCheckin: x.diasSemCheckin,
+      ultimoCheckinEm: x.ultimoCheckinTs ? new Date(x.ultimoCheckinTs).toISOString() : null,
+      motivos: x.motivos,
+    }));
+
+  return {
+    descarrilados,
+    criterios: { diasSemCheckinLimite: limiteDias, pctMinimoAceitavel: limitePct },
+    totalObjetivosAtivos: krsPorObj.length,
+    geradoEm: new Date().toISOString(),
+  };
+}
+
+async function runConsistenciaEstrategica(empresaId: string): Promise<Record<string, unknown>> {
+  const [estrategias, objetivos, iniciativas, indicadoresAll] = await Promise.all([
+    storage.getEstrategias(empresaId),
+    storage.getObjetivos(empresaId),
+    storage.getIniciativas(empresaId),
+    storage.getIndicadores(empresaId),
+  ]);
+  const indicadores = indicadoresAll.filter((i) => (i.perspectiva ?? "").toLowerCase() !== "diagnostico");
+  const indicadorIds = new Set(indicadores.map((i) => i.id));
+
+  const porEstrategia = estrategias.map((e) => {
+    const objs = objetivos.filter((o) => (o as { estrategiaId?: string | null }).estrategiaId === e.id);
+    const inis = iniciativas.filter((i) => i.estrategiaId === e.id);
+    const inisQueTocamKpi = inis.filter((i) => i.indicadorFonteId && indicadorIds.has(i.indicadorFonteId));
+    const furos: string[] = [];
+    if (objs.length === 0) furos.push("estrategia_sem_objetivo");
+    if (inis.length === 0) furos.push("estrategia_sem_iniciativa");
+    else if (inisQueTocamKpi.length === 0) furos.push("iniciativas_nao_tocam_kpi");
+    return {
+      id: e.id,
+      titulo: e.titulo,
+      objetivosVinculados: objs.length,
+      iniciativasVinculadas: inis.length,
+      iniciativasQueTocamKpi: inisQueTocamKpi.length,
+      furos,
+    };
+  });
+
+  const objetivosSemIniciativa = objetivos
+    .filter((o) => !o.encerrado)
+    .filter((o) => !iniciativas.some((i) => i.objetivoOriginadorId === o.id))
+    .slice(0, 10)
+    .map((o) => ({ id: o.id, titulo: o.titulo, perspectiva: o.perspectiva ?? null }));
+
+  const estrategiasComFuros = porEstrategia.filter((e) => e.furos.length > 0).slice(0, 10);
+
+  return {
+    porEstrategia,
+    estrategiasComFuros,
+    objetivosSemIniciativa,
+    totais: {
+      estrategias: estrategias.length,
+      objetivos: objetivos.length,
+      iniciativas: iniciativas.length,
+      kpis: indicadores.length,
+    },
+    geradoEm: new Date().toISOString(),
+  };
+}
+
+async function runSumarizarCiclo(
+  empresaId: string,
+  dataReferencia?: string,
+): Promise<Record<string, unknown>> {
+  const ref = dataReferencia ? new Date(dataReferencia) : new Date();
+  const { inicio, fim, rotulo } = trimestreDe(ref);
+  const inicioTs = inicio.getTime();
+  const fimTs = fim.getTime();
+  const dentro = (d: Date | string | null | undefined): boolean => {
+    if (!d) return false;
+    const t = typeof d === "string" ? new Date(d).getTime() : d.getTime();
+    return Number.isFinite(t) && t >= inicioTs && t <= fimTs;
+  };
+
+  const [iniciativas, objetivos, atas, decisoes] = await Promise.all([
+    storage.getIniciativas(empresaId),
+    storage.getObjetivos(empresaId),
+    storage.getReuniaoAtas(empresaId, 200),
+    storage.getDecisoesEstrategicas(empresaId, 200),
+  ]);
+  const krsTodos = await carregarKrsDaEmpresa(empresaId);
+
+  // check-ins por KR (paralelo)
+  const checkinsPorKr = await Promise.all(
+    krsTodos.map(async ({ kr }) => ({ kr, checkins: await storage.getKrCheckins(kr.id, empresaId) })),
+  );
+  const checkinsNoCiclo = checkinsPorKr.flatMap(({ kr, checkins }) =>
+    checkins.filter((c) => dentro(c.createdAt)).map((c) => ({ kr, c })),
+  );
+
+  // % executado: iniciativas concluídas no ciclo / iniciativas com prazoData no ciclo (ou todas ativas)
+  const concluidasNoCiclo = iniciativas.filter((i) => {
+    const s = (i.status ?? "").toLowerCase();
+    return (s === "concluida" || s === "concluída") && dentro(i.encerradaEm ?? i.createdAt ?? null);
+  });
+  const ativasOuConcluidas = iniciativas.filter((i) => {
+    const s = (i.status ?? "").toLowerCase();
+    if (s === "cancelada") return false;
+    return true;
+  });
+  const pctExecutado = ativasOuConcluidas.length > 0
+    ? Math.round((concluidasNoCiclo.length / ativasOuConcluidas.length) * 100)
+    : 0;
+
+  // top 3 conquistas
+  const krsAvancados = checkinsPorKr
+    .map(({ kr, checkins }) => {
+      const noCiclo = checkins.filter((c) => dentro(c.createdAt));
+      if (noCiclo.length === 0) return null;
+      const valIni = Number(noCiclo[noCiclo.length - 1].valor);
+      const valFim = Number(noCiclo[0].valor);
+      const alvo = Number(kr.valorAlvo);
+      const ini = Number(kr.valorInicial);
+      const denom = alvo - ini;
+      const avancoPct = Number.isFinite(denom) && denom !== 0 ? Math.round(((valFim - valIni) / denom) * 100) : null;
+      return { kr, avancoPct, valFim };
+    })
+    .filter((x): x is { kr: typeof krsTodos[number]["kr"]; avancoPct: number | null; valFim: number } => x != null && x.avancoPct != null)
+    .sort((a, b) => (b.avancoPct ?? 0) - (a.avancoPct ?? 0));
+
+  const topConquistas: Array<Record<string, unknown>> = [];
+  for (const i of concluidasNoCiclo.slice(0, 3)) {
+    topConquistas.push({ tipo: "iniciativa_concluida", id: i.id, titulo: i.titulo });
+  }
+  for (const k of krsAvancados.slice(0, 3 - topConquistas.length)) {
+    topConquistas.push({ tipo: "kr_avancado", id: k.kr.id, metrica: k.kr.metrica, avancoPct: k.avancoPct });
+  }
+
+  // top 3 atrasos
+  const atrasos = iniciativas
+    .filter((i) => {
+      const s = (i.status ?? "").toLowerCase();
+      if (s === "concluida" || s === "concluída" || s === "cancelada") return false;
+      const prazoTs = i.prazoData ? new Date(i.prazoData).getTime() : NaN;
+      return Number.isFinite(prazoTs) && prazoTs < Date.now();
+    })
+    .sort((a, b) => new Date(a.prazoData!).getTime() - new Date(b.prazoData!).getTime())
+    .slice(0, 3)
+    .map((i) => ({
+      id: i.id,
+      titulo: i.titulo,
+      prazo: i.prazoData ?? i.prazo,
+      diasAtraso: i.prazoData ? Math.floor((Date.now() - new Date(i.prazoData).getTime()) / DIAGNOSTICO_DAY_MS) : null,
+    }));
+
+  // decisões: registradaEm dentro do ciclo + decisoes inline em atas do ciclo
+  const decisoesNoCiclo = decisoes.filter((d) => dentro(d.registradaEm));
+  const decisoesEmAtasCount = atas
+    .filter((a) => dentro(a.registradaEm))
+    .reduce((acc, a) => acc + (Array.isArray(a.decisoes) ? a.decisoes.length : 0), 0);
+
+  return {
+    cicloRotulo: rotulo,
+    inicio: inicio.toISOString(),
+    fim: fim.toISOString(),
+    pctExecutado,
+    iniciativasConcluidasNoCiclo: concluidasNoCiclo.length,
+    iniciativasAtivasOuConcluidas: ativasOuConcluidas.length,
+    checkinsNoCiclo: checkinsNoCiclo.length,
+    decisoesEstrategicasNoCiclo: decisoesNoCiclo.length,
+    decisoesEmAtasNoCiclo: decisoesEmAtasCount,
+    atasNoCiclo: atas.filter((a) => dentro(a.registradaEm)).length,
+    topConquistas,
+    topAtrasos: atrasos,
+    totais: {
+      objetivos: objetivos.length,
+      iniciativas: iniciativas.length,
+      krs: krsTodos.length,
+    },
+    geradoEm: new Date().toISOString(),
+  };
 }
 // ---------- Riscos (Task #232) ----------
 const CATEGORIAS_RISCO = [
@@ -4393,6 +5055,12 @@ export const STATUS_LABELS: Readonly<Record<string, string>> = {
   projetar_kr: "Projetando meta…",
   simular_impacto: "Simulando impacto…",
   comparar_periodos: "Comparando períodos…",
+  // Task #285 — Diagnóstico ativo do plano
+  analisar_gap_meta_vs_realizado: "Analisando gap meta × realizado…",
+  detectar_lacunas_cascata: "Procurando itens órfãos no plano…",
+  detectar_objetivos_descarrilados: "Identificando objetivos em risco…",
+  analisar_consistencia_estrategica: "Avaliando consistência estratégica…",
+  sumarizar_ciclo_atual: "Resumindo o ciclo atual…",
 };
 
 export function getToolStatusLabel(name: string): string {

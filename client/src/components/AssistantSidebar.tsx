@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Sparkles, PanelRightClose, PanelRightOpen, Loader2, Target } from "lucide-react";
+import { Sparkles, PanelRightClose, PanelRightOpen, Loader2, Target, Compass } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,7 @@ import { useAIModalLocked } from "@/contexts/ai-modal-lock";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AssistantChat } from "@/components/AssistantChat";
 import { PropostaHistorico } from "@/components/PropostaHistorico";
+import { GuiaContent } from "@/components/GuiaContent";
 import {
   PlanoAgenticoCard,
   type PlanoAgenticoView,
@@ -21,7 +22,8 @@ const UNLOCK_SHOWN_KEY = "biz-guide-assistente-desbloqueado";
 
 export function AssistantSidebar() {
   const locked = useAIModalLocked();
-  const { jornadaConcluida, isLoading: jornadaLoading } = useJornadaProgresso();
+  const progresso = useJornadaProgresso();
+  const { jornadaConcluida, isLoading: jornadaLoading } = progresso;
   const { alertas } = useAssistantStatus();
   const isMobile = useIsMobile();
 
@@ -58,8 +60,9 @@ export function AssistantSidebar() {
     return () => window.removeEventListener("biz-assistant:close", onClose);
   }, []);
 
-  const hidden = locked || jornadaLoading || !jornadaConcluida;
-  if (hidden) return null;
+  if (locked || jornadaLoading) return null;
+
+  const showGuia = !jornadaConcluida;
 
   const desktopWidth = open ? "w-[26rem]" : "w-12";
   const mobileTransform = open ? "translate-x-0" : "translate-x-full";
@@ -83,10 +86,16 @@ export function AssistantSidebar() {
           <div className="flex items-center justify-between px-3 py-2.5 border-b flex-shrink-0">
             <div className="flex items-center gap-2 min-w-0">
               <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center flex-shrink-0">
-                <Sparkles className="h-3.5 w-3.5 text-primary-foreground" />
+                {showGuia ? (
+                  <Compass className="h-3.5 w-3.5 text-primary-foreground" />
+                ) : (
+                  <Sparkles className="h-3.5 w-3.5 text-primary-foreground" />
+                )}
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-semibold leading-none truncate">Assistente</p>
+                <p className="text-sm font-semibold leading-none truncate">
+                  {showGuia ? "Guia" : "Assistente"}
+                </p>
                 <p className="text-xs text-muted-foreground mt-0.5 truncate">Estratégico</p>
               </div>
             </div>
@@ -94,7 +103,7 @@ export function AssistantSidebar() {
               size="icon"
               variant="ghost"
               onClick={() => setOpen(false)}
-              title="Fechar Assistente"
+              title={showGuia ? "Fechar Guia" : "Fechar Assistente"}
               data-testid="button-assistant-sidebar-close"
             >
               <PanelRightClose className="h-4 w-4" />
@@ -102,8 +111,15 @@ export function AssistantSidebar() {
           </div>
         )}
 
+        {showGuia && (
+          <div className={cn("flex-1 min-h-0 flex flex-col", !open && "hidden")}>
+            <GuiaContent progresso={progresso} onNavigate={() => isMobile && setOpen(false)} />
+          </div>
+        )}
+
         {/* Tabs Chat / Planos / Histórico — todos forceMount para preservar
             estado da conversa e dos filtros ao trocar de aba. */}
+        {!showGuia && (
         <div className={cn("flex-1 min-h-0 flex flex-col", !open && "hidden")}>
           <Tabs defaultValue="chat" className="flex-1 min-h-0 flex flex-col">
             <TabsList
@@ -140,17 +156,22 @@ export function AssistantSidebar() {
             </TabsContent>
           </Tabs>
         </div>
+        )}
 
         {!open && !isMobile && (
           <button
             type="button"
             onClick={() => setOpen(true)}
             className="flex flex-col items-center gap-3 py-3 w-full hover-elevate"
-            title="Abrir Assistente Estratégico"
+            title={showGuia ? "Abrir Guia Estratégico" : "Abrir Assistente Estratégico"}
             data-testid="button-assistant-sidebar-toggle"
           >
             <PanelRightOpen className="h-4 w-4 text-muted-foreground" />
-            <Sparkles className="h-4 w-4 text-primary" />
+            {showGuia ? (
+              <Compass className="h-4 w-4 text-primary" />
+            ) : (
+              <Sparkles className="h-4 w-4 text-primary" />
+            )}
           </button>
         )}
       </aside>
@@ -161,16 +182,20 @@ export function AssistantSidebar() {
           onClick={() => setOpen(true)}
           className="fixed bottom-4 right-4 rounded-full shadow-lg z-40"
           data-testid="button-assistant-sidebar-toggle"
-          title="Abrir Assistente"
+          title={showGuia ? "Abrir Guia" : "Abrir Assistente"}
         >
-          <Sparkles className="h-4 w-4" />
+          {showGuia ? (
+            <Compass className="h-4 w-4" />
+          ) : (
+            <Sparkles className="h-4 w-4" />
+          )}
         </Button>
       )}
 
       {isMobile && open && (
         <button
           type="button"
-          aria-label="Fechar Assistente"
+          aria-label={showGuia ? "Fechar Guia" : "Fechar Assistente"}
           onClick={() => setOpen(false)}
           className="fixed inset-0 bg-black/40 z-40"
           data-testid="overlay-assistant-sidebar"

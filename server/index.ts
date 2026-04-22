@@ -388,6 +388,12 @@ async function runStartupMigrations() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_iniciativas_indicador_fonte_id ON iniciativas(indicador_fonte_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_resultados_chave_indicador_fonte_id ON resultados_chave(indicador_fonte_id)`);
 
+    // Task #263/#264 — coluna opcional `prazo_data` (DATE) para iniciativas,
+    // objetivos e resultados-chave. Aditivo, NULL para registros legados.
+    await client.query(`ALTER TABLE iniciativas ADD COLUMN IF NOT EXISTS prazo_data DATE`);
+    await client.query(`ALTER TABLE objetivos ADD COLUMN IF NOT EXISTS prazo_data DATE`);
+    await client.query(`ALTER TABLE resultados_chave ADD COLUMN IF NOT EXISTS prazo_data DATE`);
+
     // Task #221 — Memória persistente do Assistente (conversas + mensagens + fatos)
     await client.query(`
       CREATE TABLE IF NOT EXISTS assistente_conversas (

@@ -1465,7 +1465,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  function parsePrazoDate(prazo: string | null | undefined): Date | null {
+  // Task #263/#264 — `prazoData` (YYYY-MM-DD normalizado) tem precedência
+  // sobre o texto livre `prazo`. Mantém o parser tolerante como fallback
+  // para registros antigos que usam strings como "Q4 2025" ou "Mar/2026".
+  function parsePrazoDate(
+    prazo: string | null | undefined,
+    prazoData?: string | null,
+  ): Date | null {
+    if (prazoData) {
+      const md = String(prazoData).match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if (md) {
+        const d = new Date(Number(md[1]), Number(md[2]) - 1, Number(md[3]));
+        if (!isNaN(d.getTime())) return d;
+      }
+    }
     if (!prazo) return null;
     const s = String(prazo).trim();
     let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -1482,9 +1495,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return isNaN(d.getTime()) ? null : d;
   }
 
-  function isAtrasado(prazo: string | null | undefined, encerrado?: boolean | null): boolean {
+  function isAtrasado(
+    prazo: string | null | undefined,
+    encerrado?: boolean | null,
+    prazoData?: string | null,
+  ): boolean {
     if (encerrado) return false;
-    const d = parsePrazoDate(prazo);
+    const d = parsePrazoDate(prazo, prazoData);
     if (!d) return false;
     const hoje = new Date();
     hoje.setHours(0, 0, 0, 0);
@@ -1507,7 +1524,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const iniciativasMinhas = todasIniciativas.filter(i => i.responsavelId === userId);
       const indicadoresMeus = todosIndicadores.filter(k => k.responsavelId === userId);
 
-      const krsMeus: Array<{ id: string; metrica: string; objetivoId: string; objetivoTitulo: string; prazo: string; valorInicial: string; valorAtual: string; valorAlvo: string; atrasado: boolean }> = [];
+      const krsMeus: Array<{ id: string; metrica: string; objetivoId: string; objetivoTitulo: string; prazo: string; prazoData: string | null; valorInicial: string; valorAtual: string; valorAlvo: string; atrasado: boolean }> = [];
       const krsPorObjetivo = await Promise.all(
         todosObjetivos.map(obj => storage.getResultadosChave(obj.id, empresaId).then(krs => ({ obj, krs })))
       );
@@ -1523,17 +1540,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
               valorInicial: kr.valorInicial,
               valorAtual: kr.valorAtual,
               valorAlvo: kr.valorAlvo,
-              atrasado: isAtrasado(kr.prazo),
+              atrasado: isAtrasado(kr.prazo, false, kr.prazoData),
+              prazoData: kr.prazoData,
             });
           }
         }
       }
 
-      const ordenarPorUrgencia = <T extends { atrasado: boolean; prazo?: string | null; encerrado?: boolean | null }>(arr: T[]) => {
+      const ordenarPorUrgencia = <T extends { atrasado: boolean; prazo?: string | null; prazoData?: string | null; encerrado?: boolean | null }>(arr: T[]) => {
         return [...arr].sort((a, b) => {
           if (a.atrasado !== b.atrasado) return a.atrasado ? -1 : 1;
-          const da = parsePrazoDate(a.prazo);
-          const db = parsePrazoDate(b.prazo);
+          const da = parsePrazoDate(a.prazo, a.prazoData);
+          const db = parsePrazoDate(b.prazo, b.prazoData);
           if (!da && !db) return 0;
           if (!da) return 1;
           if (!db) return -1;
@@ -1547,9 +1565,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             id: o.id,
             titulo: o.titulo,
             prazo: o.prazo,
+            prazoData: o.prazoData,
             perspectiva: o.perspectiva,
             encerrado: !!o.encerrado,
-            atrasado: isAtrasado(o.prazo, !!o.encerrado),
+            atrasado: isAtrasado(o.prazo, !!o.encerrado, o.prazoData),
           }))
         ),
         resultadosChave: ordenarPorUrgencia(krsMeus),
@@ -1558,9 +1577,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             id: i.id,
             titulo: i.titulo,
             prazo: i.prazo,
+            prazoData: i.prazoData,
             status: i.status,
             prioridade: i.prioridade,
-            atrasado: isAtrasado(i.prazo, i.status === "concluido" || i.status === "concluida" || i.status === "concluído"),
+            atrasado: isAtrasado(i.prazo, i.status === "concluido" || i.status === "concluida" || i.status === "concluído", i.prazoData),
           }))
         ),
         indicadores: indicadoresMeus
@@ -1622,13 +1642,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         for (const kr of krs) {
           if (kr.responsavelId === userId) {
             krsCount++;
-            if (isAtrasado(kr.prazo)) krsAtrasados++;
+            if (isAtrasado(kr.prazo, false, kr.prazoData)) krsAtrasados++;
           }
         }
       }
 
-      const objetivosAtrasados = objetivosMeus.filter(o => isAtrasado(o.prazo, !!o.encerrado)).length;
-      const iniciativasAtrasadas = iniciativasMinhas.filter(i => isAtrasado(i.prazo, i.status === "concluido" || i.status === "concluida" || i.status === "concluído")).length;
+      const objetivosAtrasados = objetivosMeus.filter(o => isAtrasado(o.prazo, !!o.encerrado, o.prazoData)).length;
+      const iniciativasAtrasadas = iniciativasMinhas.filter(i => isAtrasado(i.prazo, i.status === "concluido" || i.status === "concluida" || i.status === "concluído", i.prazoData)).length;
       const indicadoresCriticos = indicadoresMeus.filter(k => k.status === "vermelho").length;
 
       const totalAtrasados = objetivosAtrasados + krsAtrasados + iniciativasAtrasadas;
@@ -1664,7 +1684,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hoje = new Date();
       const iniciativasAtras = ctx.iniciativas.filter((i) => {
         if (i.status === "concluida" || i.status === "pausada") return false;
-        const d = parsePrazoDate(i.prazo);
+        const d = parsePrazoDate(i.prazo, (i as any).prazoData);
         return d !== null && d < hoje;
       });
       const limite = Date.now() - 14 * 24 * 60 * 60 * 1000;

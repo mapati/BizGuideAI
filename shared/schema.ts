@@ -154,6 +154,11 @@ export const objetivos = pgTable("objetivos", {
   titulo: text("titulo").notNull(),
   descricao: text("descricao"),
   prazo: text("prazo").notNull(),
+  // Task #264 — data normalizada opcional do prazo (YYYY-MM-DD), análoga ao
+  // campo `prazoData` das iniciativas (Task #263). Quando preenchida, tem
+  // precedência sobre o parser tolerante de `prazo` para ordenação,
+  // alertas de atraso e visualizações temporais.
+  prazoData: date("prazo_data"),
   perspectiva: text("perspectiva").notNull().default("Financeira"),
   responsavelId: varchar("responsavel_id").references(() => usuarios.id, { onDelete: "set null" }),
   estrategiaId: varchar("estrategia_id").references(() => estrategias.id, { onDelete: "set null" }),
@@ -181,6 +186,10 @@ export const resultadosChave = pgTable("resultados_chave", {
   // `responsavelId` (membro da empresa).
   owner: text("owner").notNull(),
   prazo: text("prazo").notNull(),
+  // Task #264 — data normalizada opcional do prazo do KR (YYYY-MM-DD).
+  // Quando preenchida, tem precedência sobre o texto livre `prazo` no
+  // cálculo de atraso e em ordenações por urgência.
+  prazoData: date("prazo_data"),
   responsavelId: varchar("responsavel_id").references(() => usuarios.id, { onDelete: "set null" }),
   // Task #208 — Indicador (KPI) que esta meta busca melhorar (opcional, aditivo).
   indicadorFonteId: varchar("indicador_fonte_id").references((): any => indicadores.id, { onDelete: "set null" }),

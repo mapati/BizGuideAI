@@ -10,7 +10,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 
-import { Plus, Sparkles, Target as TargetIcon, Loader2, Trash2, Edit2, TrendingUp, Users, Cog, GraduationCap, DollarSign, BookOpen, UserCheck, Link2, CheckCircle2, AlertCircle, History, Wand2, Layers } from "lucide-react";
+import { Plus, Sparkles, Target as TargetIcon, Loader2, Trash2, Edit2, TrendingUp, Users, Cog, GraduationCap, DollarSign, BookOpen, UserCheck, Link2, CheckCircle2, AlertCircle, History, Wand2, Layers, CalendarIcon } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { format, parse as parseDateFn } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { PrerequisiteWarning } from "@/components/PrerequisiteWarning";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -45,6 +49,82 @@ const perspectivas = [
 type Membro = { id: string; nome: string; email: string };
 type EstrategiaBasica = { id: string; tipo: string; titulo: string };
 type IniciativaBasica = { id: string; titulo: string };
+
+// Task #264 — Picker de prazo com data normalizada (YYYY-MM-DD) e fallback
+// para texto livre (ex.: "Q4 2025"). Espelha o padrão usado em Iniciativas
+// (Task #263) para que toda a cascata estratégica tenha prazos confiáveis.
+interface PrazoDatePickerProps {
+  prazo: string;
+  prazoData: string | null;
+  onChange: (next: { prazo: string; prazoData: string | null }) => void;
+  testIdPrefix?: string;
+}
+
+function PrazoDatePicker({ prazo, prazoData, onChange, testIdPrefix = "prazo" }: PrazoDatePickerProps) {
+  const dateValue = prazoData ? parseDateFn(prazoData, "yyyy-MM-dd", new Date()) : null;
+  const validDate = dateValue && !isNaN(dateValue.getTime()) ? dateValue : null;
+  return (
+    <div className="space-y-2">
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            className={`w-full justify-start font-normal ${!validDate ? "text-muted-foreground" : ""}`}
+            data-testid={`button-${testIdPrefix}-data`}
+          >
+            <CalendarIcon className="mr-2 h-4 w-4" />
+            {validDate ? format(validDate, "dd/MM/yyyy", { locale: ptBR }) : "Escolha uma data"}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar
+            mode="single"
+            selected={validDate ?? undefined}
+            onSelect={(d) => {
+              if (d) {
+                onChange({ prazo: format(d, "dd/MM/yyyy"), prazoData: format(d, "yyyy-MM-dd") });
+              } else {
+                onChange({ prazo, prazoData: null });
+              }
+            }}
+            locale={ptBR}
+            initialFocus
+          />
+          {validDate && (
+            <div className="flex justify-end border-t p-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  // Mantém o texto livre apenas se não for derivado da data.
+                  const derivado = format(validDate, "dd/MM/yyyy") === prazo;
+                  onChange({ prazo: derivado ? "" : prazo, prazoData: null });
+                }}
+                data-testid={`button-${testIdPrefix}-data-limpar`}
+              >
+                Limpar data
+              </Button>
+            </div>
+          )}
+        </PopoverContent>
+      </Popover>
+      <Input
+        placeholder="Ou texto livre: Q4 2025, Mar/2026…"
+        value={prazo}
+        onChange={(e) => {
+          // Texto livre digitado manualmente desfaz a data normalizada.
+          onChange({ prazo: e.target.value, prazoData: null });
+        }}
+        data-testid={`input-${testIdPrefix}`}
+      />
+      <p className="text-xs text-muted-foreground">
+        Selecione uma data ou use o campo livre (ex.: "Q4 2025").
+      </p>
+    </div>
+  );
+}
 
 function calcularProgresso(inicial: string, atual: string, alvo: string): number {
   const ini = parseFloat(inicial);
@@ -490,7 +570,12 @@ function ResultadoChaveCard({ resultado, isEditing, editingData, onStartEdit, on
             </div>
             <div>
               <Label className="text-xs">Prazo</Label>
-              <Input value={editingData.prazo} onChange={(e) => onChangeEdit({ ...editingData, prazo: e.target.value })} data-testid={`input-edit-prazo-${resultado.id}`} />
+              <PrazoDatePicker
+                prazo={editingData.prazo}
+                prazoData={editingData.prazoData ?? null}
+                onChange={(next) => onChangeEdit({ ...editingData, prazo: next.prazo, prazoData: next.prazoData })}
+                testIdPrefix={`edit-prazo-${resultado.id}`}
+              />
             </div>
           </div>
           <KrQualityCheck
@@ -638,26 +723,43 @@ export default function OKRs() {
     titulo: string;
     descricao: string;
     prazo: string;
+    prazoData: string | null;
     perspectiva: string;
     responsavelId: string;
     estrategiaId: string | null;
     iniciativaId: string | null;
-  }>({ titulo: "", descricao: "", prazo: "", perspectiva: "Financeira", responsavelId: "", estrategiaId: null, iniciativaId: null });
+  }>({ titulo: "", descricao: "", prazo: "", prazoData: null, perspectiva: "Financeira", responsavelId: "", estrategiaId: null, iniciativaId: null });
   const [objetivoSelecionado, setObjetivoSelecionado] = useState<Objetivo | null>(null);
   const [dialogResultadosOpen, setDialogResultadosOpen] = useState(false);
   const [editandoResultado, setEditandoResultado] = useState<ResultadoChave | null>(null);
-  const [novoResultado, setNovoResultado] = useState({
+  const [novoResultado, setNovoResultado] = useState<{
+    metrica: string;
+    valorInicial: string;
+    valorAlvo: string;
+    valorAtual: string;
+    owner: string;
+    prazo: string;
+    prazoData: string | null;
+    responsavelId: string;
+  }>({
     metrica: "",
     valorInicial: "",
     valorAlvo: "",
     valorAtual: "",
     owner: "",
     prazo: "",
-    responsavelId: "" as string,
+    prazoData: null,
+    responsavelId: "",
   });
   const [dialogNovoResultadoOpen, setDialogNovoResultadoOpen] = useState(false);
   const [editandoObjetivo, setEditandoObjetivo] = useState(false);
-  const [objetivoEditado, setObjetivoEditado] = useState({ titulo: "", descricao: "", prazo: "", perspectiva: "Financeira" });
+  const [objetivoEditado, setObjetivoEditado] = useState<{
+    titulo: string;
+    descricao: string;
+    prazo: string;
+    prazoData: string | null;
+    perspectiva: string;
+  }>({ titulo: "", descricao: "", prazo: "", prazoData: null, perspectiva: "Financeira" });
 
   const [retroDialogOpen, setRetroDialogOpen] = useState(false);
   const [retroObjetivo, setRetroObjetivo] = useState<Objetivo | null>(null);
@@ -972,7 +1074,7 @@ export default function OKRs() {
       return;
     }
 
-    setNovoObjetivo({ titulo: "", descricao: "", prazo: "", perspectiva: "Financeira", responsavelId: "", estrategiaId: null, iniciativaId: null });
+    setNovoObjetivo({ titulo: "", descricao: "", prazo: "", prazoData: null, perspectiva: "Financeira", responsavelId: "", estrategiaId: null, iniciativaId: null });
     setIsDialogOpen(false);
     toast({
       title: "Objetivo criado!",
@@ -1023,6 +1125,7 @@ export default function OKRs() {
       valorAtual: "",
       owner: "",
       prazo: "",
+      prazoData: null,
       responsavelId: "",
     });
     setDialogNovoResultadoOpen(false);
@@ -1080,6 +1183,7 @@ export default function OKRs() {
         owner: ownerSintEd,
         responsavelId: editandoResultado.responsavelId,
         prazo: editandoResultado.prazo,
+        prazoData: editandoResultado.prazoData ?? null,
       },
     });
 
@@ -1124,6 +1228,7 @@ export default function OKRs() {
           valorAlvo: params.valorAlvo || "",
           owner: params.owner || "",
           prazo: params.prazo || "",
+          prazoData: null,
           responsavelId: params.responsavelId || "",
         });
         setDialogNovoResultadoOpen(true);
@@ -1177,6 +1282,7 @@ export default function OKRs() {
         titulo: params.titulo || found.titulo,
         descricao: params.descricao || found.descricao || "",
         prazo: params.prazo || found.prazo,
+        prazoData: found.prazoData ?? null,
         perspectiva: params.perspectiva || found.perspectiva,
       });
       setEditandoObjetivo(true);
@@ -1198,6 +1304,7 @@ export default function OKRs() {
           valorAlvo: params.valorAlvo || "",
           owner: params.owner || "",
           prazo: params.prazo || "",
+          prazoData: null,
           responsavelId: params.responsavelId || "",
         });
         setDialogResultadosOpen(true);
@@ -1207,6 +1314,7 @@ export default function OKRs() {
         titulo: params.titulo || "",
         descricao: params.descricao || "",
         prazo: params.prazo || "",
+        prazoData: null,
         perspectiva: params.perspectiva || "Financeira",
         responsavelId: "",
         estrategiaId: params.estrategiaId || null,
@@ -1224,6 +1332,7 @@ export default function OKRs() {
         titulo: objetivoSelecionado.titulo,
         descricao: objetivoSelecionado.descricao || "",
         prazo: objetivoSelecionado.prazo,
+        prazoData: objetivoSelecionado.prazoData ?? null,
         perspectiva: objetivoSelecionado.perspectiva,
       });
       setEditandoObjetivo(true);
@@ -1332,13 +1441,12 @@ export default function OKRs() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="prazo">Prazo</Label>
-                    <Input
-                      id="prazo"
-                      placeholder="Ex: Q4 2025, Anual 2025"
-                      value={novoObjetivo.prazo}
-                      onChange={(e) => setNovoObjetivo({ ...novoObjetivo, prazo: e.target.value })}
-                      data-testid="input-objetivo-prazo"
+                    <Label>Prazo</Label>
+                    <PrazoDatePicker
+                      prazo={novoObjetivo.prazo}
+                      prazoData={novoObjetivo.prazoData}
+                      onChange={(next) => setNovoObjetivo({ ...novoObjetivo, ...next })}
+                      testIdPrefix="objetivo-prazo"
                     />
                   </div>
                   <div>
@@ -1592,7 +1700,7 @@ export default function OKRs() {
         setDialogResultadosOpen(open);
         if (!open) {
           setEditandoObjetivo(false);
-          setObjetivoEditado({ titulo: "", descricao: "", prazo: "", perspectiva: "Financeira" });
+          setObjetivoEditado({ titulo: "", descricao: "", prazo: "", prazoData: null, perspectiva: "Financeira" });
         }
       }}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -1665,11 +1773,11 @@ export default function OKRs() {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label>Prazo</Label>
-                        <Input
-                          value={objetivoEditado.prazo}
-                          onChange={(e) => setObjetivoEditado({ ...objetivoEditado, prazo: e.target.value })}
-                          placeholder="Ex: Q4 2025"
-                          data-testid="input-editar-prazo"
+                        <PrazoDatePicker
+                          prazo={objetivoEditado.prazo}
+                          prazoData={objetivoEditado.prazoData}
+                          onChange={(next) => setObjetivoEditado({ ...objetivoEditado, ...next })}
+                          testIdPrefix="editar-objetivo-prazo"
                         />
                       </div>
                       <div>
@@ -1810,11 +1918,11 @@ export default function OKRs() {
                           </div>
                           <div>
                             <Label>Prazo</Label>
-                            <Input
-                              placeholder="Ex: Q4 2025"
-                              value={novoResultado.prazo}
-                              onChange={(e) => setNovoResultado({ ...novoResultado, prazo: e.target.value })}
-                              data-testid="input-resultado-prazo"
+                            <PrazoDatePicker
+                              prazo={novoResultado.prazo}
+                              prazoData={novoResultado.prazoData}
+                              onChange={(next) => setNovoResultado({ ...novoResultado, ...next })}
+                              testIdPrefix="resultado-prazo"
                             />
                           </div>
                         </div>

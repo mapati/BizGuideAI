@@ -6,9 +6,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { ThemeProvider } from "@/components/ThemeProvider";
-import { AIAssistant } from "@/components/AIAssistant";
+import { AssistantSidebar } from "@/components/AssistantSidebar";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { AIModalLockProvider, useAIModalLocked } from "@/contexts/ai-modal-lock";
+import { AIModalLockProvider } from "@/contexts/ai-modal-lock";
 import { Clock, Zap } from "lucide-react";
 
 import Home from "@/pages/Home";
@@ -111,16 +111,6 @@ function UpgradeBanner() {
       </span>
     </div>
   );
-}
-
-function AssistantSlot() {
-  const locked = useAIModalLocked();
-  const [location] = useLocation();
-  if (locked) return null;
-  // Na página dedicada do Assistente, o chat já é o conteúdo principal —
-  // o chip flutuante seria redundante.
-  if (location === "/assistente") return null;
-  return <AIAssistant />;
 }
 
 function AppLayout() {
@@ -240,7 +230,7 @@ function AppLayout() {
         {showUpgradeBanner && <UpgradeBanner />}
         <div className="flex flex-1 overflow-hidden">
           <AppSidebar />
-          <div className="flex flex-col flex-1 overflow-hidden">
+          <div className="flex flex-col flex-1 overflow-hidden min-w-0">
             <header className="flex items-center justify-between p-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
               <SidebarTrigger data-testid="button-sidebar-toggle" />
             </header>
@@ -286,9 +276,9 @@ function AppLayout() {
               </Switch>
             </main>
           </div>
+          <AssistantSidebar />
         </div>
       </div>
-      <AssistantSlot />
     </SidebarProvider>
   );
 }

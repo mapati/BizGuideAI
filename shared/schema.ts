@@ -1013,3 +1013,76 @@ export const conteudoPautaSchema = z.object({
 });
 export type ConteudoPauta = z.infer<typeof conteudoPautaSchema>;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Task #289 — Memória de longo prazo do Bizzy: resumos de ciclo imutáveis.
+// Cada linha consolida um período/objetivo/estratégia/iniciativa concluída em
+// JSON estruturado (conquistas, atrasos, decisões, KPIs movidos, lições).
+// Geração é determinística (sem LLM) e o registro nunca é editado — se algo
+// muda, gera-se uma nova versão. O Bizzy injeta os 3 mais recentes no prompt
+// e oferece tools de leitura para consultas pontuais.
+// ─────────────────────────────────────────────────────────────────────────────
+export const resumoCicloTipoEnum = z.enum(["trimestre", "objetivo", "estrategia", "iniciativa"]);
+export type ResumoCicloTipo = z.infer<typeof resumoCicloTipoEnum>;
+
+export const bizzyResumosCiclo = pgTable("bizzy_resumos_ciclo", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  empresaId: varchar("empresa_id").notNull().references(() => empresas.id, { onDelete: "cascade" }),
+  tipo: text("tipo").notNull(), // trimestre|objetivo|estrategia|iniciativa
+  // ID da entidade resumida (objetivo/estrategia/iniciativa). Nulo para tipo=trimestre.
+  referenciaId: varchar("referencia_id"),
+  // Identificador humano do ciclo: "2026-Q1" para trimestre; título curto para os demais.
+  periodo: text("periodo").notNull(),
+  // Versão monotônica: se um mesmo (empresa,tipo,referencia,periodo) for re-resumido,
+  // a versão é incrementada — o anterior NUNCA é editado nem apagado.
+  versao: integer("versao").notNull().default(1),
+  conteudo: jsonb("conteudo").notNull(),
+  imutavel: boolean("imutavel").notNull().default(true),
+  geradoPor: text("gerado_por").notNull().default("auto"), // auto|hook|manual
+  criadoEm: timestamp("criado_em").defaultNow().notNull(),
+});
+
+export const insertBizzyResumoCicloSchema = createInsertSchema(bizzyResumosCiclo).omit({
+  id: true,
+  criadoEm: true,
+});
+export type InsertBizzyResumoCiclo = z.infer<typeof insertBizzyResumoCicloSchema>;
+export type BizzyResumoCiclo = typeof bizzyResumosCiclo.$inferSelect;
+
+// Conteúdo estruturado do resumo (JSONB). Campos opcionais ficam vazios quando
+// não há dados — assim o helper de truncamento pode descartar ruído sem perder
+// os pilares (conquistas + atrasos + lições).
+export const conteudoResumoCicloSchema = z.object({
+  resumoCurto: z.string().default(""),
+  conquistas: z.array(z.string()).default([]),
+  atrasos: z.array(z.string()).default([]),
+  licoes: z.array(z.string()).default([]),
+  decisoes: z.array(z.object({
+    titulo: z.string(),
+    escolha: z.string().default(""),
+  })).default([]),
+  kpisMovidos: z.array(z.object({
+    id: z.string(),
+    nome: z.string(),
+    de: z.string().nullable().default(null),
+    para: z.string().nullable().default(null),
+    statusFinal: z.string().default(""),
+  })).default([]),
+  iniciativasConcluidas: z.array(z.object({
+    id: z.string(),
+    titulo: z.string(),
+    nota: z.string().default(""),
+  })).default([]),
+  iniciativasArquivadas: z.array(z.object({
+    id: z.string(),
+    titulo: z.string(),
+    motivo: z.string().default(""),
+  })).default([]),
+  okrsEncerrados: z.array(z.object({
+    id: z.string(),
+    titulo: z.string(),
+    pctMedio: z.number().nullable().default(null),
+  })).default([]),
+  retrospectivasIds: z.array(z.string()).default([]),
+});
+export type ConteudoResumoCiclo = z.infer<typeof conteudoResumoCicloSchema>;
+

@@ -19,6 +19,7 @@ import cron from "node-cron";
 import { runGithubPush, getPushLogs, startGithubScheduler, stopGithubScheduler, isGitRepository, type PushFrequencia } from "./github-scheduler";
 import { runPlanoAgenticoHealing, getHealingLogs, startPlanoAgenticoHealingScheduler } from "./plano-agentico-healing";
 import { computePlanQuality, formatPlanQualityForPrompt } from "./plan-quality";
+import { buildHistoricoContextoIA, gerarResumoCiclo } from "./bizzy-resumos";
 import { dispararExtracaoBackground, extrairEPersistirMemoria } from "./memory-extractor";
 import { 
   insertEmpresaSchema,
@@ -4273,6 +4274,22 @@ Responda OBRIGATORIAMENTE em JSON:
         console.warn(`[ASSISTENTE] qualidade do plano falhou: ${err?.message ?? err}`);
       }
 
+      // Task #289 — Memória de longo prazo: injeta os 3 resumos de ciclo mais
+      // recentes (≤ 800 tokens) para o Bizzy citar histórico real em vez de
+      // recomeçar do zero a cada conversa.
+      try {
+        const historicoBloco = await buildHistoricoContextoIA(empresaId);
+        if (historicoBloco) {
+          ctx.push(
+            `## HISTÓRICO DE CICLOS (memória de longo prazo)\n${historicoBloco}\n\n` +
+            `Use este histórico para dar continuidade às decisões: cite o ciclo (ex.: "no fechamento do 2026-Q1") quando referenciar conquistas ou lições passadas. ` +
+            `Para listar mais resumos chame "consultar_historico_estrategia"; para abrir UM resumo em detalhe chame "consultar_resumo_ciclo" com o resumoId.`,
+          );
+        }
+      } catch (histErr) {
+        console.warn("[ASSISTENTE] Falha ao carregar histórico de ciclos:", histErr);
+      }
+
       // Task #221 — bloco de memória persistente (fatos extraídos das conversas
       // anteriores), inserido ANTES do CATÁLOGO. Lê os 20 fatos ativos mais
       // recentes para não inflar o prompt.
@@ -4378,7 +4395,13 @@ FERRAMENTAS DISPONÍVEIS:
 - Análise read-only (executam direto, NÃO viram proposta): use "analisar_indicador" quando o usuário perguntar sobre UM KPI específico ("e o NPS?", "como está o churn?") — você recebe série, tendência, vínculos. Use "projetar_kr" quando ele pedir projeção/se a meta vai bater. Use "simular_impacto" ANTES de recomendar adiar/cancelar uma iniciativa, para mostrar quais KPIs/OKRs ficam órfãos. Use "comparar_periodos" para retrospectivas ("este trimestre vs anterior").
 - Diagnóstico ativo do plano (Task #285, read-only): use "analisar_gap_meta_vs_realizado" quando o usuário perguntar "por que o NPS/KR/objetivo X não está batendo?" (passe tipo='kpi'|'kr'|'objetivo' + id) — devolve gap, projeção e causas prováveis. Use "detectar_lacunas_cascata" quando ele perguntar "o que está solto/órfão no meu plano?" — devolve iniciativas sem objetivo, objetivos sem KR, KPIs sem iniciativa atacando, estratégias sem iniciativa (lembre: KR sem KPI NÃO é defeito). Use "detectar_objetivos_descarrilados" para "quais objetivos estão em risco?" — lista objetivos com pct médio < 30% ou sem check-in há > 21 dias. Use "analisar_consistencia_estrategica" para "a execução está conectada à estratégia?" — mostra estratégias sem objetivo/iniciativa e iniciativas que não tocam nenhum KPI. Use "sumarizar_ciclo_atual" para "como foi o trimestre?" — % executado, check-ins, decisões, top conquistas/atrasos.
 - Exemplos de diagnóstico ativo: usuário diz "meu plano está estranho, tem coisa solta?" → chame detectar_lacunas_cascata e narre os achados. Usuário diz "por que o objetivo de retenção não anda?" → chame buscar_entidade_por_nome para pegar o id do objetivo, depois analisar_gap_meta_vs_realizado com tipo='objetivo' e cite o pctMedio + causasProvaveis no texto.
+- Memória de longo prazo (Task #289): "consultar_historico_estrategia" lista resumos de ciclo passados (trimestre/objetivo/estrategia/iniciativa) com conquistas, atrasos e lições. Use ANTES de responder perguntas como "já tentamos isso antes?", "o que aprendemos no último trimestre?", "qual era nossa decisão sobre X?" — sempre cite o ciclo (ex.: "no fechamento do 2026-Q1, o churn caiu de 8% para 5%"). Para abrir um resumo específico em detalhe, chame "consultar_resumo_ciclo" com o resumoId. Use "gerar_resumo_ciclo_manual" (HITL) quando o usuário pedir explicitamente para "fechar o trimestre", "consolidar esse objetivo" ou "fazer um post-mortem dessa estratégia" — é imutável, então confirme antes.
 - Após receber o payload de uma análise read-only, narre os achados em texto (cite IDs/nomes que vieram no payload) — só DEPOIS chame uma tool executora HITL se o usuário aprovar uma ação concreta.
+
+EXEMPLOS DE USO DA MEMÓRIA DE LONGO PRAZO:
+- Pergunta: "como foi nosso último trimestre?"
+  • Olhe o "## HISTÓRICO DE CICLOS"; se já houver um resumo trimestre lá, narre as conquistas/atrasos/lições daquele período citando explicitamente o "periodo" (ex.: "no 2026-Q1 fechamos 4 iniciativas, mas o NPS ficou parado…"). Não chame tool se a resposta já está no contexto.
+  • Se o histórico no contexto não cobrir o trimestre pedido (ou estiver vazio), chame "consultar_historico_estrategia" com {limite:5, tipo:"trimestre"} antes de responder.
 
 LOOP AGÊNTICO (planos multi-passo):
 - Quando o pedido for AMPLO ("monte um plano de retomada de vendas", "estruture meu trimestre", "ataque o problema do KPI X de ponta a ponta"), prefira chamar criar_plano_agentico com 3 a 6 passos curtos antes de executar qualquer ação.
@@ -9590,6 +9613,32 @@ Seja específico para o setor ${empresa.setor}.`,
 
   /* ── Task #194 — Inicializa o self-healing de planos agênticos ── */
   startPlanoAgenticoHealingScheduler();
+
+  /* ── Task #289 — Resumo trimestral automático de ciclo (memória de longo
+       prazo do Bizzy). Roda 08:00 do primeiro dia de Jan/Abr/Jul/Out e gera
+       um resumo do trimestre que acabou para cada empresa ativa. ── */
+  cron.schedule("0 8 1 1,4,7,10 *", async () => {
+    try {
+      const empresas = await storage.getAllEmpresas();
+      console.log(`[RESUMO_CICLO] Gerando resumos trimestrais para ${empresas.length} empresa(s)…`);
+      for (const empresa of empresas) {
+        try {
+          const resumo = await gerarResumoCiclo({
+            empresaId: empresa.id,
+            tipo: "trimestre",
+            geradoPor: "cron_trimestral",
+          });
+          if (resumo) {
+            console.log(`[RESUMO_CICLO] ${empresa.id} → resumo ${resumo.id} (${resumo.periodo})`);
+          }
+        } catch (innerErr: any) {
+          console.warn(`[RESUMO_CICLO] Falha em ${empresa.id}:`, innerErr?.message ?? innerErr);
+        }
+      }
+    } catch (err: any) {
+      console.error("[RESUMO_CICLO] Erro no scheduler trimestral:", err?.message ?? err);
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;

@@ -126,6 +126,9 @@ import {
   revisoesAgendadas,
   type RevisaoAgendada,
   type InsertRevisaoAgendada,
+  bizzyResumosCiclo,
+  type BizzyResumoCiclo,
+  type InsertBizzyResumoCiclo,
 } from "@shared/schema";
 import { eq, ne, and, or, desc, inArray, sql, lt, isNull } from "drizzle-orm";
 
@@ -377,6 +380,14 @@ export interface IStorage {
   getRevisoesPendentesAteData(empresaId: string, dataIso: string): Promise<RevisaoAgendada[]>;
   updateRevisaoAgendada(id: string, empresaId: string, patch: Partial<InsertRevisaoAgendada> & { status?: string; concluidaEm?: Date | null }): Promise<RevisaoAgendada>;
   deleteRevisaoAgendada(id: string, empresaId: string): Promise<void>;
+
+  // Task #289 — Resumos de ciclo (memória de longo prazo do Bizzy).
+  // Imutáveis: nunca atualizar/excluir; novas versões são novas linhas.
+  createResumoCiclo(data: InsertBizzyResumoCiclo): Promise<BizzyResumoCiclo>;
+  getResumoCicloById(id: string, empresaId: string): Promise<BizzyResumoCiclo | undefined>;
+  listResumosCicloByEmpresa(empresaId: string, limit?: number): Promise<BizzyResumoCiclo[]>;
+  listResumosCicloByReferencia(empresaId: string, tipo: string, referenciaId: string | null, periodo?: string): Promise<BizzyResumoCiclo[]>;
+  getProximaVersaoResumoCiclo(empresaId: string, tipo: string, referenciaId: string | null, periodo: string): Promise<number>;
 }
 
 export type ResetGrupo = "diagnostico" | "mapa" | "plano-acao" | "execucao" | "tudo";
@@ -563,6 +574,22 @@ export class DbStorage implements IStorage {
       .where(and(eq(objetivos.id, id), eq(objetivos.empresaId, empresaId)))
       .returning();
     if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
+    // Task #289 — quando o objetivo é encerrado, dispara um resumo de ciclo
+    // (memória de longo prazo do Bizzy) em background. Falhas não bloqueiam.
+    if (objetivo.encerrado === true) {
+      import("./bizzy-resumos")
+        .then(({ gerarResumoCiclo }) =>
+          gerarResumoCiclo({
+            empresaId,
+            tipo: "objetivo",
+            referenciaId: id,
+            geradoPor: "hook_objetivo_encerrado",
+          }),
+        )
+        .catch((err) => {
+          console.warn("[RESUMO_CICLO] Hook objetivo encerrado falhou:", err?.message ?? err);
+        });
+    }
     return result[0];
   }
 
@@ -707,6 +734,24 @@ export class DbStorage implements IStorage {
   }
   async createRetrospectiva(retro: InsertRetrospectiva): Promise<Retrospectiva> {
     const result = await db.insert(retrospectivas).values(retro).returning();
+    // Task #289 — após uma retrospectiva, dispara um resumo de ciclo do
+    // objetivo associado em background (não bloqueia a resposta da rota).
+    if (result[0]?.objetivoId && result[0]?.empresaId) {
+      const empresaId = result[0].empresaId;
+      const objetivoId = result[0].objetivoId;
+      import("./bizzy-resumos")
+        .then(({ gerarResumoCiclo }) =>
+          gerarResumoCiclo({
+            empresaId,
+            tipo: "objetivo",
+            referenciaId: objetivoId,
+            geradoPor: "hook_retrospectiva",
+          }),
+        )
+        .catch((err) => {
+          console.warn("[RESUMO_CICLO] Hook retrospectiva falhou:", err?.message ?? err);
+        });
+    }
     return result[0];
   }
   async deleteRetrospectiva(id: string, empresaId: string): Promise<void> {
@@ -2027,6 +2072,50 @@ export class DbStorage implements IStorage {
       .where(and(eq(revisoesAgendadas.id, id), eq(revisoesAgendadas.empresaId, empresaId)))
       .returning();
     if (!result[0]) throw new Error("Revisão não encontrada ou acesso negado");
+  }
+
+  // ───── Task #289 — Resumos de ciclo (memória de longo prazo) ─────
+  async createResumoCiclo(data: InsertBizzyResumoCiclo): Promise<BizzyResumoCiclo> {
+    const [row] = await db.insert(bizzyResumosCiclo).values(data).returning();
+    return row;
+  }
+  async getResumoCicloById(id: string, empresaId: string): Promise<BizzyResumoCiclo | undefined> {
+    const [row] = await db.select().from(bizzyResumosCiclo)
+      .where(and(eq(bizzyResumosCiclo.id, id), eq(bizzyResumosCiclo.empresaId, empresaId)))
+      .limit(1);
+    return row;
+  }
+  async listResumosCicloByEmpresa(empresaId: string, limit = 20): Promise<BizzyResumoCiclo[]> {
+    return db.select().from(bizzyResumosCiclo)
+      .where(eq(bizzyResumosCiclo.empresaId, empresaId))
+      .orderBy(desc(bizzyResumosCiclo.criadoEm))
+      .limit(limit);
+  }
+  async listResumosCicloByReferencia(
+    empresaId: string,
+    tipo: string,
+    referenciaId: string | null,
+    periodo?: string,
+  ): Promise<BizzyResumoCiclo[]> {
+    const conds = [
+      eq(bizzyResumosCiclo.empresaId, empresaId),
+      eq(bizzyResumosCiclo.tipo, tipo),
+      referenciaId == null ? isNull(bizzyResumosCiclo.referenciaId) : eq(bizzyResumosCiclo.referenciaId, referenciaId),
+    ];
+    if (periodo) conds.push(eq(bizzyResumosCiclo.periodo, periodo));
+    return db.select().from(bizzyResumosCiclo)
+      .where(and(...conds))
+      .orderBy(desc(bizzyResumosCiclo.versao), desc(bizzyResumosCiclo.criadoEm));
+  }
+  async getProximaVersaoResumoCiclo(
+    empresaId: string,
+    tipo: string,
+    referenciaId: string | null,
+    periodo: string,
+  ): Promise<number> {
+    const existentes = await this.listResumosCicloByReferencia(empresaId, tipo, referenciaId, periodo);
+    if (existentes.length === 0) return 1;
+    return Math.max(...existentes.map((r) => r.versao ?? 1)) + 1;
   }
 }
 

@@ -31,6 +31,9 @@ A guided onboarding journey facilitates user engagement through 11 strategic ste
 ### Strategic cascade migration (Tasks #274/#275)
 The Jornada now reads top-down as Estratégia → Frente → Objetivo (Meta) → Iniciativa. New iniciativas record the originating Meta in `iniciativas.objetivo_originador_id`. The legacy field `objetivos.iniciativa_id` is preserved for backwards reads. A startup backfill in `server/index.ts` populates `objetivo_originador_id` on legacy iniciativas using the oldest objetivo (per empresa) that still references them, so old companies see "cada Meta gera Iniciativas" without manual intervention.
 
+### Bizzy long-term memory — Cycle summarization (Task #289)
+The Bizzy assistant has persistent cycle memory via the `bizzy_resumos_ciclo` table (immutable, jsonb `conteudo`, per-empresa, versioned). Summaries are deterministic (no LLM) and built in `server/bizzy-resumos.ts` with four `tipo`s: `trimestre`, `objetivo`, `estrategia`, `iniciativa`. Generation triggers: a quarterly cron (`0 8 1 1,4,7,10 *`), a hook on `updateObjetivo` when `encerrado=true`, and a hook on `createRetrospectiva` (both fire-and-forget). The system prompt receives a compact `## HISTÓRICO DE CICLOS` block with the 3 most recent summaries (≤800 tokens, truncated keeping conquistas+atrasos+lições) via `buildHistoricoContextoIA`. Three new assistant tools: `gerar_resumo_ciclo_manual` (HITL write), `consultar_historico_estrategia` and `consultar_resumo_ciclo` (read-only).
+
 ### Key Features
 - **Priority Initiatives Portfolio:** CRUD operations for initiatives with AI generation and anti-duplication.
 - **OKR Management:** CRUD for Objectives and Key Results, leveraging AI for generation based on strategic context.

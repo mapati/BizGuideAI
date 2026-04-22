@@ -20,6 +20,7 @@ import {
   type PeriodoIso,
 } from "./plan-insights";
 import { openai, getModelForPlan } from "./ai-helpers";
+import { gerarResumoCiclo, lerConteudoResumo } from "./bizzy-resumos";
 
 // ---------- Tipos públicos ----------
 export type ToolName =
@@ -80,7 +81,9 @@ export type ToolName =
   | "arquivar_objetivo"
   | "repriorizar_iniciativas"
   | "repriorizar_estrategias"
-  | "proposta_em_lote";
+  | "proposta_em_lote"
+  // Task #289 — Memória de longo prazo
+  | "gerar_resumo_ciclo_manual";
 
 export interface ToolApplyContext {
   empresaId: string;
@@ -107,7 +110,9 @@ export type EntidadeTipo =
   // Task #287 — Modelo & Estratégia
   | "modelo_negocio"
   | "cenario"
-  | "bsc_relacao";
+  | "bsc_relacao"
+  // Task #289 — Memória de longo prazo
+  | "resumo_ciclo";
 
 export interface ToolApplyResult {
   resumo: string;
@@ -2332,6 +2337,9 @@ const READONLY_TOOL_NAMES = [
   "detectar_objetivos_descarrilados",
   "analisar_consistencia_estrategica",
   "sumarizar_ciclo_atual",
+  // Task #289 — Memória de longo prazo
+  "consultar_historico_estrategia",
+  "consultar_resumo_ciclo",
 ] as const;
 export type ReadonlyToolName = typeof READONLY_TOOL_NAMES[number];
 
@@ -2353,6 +2361,17 @@ const simularImpactoSchema = z.object({
     z.object({ tipo: z.literal("cancelar") }),
     z.object({ tipo: z.literal("concluir") }),
   ]),
+});
+
+// --- consultar_historico_estrategia ---
+const consultarHistoricoEstrategiaSchema = z.object({
+  limite: z.number().int().min(1).max(20).optional(),
+  tipo: z.enum(["trimestre", "objetivo", "estrategia", "iniciativa"]).optional(),
+});
+
+// --- consultar_resumo_ciclo ---
+const consultarResumoCicloSchema = z.object({
+  resumoId: z.string().min(8),
 });
 
 // --- comparar_periodos ---
@@ -2435,6 +2454,38 @@ export const READONLY_TOOLS_OPENAI = [
               valor: { type: "integer", minimum: 1, maximum: 720, description: "Quantos dias adiar (apenas para tipo='adiar_dias')." },
             },
           },
+        },
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "consultar_historico_estrategia",
+      description:
+        "Lista resumos de ciclo (memória de longo prazo da empresa) — retornando os mais recentes primeiro com período, tipo, versão e os pilares (conquistas/atrasos/lições). Use quando o usuário perguntar 'o que aconteceu nos últimos trimestres?', 'já fechamos esse objetivo antes?', 'qual era nossa decisão sobre X?'. NÃO usa HITL — só leitura.",
+      parameters: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          limite: { type: "integer", minimum: 1, maximum: 20, description: "Quantos resumos retornar (padrão 5)." },
+          tipo: { type: "string", enum: ["trimestre", "objetivo", "estrategia", "iniciativa"], description: "Filtra por tipo (opcional)." },
+        },
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "consultar_resumo_ciclo",
+      description:
+        "Devolve o conteúdo completo de UM resumo de ciclo específico (todas as conquistas, atrasos, decisões, KPIs movidos, lições, iniciativas concluídas/arquivadas). Use após 'consultar_historico_estrategia' quando o usuário aprofundar em um item específico.",
+      parameters: {
+        type: "object",
+        additionalProperties: false,
+        required: ["resumoId"],
+        properties: {
+          resumoId: { type: "string", description: "ID do resumo de ciclo (do retorno de consultar_historico_estrategia)." },
         },
       },
     },
@@ -2793,6 +2844,64 @@ export async function executarFerramentaReadonly(
           aviso: impactos.length === 0
             ? "Nenhum vínculo encontrado (esta iniciativa não está ligada a KPI/estratégia). Cite isso ao usuário."
             : null,
+        },
+      };
+    }
+
+    if (name === "consultar_historico_estrategia") {
+      const parsed = consultarHistoricoEstrategiaSchema.safeParse(rawArgs);
+      if (!parsed.success) return { ok: false, ferramenta: name, mensagem: `Parâmetros inválidos: ${parsed.error.message.slice(0, 200)}` };
+      const limite = parsed.data.limite ?? 5;
+      let lista = await storage.listResumosCicloByEmpresa(ctx.empresaId, Math.max(limite, parsed.data.tipo ? 20 : limite));
+      if (parsed.data.tipo) lista = lista.filter((r) => r.tipo === parsed.data.tipo);
+      lista = lista.slice(0, limite);
+      const resumos = lista.map((row) => {
+        const c = lerConteudoResumo(row);
+        return {
+          id: row.id,
+          tipo: row.tipo,
+          periodo: row.periodo,
+          versao: row.versao,
+          referenciaId: row.referenciaId,
+          criadoEm: row.criadoEm,
+          resumoCurto: c.resumoCurto,
+          conquistas: c.conquistas.slice(0, 4),
+          atrasos: c.atrasos.slice(0, 4),
+          licoes: c.licoes.slice(0, 4),
+        };
+      });
+      return {
+        ok: true,
+        ferramenta: name,
+        dados: {
+          total: resumos.length,
+          resumos,
+          instrucao: resumos.length === 0
+            ? "Ainda não há resumos de ciclo para esta empresa. Sugira ao usuário gerar o primeiro com 'gerar_resumo_ciclo_manual'."
+            : "Cite os períodos exatos ao referenciar a memória — não invente datas.",
+        },
+      };
+    }
+
+    if (name === "consultar_resumo_ciclo") {
+      const parsed = consultarResumoCicloSchema.safeParse(rawArgs);
+      if (!parsed.success) return { ok: false, ferramenta: name, mensagem: `Parâmetros inválidos: ${parsed.error.message.slice(0, 200)}` };
+      const row = await storage.getResumoCicloById(parsed.data.resumoId, ctx.empresaId);
+      if (!row) return { ok: false, ferramenta: name, mensagem: "Resumo de ciclo não encontrado para esta empresa." };
+      const conteudo = lerConteudoResumo(row);
+      return {
+        ok: true,
+        ferramenta: name,
+        dados: {
+          id: row.id,
+          tipo: row.tipo,
+          periodo: row.periodo,
+          versao: row.versao,
+          referenciaId: row.referenciaId,
+          criadoEm: row.criadoEm,
+          geradoPor: row.geradoPor,
+          imutavel: row.imutavel,
+          conteudo,
         },
       };
     }
@@ -5735,6 +5844,63 @@ const propostaEmLote: ToolDefinition<PropostaEmLoteParams> = {
   formRota: "/dashboard",
 };
 
+// ---------- Task #289 — Resumo de ciclo (HITL manual) ----------
+const gerarResumoCicloManualSchema = z.object({
+  tipo: z.enum(["trimestre", "objetivo", "estrategia", "iniciativa"]),
+  referenciaId: z.string().min(8).optional(),
+  periodo: z.string().min(3).max(60).optional(),
+});
+type GerarResumoCicloManualParams = z.infer<typeof gerarResumoCicloManualSchema>;
+
+const gerarResumoCicloManual: ToolDefinition<GerarResumoCicloManualParams> = {
+  name: "gerar_resumo_ciclo_manual",
+  description:
+    "Gera (com confirmação humana) um resumo imutável de ciclo na memória de longo prazo do Bizzy. Use quando o usuário pedir 'fecha o trimestre', 'faz um post-mortem desse objetivo' ou 'consolida essa estratégia'. tipo='trimestre' não exige referenciaId (usa o trimestre atual se 'periodo' não for informado). Para os demais tipos, referenciaId é obrigatório (ID do objetivo/estratégia/iniciativa). O resumo é determinístico, gerado a partir do storage — não inventa nada.",
+  paramsSchema: gerarResumoCicloManualSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["tipo"],
+    properties: {
+      tipo: { type: "string", enum: ["trimestre", "objetivo", "estrategia", "iniciativa"] },
+      referenciaId: { type: "string", description: "ID da entidade resumida (objetivo/estrategia/iniciativa). Obrigatório se tipo≠trimestre." },
+      periodo: { type: "string", description: "Identificador do ciclo (ex.: '2026-Q1' para trimestre). Opcional." },
+    },
+  },
+  preview: (p) => ({
+    titulo: `Gerar resumo de ${p.tipo}`,
+    descricao: `Vou consolidar conquistas, atrasos, decisões e lições do ${p.tipo}${p.periodo ? ` (${p.periodo})` : ""} em um resumo imutável que ficará na memória de longo prazo. Posso gerar?`,
+    campos: [
+      { label: "Tipo", valor: p.tipo },
+      ...(p.referenciaId ? [{ label: "Referência", valor: p.referenciaId }] : []),
+      ...(p.periodo ? [{ label: "Período", valor: p.periodo }] : []),
+      { label: "Imutável", valor: "Sim — não pode ser editado depois." },
+    ],
+    ctaConfirmar: "Gerar resumo",
+    ctaIgnorar: "Agora não",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    if (p.tipo !== "trimestre" && !p.referenciaId) {
+      throw new Error(`referenciaId é obrigatório para tipo=${p.tipo}.`);
+    }
+    const r = await gerarResumoCiclo({
+      empresaId: ctx.empresaId,
+      tipo: p.tipo,
+      referenciaId: p.referenciaId ?? null,
+      periodo: p.periodo,
+      geradoPor: "manual",
+    });
+    return {
+      resumo: `Resumo de ${p.tipo} (${r.periodo}) gerado — versão ${r.versao}.`,
+      dados: { resumoId: r.id, tipo: r.tipo, periodo: r.periodo, versao: r.versao },
+      entidadeTipo: "resumo_ciclo",
+      entidadeId: r.id,
+    };
+  },
+  formRota: "/bizzy",
+};
+
 // Cada ToolDefinition tem um TParams concreto; o registry, porém, precisa
 // guardar todos juntos. `wrap` faz o "sealing" para `unknown` em um único
 // ponto tipado, evitando `any` espalhado pelo módulo. A validação de runtime
@@ -5802,6 +5968,8 @@ export const TOOLS: Record<ToolName, ToolDefinition<unknown>> = {
   repriorizar_iniciativas: wrap(repriorizarIniciativasTool),
   repriorizar_estrategias: wrap(repriorizarEstrategiasTool),
   proposta_em_lote: wrap(propostaEmLote),
+  // Task #289 — Memória de longo prazo
+  gerar_resumo_ciclo_manual: wrap(gerarResumoCicloManual),
 };
 
 // Tools que executam ações de negócio (passíveis de vínculo com plano).
@@ -6293,6 +6461,10 @@ export const STATUS_LABELS: Readonly<Record<string, string>> = {
   detectar_objetivos_descarrilados: "Identificando objetivos em risco…",
   analisar_consistencia_estrategica: "Avaliando consistência estratégica…",
   sumarizar_ciclo_atual: "Resumindo o ciclo atual…",
+  // Memória de longo prazo (Task #289)
+  gerar_resumo_ciclo_manual: "Gerando resumo do ciclo…",
+  consultar_historico_estrategia: "Consultando memória do Bizzy…",
+  consultar_resumo_ciclo: "Lendo resumo do ciclo…",
 };
 
 export function getToolStatusLabel(name: string): string {

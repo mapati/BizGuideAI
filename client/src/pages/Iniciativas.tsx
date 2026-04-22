@@ -27,7 +27,16 @@ import { ExampleCard } from "@/components/ExampleCard";
 import {
   Briefcase, Plus, Sparkles, Trash2, Pencil, Clock, User, TrendingUp, Link2, Wand2,
   Target, CheckCircle2, PauseCircle, XCircle, Search, X, ListFilter, LayoutGrid, List as ListIcon, MoreVertical, ChevronDown,
+  Table as TableIcon, GanttChart, ArrowUp, ArrowDown, ArrowUpDown,
 } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { PrerequisiteWarning } from "@/components/PrerequisiteWarning";
@@ -338,6 +347,9 @@ const IMPACTO_VALUES = ["alto", "médio", "baixo"] as const;
 const NO_RESPONSAVEL = "__SEM_RESPONSAVEL__";
 const NO_ORIGEM = "__SEM_ORIGEM__";
 
+const VIEW_MODES = ["lista", "kanban", "tabela", "gantt"] as const;
+type ViewMode = typeof VIEW_MODES[number];
+
 interface IniciativasView {
   status: string[];
   prioridade: string[];
@@ -346,7 +358,7 @@ interface IniciativasView {
   responsavel: string[];
   origem: string[]; // ids: estrategia ids, oportunidade ids, ou NO_ORIGEM
   busca: string;
-  modo: "lista" | "kanban";
+  modo: ViewMode;
 }
 
 type IniciativasViewArrayKey =
@@ -372,7 +384,10 @@ function useIniciativasView(empresaId?: string) {
       const raw = localStorage.getItem(key);
       if (raw) {
         const parsed = JSON.parse(raw);
-        setView({ ...VIEW_DEFAULT, ...parsed });
+        const modo: ViewMode = (VIEW_MODES as readonly string[]).includes(parsed?.modo)
+          ? (parsed.modo as ViewMode)
+          : "lista";
+        setView({ ...VIEW_DEFAULT, ...parsed, modo });
       } else {
         setView(VIEW_DEFAULT);
       }
@@ -524,8 +539,8 @@ function FiltersGrid({ view, options, onToggleFilter, onClearGroup }: Pick<Filte
 }
 
 function IniciativasFilterBar(props: FilterBarProps & {
-  modo: "lista" | "kanban";
-  onChangeModo: (m: "lista" | "kanban") => void;
+  modo: ViewMode;
+  onChangeModo: (m: ViewMode) => void;
 }) {
   const { view, totalAtivos, onSearch, onClearAll, modo, onChangeModo } = props;
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -594,7 +609,9 @@ function IniciativasFilterBar(props: FilterBarProps & {
       <ToggleGroup
         type="single"
         value={modo}
-        onValueChange={(v) => { if (v === "lista" || v === "kanban") onChangeModo(v); }}
+        onValueChange={(v) => {
+          if ((VIEW_MODES as readonly string[]).includes(v)) onChangeModo(v as ViewMode);
+        }}
         className="self-start sm:self-auto"
         aria-label="Modo de visualização"
       >
@@ -605,6 +622,14 @@ function IniciativasFilterBar(props: FilterBarProps & {
         <ToggleGroupItem value="kanban" size="sm" aria-label="Visualização em kanban" data-testid="button-view-kanban">
           <LayoutGrid className="h-4 w-4" />
           <span className="ml-1 hidden md:inline">Kanban</span>
+        </ToggleGroupItem>
+        <ToggleGroupItem value="tabela" size="sm" aria-label="Visualização em tabela" data-testid="button-view-tabela">
+          <TableIcon className="h-4 w-4" />
+          <span className="ml-1 hidden md:inline">Tabela</span>
+        </ToggleGroupItem>
+        <ToggleGroupItem value="gantt" size="sm" aria-label="Visualização em gantt" data-testid="button-view-gantt">
+          <GanttChart className="h-4 w-4" />
+          <span className="ml-1 hidden md:inline">Gantt</span>
         </ToggleGroupItem>
       </ToggleGroup>
     </div>
@@ -869,6 +894,492 @@ function KanbanBoard({
         ) : null}
       </DragOverlay>
     </DndContext>
+  );
+}
+
+// =============================================================================
+// Task #259 — Visualização em Tabela
+// =============================================================================
+
+type TabelaSortKey = "status" | "titulo" | "responsavel" | "prazo" | "prioridade" | "impacto" | "origem";
+type TabelaSortDir = "asc" | "desc";
+
+const PRIORIDADE_RANK: Record<string, number> = { alta: 1, "média": 2, baixa: 3 };
+const IMPACTO_RANK: Record<string, number> = { alto: 1, "médio": 2, baixo: 3 };
+const STATUS_RANK: Record<string, number> = {
+  em_andamento: 1, planejada: 2, pausada: 3, concluida: 4, cancelada: 5,
+};
+
+function origemLabel(
+  iniciativa: Iniciativa,
+  estrategias: Estrategia[],
+  oportunidades: Array<{ id: string; titulo: string }>,
+): string {
+  const est = estrategias.find((e) => e.id === iniciativa.estrategiaId);
+  if (est) return `${est.tipo} — ${est.titulo}`;
+  const op = oportunidades.find((o) => o.id === iniciativa.oportunidadeId);
+  if (op) return `Frente — ${op.titulo}`;
+  return "";
+}
+
+function IniciativasTabela({
+  iniciativas, estrategias, oportunidades, onEdit,
+}: {
+  iniciativas: Iniciativa[];
+  estrategias: Estrategia[];
+  oportunidades: Array<{ id: string; titulo: string }>;
+  onEdit: (i: Iniciativa) => void;
+}) {
+  const [sortKey, setSortKey] = useState<TabelaSortKey>("prioridade");
+  const [sortDir, setSortDir] = useState<TabelaSortDir>("asc");
+
+  const handleSort = (k: TabelaSortKey) => {
+    if (k === sortKey) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(k);
+      setSortDir("asc");
+    }
+  };
+
+  const sorted = useMemo(() => {
+    const data = [...iniciativas];
+    const cmp = (a: Iniciativa, b: Iniciativa) => {
+      const dir = sortDir === "asc" ? 1 : -1;
+      switch (sortKey) {
+        case "status":
+          return ((STATUS_RANK[a.status] ?? 99) - (STATUS_RANK[b.status] ?? 99)) * dir;
+        case "titulo":
+          return a.titulo.localeCompare(b.titulo, "pt-BR") * dir;
+        case "responsavel":
+          return (a.responsavel || "").localeCompare(b.responsavel || "", "pt-BR") * dir;
+        case "prazo": {
+          const pa = parsePrazo(a.prazo, a.createdAt);
+          const pb = parsePrazo(b.prazo, b.createdAt);
+          const va = pa ? pa.end.getTime() : Number.POSITIVE_INFINITY;
+          const vb = pb ? pb.end.getTime() : Number.POSITIVE_INFINITY;
+          if (va === vb) return (a.prazo || "").localeCompare(b.prazo || "", "pt-BR") * dir;
+          return (va - vb) * dir;
+        }
+        case "prioridade":
+          return ((PRIORIDADE_RANK[a.prioridade] ?? 99) - (PRIORIDADE_RANK[b.prioridade] ?? 99)) * dir;
+        case "impacto":
+          return ((IMPACTO_RANK[a.impacto] ?? 99) - (IMPACTO_RANK[b.impacto] ?? 99)) * dir;
+        case "origem":
+          return origemLabel(a, estrategias, oportunidades)
+            .localeCompare(origemLabel(b, estrategias, oportunidades), "pt-BR") * dir;
+      }
+    };
+    data.sort(cmp);
+    return data;
+  }, [iniciativas, sortKey, sortDir, estrategias, oportunidades]);
+
+  const SortBtn = ({ label, k }: { label: string; k: TabelaSortKey }) => {
+    const Icon = sortKey !== k ? ArrowUpDown : sortDir === "asc" ? ArrowUp : ArrowDown;
+    return (
+      <button
+        type="button"
+        onClick={() => handleSort(k)}
+        className="inline-flex items-center gap-1 text-left font-medium hover:underline"
+        data-testid={`sort-${k}`}
+      >
+        <span>{label}</span>
+        <Icon className="h-3 w-3 opacity-60" />
+      </button>
+    );
+  };
+
+  return (
+    <div className="rounded-md border overflow-x-auto" data-testid="iniciativas-tabela">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead><SortBtn label="Status" k="status" /></TableHead>
+            <TableHead><SortBtn label="Título" k="titulo" /></TableHead>
+            <TableHead><SortBtn label="Responsável" k="responsavel" /></TableHead>
+            <TableHead><SortBtn label="Prazo" k="prazo" /></TableHead>
+            <TableHead><SortBtn label="Prioridade" k="prioridade" /></TableHead>
+            <TableHead><SortBtn label="Impacto" k="impacto" /></TableHead>
+            <TableHead><SortBtn label="Origem" k="origem" /></TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {sorted.map((it) => {
+            const origem = origemLabel(it, estrategias, oportunidades);
+            return (
+              <TableRow
+                key={it.id}
+                onClick={() => onEdit(it)}
+                className="cursor-pointer"
+                data-testid={`row-iniciativa-${it.id}`}
+              >
+                <TableCell>
+                  <Badge variant={statusVariants[it.status]} data-testid={`tabela-status-${it.id}`}>
+                    {statusLabels[it.status as keyof typeof statusLabels] ?? it.status}
+                  </Badge>
+                </TableCell>
+                <TableCell className="max-w-[24rem]">
+                  <div className="font-medium truncate" data-testid={`tabela-titulo-${it.id}`}>{it.titulo}</div>
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {it.responsavel || "—"}
+                </TableCell>
+                <TableCell className="text-sm whitespace-nowrap">
+                  {it.prazo || "—"}
+                </TableCell>
+                <TableCell>
+                  <Badge variant={prioridadeVariants[it.prioridade]}>
+                    {prioridadeLabels[it.prioridade as keyof typeof prioridadeLabels] ?? it.prioridade}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={impactoVariants[it.impacto]}>
+                    {impactoLabels[it.impacto as keyof typeof impactoLabels] ?? it.impacto}
+                  </Badge>
+                </TableCell>
+                <TableCell className="max-w-[18rem]">
+                  {origem ? (
+                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                      <Link2 className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{origem}</span>
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+// =============================================================================
+// Task #259 — Visualização em Gantt
+// =============================================================================
+
+const MESES_PT_SHORT: Record<string, number> = {
+  jan: 0, fev: 1, mar: 2, abr: 3, mai: 4, jun: 5,
+  jul: 6, ago: 7, set: 8, out: 9, nov: 10, dez: 11,
+};
+
+function endOfMonth(year: number, monthIdx: number) {
+  return new Date(year, monthIdx + 1, 0, 23, 59, 59, 999);
+}
+
+/**
+ * Parser tolerante para o campo `prazo`. Retorna a janela `[start, end]` da
+ * iniciativa. Quando não conseguir interpretar o prazo, retorna null.
+ * Aceita: dd/mm/yyyy, yyyy-mm-dd, "Mar/2025", "Q1 2025", "1T/2025", "2025".
+ */
+function parsePrazo(prazo: string | null | undefined, createdAt: Date | string): { start: Date; end: Date } | null {
+  if (!prazo) return null;
+  const txt = String(prazo).trim();
+  if (!txt) return null;
+  const created = createdAt instanceof Date ? createdAt : new Date(createdAt);
+  const start = isNaN(created.getTime()) ? new Date() : created;
+
+  // dd/mm/yyyy ou dd/mm/yy
+  let m = txt.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (m) {
+    let y = parseInt(m[3], 10);
+    if (y < 100) y += 2000;
+    const end = new Date(y, parseInt(m[2], 10) - 1, parseInt(m[1], 10), 23, 59, 59);
+    if (!isNaN(end.getTime())) return { start, end };
+  }
+  // yyyy-mm-dd
+  m = txt.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (m) {
+    const end = new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10), 23, 59, 59);
+    if (!isNaN(end.getTime())) return { start, end };
+  }
+  // mes/yyyy ou mes-yyyy (ex: Mar/2025, mar 2025)
+  m = txt.match(/^([a-zçãéê]{3,})[\s./-]+(\d{4})$/i);
+  if (m) {
+    const mes = m[1].slice(0, 3).toLowerCase();
+    if (mes in MESES_PT_SHORT) {
+      const y = parseInt(m[2], 10);
+      return { start, end: endOfMonth(y, MESES_PT_SHORT[mes]) };
+    }
+  }
+  // mm/yyyy
+  m = txt.match(/^(\d{1,2})\/(\d{4})$/);
+  if (m) {
+    const mIdx = parseInt(m[1], 10) - 1;
+    const y = parseInt(m[2], 10);
+    if (mIdx >= 0 && mIdx <= 11) return { start, end: endOfMonth(y, mIdx) };
+  }
+  // Q1 2025, Q2/2025, 1T 2025, 2T/2025
+  m = txt.match(/^(?:Q|T)?\s*([1-4])\s*(?:T|º|o)?[\s/-]+(\d{4})$/i)
+    || txt.match(/^([1-4])\s*[TQ][\s/-]+(\d{4})$/i)
+    || txt.match(/^Q([1-4])[\s/-]+(\d{4})$/i);
+  if (m) {
+    const q = parseInt(m[1], 10);
+    const y = parseInt(m[2], 10);
+    return { start, end: endOfMonth(y, q * 3 - 1) };
+  }
+  // Apenas ano
+  m = txt.match(/^(\d{4})$/);
+  if (m) {
+    const y = parseInt(m[1], 10);
+    return { start, end: new Date(y, 11, 31, 23, 59, 59) };
+  }
+  // Última tentativa: Date.parse
+  const t = Date.parse(txt);
+  if (!isNaN(t)) {
+    return { start, end: new Date(t) };
+  }
+  return null;
+}
+
+const GANTT_STATUS_COLORS: Record<string, string> = {
+  planejada: "bg-slate-400 dark:bg-slate-500",
+  em_andamento: "bg-primary",
+  concluida: "bg-emerald-500 dark:bg-emerald-600",
+  pausada: "bg-amber-500 dark:bg-amber-600",
+  cancelada: "bg-destructive",
+};
+
+type GanttZoom = "mes" | "trimestre" | "ano";
+
+function IniciativasGantt({
+  iniciativas, onEdit,
+}: {
+  iniciativas: Iniciativa[];
+  onEdit: (i: Iniciativa) => void;
+}) {
+  const [zoom, setZoom] = useState<GanttZoom>("trimestre");
+
+  const parsed = useMemo(() => {
+    return iniciativas.map((it) => ({
+      iniciativa: it,
+      janela: parsePrazo(it.prazo, it.createdAt),
+    }));
+  }, [iniciativas]);
+
+  // Agrupa visualmente por status (mesma cor fica junta) e dentro do grupo
+  // por data de fim ascendente.
+  const comPrazo = useMemo(() => {
+    return parsed.filter((p) => p.janela).sort((a, b) => {
+      const sa = STATUS_RANK[a.iniciativa.status] ?? 99;
+      const sb = STATUS_RANK[b.iniciativa.status] ?? 99;
+      if (sa !== sb) return sa - sb;
+      return (a.janela!.end.getTime()) - (b.janela!.end.getTime());
+    });
+  }, [parsed]);
+  const semPrazo = parsed.filter((p) => !p.janela);
+
+  // Calcula janela de tempo com base nas iniciativas + zoom
+  const escala = useMemo(() => {
+    const now = new Date();
+    let min = now.getTime();
+    let max = now.getTime();
+    for (const p of comPrazo) {
+      if (!p.janela) continue;
+      min = Math.min(min, p.janela.start.getTime());
+      max = Math.max(max, p.janela.end.getTime());
+    }
+    // Padding
+    const startDate = new Date(min);
+    const endDate = new Date(max);
+    if (zoom === "mes") {
+      startDate.setDate(1);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setMonth(endDate.getMonth() + 1, 0);
+      endDate.setHours(23, 59, 59, 999);
+    } else if (zoom === "trimestre") {
+      const sQ = Math.floor(startDate.getMonth() / 3);
+      startDate.setMonth(sQ * 3, 1);
+      startDate.setHours(0, 0, 0, 0);
+      const eQ = Math.floor(endDate.getMonth() / 3);
+      endDate.setMonth(eQ * 3 + 3, 0);
+      endDate.setHours(23, 59, 59, 999);
+    } else {
+      startDate.setMonth(0, 1);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setMonth(11, 31);
+      endDate.setHours(23, 59, 59, 999);
+    }
+    // Build buckets para o header
+    const buckets: Array<{ label: string; start: Date; end: Date }> = [];
+    const cur = new Date(startDate);
+    while (cur.getTime() <= endDate.getTime()) {
+      if (zoom === "mes") {
+        const e = new Date(cur.getFullYear(), cur.getMonth() + 1, 0, 23, 59, 59, 999);
+        buckets.push({
+          label: cur.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }).replace(".", ""),
+          start: new Date(cur),
+          end: e,
+        });
+        cur.setMonth(cur.getMonth() + 1, 1);
+      } else if (zoom === "trimestre") {
+        const q = Math.floor(cur.getMonth() / 3) + 1;
+        const e = new Date(cur.getFullYear(), q * 3, 0, 23, 59, 59, 999);
+        buckets.push({
+          label: `Q${q}/${cur.getFullYear()}`,
+          start: new Date(cur),
+          end: e,
+        });
+        cur.setMonth(q * 3, 1);
+      } else {
+        const e = new Date(cur.getFullYear(), 11, 31, 23, 59, 59, 999);
+        buckets.push({
+          label: String(cur.getFullYear()),
+          start: new Date(cur),
+          end: e,
+        });
+        cur.setFullYear(cur.getFullYear() + 1, 0, 1);
+      }
+    }
+    return {
+      startMs: startDate.getTime(),
+      endMs: endDate.getTime(),
+      totalMs: Math.max(1, endDate.getTime() - startDate.getTime()),
+      buckets,
+    };
+  }, [comPrazo, zoom]);
+
+  const minColWidth = zoom === "mes" ? 80 : zoom === "trimestre" ? 110 : 140;
+  const trackMinWidth = Math.max(640, escala.buckets.length * minColWidth);
+
+  return (
+    <div className="space-y-4" data-testid="iniciativas-gantt">
+      <div className="flex items-center justify-end gap-2">
+        <span className="text-xs text-muted-foreground">Zoom:</span>
+        <ToggleGroup
+          type="single"
+          value={zoom}
+          onValueChange={(v) => { if (v === "mes" || v === "trimestre" || v === "ano") setZoom(v); }}
+          aria-label="Zoom do gráfico"
+        >
+          <ToggleGroupItem value="mes" size="sm" data-testid="gantt-zoom-mes">Mês</ToggleGroupItem>
+          <ToggleGroupItem value="trimestre" size="sm" data-testid="gantt-zoom-trimestre">Trimestre</ToggleGroupItem>
+          <ToggleGroupItem value="ano" size="sm" data-testid="gantt-zoom-ano">Ano</ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+
+      {comPrazo.length > 0 ? (
+        <div className="rounded-md border overflow-x-auto">
+          <div className="flex" style={{ minWidth: trackMinWidth + 240 }}>
+            {/* Coluna de títulos (sticky) */}
+            <div className="w-60 shrink-0 border-r bg-muted/30">
+              <div className="h-9 border-b px-3 flex items-center text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Iniciativa
+              </div>
+              {comPrazo.map(({ iniciativa }) => (
+                <button
+                  type="button"
+                  key={iniciativa.id}
+                  onClick={() => onEdit(iniciativa)}
+                  className="block w-full h-10 border-b px-3 text-left text-sm truncate hover-elevate"
+                  data-testid={`gantt-titulo-${iniciativa.id}`}
+                >
+                  {iniciativa.titulo}
+                </button>
+              ))}
+            </div>
+            {/* Trilho do gráfico */}
+            <div className="flex-1 relative">
+              {/* Header escala */}
+              <div className="flex h-9 border-b bg-muted/20">
+                {escala.buckets.map((b, idx) => (
+                  <div
+                    key={idx}
+                    className="border-r last:border-r-0 px-2 text-xs flex items-center text-muted-foreground"
+                    style={{ flex: `1 1 ${100 / escala.buckets.length}%` }}
+                  >
+                    {b.label}
+                  </div>
+                ))}
+              </div>
+              {/* Linhas */}
+              {comPrazo.map(({ iniciativa, janela }) => {
+                if (!janela) return null;
+                const startMs = Math.max(janela.start.getTime(), escala.startMs);
+                const endMs = Math.min(janela.end.getTime(), escala.endMs);
+                const leftPct = ((startMs - escala.startMs) / escala.totalMs) * 100;
+                const widthPct = Math.max(1, ((endMs - startMs) / escala.totalMs) * 100);
+                const cor = GANTT_STATUS_COLORS[iniciativa.status] ?? "bg-primary";
+                return (
+                  <div
+                    key={iniciativa.id}
+                    className="relative h-10 border-b"
+                    data-testid={`gantt-row-${iniciativa.id}`}
+                  >
+                    {/* Grade vertical */}
+                    <div className="absolute inset-0 flex pointer-events-none">
+                      {escala.buckets.map((_, idx) => (
+                        <div
+                          key={idx}
+                          className="border-r border-border/50 last:border-r-0"
+                          style={{ flex: `1 1 ${100 / escala.buckets.length}%` }}
+                        />
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onEdit(iniciativa)}
+                      className={`absolute top-1.5 bottom-1.5 rounded ${cor} hover:opacity-80 active:opacity-70 transition-opacity flex items-center px-2 text-xs text-white truncate`}
+                      style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+                      title={`${iniciativa.titulo} — ${statusLabels[iniciativa.status as keyof typeof statusLabels] ?? iniciativa.status}`}
+                      data-testid={`gantt-bar-${iniciativa.id}`}
+                    >
+                      <span className="truncate">{iniciativa.titulo}</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <Card className="p-6 text-center text-sm text-muted-foreground" data-testid="gantt-sem-prazo-valido">
+          Nenhuma iniciativa com prazo interpretável. Veja abaixo as iniciativas sem prazo definido.
+        </Card>
+      )}
+
+      {/* Legenda */}
+      {comPrazo.length > 0 && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground" data-testid="gantt-legenda">
+          {STATUS_VALUES.map((s) => (
+            <span key={s} className="inline-flex items-center gap-1.5">
+              <span className={`inline-block h-2.5 w-2.5 rounded-sm ${GANTT_STATUS_COLORS[s]}`} />
+              {statusLabels[s]}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {semPrazo.length > 0 && (
+        <div className="rounded-md border" data-testid="gantt-sem-prazo">
+          <div className="border-b px-3 py-2 text-sm font-medium">
+            Sem prazo definido
+            <span className="ml-2 text-xs text-muted-foreground">({semPrazo.length})</span>
+          </div>
+          <div className="divide-y">
+            {semPrazo.map(({ iniciativa }) => (
+              <button
+                type="button"
+                key={iniciativa.id}
+                onClick={() => onEdit(iniciativa)}
+                className="flex w-full items-center gap-3 px-3 py-2 text-left hover-elevate"
+                data-testid={`gantt-sem-prazo-item-${iniciativa.id}`}
+              >
+                <Badge variant={statusVariants[iniciativa.status]} className="shrink-0">
+                  {statusLabels[iniciativa.status as keyof typeof statusLabels] ?? iniciativa.status}
+                </Badge>
+                <span className="flex-1 text-sm truncate">{iniciativa.titulo}</span>
+                {iniciativa.prazo && (
+                  <span className="text-xs text-muted-foreground truncate">{iniciativa.prazo}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1810,6 +2321,18 @@ export default function Iniciativas() {
               onMove={(id, status) => moveStatusMutation.mutate({ id, status })}
               onEdit={handleEdit}
               onDelete={handleDelete}
+            />
+          ) : view.modo === "tabela" ? (
+            <IniciativasTabela
+              iniciativas={filteredIniciativas}
+              estrategias={estrategias}
+              oportunidades={oportunidades}
+              onEdit={handleEdit}
+            />
+          ) : view.modo === "gantt" ? (
+            <IniciativasGantt
+              iniciativas={filteredIniciativas}
+              onEdit={handleEdit}
             />
           ) : (
             <div className="space-y-6">

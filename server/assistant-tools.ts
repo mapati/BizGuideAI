@@ -138,7 +138,7 @@ function strField(label: string, valor: string | undefined | null) {
 function applyDiff(
   campo: { label: string; valor: string },
   anterior: { raw: string | null | undefined; numeric?: boolean } | undefined,
-): { label: string; valor: string; valorAnterior?: string } {
+): { label: string; valor: string; valorAnterior?: string } | null {
   if (!anterior) return campo;
   const ant = anterior.raw;
   const novo = campo.valor;
@@ -146,9 +146,9 @@ function applyDiff(
   if (anterior.numeric) {
     const a = ant != null ? Number(ant) : NaN;
     const b = Number(novo);
-    if (!Number.isNaN(a) && !Number.isNaN(b) && a === b) return campo;
+    if (!Number.isNaN(a) && !Number.isNaN(b) && a === b) return null;
   } else if (ant === novo) {
-    return campo;
+    return null;
   }
   return { ...campo, valorAnterior: ant && String(ant).trim() ? String(ant) : "(vazio)" };
 }
@@ -351,7 +351,9 @@ const atualizarIniciativa: ToolDefinition<AtualizarIniciativaParams> = {
         "Prazo (data)": { raw: existing.prazoData ?? null },
         "Responsável": { raw: existing.responsavel ?? null },
       };
-      const campos = (preview.campos ?? []).map((c) => applyDiff(c, before[c.label]));
+      const campos = (preview.campos ?? [])
+        .map((c) => applyDiff(c, before[c.label]))
+        .filter((c): c is { label: string; valor: string; valorAnterior?: string } => c !== null);
       return { ...preview, campos };
     } catch { return preview; }
   },
@@ -768,7 +770,9 @@ const atualizarOkr: ToolDefinition<AtualizarOkrParams> = {
         "Prazo (data)": { raw: (existing as { prazoData?: string | null }).prazoData ?? null },
         "Descrição": { raw: (existing as { descricao?: string | null }).descricao ?? null },
       };
-      const campos = (preview.campos ?? []).map((c) => applyDiff(c, before[c.label]));
+      const campos = (preview.campos ?? [])
+        .map((c) => applyDiff(c, before[c.label]))
+        .filter((c): c is { label: string; valor: string; valorAnterior?: string } => c !== null);
       return { ...preview, campos };
     } catch { return preview; }
   },
@@ -942,7 +946,9 @@ const atualizarKr: ToolDefinition<AtualizarKrParams> = {
         "Prazo": { raw: kr.prazo ?? null },
         "Prazo (data)": { raw: (kr as { prazoData?: string | null }).prazoData ?? null },
       };
-      const campos = (preview.campos ?? []).map((c) => applyDiff(c, before[c.label]));
+      const campos = (preview.campos ?? [])
+        .map((c) => applyDiff(c, before[c.label]))
+        .filter((c): c is { label: string; valor: string; valorAnterior?: string } => c !== null);
       return { ...preview, campos };
     } catch { return preview; }
   },
@@ -1003,7 +1009,9 @@ const atualizarProgressoKr: ToolDefinition<AtualizarProgressoKrParams> = {
       const before: Record<string, { raw: string | null | undefined; numeric?: boolean }> = {
         "Novo valor atual": { raw: kr.valorAtual != null ? String(kr.valorAtual) : null, numeric: true },
       };
-      const campos = (preview.campos ?? []).map((c) => applyDiff(c, before[c.label]));
+      const campos = (preview.campos ?? [])
+        .map((c) => applyDiff(c, before[c.label]))
+        .filter((c): c is { label: string; valor: string; valorAnterior?: string } => c !== null);
       return { ...preview, campos };
     } catch { return preview; }
   },
@@ -1348,7 +1356,9 @@ const atualizarValorIndicador: ToolDefinition<AtualizarValorIndicadorParams> = {
       const before: Record<string, { raw: string | null | undefined; numeric?: boolean }> = {
         "Valor": { raw: (ind as { atual?: string | null }).atual ?? null },
       };
-      const campos = (preview.campos ?? []).map((c) => applyDiff(c, before[c.label]));
+      const campos = (preview.campos ?? [])
+        .map((c) => applyDiff(c, before[c.label]))
+        .filter((c): c is { label: string; valor: string; valorAnterior?: string } => c !== null);
       return { ...preview, campos };
     } catch { return preview; }
   },
@@ -2800,7 +2810,9 @@ const atualizarRisco: ToolDefinition<AtualizarRiscoParams> = {
         "Plano de mitigação": { raw: (existing as { planoMitigacao?: string | null }).planoMitigacao ?? null },
         "Responsável": { raw: (existing as { responsavelId?: string | null }).responsavelId ?? null },
       };
-      const campos = (preview.campos ?? []).map((c) => applyDiff(c, before[c.label]));
+      const campos = (preview.campos ?? [])
+        .map((c) => applyDiff(c, before[c.label]))
+        .filter((c): c is { label: string; valor: string; valorAnterior?: string } => c !== null);
       return { ...preview, campos };
     } catch { return preview; }
   },

@@ -394,6 +394,38 @@ async function runStartupMigrations() {
     await client.query(`ALTER TABLE objetivos ADD COLUMN IF NOT EXISTS prazo_data DATE`);
     await client.query(`ALTER TABLE resultados_chave ADD COLUMN IF NOT EXISTS prazo_data DATE`);
 
+    // Task #274/#275 — nova ordem da Jornada coloca Objetivo (Meta) antes de
+    // Iniciativa. Iniciativas geradas a partir de uma Meta passam a registrar
+    // o Objetivo de origem em `objetivo_originador_id`. Coluna aditiva, NULL
+    // para registros legados.
+    await client.query(`
+      ALTER TABLE iniciativas
+      ADD COLUMN IF NOT EXISTS objetivo_originador_id VARCHAR REFERENCES objetivos(id) ON DELETE SET NULL
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_iniciativas_objetivo_originador_id ON iniciativas(objetivo_originador_id)`);
+
+    // Task #275 — Backfill (idempotente) da nova ordem para dados antigos.
+    // No fluxo legado, Objetivos podiam apontar para uma Iniciativa-mãe via
+    // `objetivos.iniciativa_id`. Na nova leitura "Meta → Iniciativa", esse
+    // vínculo é invertido: a Iniciativa passa a registrar a Meta de origem.
+    // Aqui, para cada Iniciativa que ainda não tem `objetivo_originador_id`,
+    // adotamos como origem o Objetivo legado mais antigo que aponta para
+    // ela (mesma empresa). Mantemos `objetivos.iniciativa_id` intacto para
+    // não quebrar telas/listagens que ainda leem esse campo.
+    await client.query(`
+      UPDATE iniciativas i
+      SET objetivo_originador_id = o.id
+      FROM (
+        SELECT DISTINCT ON (iniciativa_id) id, iniciativa_id, empresa_id
+        FROM objetivos
+        WHERE iniciativa_id IS NOT NULL
+        ORDER BY iniciativa_id, created_at ASC
+      ) o
+      WHERE i.objetivo_originador_id IS NULL
+        AND i.id = o.iniciativa_id
+        AND i.empresa_id = o.empresa_id
+    `);
+
     // Task #221 — Memória persistente do Assistente (conversas + mensagens + fatos)
     await client.query(`
       CREATE TABLE IF NOT EXISTS assistente_conversas (

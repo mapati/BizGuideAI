@@ -28,6 +28,9 @@ A 7-day trial system is implemented, where new users start with `planoStatus = '
 ### Guided Onboarding (Jornada Estratégica)
 A guided onboarding journey facilitates user engagement through 11 strategic steps. A `useJornadaProgresso` hook tracks completion status, and a `JornadaEstrategica` component displays progress on the dashboard. `PrerequisiteWarning` components provide contextual guidance on pages with unmet dependencies. Sidebar indicators show step completion, and new users are guided through an initial profile setup.
 
+### Strategic cascade migration (Tasks #274/#275)
+The Jornada now reads top-down as Estratégia → Frente → Objetivo (Meta) → Iniciativa. New iniciativas record the originating Meta in `iniciativas.objetivo_originador_id`. The legacy field `objetivos.iniciativa_id` is preserved for backwards reads. A startup backfill in `server/index.ts` populates `objetivo_originador_id` on legacy iniciativas using the oldest objetivo (per empresa) that still references them, so old companies see "cada Meta gera Iniciativas" without manual intervention.
+
 ### Key Features
 - **Priority Initiatives Portfolio:** CRUD operations for initiatives with AI generation and anti-duplication.
 - **OKR Management:** CRUD for Objectives and Key Results, leveraging AI for generation based on strategic context.

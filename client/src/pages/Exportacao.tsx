@@ -8,6 +8,7 @@ import { Loader2, Plus, Trash2, Copy, Check, Link, ExternalLink, FileText, Downl
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Compartilhamento, Objetivo, Indicador, Estrategia, Iniciativa } from "@shared/schema";
+import { filterAcompanhamento } from "@/lib/indicadores";
 
 export default function Exportacao() {
   const { toast } = useToast();
@@ -15,7 +16,10 @@ export default function Exportacao() {
 
   const { data: compartilhamentos = [], isLoading } = useQuery<Compartilhamento[]>({ queryKey: ["/api/compartilhamentos"] });
   const { data: objetivos = [] } = useQuery<Objetivo[]>({ queryKey: ["/api/objetivos"] });
-  const { data: indicadores = [] } = useQuery<Indicador[]>({ queryKey: ["/api/indicadores"] });
+  const { data: todosIndicadores = [] } = useQuery<Indicador[]>({ queryKey: ["/api/indicadores"] });
+  // Task #248 — Compartilhamento e exportação representam o plano
+  // estratégico (BSC), não o diagnóstico inicial.
+  const indicadores = filterAcompanhamento(todosIndicadores);
   const { data: estrategias = [] } = useQuery<Estrategia[]>({ queryKey: ["/api/estrategias"] });
   const { data: iniciativas = [] } = useQuery<Iniciativa[]>({ queryKey: ["/api/iniciativas"] });
 

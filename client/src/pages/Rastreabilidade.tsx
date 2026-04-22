@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Loader2, TrendingUp, Briefcase, Target, BarChart3, ArrowDown, CheckCircle2, Circle } from "lucide-react";
 import type { Estrategia, Iniciativa, Objetivo, Indicador } from "@shared/schema";
+import { filterAcompanhamento } from "@/lib/indicadores";
 
 const camadas = [
   { label: "Estratégias", sublabel: "Por que fazemos?", icon: TrendingUp, color: "bg-blue-500/10 border-blue-200 dark:border-blue-800", text: "text-blue-700 dark:text-blue-400" },
@@ -37,7 +38,10 @@ export default function Rastreabilidade() {
   const { data: estrategias = [], isLoading: loadingE } = useQuery<Estrategia[]>({ queryKey: ["/api/estrategias"] });
   const { data: iniciativas = [], isLoading: loadingI } = useQuery<Iniciativa[]>({ queryKey: ["/api/iniciativas"] });
   const { data: objetivos = [] } = useQuery<Objetivo[]>({ queryKey: ["/api/objetivos"] });
-  const { data: indicadores = [] } = useQuery<Indicador[]>({ queryKey: ["/api/indicadores"] });
+  const { data: todosIndicadores = [] } = useQuery<Indicador[]>({ queryKey: ["/api/indicadores"] });
+  // Task #248 — A camada "Indicadores" da rastreabilidade representa os
+  // KPIs estratégicos do plano (BSC), não o diagnóstico inicial.
+  const indicadores = filterAcompanhamento(todosIndicadores);
 
   const isLoading = loadingE || loadingI;
 

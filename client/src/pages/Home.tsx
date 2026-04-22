@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CircularProgress } from "@/components/CircularProgress";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { filterAcompanhamento } from "@/lib/indicadores";
 import { useToast } from "@/hooks/use-toast";
 import {
   TrendingUp,
@@ -300,10 +301,16 @@ export default function Home() {
     [objetivos, allKRs]
   );
 
-  const kpiVerde = indicadores.filter((i) => i.status === "verde").length;
-  const kpiAmarelo = indicadores.filter((i) => i.status === "amarelo").length;
-  const kpiVermelho = indicadores.filter((i) => i.status === "vermelho").length;
-  const kpisCriticos = indicadores.filter((i) => i.status === "vermelho");
+  // Task #248 — Card "Indicadores do Negócio" deve refletir apenas
+  // indicadores de acompanhamento (BSC), ignorando o diagnóstico inicial.
+  const indicadoresAcompanhamento = useMemo(
+    () => filterAcompanhamento(indicadores),
+    [indicadores]
+  );
+  const kpiVerde = indicadoresAcompanhamento.filter((i) => i.status === "verde").length;
+  const kpiAmarelo = indicadoresAcompanhamento.filter((i) => i.status === "amarelo").length;
+  const kpiVermelho = indicadoresAcompanhamento.filter((i) => i.status === "vermelho").length;
+  const kpisCriticos = indicadoresAcompanhamento.filter((i) => i.status === "vermelho");
 
   const ultimoEvento = useMemo(
     () =>
@@ -582,7 +589,7 @@ export default function Home() {
           </div>
           {loadingIndicadores ? (
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          ) : indicadores.length === 0 ? (
+          ) : indicadoresAcompanhamento.length === 0 ? (
             <div className="text-center py-4 space-y-2">
               <p className="text-sm text-muted-foreground">Nenhum indicador cadastrado</p>
               {indicadoresBloqueado ? (

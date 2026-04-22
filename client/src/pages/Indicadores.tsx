@@ -55,6 +55,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { filterAcompanhamento } from "@/lib/indicadores";
 import type { Indicador, KpiLeitura } from "@shared/schema";
 import { Link } from "wouter";
 import {
@@ -722,7 +723,10 @@ export default function Indicadores() {
     queryKey: ["/api/membros"],
   });
 
-  const indicadores = todosIndicadores.filter((i) => i.perspectiva !== "diagnostico");
+  // Task #248 — A página de Indicadores (acompanhamento BSC) nunca exibe
+  // os indicadores do diagnóstico inicial. Filtragem centralizada em
+  // `@/lib/indicadores`.
+  const indicadores = filterAcompanhamento(todosIndicadores);
 
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["/api/indicadores"] });

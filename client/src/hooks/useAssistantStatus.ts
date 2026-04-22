@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useAuth } from "@/contexts/AuthContext";
+import { filterAcompanhamento } from "@/lib/indicadores";
 
 export type NivelStatus = "neutro" | "positivo" | "atencao" | "critico";
 
@@ -25,6 +26,7 @@ const ANALYSIS_PAGES: Record<string, string> = {
 
 interface IndicadorItem {
   status?: string;
+  perspectiva?: string;
 }
 
 interface IniciativaItem {
@@ -70,7 +72,10 @@ export function useAssistantStatus(): AssistantStatus {
 
   const alertas: Alerta[] = [];
 
-  const vermelhosKpi = indicadores.filter((i) => i.status === "vermelho");
+  // Task #248 — Sinais do Assistente devem considerar apenas indicadores
+  // de acompanhamento (BSC), nunca o diagnóstico inicial.
+  const indicadoresAcompanhamento = filterAcompanhamento(indicadores);
+  const vermelhosKpi = indicadoresAcompanhamento.filter((i) => i.status === "vermelho");
 
   if (vermelhosKpi.length > 0) {
     alertas.push({
@@ -90,7 +95,7 @@ export function useAssistantStatus(): AssistantStatus {
     });
   }
 
-  const hasData = indicadores.length > 0 || iniciativas.length > 0;
+  const hasData = indicadoresAcompanhamento.length > 0 || iniciativas.length > 0;
 
   const nivel: NivelStatus = !hasData
     ? "neutro"

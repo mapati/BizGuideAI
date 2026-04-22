@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Sparkles, PanelRightClose, PanelRightOpen, Loader2, Target, Compass } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,9 +17,6 @@ import {
   type PlanoAgenticoPassoView,
 } from "@/components/PlanoAgenticoCard";
 
-const OPEN_KEY = "biz-guide-assistant-sidebar-open";
-const UNLOCK_SHOWN_KEY = "biz-guide-assistente-desbloqueado";
-
 export function AssistantSidebar() {
   const locked = useAIModalLocked();
   const progresso = useJornadaProgresso();
@@ -27,31 +24,19 @@ export function AssistantSidebar() {
   const { alertas } = useAssistantStatus();
   const isMobile = useIsMobile();
 
-  const [open, setOpen] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    if (window.matchMedia("(max-width: 767px)").matches) return false;
-    return window.localStorage.getItem(OPEN_KEY) === "1";
-  });
+  const [open, setOpen] = useState<boolean>(false);
 
+  // Define o estado inicial uma única vez por carregamento de página, baseado
+  // no modo: Guia Estratégico (jornada incompleta) abre por padrão para
+  // apresentar a ferramenta; Assistente (jornada concluída) inicia fechado
+  // para um visual mais limpo no dia a dia.
+  const initialAppliedRef = useRef(false);
   useEffect(() => {
-    try {
-      window.localStorage.setItem(OPEN_KEY, open ? "1" : "0");
-    } catch {
-      // ignore
-    }
-  }, [open]);
-
-  // Auto-abre uma única vez quando a Jornada Estratégica é concluída.
-  useEffect(() => {
-    if (jornadaLoading || !jornadaConcluida) return;
-    try {
-      if (window.localStorage.getItem(UNLOCK_SHOWN_KEY) === "1") return;
-      window.localStorage.setItem(UNLOCK_SHOWN_KEY, "1");
-      setOpen(true);
-    } catch {
-      // ignore
-    }
-  }, [jornadaConcluida, jornadaLoading]);
+    if (jornadaLoading || initialAppliedRef.current) return;
+    initialAppliedRef.current = true;
+    if (isMobile) return; // mobile sempre inicia fechado para não cobrir o conteúdo
+    setOpen(!jornadaConcluida);
+  }, [jornadaLoading, jornadaConcluida, isMobile]);
 
   // Permite que componentes filhos peçam para fechar (ex.: PropostaCard ao "Ajustar").
   useEffect(() => {

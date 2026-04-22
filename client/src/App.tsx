@@ -3,9 +3,11 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useEffect, useRef } from "react";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
 import { PanelLeftOpen, Target } from "lucide-react";
 import { AppSidebar } from "@/components/AppSidebar";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -222,6 +224,19 @@ function AppLayout() {
     "--sidebar-width-icon": "4rem",
   };
 
+  const LeftSidebarJornadaSync = () => {
+    const { setOpen, isMobile } = useSidebar();
+    const { jornadaConcluida, isLoading } = useJornadaProgresso();
+    const appliedRef = useRef(false);
+    useEffect(() => {
+      if (isLoading || appliedRef.current) return;
+      appliedRef.current = true;
+      if (isMobile) return;
+      setOpen(!jornadaConcluida);
+    }, [isLoading, jornadaConcluida, isMobile, setOpen]);
+    return null;
+  };
+
   const LeftSidebarOpenStrip = () => {
     const { open, setOpen, isMobile } = useSidebar();
     if (open) return null;
@@ -260,6 +275,7 @@ function AppLayout() {
 
   return (
     <SidebarProvider defaultOpen={false} style={style as React.CSSProperties}>
+      <LeftSidebarJornadaSync />
       <div className="flex h-screen w-full flex-col">
         {showTrialBanner && trialInfo!.diasRestantes !== null && (
           <TrialStatusBanner diasRestantes={trialInfo!.diasRestantes} />

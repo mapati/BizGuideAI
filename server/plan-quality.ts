@@ -9,11 +9,17 @@ import { storage } from "./storage";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DIAS_KPI_VIVO = 30;
 
-// Pesos das dimensões (somam 100).
+// Pesos das dimensões (somam 90 — o score é normalizado por pesoTotal).
+//
+// NOTA: a dimensão `krs_indicador_fonte` foi removida intencionalmente.
+// KR (Resultado-Chave) e KPI (Indicador BSC) são camadas independentes por
+// design metodológico: KR mede ALCANCE de um objetivo no ciclo; KPI mede
+// PERFORMANCE contínua do negócio. Ligar um KR a um KPI continua sendo
+// possível (campo `indicadorFonteId` opcional, badge "Atacando: KPI X"),
+// mas é apenas rastreabilidade voluntária — não é defeito de plano.
 const PESOS = {
   cobertura_bsc: 12,
   okrs_mensuraveis: 16,
-  krs_indicador_fonte: 10,
   iniciativas_executaveis: 14,
   iniciativas_estrategia: 10,
   kpis_dono: 10,
@@ -159,31 +165,11 @@ export async function computePlanQuality(empresaId: string): Promise<PlanQuality
     }
   }
 
-  // 3) KRs com indicador-fonte ----------------------------------------------
-  {
-    const indIds = new Set(indicadores.map((i) => i.id));
-    const krsComFonte = todosKrs.filter((k) => k.indicadorFonteId && indIds.has(k.indicadorFonteId));
-    const score = pct(krsComFonte.length, todosKrs.length);
-    dimensoes.push({
-      id: "krs_indicador_fonte",
-      titulo: "KRs ligados a um indicador",
-      peso: PESOS.krs_indicador_fonte,
-      score,
-      detalhes: todosKrs.length === 0
-        ? "Nenhum KR cadastrado."
-        : `${krsComFonte.length} de ${todosKrs.length} KR(s) apontam para um indicador BSC.`,
-    });
-    const semFonte = todosKrs.filter((k) => !k.indicadorFonteId);
-    for (const kr of semFonte.slice(0, 3)) {
-      lacunas.push({
-        titulo: `KR "${kr.metrica}" sem indicador de origem`,
-        severidade: "baixa",
-        entidade: "kr",
-        entidadeId: kr.id,
-        rota: `/okrs?editar=${kr.id}&tipo=kr`,
-      });
-    }
-  }
+  // 3) [REMOVIDO] "KRs com indicador-fonte" ----------------------------------
+  // KR e KPI são camadas independentes (alcance do ciclo vs. performance
+  // contínua). Não cobramos mais essa "ponte" como dimensão de qualidade —
+  // o vínculo segue disponível como rastreabilidade voluntária via
+  // resultados_chave.indicadorFonteId.
 
   // 4) Iniciativas executáveis ----------------------------------------------
   {

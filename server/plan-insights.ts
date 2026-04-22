@@ -735,16 +735,12 @@ export async function montarConteudoPauta(
     .slice(0, 6)
     .map(({ _ts, _ativa, ...rest }) => rest);
 
-  // Decisões pendentes: KRs sem indicador, iniciativas sem KPI/estratégia.
+  // Decisões pendentes: iniciativas sem KPI/estratégia.
+  // Nota: KR sem indicador-fonte NÃO é mais tratado como pendência. KR e KPI
+  // são camadas independentes (alcance do ciclo vs. performance contínua); o
+  // vínculo via indicadorFonteId é rastreabilidade voluntária, não defeito.
   const decisoesPendentes: ConteudoPauta["decisoesPendentes"] = [];
   if (tipo !== "semanal") {
-    krs.filter((k) => !k.indicadorFonteId).slice(0, 3).forEach((k) => {
-      decisoesPendentes.push({
-        tipo: "kr_sem_indicador",
-        descricao: `Definir indicador-fonte para a meta "${k.metrica}"`,
-        referenciaId: k.id,
-      });
-    });
     iniciativas
       .filter((i) => !i.indicadorFonteId && i.status !== "concluida" && i.status !== "pausada")
       .slice(0, 3)

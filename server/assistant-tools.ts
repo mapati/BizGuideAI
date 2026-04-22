@@ -924,7 +924,7 @@ type VincularKrAIndicadorParams = z.infer<typeof vincularKrAIndicadorSchema>;
 const vincularKrAIndicador: ToolDefinition<VincularKrAIndicadorParams> = {
   name: "vincular_kr_a_indicador",
   description:
-    "Vincula um Resultado-chave (KR) existente a um indicador (KPI) — preenche o campo indicadorFonteId do KR. Use quando a QUALIDADE DO PLANO mostrar 'KR sem indicador-fonte' ou quando o usuário disser que a meta X usa o indicador Y como fonte. Não cria nada — só conecta dois itens já existentes (use IDs do CATÁLOGO).",
+    "Vincula um Resultado-chave (KR) existente a um indicador (KPI) — preenche o campo indicadorFonteId do KR. RASTREABILIDADE OPCIONAL: KR e KPI são camadas independentes (alcance do ciclo vs. performance contínua); use esta tool APENAS quando o usuário pedir explicitamente para amarrar uma meta a um KPI, nunca como sugestão proativa de melhoria de plano. Não cria nada — só conecta dois itens já existentes (use IDs do CATÁLOGO).",
   paramsSchema: vincularKrAIndicadorSchema,
   jsonSchema: {
     type: "object",

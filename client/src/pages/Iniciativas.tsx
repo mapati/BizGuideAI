@@ -27,8 +27,11 @@ import { ExampleCard } from "@/components/ExampleCard";
 import {
   Briefcase, Plus, Sparkles, Trash2, Pencil, Clock, User, TrendingUp, Link2, Wand2,
   Target, CheckCircle2, PauseCircle, XCircle, Search, X, ListFilter, LayoutGrid, List as ListIcon, MoreVertical, ChevronDown,
-  Table as TableIcon, GanttChart, ArrowUp, ArrowDown, ArrowUpDown,
+  Table as TableIcon, GanttChart, ArrowUp, ArrowDown, ArrowUpDown, CalendarIcon,
 } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { format, parse as parseDateFn } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import {
   Table,
   TableBody,
@@ -81,6 +84,8 @@ const formSchema = z.object({
   status: z.string(),
   prioridade: z.string(),
   prazo: z.string(),
+  // Task #263 — data normalizada (YYYY-MM-DD) opcional vinculada ao prazo.
+  prazoData: z.string().optional().nullable(),
   responsavel: z.string(),
   responsavelId: z.string().optional().nullable(),
   impacto: z.string(),
@@ -954,8 +959,8 @@ function IniciativasTabela({
         case "responsavel":
           return (a.responsavel || "").localeCompare(b.responsavel || "", "pt-BR") * dir;
         case "prazo": {
-          const pa = parsePrazo(a.prazo, a.createdAt);
-          const pb = parsePrazo(b.prazo, b.createdAt);
+          const pa = parsePrazo(a.prazo, a.createdAt, a.prazoData);
+          const pb = parsePrazo(b.prazo, b.createdAt, b.prazoData);
           const va = pa ? pa.end.getTime() : Number.POSITIVE_INFINITY;
           const vb = pb ? pb.end.getTime() : Number.POSITIVE_INFINITY;
           if (va === vb) return (a.prazo || "").localeCompare(b.prazo || "", "pt-BR") * dir;
@@ -1073,13 +1078,27 @@ function endOfMonth(year: number, monthIdx: number) {
  * Parser tolerante para o campo `prazo`. Retorna a janela `[start, end]` da
  * iniciativa. Quando não conseguir interpretar o prazo, retorna null.
  * Aceita: dd/mm/yyyy, yyyy-mm-dd, "Mar/2025", "Q1 2025", "1T/2025", "2025".
+ *
+ * Task #263 — quando `prazoData` (YYYY-MM-DD normalizado) estiver definido,
+ * tem precedência sobre o parser de texto livre.
  */
-function parsePrazo(prazo: string | null | undefined, createdAt: Date | string): { start: Date; end: Date } | null {
+function parsePrazo(
+  prazo: string | null | undefined,
+  createdAt: Date | string,
+  prazoData?: string | null,
+): { start: Date; end: Date } | null {
+  const created = createdAt instanceof Date ? createdAt : new Date(createdAt);
+  const start = isNaN(created.getTime()) ? new Date() : created;
+  if (prazoData) {
+    const m = String(prazoData).match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) {
+      const end = new Date(parseInt(m[1], 10), parseInt(m[2], 10) - 1, parseInt(m[3], 10), 23, 59, 59);
+      if (!isNaN(end.getTime())) return { start, end };
+    }
+  }
   if (!prazo) return null;
   const txt = String(prazo).trim();
   if (!txt) return null;
-  const created = createdAt instanceof Date ? createdAt : new Date(createdAt);
-  const start = isNaN(created.getTime()) ? new Date() : created;
 
   // dd/mm/yyyy ou dd/mm/yy
   let m = txt.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
@@ -1155,7 +1174,7 @@ function IniciativasGantt({
   const parsed = useMemo(() => {
     return iniciativas.map((it) => ({
       iniciativa: it,
-      janela: parsePrazo(it.prazo, it.createdAt),
+      janela: parsePrazo(it.prazo, it.createdAt, it.prazoData),
     }));
   }, [iniciativas]);
 
@@ -1437,6 +1456,7 @@ export default function Iniciativas() {
       status: "planejada",
       prioridade: "média",
       prazo: "",
+      prazoData: null,
       responsavel: "",
       responsavelId: null,
       impacto: "médio",
@@ -1603,6 +1623,7 @@ export default function Iniciativas() {
       status: iniciativa.status,
       prioridade: iniciativa.prioridade,
       prazo: iniciativa.prazo,
+      prazoData: iniciativa.prazoData ?? null,
       responsavel: iniciativa.responsavel,
       responsavelId: iniciativa.responsavelId ?? null,
       impacto: iniciativa.impacto,
@@ -1665,6 +1686,7 @@ export default function Iniciativas() {
         if (p === "alta" || p === "média" || p === "baixa") overrides.prioridade = p;
       }
       if (params.prazo) overrides.prazo = params.prazo;
+      if (params.prazoData) overrides.prazoData = params.prazoData;
       if (params.responsavel) overrides.responsavel = params.responsavel;
       if (params.impacto) overrides.impacto = params.impacto;
       if (Object.keys(overrides).length > 0) {
@@ -1684,6 +1706,7 @@ export default function Iniciativas() {
             ? (params.prioridade === "media" ? "média" : params.prioridade)
             : "média",
         prazo: params.prazo || "",
+        prazoData: params.prazoData || null,
         responsavel: params.responsavel || "",
         responsavelId: null,
         impacto: params.impacto || "médio",
@@ -2025,20 +2048,84 @@ export default function Iniciativas() {
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
-                    name="prazo"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Prazo</FormLabel>
-                        <FormControl>
+                    name="prazoData"
+                    render={({ field }) => {
+                      const prazoTexto = form.watch("prazo") || "";
+                      const dateValue = field.value ? parseDateFn(field.value, "yyyy-MM-dd", new Date()) : null;
+                      const validDate = dateValue && !isNaN(dateValue.getTime()) ? dateValue : null;
+                      return (
+                        <FormItem className="flex flex-col">
+                          <FormLabel>Prazo</FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className={`w-full justify-start font-normal ${!validDate ? "text-muted-foreground" : ""}`}
+                                  data-testid="button-prazo-data"
+                                >
+                                  <CalendarIcon className="mr-2 h-4 w-4" />
+                                  {validDate
+                                    ? format(validDate, "dd/MM/yyyy", { locale: ptBR })
+                                    : "Escolha uma data"}
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={validDate ?? undefined}
+                                onSelect={(d) => {
+                                  if (d) {
+                                    const iso = format(d, "yyyy-MM-dd");
+                                    field.onChange(iso);
+                                    form.setValue("prazo", format(d, "dd/MM/yyyy"));
+                                  } else {
+                                    field.onChange(null);
+                                  }
+                                }}
+                                locale={ptBR}
+                                initialFocus
+                              />
+                              {validDate && (
+                                <div className="flex justify-end border-t p-2">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      field.onChange(null);
+                                      // Mantém o texto livre apenas se não for derivado da data.
+                                      if (validDate && form.getValues("prazo") === format(validDate, "dd/MM/yyyy")) {
+                                        form.setValue("prazo", "");
+                                      }
+                                    }}
+                                    data-testid="button-prazo-data-limpar"
+                                  >
+                                    Limpar data
+                                  </Button>
+                                </div>
+                              )}
+                            </PopoverContent>
+                          </Popover>
+                          <FormDescription>
+                            Selecione uma data ou use o campo livre abaixo (ex.: "Q1 2025").
+                          </FormDescription>
                           <Input
-                            placeholder="Ex: Q1 2025 ou Mar/2025"
-                            {...field}
+                            placeholder="Ou texto livre: Q1 2025, Mar/2025…"
+                            value={prazoTexto}
+                            onChange={(e) => {
+                              form.setValue("prazo", e.target.value);
+                              // Texto livre digitado manualmente desfaz a data normalizada.
+                              if (field.value) field.onChange(null);
+                            }}
                             data-testid="input-prazo"
                           />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
                   />
 
                   <FormField

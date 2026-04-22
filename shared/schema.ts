@@ -293,6 +293,9 @@ export const iniciativas = pgTable("iniciativas", {
   status: text("status").notNull(),
   prioridade: text("prioridade").notNull(),
   prazo: text("prazo").notNull(),
+  // Task #263 — data normalizada opcional do prazo (YYYY-MM-DD).
+  // Quando preenchida, tem precedência sobre o parser tolerante de `prazo`.
+  prazoData: date("prazo_data"),
   responsavel: text("responsavel").notNull(),
   responsavelId: varchar("responsavel_id").references(() => usuarios.id, { onDelete: "set null" }),
   impacto: text("impacto").notNull(),

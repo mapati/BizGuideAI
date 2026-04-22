@@ -163,9 +163,21 @@ export function PropostaCard({
       if (r.continuacao && onContinuacao) onContinuacao(r.continuacao);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      setErro(msg);
-      setEstado("falhou");
-      toast({ title: "Não foi possível aplicar", description: msg, variant: "destructive" });
+      // Mesma lógica do Ajustar: a proposta pode já ter sido resolvida em
+      // outra aba/recarga. Sincroniza o estado local em vez de mostrar erro.
+      if (/já está (confirmada|ajustada|ignorada)/i.test(msg)) {
+        const novo = /confirmada/i.test(msg)
+          ? "confirmada"
+          : /ajustada/i.test(msg)
+          ? "ajustada"
+          : "ignorada";
+        setEstado(novo);
+        toast({ title: "Sugestão já resolvida", description: msg });
+      } else {
+        setErro(msg);
+        setEstado("falhou");
+        toast({ title: "Não foi possível aplicar", description: msg, variant: "destructive" });
+      }
     } finally {
       setSubmitting(null);
     }
@@ -184,7 +196,17 @@ export function PropostaCard({
       if (r.continuacao && onContinuacao) onContinuacao(r.continuacao);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      toast({ title: "Erro ao ignorar", description: msg, variant: "destructive" });
+      if (/já está (confirmada|ajustada|ignorada)/i.test(msg)) {
+        const novo = /confirmada/i.test(msg)
+          ? "confirmada"
+          : /ajustada/i.test(msg)
+          ? "ajustada"
+          : "ignorada";
+        setEstado(novo);
+        toast({ title: "Sugestão já resolvida", description: msg });
+      } else {
+        toast({ title: "Erro ao ignorar", description: msg, variant: "destructive" });
+      }
     } finally {
       setSubmitting(null);
     }
@@ -216,7 +238,31 @@ export function PropostaCard({
       setTimeout(() => navigate(url), 400);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      toast({ title: "Erro ao ajustar", description: msg, variant: "destructive" });
+      // Ao recarregar a conversa (ex.: trocar de aba e voltar), as
+      // propostas reaparecem com o estado local "proposta" — mesmo que o
+      // backend já as tenha registrado como ajustadas/confirmadas/ignoradas.
+      // Se o usuário clicar de novo em Ajustar, o servidor responde 409
+      // ("já está ajustada"). Tratamos isso como sucesso: sincroniza o
+      // estado local e reabre o formulário com os parâmetros já conhecidos.
+      if (/já está ajustada/i.test(msg)) {
+        setEstado("ajustada");
+        queryClient.invalidateQueries({ queryKey: ["/api/ai/propostas"] });
+        const url = construirUrlAjuste("/dashboard", ferramenta, parametros);
+        toast({
+          title: "Esta sugestão já estava em ajuste",
+          description: "Reabrindo o formulário para você concluir.",
+        });
+        window.dispatchEvent(new CustomEvent("biz-assistant:close"));
+        setTimeout(() => navigate(url), 300);
+      } else if (/já está (confirmada|ignorada)/i.test(msg)) {
+        setEstado(msg.includes("confirmada") ? "confirmada" : "ignorada");
+        toast({
+          title: "Sugestão já resolvida",
+          description: msg,
+        });
+      } else {
+        toast({ title: "Erro ao ajustar", description: msg, variant: "destructive" });
+      }
     } finally {
       setSubmitting(null);
     }

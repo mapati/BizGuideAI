@@ -68,8 +68,16 @@ export default function HeroConstellation({ className }: Props) {
 
     const onMove = (e: MouseEvent) => {
       const rect = container.getBoundingClientRect();
-      mouse.x = e.clientX - rect.left;
-      mouse.y = e.clientY - rect.top;
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      if (x < 0 || y < 0 || x > rect.width || y > rect.height) {
+        mouse.active = false;
+        mouse.x = -9999;
+        mouse.y = -9999;
+        return;
+      }
+      mouse.x = x;
+      mouse.y = y;
       mouse.active = true;
     };
     const onLeave = () => {
@@ -148,14 +156,16 @@ export default function HeroConstellation({ className }: Props) {
 
     const ro = new ResizeObserver(resize);
     ro.observe(container);
-    container.addEventListener("mousemove", onMove);
-    container.addEventListener("mouseleave", onLeave);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseleave", onLeave);
+    window.addEventListener("blur", onLeave);
 
     return () => {
       cancelAnimationFrame(rafId);
       ro.disconnect();
-      container.removeEventListener("mousemove", onMove);
-      container.removeEventListener("mouseleave", onLeave);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseleave", onLeave);
+      window.removeEventListener("blur", onLeave);
     };
   }, []);
 

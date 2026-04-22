@@ -179,6 +179,8 @@ export const resultadosChave = pgTable("resultados_chave", {
   owner: text("owner").notNull(),
   prazo: text("prazo").notNull(),
   responsavelId: varchar("responsavel_id").references(() => usuarios.id, { onDelete: "set null" }),
+  // Task #208 — Indicador (KPI) que esta meta busca melhorar (opcional, aditivo).
+  indicadorFonteId: varchar("indicador_fonte_id").references((): any => indicadores.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   atualizadoEm: timestamp("atualizado_em").defaultNow().notNull(),
 });
@@ -296,6 +298,8 @@ export const iniciativas = pgTable("iniciativas", {
   impacto: text("impacto").notNull(),
   estrategiaId: varchar("estrategia_id").references(() => estrategias.id, { onDelete: "set null" }),
   oportunidadeId: varchar("oportunidade_id").references(() => oportunidadesCrescimento.id, { onDelete: "set null" }),
+  // Task #208 — Indicador (KPI) que esta iniciativa busca melhorar (opcional, aditivo).
+  indicadorFonteId: varchar("indicador_fonte_id").references(() => indicadores.id, { onDelete: "set null" }),
   // Task #207 — Nota e timestamp registrados quando a iniciativa é encerrada
   // (concluída/pausada/cancelada) pelo agente. Aditivo, sem mexer em IDs.
   notaEncerramento: text("nota_encerramento"),

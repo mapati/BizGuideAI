@@ -99,6 +99,8 @@ const criarIniciativaSchema = z.object({
   responsavel: z.string().max(120).default(""),
   impacto: z.string().max(500).default(""),
   estrategiaId: z.string().optional(),
+  // Task #208 — Indicador (KPI) que esta iniciativa busca melhorar.
+  indicadorFonteId: z.string().optional(),
 });
 type CriarIniciativaParams = z.infer<typeof criarIniciativaSchema>;
 
@@ -120,6 +122,7 @@ const criarIniciativa: ToolDefinition<CriarIniciativaParams> = {
       responsavel: { type: "string", description: "Nome do responsável (string livre)" },
       impacto: { type: "string", description: "Impacto esperado em 1 frase" },
       estrategiaId: { type: "string", description: "ID da estratégia vinculada (opcional)" },
+      indicadorFonteId: { type: "string", description: "ID do indicador (KPI) que esta iniciativa busca melhorar (opcional). Use o id do CATÁLOGO de Indicadores quando o usuário disser que a iniciativa visa atacar um KPI específico." },
     },
   },
   preview: (p) => ({
@@ -144,6 +147,12 @@ const criarIniciativa: ToolDefinition<CriarIniciativaParams> = {
       const est = await storage.getEstrategia(p.estrategiaId);
       if (est && est.empresaId === ctx.empresaId) estrategiaIdSafe = est.id;
     }
+    // Task #208 — mesma proteção de tenant para o indicador-fonte.
+    let indicadorFonteIdSafe: string | undefined = undefined;
+    if (p.indicadorFonteId) {
+      const ind = await storage.getIndicador(p.indicadorFonteId);
+      if (ind && ind.empresaId === ctx.empresaId) indicadorFonteIdSafe = ind.id;
+    }
     const created = await storage.createIniciativa({
       empresaId: ctx.empresaId,
       titulo: p.titulo,
@@ -154,6 +163,7 @@ const criarIniciativa: ToolDefinition<CriarIniciativaParams> = {
       responsavel: p.responsavel || "",
       impacto: p.impacto || "",
       estrategiaId: estrategiaIdSafe,
+      indicadorFonteId: indicadorFonteIdSafe,
     });
     return {
       resumo: `Iniciativa "${created.titulo}" criada.`,
@@ -314,6 +324,8 @@ const criarOkrSchema = z.object({
         valorAlvo: z.number().or(z.string()).transform((v) => Number(v)),
         owner: z.string().min(1).max(120),
         prazo: z.string().min(4).max(32),
+        // Task #208 — Indicador (KPI) que esta meta busca melhorar (opcional).
+        indicadorFonteId: z.string().optional(),
       })
     )
     .min(1)
@@ -349,6 +361,7 @@ const criarOkr: ToolDefinition<CriarOkrParams> = {
             valorAlvo: { type: "number" },
             owner: { type: "string" },
             prazo: { type: "string" },
+            indicadorFonteId: { type: "string", description: "ID do indicador (KPI) que esta meta busca melhorar (opcional). Use o id do CATÁLOGO de Indicadores quando o usuário indicar que a meta ataca um KPI específico." },
           },
         },
       },
@@ -379,6 +392,12 @@ const criarOkr: ToolDefinition<CriarOkrParams> = {
     });
     const krsCriados = [];
     for (const r of p.resultadosChave) {
+      // Task #208 — valida tenant do indicador-fonte por KR antes de gravar.
+      let indicadorFonteIdSafe: string | undefined = undefined;
+      if (r.indicadorFonteId) {
+        const ind = await storage.getIndicador(r.indicadorFonteId);
+        if (ind && ind.empresaId === ctx.empresaId) indicadorFonteIdSafe = ind.id;
+      }
       const kr = await storage.createResultadoChave(
         {
           objetivoId: objetivo.id,
@@ -388,6 +407,7 @@ const criarOkr: ToolDefinition<CriarOkrParams> = {
           valorAtual: String(r.valorInicial),
           owner: r.owner,
           prazo: r.prazo,
+          indicadorFonteId: indicadorFonteIdSafe,
         },
         ctx.empresaId
       );
@@ -472,6 +492,8 @@ const adicionarKrAOkrSchema = z.object({
   valorAlvo: z.number().or(z.string()).transform((v) => Number(v)),
   owner: z.string().min(1).max(120),
   prazo: z.string().min(4).max(32),
+  // Task #208 — Indicador (KPI) que esta meta busca melhorar (opcional).
+  indicadorFonteId: z.string().optional(),
 });
 type AdicionarKrAOkrParams = z.infer<typeof adicionarKrAOkrSchema>;
 
@@ -491,6 +513,7 @@ const adicionarKrAOkr: ToolDefinition<AdicionarKrAOkrParams> = {
       valorAlvo: { type: "number" },
       owner: { type: "string" },
       prazo: { type: "string", description: "Ex.: 2026-Q2 ou YYYY-MM-DD" },
+      indicadorFonteId: { type: "string", description: "ID do indicador (KPI) que esta meta busca melhorar (opcional). Use o id do CATÁLOGO de Indicadores quando o usuário indicar que a meta ataca um KPI específico." },
     },
   },
   preview: (p) => ({
@@ -508,6 +531,12 @@ const adicionarKrAOkr: ToolDefinition<AdicionarKrAOkrParams> = {
     ctaAjustar: "Ajustar",
   }),
   apply: async (p, ctx) => {
+    // Task #208 — valida tenant do indicador-fonte antes de gravar.
+    let indicadorFonteIdSafe: string | undefined = undefined;
+    if (p.indicadorFonteId) {
+      const ind = await storage.getIndicador(p.indicadorFonteId);
+      if (ind && ind.empresaId === ctx.empresaId) indicadorFonteIdSafe = ind.id;
+    }
     // createResultadoChave já valida que o objetivo pertence à empresa.
     const kr = await storage.createResultadoChave(
       {
@@ -518,6 +547,7 @@ const adicionarKrAOkr: ToolDefinition<AdicionarKrAOkrParams> = {
         valorAtual: String(p.valorInicial),
         owner: p.owner,
         prazo: p.prazo,
+        indicadorFonteId: indicadorFonteIdSafe,
       },
       ctx.empresaId,
     );

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -424,6 +425,16 @@ function DrilldownSheet({
     enabled: !!ind,
   });
 
+  // Task #208 — Iniciativas e KRs vinculados a este indicador (campo
+  // indicadorFonteId). Mostradas em uma seção dedicada do drilldown.
+  const { data: vinculados } = useQuery<{
+    iniciativas: Array<{ id: string; titulo: string; status: string; prazo: string }>;
+    resultadosChave: Array<{ id: string; metrica: string; objetivoId: string; objetivoTitulo: string }>;
+  }>({
+    queryKey: [`/api/indicadores/${ind?.id}/vinculados`],
+    enabled: !!ind,
+  });
+
   const criarLeituraMutation = useMutation({
     mutationFn: (data: { valor: string; nota: string }) =>
       apiRequest("POST", `/api/indicadores/${ind?.id}/leituras`, data),
@@ -610,6 +621,49 @@ function DrilldownSheet({
               data-testid={`input-leitura-nota-${ind.id}`}
             />
           </div>
+
+          {/* Task #208 — Iniciativas e metas que tratam este indicador */}
+          {(vinculados && (vinculados.iniciativas.length > 0 || vinculados.resultadosChave.length > 0)) && (
+            <div className="space-y-2" data-testid="section-vinculados">
+              <p className="text-sm font-medium">Iniciativas e metas que tratam este indicador</p>
+              <div className="space-y-2">
+                {vinculados.iniciativas.map((it) => (
+                  <div
+                    key={`ini-${it.id}`}
+                    className="flex items-start justify-between gap-2 p-2 rounded-md border text-sm"
+                    data-testid={`vinculado-iniciativa-${it.id}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="secondary" className="shrink-0">Iniciativa</Badge>
+                        <span className="font-medium truncate">{it.titulo}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {it.status} · prazo {it.prazo || "—"}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+                {vinculados.resultadosChave.map((kr) => (
+                  <div
+                    key={`kr-${kr.id}`}
+                    className="flex items-start justify-between gap-2 p-2 rounded-md border text-sm"
+                    data-testid={`vinculado-kr-${kr.id}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="secondary" className="shrink-0">Meta (KR)</Badge>
+                        <span className="font-medium truncate">{kr.metrica}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Objetivo: {kr.objetivoTitulo}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {allLeituras.length > 0 && (
             <div className="space-y-2">

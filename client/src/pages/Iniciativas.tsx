@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/EmptyState";
 import { ExampleCard } from "@/components/ExampleCard";
-import { Briefcase, Plus, Sparkles, Trash2, Pencil, Clock, User, TrendingUp, Link2, Wand2, CheckCircle2, PauseCircle, XCircle } from "lucide-react";
+import { Briefcase, Plus, Sparkles, Trash2, Pencil, Clock, User, TrendingUp, Link2, Wand2, Target, CheckCircle2, PauseCircle, XCircle } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { PrerequisiteWarning } from "@/components/PrerequisiteWarning";
@@ -137,6 +137,7 @@ interface IniciativaCardProps {
   estrategias: Estrategia[];
   oportunidades: Array<{ id: string; titulo: string }>;
   objetivos: Array<{ id: string; titulo: string; iniciativaId?: string | null }>;
+  indicadores: Array<{ id: string; nome: string }>;
   jornadaConcluida: boolean;
   onGerarObjetivos: (iniciativaId: string) => void;
   isGenerating: boolean;
@@ -144,7 +145,7 @@ interface IniciativaCardProps {
   onDelete: (id: string) => void;
 }
 
-function IniciativaCard({ iniciativa, estrategias, oportunidades, objetivos, jornadaConcluida, onGerarObjetivos, isGenerating, onEdit, onDelete }: IniciativaCardProps) {
+function IniciativaCard({ iniciativa, estrategias, oportunidades, objetivos, indicadores, jornadaConcluida, onGerarObjetivos, isGenerating, onEdit, onDelete }: IniciativaCardProps) {
   return (
     <Card className="hover-elevate" data-testid={`card-iniciativa-${iniciativa.id}`}>
       <CardHeader>
@@ -193,6 +194,17 @@ function IniciativaCard({ iniciativa, estrategias, oportunidades, objetivos, jor
                 <Badge variant="outline" className="gap-1" data-testid={`badge-estrategia-${iniciativa.id}`}>
                   <Link2 className="h-3 w-3" />
                   {est.tipo} — {est.titulo.length > 35 ? est.titulo.slice(0, 35) + "…" : est.titulo}
+                </Badge>
+              ) : null;
+            })()}
+            {/* Task #208 — Badge "Atacando: KPI X" quando a iniciativa está
+                vinculada a um indicador via indicadorFonteId. */}
+            {iniciativa.indicadorFonteId && (() => {
+              const ind = indicadores.find(i => i.id === iniciativa.indicadorFonteId);
+              return ind ? (
+                <Badge variant="outline" className="gap-1" data-testid={`badge-indicador-fonte-${iniciativa.id}`}>
+                  <Target className="h-3 w-3" />
+                  Atacando: {ind.nome.length > 35 ? ind.nome.slice(0, 35) + "…" : ind.nome}
                 </Badge>
               ) : null;
             })()}
@@ -273,6 +285,13 @@ export default function Iniciativas() {
 
   const { data: objetivos = [] } = useQuery<Array<{ id: string; titulo: string; iniciativaId?: string | null }>>({
     queryKey: ["/api/objetivos", empresa?.id],
+    enabled: !!empresa?.id,
+  });
+
+  // Task #208 — usado para exibir o badge "Atacando: KPI X" quando a
+  // iniciativa estiver vinculada a um indicador.
+  const { data: indicadoresLista = [] } = useQuery<Array<{ id: string; nome: string }>>({
+    queryKey: ["/api/indicadores", empresa?.id],
     enabled: !!empresa?.id,
   });
 
@@ -951,6 +970,7 @@ export default function Iniciativas() {
                     estrategias={estrategias}
                     oportunidades={oportunidades}
                     objetivos={objetivos}
+                    indicadores={indicadoresLista}
                     jornadaConcluida={!!jornadaConcluida}
                     onGerarObjetivos={handleGerarObjetivosFromIniciativa}
                     isGenerating={isGenerating}

@@ -2330,6 +2330,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Task #208 — Lista as iniciativas e KRs (com seus objetivos) que estão
+  // vinculados a este indicador via indicadorFonteId. Usado pelo
+  // DrilldownSheet do Indicador para mostrar "quem está atacando este KPI".
+  app.get("/api/indicadores/:id/vinculados", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const empresaId = req.session.empresaId!;
+      const ind = await storage.getIndicador(id);
+      if (!ind || ind.empresaId !== empresaId) {
+        return res.status(404).json({ error: "Indicador não encontrado" });
+      }
+      const [iniciativas, objetivos] = await Promise.all([
+        storage.getIniciativas(empresaId),
+        storage.getObjetivos(empresaId),
+      ]);
+      const krsPorObjetivo = await Promise.all(
+        objetivos.map((o) => storage.getResultadosChave(o.id, empresaId)),
+      );
+      const krsLinked: Array<{ id: string; metrica: string; objetivoId: string; objetivoTitulo: string }> = [];
+      objetivos.forEach((o, idx) => {
+        for (const kr of krsPorObjetivo[idx]) {
+          if (kr.indicadorFonteId === id) {
+            krsLinked.push({ id: kr.id, metrica: kr.metrica, objetivoId: o.id, objetivoTitulo: o.titulo });
+          }
+        }
+      });
+      const iniciativasLinked = iniciativas
+        .filter((i) => i.indicadorFonteId === id)
+        .map((i) => ({ id: i.id, titulo: i.titulo, status: i.status, prazo: i.prazo }));
+      res.json({ iniciativas: iniciativasLinked, resultadosChave: krsLinked });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get("/api/indicadores/:id/leituras", async (req, res) => {
     try {
       const { id } = req.params;
@@ -3782,16 +3817,36 @@ Responda OBRIGATORIAMENTE em JSON:
       // com IDs reais em vez de cair em navegar_para genérico.
       const catalogoLinhas: string[] = [];
       const TOP_N = 30;
+      // Task #208 — índice id→nome para anotar vínculos KPI nas linhas de
+      // iniciativas/KRs e contar quantos itens atacam cada indicador.
+      const indNomeById = new Map<string, string>(indicadores.map((i) => [i.id, i.nome]));
+      const ataquesPorIndicador = new Map<string, number>();
+      const bumpAtaque = (indId: string | null | undefined) => {
+        if (!indId) return;
+        ataquesPorIndicador.set(indId, (ataquesPorIndicador.get(indId) ?? 0) + 1);
+      };
+      iniciativas.forEach((i) => bumpAtaque(i.indicadorFonteId));
+      resultadosPorObjetivo.forEach(({ resultados }) =>
+        resultados.forEach((kr) => bumpAtaque(kr.indicadorFonteId)),
+      );
       if (indicadores.length > 0) {
         catalogoLinhas.push(
           `### Indicadores (use com tipo="indicador" em abrir_entidade ou indicadorId em atualizar_valor_indicador):`,
-          ...indicadores.slice(0, TOP_N).map((i) => `- id=${i.id} | ${i.nome} [${i.perspectiva}]`),
+          ...indicadores.slice(0, TOP_N).map((i) => {
+            const n = ataquesPorIndicador.get(i.id) ?? 0;
+            const ataque = n > 0 ? ` | ${n} ${n === 1 ? "item ataca" : "itens atacam"} este KPI` : "";
+            return `- id=${i.id} | ${i.nome} [${i.perspectiva}]${ataque}`;
+          }),
         );
       }
       if (iniciativas.length > 0) {
         catalogoLinhas.push(
           `### Iniciativas (use com tipo="iniciativa" em abrir_entidade ou id em atualizar_iniciativa):`,
-          ...iniciativas.slice(0, TOP_N).map((i) => `- id=${i.id} | ${i.titulo} [${i.status}]`),
+          ...iniciativas.slice(0, TOP_N).map((i) => {
+            const ind = i.indicadorFonteId ? indNomeById.get(i.indicadorFonteId) : null;
+            const ataque = ind ? ` | atacando KPI="${ind}" (id=${i.indicadorFonteId})` : "";
+            return `- id=${i.id} | ${i.titulo} [${i.status}]${ataque}`;
+          }),
         );
       }
       if (resultadosPorObjetivo.length > 0) {
@@ -3801,7 +3856,9 @@ Responda OBRIGATORIAMENTE em JSON:
         for (const { objetivo, resultados } of resultadosPorObjetivo.slice(0, TOP_N)) {
           catalogoLinhas.push(`- id=${objetivo.id} | ${objetivo.titulo} [${objetivo.perspectiva}]`);
           for (const kr of resultados) {
-            catalogoLinhas.push(`  • KR id=${kr.id} | ${kr.metrica} (use tipo="kr" em abrir_entidade ou resultadoChaveId em atualizar_progresso_kr)`);
+            const ind = kr.indicadorFonteId ? indNomeById.get(kr.indicadorFonteId) : null;
+            const ataque = ind ? ` | atacando KPI="${ind}" (id=${kr.indicadorFonteId})` : "";
+            catalogoLinhas.push(`  • KR id=${kr.id} | ${kr.metrica}${ataque} (use tipo="kr" em abrir_entidade ou resultadoChaveId em atualizar_progresso_kr)`);
           }
         }
       }

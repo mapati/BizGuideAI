@@ -158,9 +158,11 @@ interface ResultadoChaveCardProps {
   onCancelEdit: () => void;
   onDelete: (id: string) => void;
   isSaving: boolean;
+  // Task #208 — usado para exibir o badge "Atacando: KPI X" no KR.
+  indicadores?: Array<{ id: string; nome: string }>;
 }
 
-function ResultadoChaveCard({ resultado, isEditing, editingData, onStartEdit, onChangeEdit, onSave, onCancelEdit, onDelete, isSaving }: ResultadoChaveCardProps) {
+function ResultadoChaveCard({ resultado, isEditing, editingData, onStartEdit, onChangeEdit, onSave, onCancelEdit, onDelete, isSaving, indicadores = [] }: ResultadoChaveCardProps) {
   const progresso = calcularProgresso(resultado.valorInicial, resultado.valorAtual, resultado.valorAlvo);
   return (
     <Card className="p-4" data-testid={`card-resultado-${resultado.id}`}>
@@ -237,6 +239,19 @@ function ResultadoChaveCard({ resultado, isEditing, editingData, onStartEdit, on
             <span>Responsável: {resultado.owner}</span>
             <span>Prazo: {resultado.prazo}</span>
           </div>
+          {/* Task #208 — Badge "Atacando: KPI X" quando o KR está vinculado
+              a um indicador via indicadorFonteId. */}
+          {resultado.indicadorFonteId && (() => {
+            const ind = indicadores.find(i => i.id === resultado.indicadorFonteId);
+            return ind ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Badge variant="outline" className="gap-1" data-testid={`badge-indicador-fonte-kr-${resultado.id}`}>
+                  <TargetIcon className="h-3 w-3" />
+                  Atacando: {ind.nome.length > 35 ? ind.nome.slice(0, 35) + "…" : ind.nome}
+                </Badge>
+              </div>
+            ) : null;
+          })()}
         </div>
       )}
     </Card>
@@ -304,6 +319,12 @@ export default function OKRs() {
   });
 
   const { data: membros = [] } = useQuery<Membro[]>({ queryKey: ["/api/membros"] });
+
+  // Task #208 — usado para exibir o badge "Atacando: KPI X" nos KRs.
+  const { data: indicadoresLista = [] } = useQuery<Array<{ id: string; nome: string }>>({
+    queryKey: ["/api/indicadores", empresaId],
+    enabled: !!empresaId,
+  });
 
   const [gerandoPerspectiva, setGerandoPerspectiva] = useState<string | null>(null);
   const [aiObjetivosOpen, setAiObjetivosOpen] = useState(false);
@@ -1341,6 +1362,7 @@ export default function OKRs() {
                       onCancelEdit={() => setEditandoResultado(null)}
                       onDelete={(id) => deletarResultadoMutation.mutate(id)}
                       isSaving={editarResultadoMutation.isPending}
+                      indicadores={indicadoresLista}
                     />
                   ))}
                 </div>

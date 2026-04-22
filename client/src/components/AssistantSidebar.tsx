@@ -78,17 +78,17 @@ export function AssistantSidebar() {
                 )}
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-semibold leading-none truncate">
-                  {showGuia ? "Guia" : "Assistente"}
+                <p className="text-sm font-semibold leading-none truncate">Bizzy</p>
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                  {showGuia ? "modo Guia" : "modo Assistente"}
                 </p>
-                <p className="text-xs text-muted-foreground mt-0.5 truncate">Estratégico</p>
               </div>
             </div>
             <Button
               size="icon"
               variant="ghost"
               onClick={() => setOpen(false)}
-              title={showGuia ? "Fechar Guia" : "Fechar Assistente"}
+              title={showGuia ? "Fechar Bizzy (modo Guia)" : "Fechar Bizzy"}
               data-testid="button-assistant-sidebar-close"
             >
               <PanelRightClose className="h-4 w-4" />
@@ -148,7 +148,7 @@ export function AssistantSidebar() {
             type="button"
             onClick={() => setOpen(true)}
             className="flex flex-col items-center gap-3 py-3 w-full hover-elevate"
-            title={showGuia ? "Abrir Guia Estratégico" : "Abrir Assistente Estratégico"}
+            title={showGuia ? "Abrir Bizzy (modo Guia)" : "Abrir Bizzy"}
             data-testid="button-assistant-sidebar-toggle"
           >
             <PanelRightOpen className="h-4 w-4 text-muted-foreground" />
@@ -167,7 +167,7 @@ export function AssistantSidebar() {
           onClick={() => setOpen(true)}
           className="fixed bottom-4 right-4 rounded-full shadow-lg z-40"
           data-testid="button-assistant-sidebar-toggle"
-          title={showGuia ? "Abrir Guia" : "Abrir Assistente"}
+          title={showGuia ? "Abrir Bizzy (modo Guia)" : "Abrir Bizzy"}
         >
           {showGuia ? (
             <Compass className="h-4 w-4" />
@@ -180,7 +180,7 @@ export function AssistantSidebar() {
       {isMobile && open && (
         <button
           type="button"
-          aria-label={showGuia ? "Fechar Guia" : "Fechar Assistente"}
+          aria-label={showGuia ? "Fechar Bizzy (modo Guia)" : "Fechar Bizzy"}
           onClick={() => setOpen(false)}
           className="fixed inset-0 bg-black/40 z-40"
           data-testid="overlay-assistant-sidebar"
@@ -209,7 +209,7 @@ function PlanosAgenticosLista() {
       <div className="text-center py-8 space-y-2">
         <Target className="h-10 w-10 text-muted-foreground mx-auto" />
         <p className="text-sm text-muted-foreground" data-testid="text-planos-vazio">
-          Nenhum plano agêntico ainda. Quando você pedir algo amplo no chat, o assistente pode propor um plano de vários passos.
+          Nenhum plano agêntico ainda. Quando você pedir algo amplo no chat, o Bizzy pode propor um plano de vários passos.
         </p>
       </div>
     );

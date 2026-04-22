@@ -26,7 +26,7 @@ test.describe("deriveAssistantStatus (hook useAssistantStatus)", () => {
     expect(status.alertas.find((a) => a.tipo === "indicador")).toBeUndefined();
     expect(status.alertas).toHaveLength(0);
     expect(status.nivel).toBe("neutro");
-    expect(status.preview).toBe("Assistente Estratégico");
+    expect(status.preview).toBe("Bizzy");
     expect(status.preview.toLowerCase()).not.toContain("vermelho");
   });
 

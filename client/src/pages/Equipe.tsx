@@ -458,10 +458,10 @@ function MemoriaAssistenteCard() {
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <Brain className="h-4 w-4 text-primary" />
-          Memória do Assistente
+          Memória do Bizzy
         </CardTitle>
         <CardDescription>
-          Fatos persistentes que o assistente aprendeu sobre sua empresa nas conversas anteriores. Desative o que não fizer mais sentido.
+          Fatos persistentes que o Bizzy aprendeu sobre sua empresa nas conversas anteriores. Desative o que não fizer mais sentido.
         </CardDescription>
       </CardHeader>
       <CardContent className="p-0">
@@ -471,7 +471,7 @@ function MemoriaAssistenteCard() {
           </div>
         ) : fatos.length === 0 ? (
           <div className="px-6 py-8 text-center text-muted-foreground text-sm">
-            Nenhum fato registrado ainda. Converse com o assistente — a memória se forma sozinha.
+            Nenhum fato registrado ainda. Converse com o Bizzy — a memória se forma sozinha.
           </div>
         ) : (
           <div className="divide-y">

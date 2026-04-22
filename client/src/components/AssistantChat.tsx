@@ -231,7 +231,7 @@ export function AssistantChat({
       setMessages([
         {
           role: "assistant",
-          content: `Olá${user?.nome ? `, ${user.nome.split(" ")[0]}` : ""}! Sou o seu Assistente Estratégico. Tenho acesso a todos os dados da sua empresa — perfil, cenário externo, OKRs, indicadores, iniciativas e mais. Como posso ajudar?`,
+          content: `Olá${user?.nome ? `, ${user.nome.split(" ")[0]}` : ""}! Eu sou o Bizzy, seu agente estratégico. Tenho acesso a todos os dados da sua empresa — perfil, cenário externo, OKRs, indicadores, iniciativas e mais. Como posso ajudar?`,
         },
       ]);
     })();

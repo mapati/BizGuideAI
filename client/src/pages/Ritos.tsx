@@ -55,7 +55,7 @@ function fmtData(s: string | null | undefined): string {
 function PautasList({ highlightId }: { highlightId: string | null }) {
   const { data, isLoading } = useQuery<ReuniaoPauta[]>({ queryKey: ["/api/ritos/pautas"] });
   if (isLoading) return <Skeleton className="h-32 w-full" />;
-  if (!data?.length) return <p className="text-sm text-muted-foreground" data-testid="text-pautas-vazio">Nenhuma pauta gerada ainda. Peça ao Assistente: "Gere a pauta da reunião semanal de amanhã".</p>;
+  if (!data?.length) return <p className="text-sm text-muted-foreground" data-testid="text-pautas-vazio">Nenhuma pauta gerada ainda. Peça ao Bizzy: "Gere a pauta da reunião semanal de amanhã".</p>;
   return (
     <div className="space-y-3">
       {data.map((p) => {
@@ -116,7 +116,7 @@ function PautasList({ highlightId }: { highlightId: string | null }) {
 function AtasList({ highlightId }: { highlightId: string | null }) {
   const { data, isLoading } = useQuery<ReuniaoAta[]>({ queryKey: ["/api/ritos/atas"] });
   if (isLoading) return <Skeleton className="h-32 w-full" />;
-  if (!data?.length) return <p className="text-sm text-muted-foreground" data-testid="text-atas-vazio">Nenhuma ata registrada. Após a reunião, peça ao Assistente: "Registra a ata".</p>;
+  if (!data?.length) return <p className="text-sm text-muted-foreground" data-testid="text-atas-vazio">Nenhuma ata registrada. Após a reunião, peça ao Bizzy: "Registra a ata".</p>;
   return (
     <div className="space-y-3">
       {data.map((a) => {
@@ -324,7 +324,7 @@ function DecisaoCard({ d, isHi }: { d: DecisaoEstrategica; isHi: boolean }) {
 function DecisoesList({ highlightId }: { highlightId: string | null }) {
   const { data, isLoading } = useQuery<DecisaoEstrategica[]>({ queryKey: ["/api/ritos/decisoes"] });
   if (isLoading) return <Skeleton className="h-32 w-full" />;
-  if (!data?.length) return <p className="text-sm text-muted-foreground" data-testid="text-decisoes-vazio">Nenhuma decisão registrada. Use o Assistente: "Registra a decisão de…".</p>;
+  if (!data?.length) return <p className="text-sm text-muted-foreground" data-testid="text-decisoes-vazio">Nenhuma decisão registrada. Peça ao Bizzy: "Registra a decisão de…".</p>;
   return (
     <div className="space-y-3">
       {data.map((d) => <DecisaoCard key={d.id} d={d} isHi={highlightId === d.id} />)}
@@ -410,7 +410,7 @@ function RevisaoCard({ r, isHi }: { r: RevisaoAgendada; isHi: boolean }) {
 function RevisoesList({ highlightId }: { highlightId: string | null }) {
   const { data, isLoading } = useQuery<RevisaoAgendada[]>({ queryKey: ["/api/ritos/revisoes"] });
   if (isLoading) return <Skeleton className="h-32 w-full" />;
-  if (!data?.length) return <p className="text-sm text-muted-foreground" data-testid="text-revisoes-vazio">Nenhuma revisão agendada. Peça ao Assistente: "Agenda uma revisão da iniciativa X em 2 semanas".</p>;
+  if (!data?.length) return <p className="text-sm text-muted-foreground" data-testid="text-revisoes-vazio">Nenhuma revisão agendada. Peça ao Bizzy: "Agenda uma revisão da iniciativa X em 2 semanas".</p>;
   return (
     <div className="space-y-3">
       {data.map((r) => <RevisaoCard key={r.id} r={r} isHi={highlightId === r.id} />)}
@@ -427,7 +427,7 @@ export default function Ritos() {
     <div className="container mx-auto p-4 max-w-5xl space-y-4" data-testid="page-ritos-gestao">
       <header>
         <h1 className="text-2xl font-bold">Rituais de Gestão</h1>
-        <p className="text-sm text-muted-foreground">Pautas, atas, decisões e revisões agendadas geradas pelo Assistente.</p>
+        <p className="text-sm text-muted-foreground">Pautas, atas, decisões e revisões agendadas geradas pelo Bizzy.</p>
       </header>
       <Tabs defaultValue={aba} onValueChange={(v) => setLocation(`/ritos/gestao?aba=${v}`)}>
         <TabsList>

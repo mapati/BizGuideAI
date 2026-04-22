@@ -55,7 +55,7 @@ export function deriveAssistantStatus(
   if (!isAnalysisPage) {
     return {
       nivel: "neutro",
-      preview: "Assistente Estratégico",
+      preview: "Bizzy",
       alertas: [],
       pagina: null,
     };
@@ -98,7 +98,7 @@ export function deriveAssistantStatus(
     alertas.length === 0
       ? hasData
         ? "Tudo no caminho certo"
-        : "Assistente Estratégico"
+        : "Bizzy"
       : alertas.length === 1
       ? alertas[0].mensagem
       : `${alertas.length} alertas estratégicos`;

@@ -83,8 +83,8 @@ function formatPromoFim(iso: string | null): string | null {
 const features = [
   {
     icon: Compass,
-    title: "Guia que vira Assistente",
-    desc: "No início, o Guia conduz cada etapa da jornada. Quando você termina, ele se transforma em Assistente que monitora seu plano e sugere o próximo passo.",
+    title: "Bizzy: do Guia ao Assistente",
+    desc: "No início, o Bizzy entra em modo Guia e conduz cada etapa da jornada. Quando você termina, ele passa para o modo Assistente, monitora seu plano e sugere o próximo passo.",
   },
   {
     icon: Globe,
@@ -266,7 +266,7 @@ function BrowserChrome({
             data-testid="mockup-guia-chip"
           >
             <Compass className="h-2.5 w-2.5" />
-            Guia Estratégico
+            Bizzy
           </div>
         )}
       </div>
@@ -295,7 +295,7 @@ function MockupHome() {
           <div className="bg-primary/5 border border-primary/20 rounded-md px-2 py-1.5 flex items-start gap-1.5">
             <Compass className="h-2.5 w-2.5 text-primary flex-shrink-0 mt-px" />
             <p className="text-[8px] text-gray-600 leading-snug">
-              <span className="font-semibold text-gray-800">Comece pelo Guia Estratégico</span> no canto superior direito — ele mostra a próxima etapa e leva você direto para ela.
+              <span className="font-semibold text-gray-800">Comece pelo Bizzy</span> no canto superior direito — ele mostra a próxima etapa e leva você direto para ela.
             </p>
           </div>
 
@@ -828,7 +828,7 @@ export default function LandingPage() {
                 , não em meses
               </h1>
 
-              <p className="text-lg text-slate-300 leading-relaxed" data-testid="text-hero-subtitle">Um Guia Estratégico conduz você por 12 passos — do diagnóstico ao acompanhamento — e a IA faz o trabalho pesado. Quando termina, ele se transforma no seu Assistente de gestão, monitorando o plano todo dia.</p>
+              <p className="text-lg text-slate-300 leading-relaxed" data-testid="text-hero-subtitle">O Bizzy, seu agente estratégico, conduz você por 12 passos — do diagnóstico ao acompanhamento — e a IA faz o trabalho pesado. Quando termina, ele passa para o modo Assistente de gestão, monitorando o plano todo dia.</p>
 
               <div className="flex flex-wrap gap-3">
                 {["SWOT", "PESTEL", "Cinco Forças", "BMC", "OKRs", "BSC"].map(tag => (
@@ -987,7 +987,7 @@ export default function LandingPage() {
                 etapas: [
                   { num: 10, nome: "Iniciativas Prioritárias", icone: Briefcase, desc: "Cada Objetivo vira projeto concreto: 5W2H com responsável, prazo e impacto esperado. Plano que de fato roda" },
                   { num: 11, nome: "Indicadores de Performance", icone: BarChart3, desc: "Balanced Scorecard nas 4 perspectivas: Finanças, Clientes, Processos e Pessoas. Semáforo automático mostra onde agir primeiro" },
-                  { num: 12, nome: "Acompanhamento", icone: Activity, desc: "Rituais semanais, mensais e trimestrais com pauta gerada pela IA. O plano fica vivo — e o Guia vira seu Assistente diário" },
+                  { num: 12, nome: "Acompanhamento", icone: Activity, desc: "Rituais semanais, mensais e trimestrais com pauta gerada pela IA. O plano fica vivo — e o Bizzy passa do modo Guia para o modo Assistente diário" },
                 ],
               },
             ].map((grupo) => (
@@ -1195,7 +1195,7 @@ export default function LandingPage() {
               {
                 icon: Compass,
                 title: "Consultoria estratégica embarcada",
-                desc: "Em vez de contratar um consultor por meses, você ganha um Guia que te leva por todas as etapas — e depois um Assistente que continua te apoiando todo dia.",
+                desc: "Em vez de contratar um consultor por meses, você ganha o Bizzy: no modo Guia ele te leva por todas as etapas — e depois, no modo Assistente, continua te apoiando todo dia.",
               },
               {
                 icon: Zap,
@@ -1238,20 +1238,20 @@ export default function LandingPage() {
             <div className="flex flex-col gap-6">
               <Badge className="bg-primary/20 text-primary border-primary/30 w-fit text-sm px-3 py-1">
                 <Brain className="h-3.5 w-3.5 mr-1.5" />
-                Guia hoje, Assistente para sempre
+                Bizzy: Guia hoje, Assistente para sempre
               </Badge>
               <h2 className="text-3xl sm:text-4xl font-bold text-white">
                 Uma IA que constrói o plano com você — e depois cuida dele todo dia
               </h2>
               <p className="text-slate-400 text-lg leading-relaxed">
-                Enquanto você monta a estratégia, o <span className="text-white font-medium">Guia Estratégico</span> indica o próximo passo, gera análises e preenche cada framework. Quando o plano está pronto, ele se transforma no seu <span className="text-white font-medium">Assistente</span>: lê seus indicadores, alerta sobre desvios e sugere a próxima decisão.
+                Enquanto você monta a estratégia, o <span className="text-white font-medium">Bizzy</span>, no modo Guia, indica o próximo passo, gera análises e preenche cada framework. Quando o plano está pronto, ele passa para o modo <span className="text-white font-medium">Assistente</span>: lê seus indicadores, alerta sobre desvios e sugere a próxima decisão.
               </p>
               <div className="flex flex-col gap-3">
                 {[
                   "Lê o site da empresa e monta o perfil do negócio em minutos",
                   "Gera SWOT, PESTEL, Cinco Forças e BMC com recomendações priorizadas",
                   "Conecta estratégias, OKRs e indicadores para que tudo conversa entre si",
-                  "Vira Assistente diário: monitora o plano, alerta desvios e propõe ajustes",
+                  "No modo Assistente, monitora o plano todo dia, alerta desvios e propõe ajustes",
                 ].map(item => (
                   <div key={item} className="flex items-start gap-3">
                     <div className="h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -1506,7 +1506,7 @@ export default function LandingPage() {
                 Quanto tempo leva para configurar e ver valor?
               </AccordionTrigger>
               <AccordionContent data-testid="faq-content-tempo-configuracao" className="text-muted-foreground">
-                Em poucos minutos você cria sua conta e o Guia Estratégico te conduz passo a passo. Em uma tarde é possível sair do diagnóstico até um plano de ação inicial. Em uma semana, o Assistente já está acompanhando suas iniciativas e OKRs.
+                Em poucos minutos você cria sua conta e o Bizzy, no modo Guia, te conduz passo a passo. Em uma tarde é possível sair do diagnóstico até um plano de ação inicial. Em uma semana, o Bizzy, no modo Assistente, já está acompanhando suas iniciativas e OKRs.
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="seguranca-lgpd">
@@ -1538,7 +1538,7 @@ export default function LandingPage() {
                 Que tipo de suporte recebo durante e depois do trial?
               </AccordionTrigger>
               <AccordionContent data-testid="faq-content-suporte" className="text-muted-foreground">
-                Você tem suporte humano por WhatsApp, telefone e e-mail durante todo o período de teste e também depois da contratação. Além disso, o próprio Assistente dentro da plataforma te orienta sobre o próximo passo a cada momento da jornada.
+                Você tem suporte humano por WhatsApp, telefone e e-mail durante todo o período de teste e também depois da contratação. Além disso, o próprio Bizzy dentro da plataforma te orienta sobre o próximo passo a cada momento da jornada.
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="cancelamento">
@@ -1581,7 +1581,7 @@ export default function LandingPage() {
             Sua próxima reunião pode ter um plano de verdade na mesa
           </h2>
           <p className="text-primary-foreground/80 text-lg max-w-2xl">
-            Em uma tarde, o Guia Estratégico te leva do diagnóstico ao plano de ação. Em uma semana, vira o Assistente que mantém tudo rodando. Comece grátis e veja a diferença antes de pagar nada.
+            Em uma tarde, o Bizzy, no modo Guia, te leva do diagnóstico ao plano de ação. Em uma semana, ele entra no modo Assistente e mantém tudo rodando. Comece grátis e veja a diferença antes de pagar nada.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4">
             <Link href="/register">

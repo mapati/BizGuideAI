@@ -231,7 +231,7 @@ export function GuiaContent({ progresso, onNavigate }: GuiaContentProps) {
           Complete a jornada para desbloquear o{" "}
           <span className="inline-flex items-center gap-1 font-medium text-foreground">
             <Sparkles className="h-3 w-3" />
-            Assistente Estratégico
+            Bizzy no modo Assistente
           </span>
         </p>
       </div>

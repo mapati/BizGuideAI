@@ -455,9 +455,9 @@ export default function Home() {
             <div className="flex items-start gap-3 rounded-md bg-background/60 p-4">
               <Compass className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
               <div className="space-y-1">
-                <p className="text-sm font-semibold">Comece pelo Guia Estratégico</p>
+                <p className="text-sm font-semibold">Comece pelo Bizzy</p>
                 <p className="text-sm text-muted-foreground">
-                  No canto superior direito você verá o chip <span className="font-medium text-foreground">Guia Estratégico</span>. Clique nele a qualquer momento — ele mostra onde você está, qual é a próxima etapa e leva você direto para ela. As etapas se desbloqueiam à medida que você avança, então é só seguir o guia.
+                  No canto superior direito você verá o chip <span className="font-medium text-foreground">Bizzy</span>. Clique nele a qualquer momento — no modo Guia, ele mostra onde você está, qual é a próxima etapa e leva você direto para ela. As etapas se desbloqueiam à medida que você avança, então é só seguir o Bizzy.
                 </p>
               </div>
             </div>

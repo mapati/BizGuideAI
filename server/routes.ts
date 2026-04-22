@@ -4287,7 +4287,7 @@ Responda OBRIGATORIAMENTE em JSON:
         console.warn("[ASSISTENTE] Falha ao carregar memória persistente:", memErr);
       }
 
-      const systemPrompt = `Você é o Assistente Estratégico do BizGuideAI, um consultor sênior de estratégia empresarial para PMEs brasileiras.
+      const systemPrompt = `Você é o Bizzy, o agente estratégico do BizGuideAI, um consultor sênior de estratégia empresarial para PMEs brasileiras.
 
 Você tem acesso completo aos dados da empresa abaixo e a um conjunto de ferramentas (function tools) que executam ações reais quando o usuário aprovar.
 
@@ -4640,7 +4640,7 @@ ${ctx.join("\n\n")}`;
       ? `ACABOU DE CONCLUIR: passo ${contextoAnterior.passoOrdem} ("${contextoAnterior.passoTitulo}") — ferramenta ${contextoAnterior.ferramenta}.\nResultado: ${JSON.stringify(contextoAnterior.resultado).slice(0, 400)}`
       : `Plano recém-iniciado: "${planoRow.titulo}". Vamos começar pelo passo 1.`;
 
-    const sysPrompt = `Você é o Assistente Estratégico do BizGuideAI executando um plano agêntico passo a passo.
+    const sysPrompt = `Você é o Bizzy, o agente estratégico do BizGuideAI, executando um plano agêntico passo a passo.
 
 ${cabecalho}
 

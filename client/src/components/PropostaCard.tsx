@@ -39,7 +39,10 @@ type Estado = "proposta" | "confirmada" | "ignorada" | "ajustada" | "falhou";
 // Tools de criação ficam fora do mapa e usam `?novo=1`.
 const ENTIDADE_ID_PARAM: Record<string, { idField: string; extra?: Record<string, string> }> = {
   atualizar_iniciativa: { idField: "id" },
+  encerrar_iniciativa: { idField: "id" },
   atualizar_okr: { idField: "objetivoId" },
+  adicionar_kr_a_okr: { idField: "objetivoId" },
+  atualizar_kr: { idField: "resultadoChaveId", extra: { tipo: "kr" } },
   atualizar_progresso_kr: { idField: "resultadoChaveId", extra: { tipo: "kr" } },
   atualizar_valor_indicador: { idField: "indicadorId" },
 };
@@ -81,8 +84,11 @@ function construirUrlAjuste(
 const FERRAMENTAS_LABEL: Record<string, string> = {
   criar_iniciativa: "Nova iniciativa",
   atualizar_iniciativa: "Atualizar iniciativa",
+  encerrar_iniciativa: "Encerrar iniciativa",
   criar_okr: "Novo OKR",
   atualizar_okr: "Atualizar OKR",
+  adicionar_kr_a_okr: "Adicionar meta",
+  atualizar_kr: "Editar meta",
   atualizar_progresso_kr: "Atualizar KR",
   criar_indicador: "Novo indicador",
   atualizar_valor_indicador: "Registrar leitura",

@@ -12,8 +12,11 @@ import type { PropostaPreview } from "@shared/schema";
 export type ToolName =
   | "criar_iniciativa"
   | "atualizar_iniciativa"
+  | "encerrar_iniciativa"
   | "criar_okr"
   | "atualizar_okr"
+  | "adicionar_kr_a_okr"
+  | "atualizar_kr"
   | "atualizar_progresso_kr"
   | "criar_indicador"
   | "atualizar_valor_indicador"
@@ -233,6 +236,70 @@ const atualizarIniciativa: ToolDefinition<AtualizarIniciativaParams> = {
   formRota: "/iniciativas",
 };
 
+// ---------- 2b. encerrar_iniciativa ----------
+// Task #207 — fecha uma iniciativa registrando status final + nota curta.
+const STATUS_ENCERRAMENTO = ["concluida", "pausada", "cancelada"] as const;
+const encerrarIniciativaSchema = z.object({
+  id: z.string().min(8),
+  status: z.enum(STATUS_ENCERRAMENTO).default("concluida"),
+  nota: z.string().min(1).max(600),
+});
+type EncerrarIniciativaParams = z.infer<typeof encerrarIniciativaSchema>;
+
+const STATUS_ENCERRAMENTO_LABEL: Record<typeof STATUS_ENCERRAMENTO[number], string> = {
+  concluida: "Concluída",
+  pausada: "Pausada",
+  cancelada: "Cancelada",
+};
+
+const encerrarIniciativa: ToolDefinition<EncerrarIniciativaParams> = {
+  name: "encerrar_iniciativa",
+  description:
+    "Encerra uma iniciativa existente registrando status final (concluida/pausada/cancelada) e uma nota curta de fechamento (motivo, aprendizado ou resultado). Use quando o usuário disser que a iniciativa terminou — ex.: 'encerra a iniciativa X com a nota: deu certo, KPI voltou ao verde'. Prefira esta tool a atualizar_iniciativa quando o objetivo é fechar/dar baixa.",
+  paramsSchema: encerrarIniciativaSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["id", "nota"],
+    properties: {
+      id: { type: "string", description: "ID real da iniciativa (do CATÁLOGO)" },
+      status: { type: "string", enum: [...STATUS_ENCERRAMENTO], description: "Status final: concluida (padrão), pausada ou cancelada." },
+      nota: { type: "string", description: "Nota curta de fechamento — motivo, aprendizado ou resultado (até 600 chars)." },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Encerrar iniciativa",
+    descricao: `Marcar a iniciativa como ${STATUS_ENCERRAMENTO_LABEL[p.status]} e registrar a nota de fechamento.`,
+    campos: [
+      { label: "ID", valor: p.id },
+      { label: "Status final", valor: STATUS_ENCERRAMENTO_LABEL[p.status] },
+      { label: "Nota de fechamento", valor: p.nota },
+    ],
+    ctaConfirmar: "Encerrar iniciativa",
+    ctaIgnorar: "Manter aberta",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const existing = await storage.getIniciativa(p.id);
+    if (!existing || existing.empresaId !== ctx.empresaId) {
+      throw new Error("Iniciativa não encontrada nesta empresa.");
+    }
+    const updated = await storage.updateIniciativa(p.id, ctx.empresaId, {
+      status: p.status,
+      notaEncerramento: p.nota,
+      encerradaEm: new Date(),
+    } as Partial<typeof existing>);
+    return {
+      resumo: `Iniciativa "${updated.titulo}" encerrada como ${STATUS_ENCERRAMENTO_LABEL[p.status]}.`,
+      dados: { id: updated.id, status: updated.status },
+      rota: "/iniciativas",
+      entidadeTipo: "iniciativa",
+      entidadeId: updated.id,
+    };
+  },
+  formRota: "/iniciativas",
+};
+
 // ---------- 3. criar_okr ----------
 const criarOkrSchema = z.object({
   objetivoTitulo: z.string().min(3).max(200),
@@ -390,6 +457,141 @@ const atualizarOkr: ToolDefinition<AtualizarOkrParams> = {
       dados: { id: updated.id },
       rota: "/okrs",
       entidadeTipo: "objetivo",
+      entidadeId: updated.id,
+    };
+  },
+  formRota: "/okrs",
+};
+
+// ---------- 3c. adicionar_kr_a_okr ----------
+// Task #207 — Acrescenta UMA meta nova a um OKR (objetivo) já existente.
+const adicionarKrAOkrSchema = z.object({
+  objetivoId: z.string().min(8),
+  metrica: z.string().min(3).max(200),
+  valorInicial: z.number().or(z.string()).transform((v) => Number(v)),
+  valorAlvo: z.number().or(z.string()).transform((v) => Number(v)),
+  owner: z.string().min(1).max(120),
+  prazo: z.string().min(4).max(32),
+});
+type AdicionarKrAOkrParams = z.infer<typeof adicionarKrAOkrSchema>;
+
+const adicionarKrAOkr: ToolDefinition<AdicionarKrAOkrParams> = {
+  name: "adicionar_kr_a_okr",
+  description:
+    "Adiciona uma nova meta (resultado-chave / KR) DENTRO de um OKR (objetivo) já existente, sem criar novo objetivo. Use quando o usuário pedir 'adiciona uma meta de X ao OKR Y' e o objetivo Y já estiver no CATÁLOGO. Não use criar_okr para isso (criaria objetivo duplicado).",
+  paramsSchema: adicionarKrAOkrSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["objetivoId", "metrica", "valorInicial", "valorAlvo", "owner", "prazo"],
+    properties: {
+      objetivoId: { type: "string", description: "ID real do objetivo (OKR) do CATÁLOGO" },
+      metrica: { type: "string" },
+      valorInicial: { type: "number" },
+      valorAlvo: { type: "number" },
+      owner: { type: "string" },
+      prazo: { type: "string", description: "Ex.: 2026-Q2 ou YYYY-MM-DD" },
+    },
+  },
+  preview: (p) => ({
+    titulo: `Adicionar meta ao OKR`,
+    descricao: `Nova meta dentro do objetivo selecionado: ${p.metrica}.`,
+    campos: [
+      { label: "Objetivo", valor: p.objetivoId },
+      { label: "Métrica", valor: p.metrica },
+      { label: "Valor inicial → alvo", valor: `${p.valorInicial} → ${p.valorAlvo}` },
+      { label: "Dono", valor: p.owner },
+      { label: "Prazo", valor: p.prazo },
+    ],
+    ctaConfirmar: "Adicionar meta",
+    ctaIgnorar: "Agora não",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    // createResultadoChave já valida que o objetivo pertence à empresa.
+    const kr = await storage.createResultadoChave(
+      {
+        objetivoId: p.objetivoId,
+        metrica: p.metrica,
+        valorInicial: String(p.valorInicial),
+        valorAlvo: String(p.valorAlvo),
+        valorAtual: String(p.valorInicial),
+        owner: p.owner,
+        prazo: p.prazo,
+      },
+      ctx.empresaId,
+    );
+    return {
+      resumo: `Meta "${kr.metrica}" adicionada ao OKR.`,
+      dados: { id: kr.id, objetivoId: p.objetivoId },
+      rota: "/okrs",
+      entidadeTipo: "resultado_chave",
+      entidadeId: kr.id,
+    };
+  },
+  formRota: "/okrs",
+};
+
+// ---------- 3d. atualizar_kr ----------
+// Task #207 — Edita os campos de calibragem de uma meta existente
+// (métrica, valor inicial, valor-alvo, dono, prazo). Não toca em valorAtual,
+// que continua exclusivo da tool atualizar_progresso_kr.
+const atualizarKrSchema = z.object({
+  resultadoChaveId: z.string().min(8),
+  metrica: z.string().min(3).max(200).optional(),
+  valorInicial: z.number().or(z.string()).transform((v) => Number(v)).optional(),
+  valorAlvo: z.number().or(z.string()).transform((v) => Number(v)).optional(),
+  owner: z.string().min(1).max(120).optional(),
+  prazo: z.string().min(4).max(32).optional(),
+});
+type AtualizarKrParams = z.infer<typeof atualizarKrSchema>;
+
+const atualizarKr: ToolDefinition<AtualizarKrParams> = {
+  name: "atualizar_kr",
+  description:
+    "Edita campos de calibragem de uma meta (resultado-chave) existente: métrica, valor inicial, valor-alvo, dono ou prazo. Use quando o usuário pedir para 'ajustar a meta-alvo daquela meta para 95', 'mudar o dono da meta para Ana' ou 'remarcar o prazo da meta'. Para apenas o valor atual (progresso), use atualizar_progresso_kr.",
+  paramsSchema: atualizarKrSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["resultadoChaveId"],
+    properties: {
+      resultadoChaveId: { type: "string", description: "ID real do KR (do CATÁLOGO)" },
+      metrica: { type: "string" },
+      valorInicial: { type: "number" },
+      valorAlvo: { type: "number" },
+      owner: { type: "string" },
+      prazo: { type: "string" },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Editar meta",
+    descricao: "Vamos ajustar os campos da meta selecionada.",
+    campos: [
+      strField("KR", p.resultadoChaveId),
+      strField("Métrica", p.metrica),
+      p.valorInicial !== undefined ? { label: "Valor inicial", valor: String(p.valorInicial) } : null,
+      p.valorAlvo !== undefined ? { label: "Valor-alvo", valor: String(p.valorAlvo) } : null,
+      strField("Dono", p.owner),
+      strField("Prazo", p.prazo),
+    ].filter(Boolean) as { label: string; valor: string }[],
+    ctaConfirmar: "Aplicar mudanças",
+    ctaIgnorar: "Manter como está",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const patch: Record<string, unknown> = {};
+    if (p.metrica) patch.metrica = p.metrica;
+    if (p.valorInicial !== undefined) patch.valorInicial = String(p.valorInicial);
+    if (p.valorAlvo !== undefined) patch.valorAlvo = String(p.valorAlvo);
+    if (p.owner) patch.owner = p.owner;
+    if (p.prazo) patch.prazo = p.prazo;
+    const updated = await storage.updateResultadoChave(p.resultadoChaveId, ctx.empresaId, patch);
+    return {
+      resumo: `Meta "${updated.metrica}" atualizada.`,
+      dados: { id: updated.id },
+      rota: "/okrs",
+      entidadeTipo: "resultado_chave",
       entidadeId: updated.id,
     };
   },
@@ -1151,8 +1353,11 @@ function wrap<T>(def: ToolDefinition<T>): ToolDefinition<unknown> {
 export const TOOLS: Record<ToolName, ToolDefinition<unknown>> = {
   criar_iniciativa: wrap(criarIniciativa),
   atualizar_iniciativa: wrap(atualizarIniciativa),
+  encerrar_iniciativa: wrap(encerrarIniciativa),
   criar_okr: wrap(criarOkr),
   atualizar_okr: wrap(atualizarOkr),
+  adicionar_kr_a_okr: wrap(adicionarKrAOkr),
+  atualizar_kr: wrap(atualizarKr),
   atualizar_progresso_kr: wrap(atualizarProgressoKr),
   criar_indicador: wrap(criarIndicador),
   atualizar_valor_indicador: wrap(atualizarValorIndicador),
@@ -1168,8 +1373,11 @@ export const TOOLS: Record<ToolName, ToolDefinition<unknown>> = {
 const TOOLS_EXECUTORAS: ReadonlySet<ToolName> = new Set<ToolName>([
   "criar_iniciativa",
   "atualizar_iniciativa",
+  "encerrar_iniciativa",
   "criar_okr",
   "atualizar_okr",
+  "adicionar_kr_a_okr",
+  "atualizar_kr",
   "atualizar_progresso_kr",
   "criar_indicador",
   "atualizar_valor_indicador",

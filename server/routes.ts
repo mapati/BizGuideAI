@@ -3836,6 +3836,9 @@ QUANDO USAR FERRAMENTAS (tool calls):
 REGRA DE PREFERÊNCIA DE TOOLS (item específico vs área):
 - Quando o usuário pedir ação sobre um item ESPECÍFICO citado por nome (ex.: "abre o indicador de custo de produção", "edita a iniciativa X", "ajusta a meta do KR Y") e o item aparecer no "## CATÁLOGO":
   • Se ele já forneceu o NOVO VALOR (ex.: "atualiza o custo de produção para 95"), chame a tool de atualização específica (atualizar_valor_indicador, atualizar_progresso_kr, atualizar_iniciativa, atualizar_okr) com o id do catálogo.
+  • Se ele pediu para AJUSTAR CALIBRAGEM de uma meta (métrica, valor inicial, valor-alvo, dono ou prazo da meta — ex.: "muda a meta-alvo daquela meta para 95", "passa o dono dessa meta para Ana", "remarca o prazo da meta para 2026-Q3"), chame "atualizar_kr" com resultadoChaveId do catálogo. Use "atualizar_progresso_kr" SOMENTE quando ele estiver informando o VALOR ATUAL (progresso) — não a meta-alvo.
+  • Se ele pediu para ADICIONAR UMA META a um OKR já existente (ex.: "adiciona uma meta de X ao OKR Y", "coloca mais um KR no objetivo Z"), chame "adicionar_kr_a_okr" com objetivoId do catálogo. NÃO chame "criar_okr" nesse caso (criaria objetivo duplicado).
+  • Se ele pediu para ENCERRAR / FECHAR / DAR BAIXA em uma iniciativa com uma nota/motivo/aprendizado (ex.: "encerra a iniciativa X com a nota: deu certo, KPI voltou ao verde", "marca a iniciativa Y como cancelada porque…"), chame "encerrar_iniciativa" com {id, status, nota}. Prefira esta tool a "atualizar_iniciativa" sempre que houver intenção de fechamento + nota.
   • Se ele só pediu para "abrir/editar/ajustar" sem dizer o novo valor, chame "abrir_entidade" com {tipo, id, nome} do catálogo — isso já abre o modal de edição certo. NÃO chame navegar_para nesse caso.
 - Quando o item citado NÃO aparecer no "## CATÁLOGO" (lembre que ele só lista até 30 por tipo), NÃO sugira criar um novo nem caia em navegar_para genérico: primeiro chame "buscar_entidade_por_nome" com {tipo, termo} usando o nome citado pelo usuário. Aguarde o resultado.
   • Se voltar exatamente 1 candidato com nome muito próximo, prossiga com a ação no item encontrado (abrir_entidade ou tool de atualização específica) usando o id retornado.
@@ -3847,14 +3850,14 @@ REGRA DE PREFERÊNCIA DE TOOLS (item específico vs área):
 MEMÓRIA E "DAR BAIXA":
 - ANTES de propor qualquer ação, leia o bloco "AÇÕES RECENTES DO ASSISTENTE" se existir e siga as REGRAS DE MEMÓRIA listadas lá. Não repita propostas já executadas, ajustadas ou ignoradas.
 - Quando o usuário disser que algo já foi resolvido/concluído (ex.: "já fiz a iniciativa X", "esse problema do KPI Y já está resolvido", "marca isso como feito"), proponha a atualização correspondente via ferramenta:
-  • iniciativa concluída → atualizar_iniciativa com status "concluida"
-  • iniciativa pausada/cancelada → atualizar_iniciativa com status "pausada"
+  • iniciativa concluída/pausada/cancelada COM nota de fechamento → encerrar_iniciativa (preferida — registra status final + nota)
+  • iniciativa só mudando status sem nota → atualizar_iniciativa com status "concluida"/"pausada"
   • KPI atingiu meta ou novo valor → atualizar_valor_indicador
   • progresso de KR avançou → atualizar_progresso_kr
 - Reconheça explicitamente no texto o que está sendo "dado baixa" antes de chamar a ferramenta.
 
 FERRAMENTAS DISPONÍVEIS:
-- Executoras: criar_iniciativa, atualizar_iniciativa, criar_okr, atualizar_okr, atualizar_progresso_kr, criar_indicador, atualizar_valor_indicador, abrir_entidade, navegar_para.
+- Executoras: criar_iniciativa, atualizar_iniciativa, encerrar_iniciativa, criar_okr, atualizar_okr, adicionar_kr_a_okr, atualizar_kr, atualizar_progresso_kr, criar_indicador, atualizar_valor_indicador, abrir_entidade, navegar_para.
 - Planos agênticos (loop multi-passo): criar_plano_agentico (quando o objetivo do usuário exigir 2+ ações encadeadas), concluir_plano_agentico (quando os passos foram cumpridos), cancelar_plano_agentico (quando o usuário desistir).
 
 LOOP AGÊNTICO (planos multi-passo):

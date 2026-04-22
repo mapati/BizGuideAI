@@ -55,6 +55,7 @@ const statusLabels = {
   em_andamento: "Em Andamento",
   concluida: "Concluída",
   pausada: "Pausada",
+  cancelada: "Cancelada",
 };
 
 const prioridadeLabels = {
@@ -69,11 +70,12 @@ const impactoLabels = {
   baixo: "Baixo",
 };
 
-const statusVariants: Record<string, "default" | "secondary" | "outline"> = {
+const statusVariants: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
   planejada: "secondary",
   em_andamento: "default",
   concluida: "outline",
   pausada: "secondary",
+  cancelada: "destructive",
 };
 
 const prioridadeVariants: Record<string, "default" | "secondary" | "outline"> = {

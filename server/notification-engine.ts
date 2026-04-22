@@ -48,17 +48,55 @@ function frequencyDedupeMs(freq: string): number {
   }
 }
 
-function parsePrazo(prazo: string | null | undefined): Date | null {
-  if (!prazo) return null;
-  const d = new Date(prazo);
-  if (!isNaN(d.getTime())) return d;
-  // Try DD/MM/YYYY
-  const m = String(prazo).match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (m) {
-    const dt = new Date(`${m[3]}-${m[2]}-${m[1]}`);
-    if (!isNaN(dt.getTime())) return dt;
+// Task #265 — `prazoData` (YYYY-MM-DD normalizado, vindo de iniciativas/objetivos/KRs)
+// tem precedência sobre o texto livre `prazo`. Mantém o parser tolerante como
+// fallback para registros antigos que usam strings como "Q4 2025" ou "Mar/2026".
+function parsePrazo(
+  prazo: string | null | undefined,
+  prazoData?: string | null,
+): Date | null {
+  if (prazoData) {
+    const md = String(prazoData).match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (md) {
+      const d = new Date(Number(md[1]), Number(md[2]) - 1, Number(md[3]));
+      if (!isNaN(d.getTime())) return d;
+    }
   }
-  return null;
+  if (!prazo) return null;
+  const s = String(prazo).trim();
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) {
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    if (!isNaN(d.getTime())) return d;
+  }
+  m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) {
+    const d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+    if (!isNaN(d.getTime())) return d;
+  }
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// Task #265 — Formata a urgência relativa de um prazo (vence em X dias /
+// atrasado há X dias / vence hoje). Usado nas mensagens de alerta e digest
+// quando há `prazoData` calendarizada disponível.
+function formatPrazoLabel(prazo: string | null | undefined, prazoData?: string | null): string {
+  const d = parsePrazo(prazo, prazoData);
+  if (!d) return prazo ? `prazo ${prazo}` : "sem prazo";
+  const fim = new Date(d); fim.setHours(23, 59, 59, 999);
+  const inicio = new Date(d); inicio.setHours(0, 0, 0, 0);
+  const agora = Date.now();
+  const dataFmt = d.toLocaleDateString("pt-BR");
+  if (agora > fim.getTime()) {
+    const dias = Math.floor((agora - fim.getTime()) / DAY_MS);
+    return `prazo ${dataFmt} — atrasado há ${dias} dia(s)`;
+  }
+  if (agora >= inicio.getTime()) {
+    return `prazo ${dataFmt} — vence hoje`;
+  }
+  const dias = Math.ceil((inicio.getTime() - agora) / DAY_MS);
+  return `prazo ${dataFmt} — vence em ${dias} dia(s)`;
 }
 
 function escHtml(s: string): string {
@@ -105,7 +143,20 @@ export interface SinaisCriticos {
   // o usuário perguntar sobre eles. Campo opcional para preservar contrato.
   kpisAmarelos?: KpiVermelhoSinal[];
   iniciativasAtrasadas: IniciativaAtrasadaSinal[];
-  okrsParados: Array<{ objetivoId: string; resultadoId: string; metrica: string; objetivo: string; diasParado: number }>;
+  okrsParados: Array<{
+    objetivoId: string;
+    resultadoId: string;
+    metrica: string;
+    objetivo: string;
+    diasParado: number;
+    // Task #265 — campos opcionais com prazo (texto + data normalizada) do KR
+    // e do objetivo, para que digests/briefings exibam "vence em X dias" ou
+    // "atrasado há X dias" quando há `prazoData` calendarizada.
+    prazoKr?: string | null;
+    prazoDataKr?: string | null;
+    prazoObjetivo?: string | null;
+    prazoDataObjetivo?: string | null;
+  }>;
   riscosAltosSemMitigacao: Array<{ id: string; descricao: string; categoria: string; score: number }>;
   // Task #233 — revisões agendadas com data_alvo <= hoje (informativo, não conta no `total`).
   revisoesPendentes?: Array<{ id: string; escopo: string; escopoId: string | null; dataAlvo: string; foco: string; diasAtraso: number }>;
@@ -153,7 +204,8 @@ export async function detectarSinaisCriticos(empresaId: string): Promise<SinaisC
   const iniciativasAtrasadas = ctx.iniciativas
     .filter((i) => i.status !== "concluida" && i.status !== "pausada")
     .map((i) => {
-      const prazo = parsePrazo(i.prazo);
+      // Task #265 — usa `prazoData` quando disponível, com fallback ao texto livre.
+      const prazo = parsePrazo(i.prazo, i.prazoData);
       if (!prazo) return null;
       const fimDoDia = new Date(prazo);
       fimDoDia.setHours(23, 59, 59, 999);
@@ -162,7 +214,9 @@ export async function detectarSinaisCriticos(empresaId: string): Promise<SinaisC
       const kpiAtacado = getKpiAtacadoPorIniciativa(i, ctx.indicadores);
       return { id: i.id, titulo: i.titulo, prazo: i.prazo, diasAtraso, responsavel: i.responsavel, kpiAtacado };
     })
-    .filter((v): v is NonNullable<typeof v> => v !== null);
+    .filter((v): v is NonNullable<typeof v> => v !== null)
+    // Task #265 — ranqueia atrasados por dias reais de atraso (mais críticos primeiro).
+    .sort((a, b) => b.diasAtraso - a.diasAtraso);
 
   const limite = Date.now() - 14 * DAY_MS;
   const okrsParados = ctx.resultadosComObjetivo
@@ -176,6 +230,12 @@ export async function detectarSinaisCriticos(empresaId: string): Promise<SinaisC
         metrica: resultado.metrica,
         objetivo: objetivo.titulo,
         diasParado,
+        // Task #265 — propaga prazo (texto + data normalizada) para que
+        // assinantes (briefing, digest) possam mostrar urgência relativa.
+        prazoKr: resultado.prazo ?? null,
+        prazoDataKr: resultado.prazoData ?? null,
+        prazoObjetivo: objetivo.prazo ?? null,
+        prazoDataObjetivo: objetivo.prazoData ?? null,
       };
     })
     .filter((v): v is NonNullable<typeof v> => v !== null);
@@ -461,23 +521,28 @@ function identificarAlvos(tipoAlerta: string, ctx: AvaliacaoCtx): AlvoAlerta[] {
     }
   } else if (tipoAlerta === "iniciativa_atrasada") {
     const agoraTs = Date.now();
+    const candidatas: Array<{ ini: typeof ctx.iniciativas[number]; diasAtraso: number; prazoLabel: string }> = [];
     for (const ini of ctx.iniciativas) {
       if (ini.status === "concluida" || ini.status === "pausada") continue;
-      const prazo = parsePrazo(ini.prazo);
+      // Task #265 — `prazoData` tem precedência sobre o texto livre.
+      const prazo = parsePrazo(ini.prazo, ini.prazoData);
       if (!prazo) continue;
-      // Considera atrasada apenas após o fim do dia do prazo (evita marcar atrasada às 00:00 do próprio dia).
       const fimDoDia = new Date(prazo); fimDoDia.setHours(23, 59, 59, 999);
       if (fimDoDia.getTime() < agoraTs) {
         const diasAtraso = Math.floor((agoraTs - fimDoDia.getTime()) / DAY_MS);
-        alvos.push({
-          id: ini.id,
-          titulo: ini.titulo,
-          detalhe: `Iniciativa "${ini.titulo}" está atrasada há ${diasAtraso} dia(s). Prazo: ${ini.prazo} | Responsável: ${ini.responsavel}`,
-          assunto: `⏰ Iniciativa atrasada — ${ini.titulo}`,
-          ctaUrl: appUrl(`/iniciativas?highlight=${ini.id}`),
-          ctaLabel: "Abrir Iniciativa",
-        });
+        candidatas.push({ ini, diasAtraso, prazoLabel: formatPrazoLabel(ini.prazo, ini.prazoData) });
       }
+    }
+    candidatas.sort((a, b) => b.diasAtraso - a.diasAtraso);
+    for (const { ini, diasAtraso, prazoLabel } of candidatas) {
+      alvos.push({
+        id: ini.id,
+        titulo: ini.titulo,
+        detalhe: `Iniciativa "${ini.titulo}" está atrasada há ${diasAtraso} dia(s). ${prazoLabel} | Responsável: ${ini.responsavel}`,
+        assunto: `⏰ Iniciativa atrasada — ${ini.titulo}`,
+        ctaUrl: appUrl(`/iniciativas?highlight=${ini.id}`),
+        ctaLabel: "Abrir Iniciativa",
+      });
     }
   } else if (tipoAlerta === "okr_sem_atualizacao") {
     const limite = Date.now() - 14 * DAY_MS;
@@ -485,10 +550,17 @@ function identificarAlvos(tipoAlerta: string, ctx: AvaliacaoCtx): AlvoAlerta[] {
       const ts = new Date(resultado.atualizadoEm ?? resultado.createdAt).getTime();
       if (ts < limite) {
         const diasParado = Math.floor((Date.now() - ts) / DAY_MS);
+        // Task #265 — exibe urgência relativa do KR (ou do OKR) quando há
+        // `prazoData` calendarizada. Fallback ao texto livre, se houver.
+        const krPrazoLabel = formatPrazoLabel(resultado.prazo, resultado.prazoData);
+        const okrPrazoLabel = formatPrazoLabel(objetivo.prazo, objetivo.prazoData);
+        const prazoTrecho = krPrazoLabel !== "sem prazo"
+          ? ` Meta com ${krPrazoLabel}.`
+          : (okrPrazoLabel !== "sem prazo" ? ` OKR com ${okrPrazoLabel}.` : "");
         alvos.push({
           id: resultado.id,
           titulo: resultado.metrica,
-          detalhe: `Meta "${resultado.metrica}" do OKR "${objetivo.titulo}" não é atualizada há ${diasParado} dia(s). Valor atual: ${resultado.valorAtual} de ${resultado.valorAlvo}.`,
+          detalhe: `Meta "${resultado.metrica}" do OKR "${objetivo.titulo}" não é atualizada há ${diasParado} dia(s). Valor atual: ${resultado.valorAtual} de ${resultado.valorAlvo}.${prazoTrecho}`,
           assunto: `📊 Meta sem atualização — ${resultado.metrica}`,
           ctaUrl: appUrl(`/okrs?highlight=${objetivo.id}`),
           ctaLabel: "Atualizar Meta",
@@ -536,12 +608,25 @@ async function enviarResumoSemanal(
 ): Promise<void> {
   const kpisVermelhos = ctx.indicadores.filter((i) => i.status === "vermelho");
   const kpisAmarelos = ctx.indicadores.filter((i) => i.status === "amarelo");
-  const hoje = new Date();
-  const iniciativasAtrasadas = ctx.iniciativas.filter((i) => {
-    if (i.status === "concluida" || i.status === "pausada") return false;
-    const p = parsePrazo(i.prazo);
-    return p && p < hoje;
-  });
+  const agoraTs = Date.now();
+  // Task #265 — usa `prazoData` quando disponível para classificar atrasos,
+  // e ranqueia por dias reais de atraso (mais críticos primeiro no digest).
+  // Considera atrasada apenas após o fim do dia do prazo (consistente com
+  // `detectarSinaisCriticos` e `identificarAlvos`), evitando marcar como
+  // atrasado um item que vence hoje.
+  const iniciativasAtrasadas = ctx.iniciativas
+    .filter((i) => {
+      if (i.status === "concluida" || i.status === "pausada") return false;
+      const p = parsePrazo(i.prazo, i.prazoData);
+      if (!p) return false;
+      const fim = new Date(p); fim.setHours(23, 59, 59, 999);
+      return fim.getTime() < agoraTs;
+    })
+    .sort((a, b) => {
+      const da = parsePrazo(a.prazo, a.prazoData)?.getTime() ?? 0;
+      const db = parsePrazo(b.prazo, b.prazoData)?.getTime() ?? 0;
+      return da - db;
+    });
   const limite = Date.now() - 14 * DAY_MS;
   const okrsParados = ctx.resultadosComObjetivo.filter(({ resultado }) => {
     const ts = new Date(resultado.atualizadoEm ?? resultado.createdAt).getTime();
@@ -598,8 +683,17 @@ export function montarHtmlResumoSemanal(
           ${tudoOk ? `<p style="margin:24px 0;color:#059669;font-size:15px;">✅ Tudo dentro do esperado. Nenhum item exige atenção imediata.</p>` : ""}
           ${sec("Indicadores em estado crítico (vermelho)", kpisV.map((i) => `${i.nome} — atual ${i.atual} / meta ${i.meta}`))}
           ${sec("Indicadores em atenção (amarelo)", kpisA.map((i) => `${i.nome} — atual ${i.atual} / meta ${i.meta}`))}
-          ${sec("Iniciativas atrasadas", iniciativasAtras.map((i) => `${i.titulo} — prazo ${i.prazo} (${i.responsavel})`))}
-          ${sec("Metas sem atualização há 14+ dias", okrsParados.map(({ objetivo, resultado }) => `${resultado.metrica} (OKR: ${objetivo.titulo})`))}
+          ${sec("Iniciativas atrasadas", iniciativasAtras.map((i) => `${i.titulo} — ${formatPrazoLabel(i.prazo, i.prazoData)} (${i.responsavel})`))}
+          ${sec("Metas sem atualização há 14+ dias", okrsParados.map(({ objetivo, resultado }) => {
+            // Task #265 — anexa urgência relativa do KR (ou do OKR) quando há
+            // `prazoData` calendarizada, para o digest semanal ranquear visualmente.
+            const krLabel = formatPrazoLabel(resultado.prazo, resultado.prazoData);
+            const okrLabel = formatPrazoLabel(objetivo.prazo, objetivo.prazoData);
+            const sufixo = krLabel !== "sem prazo"
+              ? ` — ${krLabel}`
+              : (okrLabel !== "sem prazo" ? ` — OKR: ${okrLabel}` : "");
+            return `${resultado.metrica} (OKR: ${objetivo.titulo})${sufixo}`;
+          }))}
           <table cellpadding="0" cellspacing="0" style="margin-top:24px;"><tr><td style="background:#1d4ed8;border-radius:6px;">
             <a href="${linkPainel}" style="display:inline-block;padding:12px 28px;color:#fff;font-size:15px;font-weight:600;text-decoration:none;">Abrir o Painel</a>
           </td></tr></table>

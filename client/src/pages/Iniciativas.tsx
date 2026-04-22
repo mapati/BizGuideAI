@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/EmptyState";
 import { ExampleCard } from "@/components/ExampleCard";
-import { Briefcase, Plus, Sparkles, Trash2, Pencil, Clock, User, TrendingUp, Link2, Wand2 } from "lucide-react";
+import { Briefcase, Plus, Sparkles, Trash2, Pencil, Clock, User, TrendingUp, Link2, Wand2, CheckCircle2, PauseCircle, XCircle } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { PrerequisiteWarning } from "@/components/PrerequisiteWarning";
@@ -89,6 +89,48 @@ const impactoVariants: Record<string, "default" | "secondary" | "outline"> = {
   médio: "secondary",
   baixo: "outline",
 };
+
+function EncerramentoBlock({ iniciativa, testIdSuffix }: { iniciativa: Pick<Iniciativa, "id" | "status" | "notaEncerramento" | "encerradaEm">; testIdSuffix?: string }) {
+  const encerrada = ["concluida", "pausada", "cancelada"].includes(iniciativa.status);
+  if (!encerrada || (!iniciativa.notaEncerramento && !iniciativa.encerradaEm)) return null;
+  const Icon = iniciativa.status === "concluida" ? CheckCircle2 : iniciativa.status === "pausada" ? PauseCircle : XCircle;
+  const tituloMap: Record<string, string> = {
+    concluida: "Encerramento da iniciativa",
+    pausada: "Iniciativa pausada",
+    cancelada: "Iniciativa cancelada",
+  };
+  const dataFormatada = iniciativa.encerradaEm
+    ? new Date(iniciativa.encerradaEm).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
+    : null;
+  const sufix = testIdSuffix ?? iniciativa.id;
+  return (
+    <div
+      className="rounded-md border bg-muted/40 p-3 space-y-1.5"
+      data-testid={`section-encerramento-${sufix}`}
+    >
+      <div className="flex items-center gap-2 text-sm font-medium">
+        <Icon className="h-4 w-4 text-muted-foreground" />
+        <span>{tituloMap[iniciativa.status]}</span>
+        {dataFormatada && (
+          <span
+            className="text-xs text-muted-foreground font-normal"
+            data-testid={`text-encerrada-em-${sufix}`}
+          >
+            em {dataFormatada}
+          </span>
+        )}
+      </div>
+      {iniciativa.notaEncerramento && (
+        <p
+          className="text-sm text-muted-foreground whitespace-pre-wrap"
+          data-testid={`text-nota-encerramento-${sufix}`}
+        >
+          {iniciativa.notaEncerramento}
+        </p>
+      )}
+    </div>
+  );
+}
 
 interface IniciativaCardProps {
   iniciativa: Iniciativa;
@@ -184,6 +226,7 @@ function IniciativaCard({ iniciativa, estrategias, oportunidades, objetivos, jor
               />
             );
           })()}
+          <EncerramentoBlock iniciativa={iniciativa} />
           <div className="flex justify-end">
             <Button
               size="sm"
@@ -630,6 +673,14 @@ export default function Iniciativas() {
                 {editingIniciativa ? "Editar Iniciativa" : "Nova Iniciativa"}
               </DialogTitle>
             </DialogHeader>
+            {editingIniciativa && (
+              <div className="mb-4">
+                <EncerramentoBlock
+                  iniciativa={editingIniciativa}
+                  testIdSuffix="dialog"
+                />
+              </div>
+            )}
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <FormField

@@ -200,9 +200,6 @@ function IniciativaCard({ iniciativa, estrategias, oportunidades, objetivos, ind
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1">
             <CardTitle className="text-lg">{iniciativa.titulo}</CardTitle>
-            <CardDescription className="mt-2">
-              {iniciativa.descricao}
-            </CardDescription>
           </div>
           <div className="flex gap-1">
             <Button
@@ -286,41 +283,6 @@ function IniciativaCard({ iniciativa, estrategias, oportunidades, objetivos, ind
               />
             );
           })()}
-          {/* Task #250 — Plano 5W2H completo (7 elementos), com fallback "—" para vazios */}
-          <div
-            className="rounded-md border bg-muted/40 p-3 space-y-1.5 text-sm"
-            data-testid={`section-5w2h-${iniciativa.id}`}
-          >
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Plano 5W2H</p>
-            <p data-testid={`text-oque-${iniciativa.id}`}>
-              <span className="font-medium">O quê:</span>{" "}
-              <span className="text-muted-foreground">{iniciativa.titulo || "—"}</span>
-            </p>
-            <p data-testid={`text-porque-${iniciativa.id}`}>
-              <span className="font-medium">Por quê:</span>{" "}
-              <span className="text-muted-foreground">{iniciativa.porque || "—"}</span>
-            </p>
-            <p data-testid={`text-onde-${iniciativa.id}`}>
-              <span className="font-medium">Onde:</span>{" "}
-              <span className="text-muted-foreground">{iniciativa.onde || "—"}</span>
-            </p>
-            <p data-testid={`text-quando-${iniciativa.id}`}>
-              <span className="font-medium">Quando:</span>{" "}
-              <span className="text-muted-foreground">{iniciativa.prazo || "—"}</span>
-            </p>
-            <p data-testid={`text-quem-${iniciativa.id}`}>
-              <span className="font-medium">Quem:</span>{" "}
-              <span className="text-muted-foreground">{iniciativa.responsavel || "—"}</span>
-            </p>
-            <p data-testid={`text-como-${iniciativa.id}`}>
-              <span className="font-medium">Como:</span>{" "}
-              <span className="text-muted-foreground">{iniciativa.como || "—"}</span>
-            </p>
-            <p data-testid={`text-quanto-${iniciativa.id}`}>
-              <span className="font-medium">Quanto:</span>{" "}
-              <span className="text-muted-foreground">{iniciativa.quanto || "—"}</span>
-            </p>
-          </div>
           <EncerramentoBlock iniciativa={iniciativa} />
           <div className="flex justify-end">
             <Button

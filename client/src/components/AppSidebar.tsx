@@ -65,7 +65,29 @@ function isEtapaBloqueada(jornadaId: string | null, etapas: ReturnType<typeof us
 }
 
 function SidebarHeaderContent() {
-  const { toggleSidebar } = useSidebar();
+  const { toggleSidebar, state, isMobile } = useSidebar();
+  const isCollapsed = state === "collapsed" && !isMobile;
+
+  if (isCollapsed) {
+    return (
+      <div className="flex flex-col items-center gap-2">
+        <Link href="/" data-testid="link-home">
+          <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center cursor-pointer">
+            <Target className="h-5 w-5 text-primary-foreground" />
+          </div>
+        </Link>
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={toggleSidebar}
+          title="Abrir menu"
+          data-testid="button-sidebar-open"
+        >
+          <PanelLeftOpen className="h-4 w-4" />
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center justify-between gap-2">
@@ -92,8 +114,8 @@ function SidebarHeaderContent() {
 
 function SidebarFooterContent() {
   const { user, empresa, trialInfo, logout } = useAuth();
-  const { state } = useSidebar();
-  const isCollapsed = state === "collapsed";
+  const { state, isMobile } = useSidebar();
+  const isCollapsed = state === "collapsed" && !isMobile;
   const [profileOpen, setProfileOpen] = useState(false);
 
   const initials = user?.nome
@@ -196,8 +218,8 @@ export function AppSidebar() {
     : null;
 
   return (
-    <Sidebar collapsible="offcanvas">
-      <SidebarHeader className="border-b p-4">
+    <Sidebar collapsible="icon">
+      <SidebarHeader className="border-b p-4 group-data-[collapsible=icon]:p-2">
         <SidebarHeaderContent />
       </SidebarHeader>
       <SidebarContent>
@@ -519,7 +541,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="border-t p-4">
+      <SidebarFooter className="border-t p-4 group-data-[collapsible=icon]:p-2">
         <SidebarFooterContent />
       </SidebarFooter>
     </Sidebar>

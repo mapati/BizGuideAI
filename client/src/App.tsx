@@ -6,9 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { useEffect, useRef } from "react";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
-import { PanelLeftOpen, Target } from "lucide-react";
+import { Target } from "lucide-react";
 import { AppSidebar } from "@/components/AppSidebar";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { AssistantSidebar } from "@/components/AssistantSidebar";
@@ -237,36 +236,20 @@ function AppLayout() {
     return null;
   };
 
-  const LeftSidebarOpenStrip = () => {
-    const { open, setOpen, isMobile } = useSidebar();
-    if (open) return null;
-    if (isMobile) {
-      return (
-        <Button
-          size="icon"
-          variant="default"
-          onClick={() => setOpen(true)}
-          className="fixed bottom-4 left-4 rounded-full shadow-lg z-40"
-          title="Abrir menu"
-          data-testid="button-sidebar-toggle"
-        >
-          <Target className="h-4 w-4" />
-        </Button>
-      );
-    }
+  const MobileSidebarOpenButton = () => {
+    const { openMobile, setOpenMobile, isMobile } = useSidebar();
+    if (!isMobile || openMobile) return null;
     return (
-      <aside className="bg-background border-r flex flex-col flex-shrink-0 w-12">
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="flex flex-col items-center gap-3 py-3 w-full hover-elevate"
-          title="Abrir menu"
-          data-testid="button-sidebar-toggle"
-        >
-          <PanelLeftOpen className="h-4 w-4 text-muted-foreground" />
-          <Target className="h-4 w-4 text-primary" />
-        </button>
-      </aside>
+      <Button
+        size="icon"
+        variant="default"
+        onClick={() => setOpenMobile(true)}
+        className="fixed bottom-4 left-4 rounded-full shadow-lg z-40"
+        title="Abrir menu"
+        data-testid="button-sidebar-toggle"
+      >
+        <Target className="h-4 w-4" />
+      </Button>
     );
   };
 
@@ -283,7 +266,7 @@ function AppLayout() {
         {showUpgradeBanner && <UpgradeBanner />}
         <div className="flex flex-1 overflow-hidden">
           <AppSidebar />
-          <LeftSidebarOpenStrip />
+          <MobileSidebarOpenButton />
           <div className="flex flex-col flex-1 overflow-hidden min-w-0">
             <main className="flex-1 overflow-auto p-8">
               <Switch>

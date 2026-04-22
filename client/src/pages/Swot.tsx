@@ -39,14 +39,59 @@ const ImpactBadge = ({ impact }: { impact: "alto" | "médio" | "baixo" }) => {
   );
 };
 
-const SwotIcon = ({ tipo }: { tipo: string }) => {
-  const icons = {
-    forca: <TrendingUp className="h-5 w-5 text-green-600" />,
-    fraqueza: <TrendingDown className="h-5 w-5 text-red-600" />,
-    oportunidade: <Zap className="h-5 w-5 text-blue-600" />,
-    ameaca: <AlertTriangle className="h-5 w-5 text-orange-600" />,
-  };
-  return icons[tipo as keyof typeof icons] || null;
+const SWOT_THEME: Record<
+  TipoSwot,
+  {
+    label: string;
+    sublabel: string;
+    icon: typeof TrendingUp;
+    iconBg: string;
+    iconText: string;
+    borderTop: string;
+    headerBg: string;
+    accentText: string;
+  }
+> = {
+  forca: {
+    label: "Forças",
+    sublabel: "Pontos fortes internos",
+    icon: TrendingUp,
+    iconBg: "bg-emerald-100 dark:bg-emerald-950",
+    iconText: "text-emerald-700 dark:text-emerald-300",
+    borderTop: "border-t-4 border-t-emerald-500 dark:border-t-emerald-600",
+    headerBg: "bg-emerald-50/60 dark:bg-emerald-950/30",
+    accentText: "text-emerald-700 dark:text-emerald-300",
+  },
+  fraqueza: {
+    label: "Fraquezas",
+    sublabel: "Pontos a melhorar internamente",
+    icon: TrendingDown,
+    iconBg: "bg-rose-100 dark:bg-rose-950",
+    iconText: "text-rose-700 dark:text-rose-300",
+    borderTop: "border-t-4 border-t-rose-500 dark:border-t-rose-600",
+    headerBg: "bg-rose-50/60 dark:bg-rose-950/30",
+    accentText: "text-rose-700 dark:text-rose-300",
+  },
+  oportunidade: {
+    label: "Oportunidades",
+    sublabel: "Tendências externas favoráveis",
+    icon: Zap,
+    iconBg: "bg-sky-100 dark:bg-sky-950",
+    iconText: "text-sky-700 dark:text-sky-300",
+    borderTop: "border-t-4 border-t-sky-500 dark:border-t-sky-600",
+    headerBg: "bg-sky-50/60 dark:bg-sky-950/30",
+    accentText: "text-sky-700 dark:text-sky-300",
+  },
+  ameaca: {
+    label: "Ameaças",
+    sublabel: "Riscos e ameaças do mercado",
+    icon: AlertTriangle,
+    iconBg: "bg-amber-100 dark:bg-amber-950",
+    iconText: "text-amber-700 dark:text-amber-300",
+    borderTop: "border-t-4 border-t-amber-500 dark:border-t-amber-600",
+    headerBg: "bg-amber-50/60 dark:bg-amber-950/30",
+    accentText: "text-amber-700 dark:text-amber-300",
+  },
 };
 
 const TIPOS_SWOT = [
@@ -77,10 +122,8 @@ export default function Swot() {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
-  const [isSuggesting, setIsSuggesting] = useState(false);
   const [isSuggestingComplete, setIsSuggestingComplete] = useState(false);
   const [isSuggestingModal, setIsSuggestingModal] = useState(false);
-  const [tipoSugestao, setTipoSugestao] = useState<TipoSwot | null>(null);
   const [formData, setFormData] = useState<{
     tipo: string;
     descricao: string;
@@ -259,53 +302,6 @@ export default function Swot() {
     if (!open) {
       setEditandoId(null);
       setFormData({ tipo: "", descricao: "", impacto: "médio" });
-    }
-  };
-
-  const handleSuggest = async (tipo: TipoSwot) => {
-    if (!empresa) {
-      toast({
-        title: "Perfil não encontrado",
-        description: "Complete o perfil da empresa primeiro.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSuggesting(true);
-    setTipoSugestao(tipo);
-    try {
-      const response = await apiRequest("POST", "/api/ai/sugerir-swot", {
-        nomeEmpresa: empresa.nome,
-        setor: empresa.setor,
-        descricao: empresa.descricao,
-        tipo: tipo,
-      });
-
-      const sugestoes = response.itens || [];
-      
-      for (const sugestao of sugestoes) {
-        await apiRequest("POST", "/api/analise-swot", {
-          ...sugestao,
-          tipo: tipo,
-          empresaId: empresa.id,
-        });
-      }
-
-      queryClient.invalidateQueries({ queryKey: ["/api/analise-swot", empresa.id] });
-      toast({
-        title: "Sugestões adicionadas!",
-        description: `${sugestoes.length} itens foram sugeridos pela IA.`,
-      });
-    } catch (error: any) {
-      toast({
-        title: "Erro ao gerar sugestões",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsSuggesting(false);
-      setTipoSugestao(null);
     }
   };
 
@@ -511,7 +507,7 @@ export default function Swot() {
             <Button
               variant="outline"
               onClick={() => setIsAiParamsOpen(true)}
-              disabled={isSuggestingComplete || isSuggesting}
+              disabled={isSuggestingComplete}
               data-testid="button-suggest-complete"
             >
               <Sparkles className="h-4 w-4 mr-2" />
@@ -818,73 +814,85 @@ export default function Swot() {
           />
         </Card>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-          {[
-            { tipo: "forca", label: "Forças", items: grupos.forca, color: "green" },
-            { tipo: "fraqueza", label: "Fraquezas", items: grupos.fraqueza, color: "red" },
-            { tipo: "oportunidade", label: "Oportunidades", items: grupos.oportunidade, color: "blue" },
-            { tipo: "ameaca", label: "Ameaças", items: grupos.ameaca, color: "orange" },
-          ].map((grupo) => (
-            <Card key={grupo.tipo} className="p-6" data-testid={`card-grupo-${grupo.tipo}`}>
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <SwotIcon tipo={grupo.tipo} />
-                  <h3 className="text-lg font-semibold">{grupo.label}</h3>
-                  <Badge variant="outline">{grupo.items.length}</Badge>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleSuggest(grupo.tipo as TipoSwot)}
-                  disabled={isSuggesting}
-                  data-testid={`button-suggest-${grupo.tipo}`}
-                >
-                  <Sparkles className="h-3 w-3 mr-1" />
-                  {isSuggesting && tipoSugestao === grupo.tipo ? "..." : "IA"}
-                </Button>
-              </div>
-              <div className="space-y-3">
-                {grupo.items.length === 0 ? (
-                  <div className="text-sm text-muted-foreground text-center py-4">
-                    Nenhum item adicionado ainda
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-6">
+          {(["forca", "fraqueza", "oportunidade", "ameaca"] as TipoSwot[]).map((tipo) => {
+            const theme = SWOT_THEME[tipo];
+            const items = grupos[tipo];
+            const Icon = theme.icon;
+            return (
+              <Card
+                key={tipo}
+                className={`overflow-hidden ${theme.borderTop} flex flex-col`}
+                data-testid={`card-grupo-${tipo}`}
+              >
+                <div className={`flex items-center gap-3 px-5 py-4 border-b ${theme.headerBg}`}>
+                  <div
+                    className={`h-10 w-10 rounded-md flex items-center justify-center flex-shrink-0 ${theme.iconBg}`}
+                  >
+                    <Icon className={`h-5 w-5 ${theme.iconText}`} />
                   </div>
-                ) : (
-                  grupo.items.map((item) => (
-                    <div
-                      key={item.id}
-                      className="p-3 border rounded-lg hover-elevate group"
-                      data-testid={`item-analise-${item.id}`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm flex-1">{item.descricao}</p>
-                        <div className="flex items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className={`text-base font-semibold ${theme.accentText}`}>
+                        {theme.label}
+                      </h3>
+                      <Badge variant="outline" className="font-normal">
+                        {items.length}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                      {theme.sublabel}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-4 space-y-2.5 flex-1">
+                  {items.length === 0 ? (
+                    <div className="text-sm text-muted-foreground text-center py-6">
+                      Nenhum item adicionado ainda
+                    </div>
+                  ) : (
+                    items.map((item) => (
+                      <div
+                        key={item.id}
+                        className="p-3 bg-card border rounded-md hover-elevate group"
+                        data-testid={`item-analise-${item.id}`}
+                      >
+                        <p className="text-sm leading-relaxed break-words" data-testid={`text-analise-${item.id}`}>
+                          {item.descricao}
+                        </p>
+                        <div className="flex items-center justify-between gap-2 mt-2.5 flex-wrap">
                           <ImpactBadge impact={item.impacto} />
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => handleEditAnalise(item)}
-                            data-testid={`button-edit-analise-${item.id}`}
-                          >
-                            <Pencil className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => deletarAnaliseMutation.mutate(item.id)}
-                            data-testid={`button-delete-analise-${item.id}`}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => handleEditAnalise(item)}
+                              data-testid={`button-edit-analise-${item.id}`}
+                              title="Editar"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => deletarAnaliseMutation.mutate(item.id)}
+                              data-testid={`button-delete-analise-${item.id}`}
+                              title="Remover"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </Card>
-          ))}
+                    ))
+                  )}
+                </div>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

@@ -4256,6 +4256,38 @@ Responda OBRIGATORIAMENTE em JSON:
           ...estrategias.slice(0, TOP_N).map((e) => `- id=${e.id} | ${e.titulo} [${e.tipo}]`),
         );
       }
+      // Task #294 — expor IDs de SWOT, PESTEL e 5 Forças para que o Bizzy
+      // chame atualizar_item_swot / arquivar_fator_pestel /
+      // atualizar_intensidade_forca etc. sem precisar reperguntar o ID ao
+      // usuário.
+      if (swot.length > 0) {
+        const tipoOrdem = ["forca", "fraqueza", "oportunidade", "ameaca"];
+        const linhasSwot = [...swot]
+          .sort((a, b) => tipoOrdem.indexOf(a.tipo) - tipoOrdem.indexOf(b.tipo))
+          .slice(0, TOP_N)
+          .map((s) => `- id=${s.id} | [${s.tipo}] ${s.descricao.slice(0, 100)}`);
+        catalogoLinhas.push(
+          `### SWOT (use com tipo="swot" em abrir_entidade ou o id em atualizar_item_swot / arquivar_item_swot):`,
+          ...linhasSwot,
+        );
+      }
+      if (pestel.length > 0) {
+        const tipoOrdem = ["politico", "economico", "social", "tecnologico", "ambiental", "legal"];
+        const linhasPestel = [...pestel]
+          .sort((a, b) => tipoOrdem.indexOf(a.tipo) - tipoOrdem.indexOf(b.tipo))
+          .slice(0, TOP_N)
+          .map((p) => `- id=${p.id} | [${p.tipo}] ${p.descricao.slice(0, 100)} (impacto: ${p.impacto})`);
+        catalogoLinhas.push(
+          `### PESTEL (use com tipo="pestel" em abrir_entidade ou o id em atualizar_fator_pestel / arquivar_fator_pestel):`,
+          ...linhasPestel,
+        );
+      }
+      if (cincoForcas.length > 0) {
+        catalogoLinhas.push(
+          `### 5 Forças de Porter (use com tipo="forca" + id em abrir_entidade; use o slug em atualizar_intensidade_forca / adicionar_evidencia_forca — NÃO crie novas):`,
+          ...cincoForcas.map((f) => `- forca=${f.forca} | id=${f.id} | intensidade=${f.intensidade} | ${f.descricao.slice(0, 100)}`),
+        );
+      }
       if (catalogoLinhas.length > 0) {
         ctx.push(
           `## CATÁLOGO (IDs para tools)\n${catalogoLinhas.join("\n")}\n\n` +
@@ -4330,7 +4362,7 @@ PRINCÍPIOS:
 
 CITAÇÕES DE ENTIDADES (sintaxe obrigatória):
 - Toda vez que mencionar uma entidade do "## CATÁLOGO" no seu texto, marque-a com a sintaxe [tipo:id] IMEDIATAMENTE depois do nome humano. O frontend transforma essa marca em um link clicável que leva ao item — sem ela, o usuário não consegue navegar.
-- Tipos válidos: indicador, iniciativa, objetivo, kr, risco, oportunidade, estrategia, bmc, cenario, bsc. Use exatamente esses (singular, minúsculo, sem acento em "estrategia"/"cenario"). Use "bmc" para citar um bloco do Business Model Canvas, "cenario" para um cenário do planejamento e "bsc" para o Mapa Estratégico (BSC) — neste último caso o link sempre vai para a página do mapa.
+- Tipos válidos: indicador, iniciativa, objetivo, kr, risco, oportunidade, estrategia, bmc, cenario, swot, pestel, forca, bsc. Use exatamente esses (singular, minúsculo, sem acento em "estrategia"/"cenario"). Use "bmc" para citar um bloco do Business Model Canvas, "cenario" para um cenário do planejamento, "swot" para um item da SWOT, "pestel" para um fator PESTEL, "forca" para uma das 5 Forças de Porter (use o id da força, não o slug), e "bsc" para o Mapa Estratégico (BSC) — neste último caso o link sempre vai para a página do mapa.
 - O id é o UUID que aparece após "id=" em cada linha do CATÁLOGO. Nunca invente, nunca abrevie.
 - Exemplos:
   • "O **Custo de Produção** [indicador:7c8e1a2b-...] está vermelho há 3 leituras."

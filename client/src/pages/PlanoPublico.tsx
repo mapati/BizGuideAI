@@ -171,7 +171,7 @@ export default function PlanoPublico() {
     { num: 4,  title: "Mercado e Concorrência",       hasData: cincoForcas.length > 0 },
     { num: 5,  title: "Forças e Fraquezas (SWOT)",    hasData: swot.length > 0 },
     { num: 6,  title: "Estratégias",                  hasData: estrategias.length > 0 },
-    { num: 7,  title: "Oportunidades de Crescimento", hasData: oportunidades.length > 0 },
+    { num: 7,  title: "Frentes de Crescimento", hasData: oportunidades.length > 0 },
     { num: 8,  title: "Iniciativas Prioritárias",     hasData: iniciativas.length > 0 },
     { num: 9,  title: "Metas e Resultados Desejados", hasData: objetivos.length > 0 },
     { num: 10, title: "Cenários Estratégicos",        hasData: cenarios.length > 0 },
@@ -461,10 +461,10 @@ export default function PlanoPublico() {
           </section>
         )}
 
-        {/* ── 7. Oportunidades de Crescimento ── */}
+        {/* ── 7. Frentes de Crescimento ── */}
         {oportunidades.length > 0 && (
           <section data-testid="section-oportunidades">
-            <ChapterHeader num={7} icon={TrendingUp} title="Oportunidades de Crescimento" />
+            <ChapterHeader num={7} icon={TrendingUp} title="Frentes de Crescimento" />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {oportunidades.map((o: any) => (
                 <Card key={o.id}>

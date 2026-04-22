@@ -270,15 +270,15 @@ export function useJornadaProgresso(): JornadaProgresso {
     },
     {
       id: "oportunidades",
-      nome: "Oportunidades de Crescimento",
+      nome: "Frentes de Crescimento",
       rota: "/oportunidades-crescimento",
       concluida: oportunidades.length > 0,
       status: derivarStatus(oportunidades.length > 0, false),
       icone: TrendingUp,
       descricao:
-        "Identifique caminhos de crescimento: conquistar mais do mercado atual, entrar em novos mercados, lançar produtos ou diversificar.",
+        "Para estratégias ofensivas (FO/DO), explore caminhos Ansoff: conquistar mais do mercado atual, entrar em novos mercados, lançar produtos ou diversificar. Estratégias defensivas (FA/DA) seguem direto para Iniciativas.",
       valorIA:
-        "A IA prioriza oportunidades com base nas estratégias definidas e no perfil de risco da sua empresa.",
+        "A IA aplica a Matriz de Ansoff sobre as estratégias ofensivas que você definiu, considerando o perfil de risco da sua empresa.",
       bloqueadaPor: estrategias.length > 0 ? [] : ["estrategias"],
     },
     {

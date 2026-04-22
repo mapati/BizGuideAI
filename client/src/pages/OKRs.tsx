@@ -1421,7 +1421,7 @@ export default function OKRs() {
           label: "Fontes de contexto",
           items: [
             { id: "estrategias", label: "Estratégias TOWS", desc: "Apostas estratégicas já definidas" },
-            { id: "oportunidades", label: "Oportunidades de Crescimento", desc: "Quadrantes da Matriz de Ansoff" },
+            { id: "oportunidades", label: "Frentes de Crescimento", desc: "Quadrantes da Matriz de Ansoff" },
             { id: "iniciativas", label: "Iniciativas", desc: "Iniciativas prioritárias" },
             { id: "modeloNegocio", label: "Modelo de Negócio (BMC)", desc: "Proposta de valor, segmentos e atividades" },
           ],

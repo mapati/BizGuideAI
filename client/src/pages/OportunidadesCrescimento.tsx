@@ -149,15 +149,15 @@ export default function OportunidadesCrescimento() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/oportunidades-crescimento", empresa?.id] });
       toast({
-        title: "Oportunidade adicionada!",
-        description: "A oportunidade de crescimento foi salva com sucesso.",
+        title: "Frente adicionada!",
+        description: "A frente de crescimento foi salva com sucesso.",
       });
       setFormData({ tipo: "", titulo: "", descricao: "", potencial: "médio", risco: "médio", estrategiaId: "" });
       setIsDialogOpen(false);
     },
     onError: (error) => {
       toast({
-        title: "Erro ao adicionar oportunidade",
+        title: "Erro ao adicionar frente",
         description: error.message,
         variant: "destructive",
       });
@@ -171,8 +171,8 @@ export default function OportunidadesCrescimento() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/oportunidades-crescimento", empresa?.id] });
       toast({
-        title: "Oportunidade atualizada!",
-        description: "A oportunidade foi atualizada com sucesso.",
+        title: "Frente atualizada!",
+        description: "A frente foi atualizada com sucesso.",
       });
       setFormData({ tipo: "", titulo: "", descricao: "", potencial: "médio", risco: "médio", estrategiaId: "" });
       setEditandoId(null);
@@ -194,8 +194,8 @@ export default function OportunidadesCrescimento() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/oportunidades-crescimento", empresa?.id] });
       toast({
-        title: "Oportunidade removida",
-        description: "A oportunidade foi excluída.",
+        title: "Frente removida",
+        description: "A frente foi excluída.",
       });
     },
   });
@@ -386,8 +386,8 @@ export default function OportunidadesCrescimento() {
     return (
       <div className="container mx-auto p-6">
         <PageHeader
-          title="Oportunidades de Crescimento"
-          description="Explore caminhos para expandir seu negócio"
+          title="Frentes de Crescimento"
+          description="Caminhos Ansoff para desdobrar suas estratégias ofensivas"
         />
         <div className="mt-6">Carregando...</div>
       </div>
@@ -400,16 +400,16 @@ export default function OportunidadesCrescimento() {
     <div className="container mx-auto p-6">
       {semEstategias && (
         <PrerequisiteWarning
-          titulo="Recomendado: defina estratégias antes de mapear oportunidades"
-          descricao="As oportunidades de crescimento ficam mais claras quando derivam das estratégias definidas. Crie as estratégias primeiro para uma análise mais coerente."
+          titulo="Recomendado: defina estratégias antes de mapear frentes"
+          descricao="As frentes de crescimento ficam mais claras quando derivam das estratégias ofensivas (FO/DO) definidas. Crie as estratégias primeiro para uma análise mais coerente."
           linkLabel="Ir para Estratégias"
           linkHref="/estrategias"
           variante="info"
         />
       )}
       <PageHeader
-        title="Oportunidades de Crescimento"
-        description="Explore caminhos para expandir seu negócio"
+        title="Frentes de Crescimento"
+        description="Aplicação da Matriz de Ansoff sobre suas estratégias ofensivas (FO/DO) — qual rota faz mais sentido agora"
       />
 
       <div className="mt-6 flex gap-3">
@@ -426,23 +426,25 @@ export default function OportunidadesCrescimento() {
           open={isAIModalOpen}
           onOpenChange={setIsAIModalOpen}
           onConfirm={handleGenerateOpportunities}
-          title="Gerar oportunidades de crescimento com IA"
-          description="Configure quais quadrantes da Matriz de Ansoff e quantas oportunidades por quadrante a IA deve gerar."
+          title="Gerar frentes de crescimento com IA"
+          description="Configure quais quadrantes da Matriz de Ansoff e quantas frentes por quadrante a IA deve gerar."
           isGenerating={isGenerating}
           testIdPrefix="ai-oportunidades"
           origem={{
-            label: "Estratégia de origem",
+            label: "Estratégia ofensiva de origem",
             description: origemObrigatoria
-              ? "Escolha de qual Estratégia derivar as oportunidades. Obrigatório durante a primeira jornada."
-              : "Opcional: vincule as oportunidades a uma Estratégia para manter a cascata.",
-            placeholder: "Selecione uma estratégia…",
+              ? "Escolha de qual Estratégia ofensiva (FO/DO) derivar as frentes. Obrigatório durante a primeira jornada."
+              : "Opcional: vincule as frentes a uma Estratégia ofensiva (FO/DO) para manter a cascata. Estratégias FA/DA desdobram diretamente em Iniciativas.",
+            placeholder: "Selecione uma estratégia ofensiva (FO/DO)…",
             required: origemObrigatoria,
-            items: estrategias.map((e) => ({
-              id: e.id,
-              label: e.titulo,
-              group: e.tipo,
-            })),
-            emptyMessage: "Nenhuma estratégia cadastrada. Crie estratégias antes de gerar oportunidades.",
+            items: estrategias
+              .filter((e) => e.tipo === "FO" || e.tipo === "DO")
+              .map((e) => ({
+                id: e.id,
+                label: e.titulo,
+                group: e.tipo,
+              })),
+            emptyMessage: "Nenhuma estratégia ofensiva (FO/DO) cadastrada. Crie estratégias ofensivas antes de gerar frentes.",
           }}
           quantidade={{
             label: "Por quadrante",
@@ -475,13 +477,13 @@ export default function OportunidadesCrescimento() {
           <DialogTrigger asChild>
             <Button variant="outline" data-testid="button-adicionar">
               <Plus className="mr-2 h-4 w-4" />
-              Adicionar Oportunidade
+              Adicionar Frente
             </Button>
           </DialogTrigger>
           <DialogContent data-testid="dialog-oportunidade">
             <DialogHeader>
               <DialogTitle>
-                {editandoId ? "Editar Oportunidade" : "Nova Oportunidade de Crescimento"}
+                {editandoId ? "Editar Frente" : "Nova Frente de Crescimento"}
               </DialogTitle>
             </DialogHeader>
 
@@ -514,18 +516,22 @@ export default function OportunidadesCrescimento() {
               </div>
 
               <OrigemSelector
-                label="Estratégia de origem"
+                label="Estratégia ofensiva de origem"
                 obrigatorio={origemObrigatoria}
-                ajuda={origemObrigatoria ? "Durante a 1ª jornada, toda Oportunidade precisa derivar de uma Estratégia." : undefined}
-                opcoes={estrategias.map((e) => ({ id: e.id, label: `[${e.tipo}] ${e.titulo}` }))}
+                ajuda={origemObrigatoria
+                  ? "Durante a 1ª jornada, toda Frente precisa derivar de uma Estratégia ofensiva (FO/DO)."
+                  : "Apenas estratégias ofensivas (FO/DO) admitem Frentes Ansoff."}
+                opcoes={estrategias
+                  .filter((e) => e.tipo === "FO" || e.tipo === "DO")
+                  .map((e) => ({ id: e.id, label: `[${e.tipo}] ${e.titulo}` }))}
                 value={formData.estrategiaId}
                 onChange={(v) => setFormData({ ...formData, estrategiaId: v })}
-                placeholder="Selecione a Estratégia que origina esta oportunidade"
+                placeholder="Selecione a Estratégia ofensiva que origina esta frente"
                 testId="select-origem-estrategia"
               />
 
               <div>
-                <Label htmlFor="titulo">Título da Oportunidade</Label>
+                <Label htmlFor="titulo">Título da Frente</Label>
                 <Input
                   id="titulo"
                   placeholder="Ex: Expandir para região sul..."
@@ -539,7 +545,7 @@ export default function OportunidadesCrescimento() {
                 <Label htmlFor="descricao">Descrição</Label>
                 <Textarea
                   id="descricao"
-                  placeholder="Descreva a oportunidade de crescimento em detalhes..."
+                  placeholder="Descreva a frente de crescimento em detalhes..."
                   value={formData.descricao}
                   onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
                   rows={4}
@@ -588,7 +594,7 @@ export default function OportunidadesCrescimento() {
                   Cancelar
                 </Button>
                 <Button onClick={handleSaveOportunidade} data-testid="button-salvar">
-                  {editandoId ? "Salvar Alterações" : "Adicionar Oportunidade"}
+                  {editandoId ? "Salvar Alterações" : "Adicionar Frente"}
                 </Button>
               </div>
             </div>
@@ -600,8 +606,8 @@ export default function OportunidadesCrescimento() {
         <div className="mt-8">
           <EmptyState
             icon={<TrendingUp className="h-16 w-16" />}
-            title="Nenhuma oportunidade identificada ainda"
-            description="Comece gerando oportunidades com IA ou adicione manualmente."
+            title="Nenhuma frente de crescimento identificada ainda"
+            description="Comece gerando frentes com IA a partir de uma estratégia ofensiva (FO/DO) ou adicione manualmente."
           />
           <div className="mt-8 grid gap-4 md:grid-cols-2">
             <ExampleCard

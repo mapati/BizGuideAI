@@ -335,21 +335,28 @@ function EstrategiaCard({
   item,
   swotItens,
   oportunidades,
+  iniciativas,
   onEdit,
   onDelete,
   onStatusChange,
-  onGerarOportunidades,
+  onGerarFrentes,
+  onGerarIniciativas,
   isGenerating,
 }: {
   item: Estrategia;
   swotItens: SwotItem[];
   oportunidades: Array<{ id: string; titulo: string; estrategiaId?: string | null }>;
+  iniciativas: Array<{ id: string; titulo: string; estrategiaId?: string | null }>;
   onEdit: (e: Estrategia) => void;
   onDelete: (id: string) => void;
   onStatusChange: (id: string, status: string) => void;
-  onGerarOportunidades: (estrategiaId: string) => void;
+  onGerarFrentes: (estrategiaId: string) => void;
+  onGerarIniciativas: (estrategiaId: string) => void;
   isGenerating: boolean;
 }) {
+  // Estratégias ofensivas (FO/DO) desdobram em Frentes de Crescimento (Ansoff).
+  // Estratégias defensivas/confronto (FA/DA) desdobram diretamente em Iniciativas.
+  const isOfensiva = item.tipo === "FO" || item.tipo === "DO";
   const [vinculadosOpen, setVinculadosOpen] = useState(false);
 
   const { data: contadores } = useQuery<{ iniciativas: number; okrs: number }>({
@@ -472,22 +479,48 @@ function EstrategiaCard({
           </div>
         </div>
         <CascataBlock
-          downstream={[{
-            rotulo: "Oportunidades derivadas",
-            itens: oportunidades.filter(o => o.estrategiaId === item.id).map(o => ({ id: o.id, titulo: o.titulo, href: "/oportunidades-crescimento", rotulo: "Oportunidade" })),
-          }]}
+          downstream={[
+            isOfensiva
+              ? {
+                  rotulo: "Frentes derivadas",
+                  itens: oportunidades
+                    .filter(o => o.estrategiaId === item.id)
+                    .map(o => ({ id: o.id, titulo: o.titulo, href: "/oportunidades-crescimento", rotulo: "Frente" })),
+                }
+              : {
+                  rotulo: "Iniciativas derivadas",
+                  itens: iniciativas
+                    .filter(i => i.estrategiaId === item.id)
+                    .map(i => ({ id: i.id, titulo: i.titulo, href: "/iniciativas", rotulo: "Iniciativa" })),
+                },
+          ]}
         />
         <div className="mt-3 flex justify-end">
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={isGenerating}
-            onClick={() => onGerarOportunidades(item.id)}
-            data-testid={`button-gerar-oportunidades-${item.id}`}
-          >
-            <Wand2 className="h-3.5 w-3.5 mr-1.5" />
-            Gerar oportunidades
-          </Button>
+          {isOfensiva ? (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={isGenerating}
+              onClick={() => onGerarFrentes(item.id)}
+              data-testid={`button-gerar-frentes-${item.id}`}
+              title="Aplica a Matriz de Ansoff sobre esta estratégia ofensiva"
+            >
+              <Wand2 className="h-3.5 w-3.5 mr-1.5" />
+              Gerar frentes de crescimento
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={isGenerating}
+              onClick={() => onGerarIniciativas(item.id)}
+              data-testid={`button-gerar-iniciativas-${item.id}`}
+              title="Gera iniciativas defensivas/de mitigação para esta estratégia"
+            >
+              <Wand2 className="h-3.5 w-3.5 mr-1.5" />
+              Gerar iniciativas
+            </Button>
+          )}
         </div>
       </Card>
     </>
@@ -530,6 +563,11 @@ export default function Estrategias() {
 
   const { data: oportunidades = [] } = useQuery<Array<{ id: string; titulo: string; estrategiaId?: string | null }>>({
     queryKey: ["/api/oportunidades-crescimento", empresa?.id],
+    enabled: !!empresa?.id,
+  });
+
+  const { data: iniciativas = [] } = useQuery<Array<{ id: string; titulo: string; estrategiaId?: string | null }>>({
+    queryKey: ["/api/iniciativas", empresa?.id],
     enabled: !!empresa?.id,
   });
 
@@ -608,7 +646,8 @@ export default function Estrategias() {
     }
   };
 
-  const handleGerarOportunidades = async (estrategiaId: string) => {
+  // Estratégias ofensivas (FO/DO): desdobram em Frentes de Crescimento (Ansoff).
+  const handleGerarFrentes = async (estrategiaId: string) => {
     if (!empresa) return;
     setIsGenerating(true);
     try {
@@ -619,11 +658,46 @@ export default function Estrategias() {
           try { await apiRequest("POST", "/api/oportunidades-crescimento", { ...op, empresaId: empresa.id }); count++; } catch (e) { console.error(e); }
         }
         queryClient.invalidateQueries({ queryKey: ["/api/oportunidades-crescimento", empresa.id] });
-        toast({ title: "Oportunidades geradas!", description: `${count} oportunidade(s) criadas a partir desta estratégia.` });
+        toast({ title: "Frentes geradas!", description: `${count} frente(s) de crescimento criada(s) a partir desta estratégia.` });
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Erro desconhecido";
       toast({ title: "Erro ao gerar", description: msg, variant: "destructive" });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // Estratégias defensivas/confronto (FA/DA): desdobram diretamente em Iniciativas.
+  const handleGerarIniciativasFromEstrategia = async (estrategiaId: string) => {
+    if (!empresa) return;
+    setIsGenerating(true);
+    try {
+      const response = await apiRequest("POST", "/api/ai/gerar-iniciativas", {
+        empresaId: empresa.id,
+        estrategiaId,
+        quantidade: 3,
+      });
+      const lista: any[] = response?.iniciativas ?? [];
+      if (lista.length > 0) {
+        let count = 0;
+        for (const ini of lista) {
+          try {
+            await apiRequest("POST", "/api/iniciativas", { ...ini, empresaId: empresa.id, estrategiaId });
+            count++;
+          } catch (e) {
+            console.error(e);
+          }
+        }
+        queryClient.invalidateQueries({ queryKey: ["/api/iniciativas", empresa.id] });
+        queryClient.invalidateQueries({ queryKey: ["/api/estrategias", estrategiaId, "contadores"] });
+        toast({ title: "Iniciativas geradas!", description: `${count} iniciativa(s) criada(s) a partir desta estratégia.` });
+      } else {
+        toast({ title: "Nenhuma iniciativa gerada", description: "A IA não retornou sugestões. Tente novamente.", variant: "destructive" });
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Erro desconhecido";
+      toast({ title: "Erro ao gerar iniciativas", description: msg, variant: "destructive" });
     } finally {
       setIsGenerating(false);
     }
@@ -1110,10 +1184,12 @@ export default function Estrategias() {
                         item={item}
                         swotItens={swotItens}
                         oportunidades={oportunidades}
+                        iniciativas={iniciativas}
                         onEdit={handleEditEstrategia}
                         onDelete={(id) => deletarEstrategiaMutation.mutate(id)}
                         onStatusChange={(id, status) => atualizarStatusMutation.mutate({ id, status })}
-                        onGerarOportunidades={handleGerarOportunidades}
+                        onGerarFrentes={handleGerarFrentes}
+                        onGerarIniciativas={handleGerarIniciativasFromEstrategia}
                         isGenerating={isGenerating}
                       />
                     ))

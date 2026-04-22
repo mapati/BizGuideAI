@@ -30,7 +30,7 @@ const mapItems = [
 
 const apostasItems = [
   { title: "Estratégias", url: "/estrategias", icon: TrendingUp, jornadaId: "estrategias" },
-  { title: "Oportunidades de Crescimento", url: "/oportunidades-crescimento", icon: Map, jornadaId: "oportunidades" },
+  { title: "Frentes de Crescimento", url: "/oportunidades-crescimento", icon: Map, jornadaId: "oportunidades" },
   { title: "Iniciativas Prioritárias", url: "/iniciativas", icon: Briefcase, jornadaId: "iniciativas" },
 ];
 

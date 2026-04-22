@@ -194,7 +194,7 @@ function MockupSidebar({ active }: { active: MockupSidebarActive }) {
     { id: "cinco-forcas", label: "Mercado e Concorrência" },
     { id: "swot", label: "Forças e Fraquezas" },
     { id: "estrategias", label: "Estratégias", section: "PLANO DE AÇÃO" },
-    { id: "oportunidades", label: "Oportunidades de Crescimento" },
+    { id: "oportunidades", label: "Frentes de Crescimento" },
     { id: "iniciativas", label: "Iniciativas Prioritárias" },
     { id: "okrs", label: "Metas e Resultados", section: "EXECUÇÃO" },
     { id: "bsc", label: "Performance das Metas" },
@@ -615,7 +615,7 @@ function MockupJornada() {
       label: "PLANO DE AÇÃO",
       etapas: [
         { nome: "Estratégias", icone: Flag, status: "pendente" as const },
-        { nome: "Oportunidades de Crescimento", icone: TrendingUp, status: "pendente" as const },
+        { nome: "Frentes de Crescimento", icone: TrendingUp, status: "pendente" as const },
         { nome: "Iniciativas Prioritárias", icone: Briefcase, status: "pendente" as const },
       ],
     },
@@ -972,7 +972,7 @@ export default function LandingPage() {
                 corLinha: "bg-purple-200",
                 etapas: [
                   { num: 7, nome: "Estratégias", icone: Flag, desc: "A IA cruza seu SWOT e propõe estratégias priorizadas — você só decide quais entram no plano" },
-                  { num: 8, nome: "Oportunidades de Crescimento", icone: TrendingUp, desc: "Matriz de Ansoff aplicada: penetração, novos mercados ou novos produtos. Qual rota faz mais sentido para você agora" },
+                  { num: 8, nome: "Frentes de Crescimento", icone: TrendingUp, desc: "Matriz de Ansoff aplicada: penetração, novos mercados ou novos produtos. Qual rota faz mais sentido para você agora" },
                   { num: 9, nome: "Iniciativas Prioritárias", icone: Briefcase, desc: "Estratégia vira execução: cada projeto sai com responsável, prazo e impacto esperado. Plano que de fato roda" },
                 ],
               },

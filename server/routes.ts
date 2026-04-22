@@ -5547,6 +5547,13 @@ ${instrucaoAdicional}` : ""}`
         if (!est || est.empresaId !== empresaId) {
           return res.status(400).json({ error: "Estratégia inválida ou não pertence à empresa" });
         }
+        // Frentes de Crescimento (Ansoff) só fazem sentido para estratégias ofensivas (FO/DO).
+        // Estratégias defensivas/confronto (FA/DA) desdobram diretamente em Iniciativas.
+        if (est.tipo !== "FO" && est.tipo !== "DO") {
+          return res.status(400).json({
+            error: "Frentes de Crescimento são aplicáveis apenas a estratégias ofensivas (FO/DO). Para estratégias FA/DA, gere Iniciativas diretamente.",
+          });
+        }
       } else {
         const concluida = await isJornadaConcluida(empresaId);
         if (!concluida) {
@@ -5571,6 +5578,11 @@ ${instrucaoAdicional}` : ""}`
         const est = await storage.getEstrategia(data.estrategiaId);
         if (!est || est.empresaId !== empresaId) {
           return res.status(400).json({ error: "Estratégia inválida ou não pertence à empresa" });
+        }
+        if (est.tipo !== "FO" && est.tipo !== "DO") {
+          return res.status(400).json({
+            error: "Frentes de Crescimento são aplicáveis apenas a estratégias ofensivas (FO/DO).",
+          });
         }
       }
       const oportunidade = await storage.updateOportunidadeCrescimento(id, empresaId, data);
@@ -5606,6 +5618,12 @@ ${instrucaoAdicional}` : ""}`
         const e = await storage.getEstrategia(origemEstrategiaId);
         if (!e || e.empresaId !== empresaId) {
           return res.status(400).json({ error: "Estratégia de origem inválida" });
+        }
+        // Apenas estratégias ofensivas (FO/DO) podem gerar Frentes de Crescimento (Ansoff).
+        if (e.tipo !== "FO" && e.tipo !== "DO") {
+          return res.status(400).json({
+            error: "Frentes de Crescimento são aplicáveis apenas a estratégias ofensivas (FO/DO). Para estratégias FA/DA, gere Iniciativas diretamente.",
+          });
         }
         estrategiaOrigem = { id: e.id, tipo: e.tipo, titulo: e.titulo, descricao: e.descricao };
       }

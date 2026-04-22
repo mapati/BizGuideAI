@@ -31,21 +31,20 @@ export function CascataBlock({ upstream, downstream, orfao, orfaoMensagem }: Cas
         </div>
       )}
       {upstream && (
-        <div className="flex items-center gap-2 text-xs flex-wrap">
-          <ArrowUp className="h-3 w-3 text-muted-foreground" />
-          <span className="text-muted-foreground">Origem ({upstream.rotulo}):</span>
+        <div className="flex items-start gap-2 text-xs flex-wrap min-w-0">
+          <ArrowUp className="h-3 w-3 text-muted-foreground mt-1 shrink-0" />
+          <span className="text-muted-foreground mt-0.5 shrink-0">Origem ({upstream.rotulo}):</span>
           {upstream.href ? (
-            <Link href={upstream.href}>
-              <Badge variant="outline" className="cursor-pointer" data-testid={`cascata-upstream-${upstream.id}`}>
-                <Link2 className="h-2.5 w-2.5 mr-1" />
-                {upstream.titulo}
-                <ExternalLink className="h-2.5 w-2.5 ml-1" />
+            <Link href={upstream.href} className="min-w-0 max-w-full">
+              <Badge variant="secondary" className="cursor-pointer max-w-full" data-testid={`cascata-upstream-${upstream.id}`}>
+                <Link2 className="h-2.5 w-2.5 mr-1 shrink-0" />
+                <span className="truncate">{upstream.titulo.length > 40 ? upstream.titulo.slice(0, 40) + "…" : upstream.titulo}</span>
               </Badge>
             </Link>
           ) : (
-            <Badge variant="outline" data-testid={`cascata-upstream-${upstream.id}`}>
-              <Link2 className="h-2.5 w-2.5 mr-1" />
-              {upstream.titulo}
+            <Badge variant="secondary" className="max-w-full" data-testid={`cascata-upstream-${upstream.id}`}>
+              <Link2 className="h-2.5 w-2.5 mr-1 shrink-0" />
+              <span className="truncate">{upstream.titulo.length > 40 ? upstream.titulo.slice(0, 40) + "…" : upstream.titulo}</span>
             </Badge>
           )}
         </div>

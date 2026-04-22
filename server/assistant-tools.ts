@@ -2065,6 +2065,13 @@ const TIPOS_BUSCA_NOME = [
   "risco",
   "oportunidade",
   "estrategia",
+  // Task #293 — diagnóstico externo: itens citados por descrição/título livre
+  // que não aparecem no CATÁLOGO. As tools de SWOT/PESTEL/5 Forças exigem
+  // ids reais (swotId, pestelId, forcaId), por isso o agente precisa
+  // resolver pelo nome antes de atualizar/arquivar.
+  "swot",
+  "pestel",
+  "forca",
 ] as const;
 export type TipoBuscaNome = typeof TIPOS_BUSCA_NOME[number];
 
@@ -2232,7 +2239,7 @@ export const LOOKUP_TOOLS_OPENAI = [
     function: {
       name: "buscar_entidade_por_nome",
       description:
-        "Busca itens existentes da empresa pelo NOME quando o id não está no '## CATÁLOGO' (que mostra apenas os 30 mais recentes). Use ANTES de propor abrir_entidade/atualizar_* sempre que o usuário citar um item por nome e você não encontrar o id no catálogo. NÃO use para criar nada — só para descobrir o id de itens já existentes. Devolve até 5 candidatos {id, nome}; se vier mais de um próximo, pergunte ao usuário qual antes de agir.",
+        "Busca itens existentes da empresa pelo NOME quando o id não está no '## CATÁLOGO' (que mostra apenas os 30 mais recentes). Use ANTES de propor abrir_entidade/atualizar_*/arquivar_* sempre que o usuário citar um item por nome/descrição e você não encontrar o id no catálogo. Cobre indicador, iniciativa, objetivo, kr, risco, oportunidade, estrategia, swot (item do quadrante FOFA — busca pela descrição), pestel (fator PESTEL — busca pela descrição) e forca (uma das 5 Forças de Porter — busca pelo nome canônico ou pela evidência). NÃO use para criar nada — só para descobrir o id de itens já existentes. Devolve até 5 candidatos {id, nome}; se vier mais de um próximo, pergunte ao usuário qual antes de agir.",
       parameters: {
         type: "object",
         additionalProperties: false,
@@ -2306,6 +2313,44 @@ export async function executarBuscaPorNome(
       case "estrategia": {
         const lista = await storage.getEstrategias(empresaId);
         candidatos = lista.map((e) => ({ id: e.id, nome: e.titulo, contexto: e.tipo }));
+        break;
+      }
+      // Task #293 — itens do SWOT/PESTEL/5 Forças não têm título curto: o
+      // identificador humano é a própria descrição. Concatenamos o tipo
+      // (quadrante/categoria/força) só no `contexto`, para a busca textual
+      // ranquear pelo conteúdo livre que o usuário citou.
+      case "swot": {
+        const lista = await storage.getAnaliseSwot(empresaId);
+        candidatos = lista.map((s) => ({
+          id: s.id,
+          nome: s.descricao,
+          contexto: `quadrante: ${s.tipo}`,
+        }));
+        break;
+      }
+      case "pestel": {
+        const lista = await storage.getFatoresPestel(empresaId);
+        candidatos = lista.map((f) => ({
+          id: f.id,
+          nome: f.descricao,
+          contexto: `categoria: ${f.tipo}`,
+        }));
+        break;
+      }
+      case "forca": {
+        const lista = await storage.getCincoForcas(empresaId);
+        candidatos = lista.map((f) => ({
+          id: f.id,
+          // As 5 forças são fixas — o "nome" canônico é o próprio nome da força
+          // (rivalidade_concorrentes, etc.). Concatenamos a descrição para que
+          // o usuário possa achar pelo texto da evidência também.
+          nome: `${f.forca} — ${f.descricao}`,
+          // IMPORTANTE: as tools executoras de Forças (atualizar_intensidade_forca,
+          // adicionar_evidencia_forca) recebem a CHAVE CANÔNICA `forca`
+          // (enum), não o UUID. O contexto deixa essa chave explícita para o
+          // agente passar o valor correto após o lookup.
+          contexto: `força canônica: ${f.forca} | intensidade: ${f.intensidade}`,
+        }));
         break;
       }
     }

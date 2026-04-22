@@ -5259,6 +5259,7 @@ const criarRelacaoBsc: ToolDefinition<CriarRelacaoBscParams> = {
       empresaId: ctx.empresaId,
       origemId: p.origemId,
       destinoId: p.destinoId,
+      tipo: p.tipo,
     });
     return {
       resumo: `Relação criada: "${origem.titulo}" → "${destino.titulo}".`,

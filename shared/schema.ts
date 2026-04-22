@@ -471,9 +471,12 @@ export const bscRelacoes = pgTable("bsc_relacoes", {
   empresaId: varchar("empresa_id").notNull().references(() => empresas.id, { onDelete: "cascade" }),
   origemId: varchar("origem_id").notNull().references(() => objetivos.id, { onDelete: "cascade" }),
   destinoId: varchar("destino_id").notNull().references(() => objetivos.id, { onDelete: "cascade" }),
+  tipo: text("tipo").$type<"causa_efeito" | "correlacao">().notNull().default("causa_efeito"),
   criadoEm: timestamp("criado_em").defaultNow().notNull(),
 });
-export const insertBscRelacaoSchema = createInsertSchema(bscRelacoes).omit({ id: true, criadoEm: true });
+export const insertBscRelacaoSchema = createInsertSchema(bscRelacoes, {
+  tipo: z.enum(["causa_efeito", "correlacao"]).default("causa_efeito"),
+}).omit({ id: true, criadoEm: true });
 export type InsertBscRelacao = z.infer<typeof insertBscRelacaoSchema>;
 export type BscRelacao = typeof bscRelacoes.$inferSelect;
 

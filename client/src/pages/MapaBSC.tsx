@@ -4,13 +4,15 @@ import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, Trash2, DollarSign, Users, Cog, GraduationCap, ArrowDown } from "lucide-react";
+import { Loader2, Plus, Trash2, DollarSign, Users, Cog, GraduationCap, ArrowDown, ArrowRight, ArrowLeftRight } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Objetivo, BscRelacao } from "@shared/schema";
+
+type TipoRelacao = "causa_efeito" | "correlacao";
 
 const perspectivas = [
   { valor: "Financeira", icon: DollarSign, cor: "border-green-300 dark:border-green-700", bg: "bg-green-500/10", texto: "text-green-700 dark:text-green-400" },
@@ -24,6 +26,7 @@ export default function MapaBSC() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [origemId, setOrigemId] = useState("");
   const [destinoId, setDestinoId] = useState("");
+  const [tipo, setTipo] = useState<TipoRelacao>("causa_efeito");
 
   const { data: objetivos = [] } = useQuery<Objetivo[]>({ queryKey: ["/api/objetivos"] });
   const { data: relacoes = [], isLoading } = useQuery<BscRelacao[]>({ queryKey: ["/api/bsc-relacoes"] });
@@ -32,7 +35,14 @@ export default function MapaBSC() {
 
   const createMut = useMutation({
     mutationFn: (body: any) => apiRequest("POST", "/api/bsc-relacoes", body),
-    onSuccess: () => { inv(); setDialogOpen(false); setOrigemId(""); setDestinoId(""); toast({ title: "Relação criada!" }); },
+    onSuccess: () => {
+      inv();
+      setDialogOpen(false);
+      setOrigemId("");
+      setDestinoId("");
+      setTipo("causa_efeito");
+      toast({ title: "Relação criada!" });
+    },
     onError: () => toast({ title: "Erro ao criar relação", variant: "destructive" }),
   });
 
@@ -48,18 +58,18 @@ export default function MapaBSC() {
 
   const getObj = (id: string) => objetivos.find(o => o.id === id);
 
-  const relacoesMap = new Map<string, string[]>();
+  const relacoesPorOrigem = new Map<string, { destinoId: string; tipo: TipoRelacao }[]>();
   for (const rel of relacoes) {
-    const list = relacoesMap.get(rel.origemId) || [];
-    list.push(rel.destinoId);
-    relacoesMap.set(rel.origemId, list);
+    const list = relacoesPorOrigem.get(rel.origemId) || [];
+    list.push({ destinoId: rel.destinoId, tipo: (rel.tipo as TipoRelacao) ?? "causa_efeito" });
+    relacoesPorOrigem.set(rel.origemId, list);
   }
 
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
       <PageHeader
         title="Mapa de Performance"
-        description="Visualize as relações de causa e efeito entre os seus objetivos estratégicos."
+        description="Visualize relações de causa-efeito e correlações entre os seus objetivos estratégicos."
         action={
           <Button onClick={() => setDialogOpen(true)} disabled={objetivos.length < 2} data-testid="button-add-relacao">
             <Plus className="h-4 w-4 mr-2" /> Nova Relação
@@ -82,16 +92,25 @@ export default function MapaBSC() {
           {relacoes.length > 0 && (
             <Card>
               <CardContent className="p-4">
-                <p className="text-sm font-medium mb-3 text-muted-foreground">Relações Causa-Efeito ({relacoes.length})</p>
+                <p className="text-sm font-medium mb-3 text-muted-foreground">Relações ({relacoes.length})</p>
                 <div className="space-y-2">
                   {relacoes.map(rel => {
                     const origem = getObj(rel.origemId);
                     const destino = getObj(rel.destinoId);
+                    const t: TipoRelacao = (rel.tipo as TipoRelacao) ?? "causa_efeito";
+                    const isCausa = t === "causa_efeito";
                     return (
                       <div key={rel.id} className="flex items-center gap-2 text-sm" data-testid={`relacao-${rel.id}`}>
                         <span className="font-medium truncate max-w-[200px]">{origem?.titulo || "?"}</span>
-                        <ArrowDown className="h-3 w-3 text-muted-foreground flex-shrink-0 rotate-[-90deg]" />
+                        {isCausa ? (
+                          <ArrowRight className="h-3.5 w-3.5 text-foreground flex-shrink-0" />
+                        ) : (
+                          <ArrowLeftRight className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                        )}
                         <span className="truncate max-w-[200px]">{destino?.titulo || "?"}</span>
+                        <Badge variant={isCausa ? "default" : "secondary"} className="ml-2" data-testid={`badge-tipo-${rel.id}`}>
+                          {isCausa ? "Causa-efeito" : "Correlação"}
+                        </Badge>
                         <Button size="icon" variant="ghost" className="ml-auto flex-shrink-0" onClick={() => deleteMut.mutate(rel.id)} data-testid={`button-delete-relacao-${rel.id}`}>
                           <Trash2 className="h-3.5 w-3.5 text-destructive" />
                         </Button>
@@ -116,20 +135,26 @@ export default function MapaBSC() {
                 </div>
                 <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {p.objetivos.map(obj => {
-                    const destinos = relacoesMap.get(obj.id) || [];
+                    const destinos = relacoesPorOrigem.get(obj.id) || [];
                     return (
                       <div key={obj.id} className="bg-background rounded-md p-3 border border-border/50" data-testid={`obj-card-${obj.id}`}>
                         <p className="text-sm font-medium leading-snug">{obj.titulo}</p>
                         {destinos.length > 0 && (
                           <div className="mt-2 space-y-1">
-                            {destinos.map(dId => {
-                              const dest = getObj(dId);
-                              return dest ? (
-                                <div key={dId} className="flex items-center gap-1 text-xs text-muted-foreground">
-                                  <ArrowDown className="h-3 w-3 flex-shrink-0" />
-                                  <span className="truncate">{dest.titulo}</span>
+                            {destinos.map(d => {
+                              const dest = getObj(d.destinoId);
+                              if (!dest) return null;
+                              const isCausa = d.tipo === "causa_efeito";
+                              return (
+                                <div key={d.destinoId} className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  {isCausa ? (
+                                    <ArrowRight className="h-3 w-3 flex-shrink-0" />
+                                  ) : (
+                                    <ArrowLeftRight className="h-3 w-3 flex-shrink-0 opacity-70" />
+                                  )}
+                                  <span className={`truncate ${isCausa ? "" : "italic"}`}>{dest.titulo}</span>
                                 </div>
-                              ) : null;
+                              );
                             })}
                           </div>
                         )}
@@ -146,12 +171,22 @@ export default function MapaBSC() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Nova Relação Causa-Efeito</DialogTitle>
+            <DialogTitle>Nova Relação no Mapa BSC</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
-            <p className="text-sm text-muted-foreground">Defina que objetivo "causa" (origem) leva a qual objetivo "efeito" (destino).</p>
+            <p className="text-sm text-muted-foreground">Defina a relação entre dois objetivos. Use causa-efeito quando um leva ao outro, ou correlação quando se movimentam juntos sem causalidade direta.</p>
             <div className="space-y-1.5">
-              <Label>Objetivo Origem (Causa)</Label>
+              <Label>Tipo de relação</Label>
+              <Select value={tipo} onValueChange={(v) => setTipo(v as TipoRelacao)}>
+                <SelectTrigger data-testid="select-tipo-relacao"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="causa_efeito">Causa-efeito (origem leva ao destino)</SelectItem>
+                  <SelectItem value="correlacao">Correlação (movem-se juntos)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>{tipo === "causa_efeito" ? "Objetivo Origem (Causa)" : "Primeiro objetivo"}</Label>
               <Select value={origemId} onValueChange={setOrigemId}>
                 <SelectTrigger data-testid="select-origem-bsc"><SelectValue placeholder="Selecione..." /></SelectTrigger>
                 <SelectContent>
@@ -161,9 +196,13 @@ export default function MapaBSC() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex justify-center"><ArrowDown className="h-6 w-6 text-muted-foreground" /></div>
+            <div className="flex justify-center">
+              {tipo === "causa_efeito"
+                ? <ArrowDown className="h-6 w-6 text-muted-foreground" />
+                : <ArrowLeftRight className="h-6 w-6 text-muted-foreground" />}
+            </div>
             <div className="space-y-1.5">
-              <Label>Objetivo Destino (Efeito)</Label>
+              <Label>{tipo === "causa_efeito" ? "Objetivo Destino (Efeito)" : "Segundo objetivo"}</Label>
               <Select value={destinoId} onValueChange={setDestinoId}>
                 <SelectTrigger data-testid="select-destino-bsc"><SelectValue placeholder="Selecione..." /></SelectTrigger>
                 <SelectContent>
@@ -175,7 +214,7 @@ export default function MapaBSC() {
             </div>
             <div className="flex gap-2 justify-end pt-2">
               <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-              <Button onClick={() => createMut.mutate({ origemId, destinoId })} disabled={!origemId || !destinoId || createMut.isPending} data-testid="button-salvar-relacao">
+              <Button onClick={() => createMut.mutate({ origemId, destinoId, tipo })} disabled={!origemId || !destinoId || createMut.isPending} data-testid="button-salvar-relacao">
                 {createMut.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
                 Criar Relação
               </Button>

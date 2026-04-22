@@ -652,6 +652,26 @@ app.use((req, res, next) => {
   if (app.get("env") === "development") {
     await setupVite(app, server);
   } else {
+    // Garante que a porta de entrada (index.html, raiz e rotas SPA)
+    // nunca fique presa em cache do navegador/CDN, evitando que clientes
+    // continuem carregando bundles antigos depois de um deploy. Os arquivos
+    // hash-eados em /assets/* mantêm o cache longo padrão do express.static.
+    app.use((req, res, next) => {
+      const accept = req.headers.accept ?? "";
+      const isHtml =
+        req.method === "GET" &&
+        !req.path.startsWith("/api/") &&
+        !req.path.startsWith("/assets/") &&
+        (req.path === "/" ||
+          req.path.endsWith(".html") ||
+          accept.includes("text/html"));
+      if (isHtml) {
+        res.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+        res.set("Pragma", "no-cache");
+        res.set("Expires", "0");
+      }
+      next();
+    });
     serveStatic(app);
   }
 

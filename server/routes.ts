@@ -1313,6 +1313,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/precos-landing", async (_req, res) => {
     try {
       const list = await storage.getPrecosLandingPlanos();
+      res.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
+      res.set("Pragma", "no-cache");
+      res.set("Expires", "0");
       res.json(list.map(serializePrecoLanding));
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -1323,6 +1326,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/admin/precos-landing", async (_req, res) => {
     try {
       const list = await storage.getPrecosLandingPlanos();
+      res.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");
       res.json(list.map(serializePrecoLanding));
     } catch (error: any) {
       res.status(500).json({ error: error.message });

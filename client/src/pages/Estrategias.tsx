@@ -529,7 +529,8 @@ export default function Estrategias() {
   const { data: empresa } = useQuery<{ id: string; nome: string; setor: string; tamanho: string; descricao?: string | null }>({ queryKey: ["/api/empresa"] });
 
   const { data: oportunidades = [] } = useQuery<Array<{ id: string; titulo: string; estrategiaId?: string | null }>>({
-    queryKey: ["/api/oportunidades-crescimento", undefined],
+    queryKey: ["/api/oportunidades-crescimento", empresa?.id],
+    enabled: !!empresa?.id,
   });
 
   const { data: estrategias = [], isLoading } = useQuery<Estrategia[]>({
@@ -617,7 +618,7 @@ export default function Estrategias() {
         for (const op of response.oportunidades) {
           try { await apiRequest("POST", "/api/oportunidades-crescimento", { ...op, empresaId: empresa.id }); count++; } catch (e) { console.error(e); }
         }
-        queryClient.invalidateQueries({ queryKey: ["/api/oportunidades-crescimento", undefined] });
+        queryClient.invalidateQueries({ queryKey: ["/api/oportunidades-crescimento", empresa.id] });
         toast({ title: "Oportunidades geradas!", description: `${count} oportunidade(s) criadas a partir desta estratégia.` });
       }
     } catch (e: unknown) {

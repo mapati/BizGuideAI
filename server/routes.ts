@@ -5660,53 +5660,47 @@ ${instrucaoAdicional}` : ""}`
         `- ${o.tipo}: ${o.titulo}\n  Descrição: ${o.descricao}`
       ).join("\n\n");
 
-      const completion = await openai.chat.completions.create({
-        model: getModelForPlan(empresa.planoTipo, "relatorios"),
-        messages: await injectMacroCtx([
-          {
-            role: "system",
-            content: `Você é um consultor estratégico sênior especializado em Matriz de Ansoff. Sua missão é identificar oportunidades de crescimento práticas e acionáveis. Use sempre linguagem simples e direta, sem jargões técnicos. Considere também o cenário macroeconômico atual presente no system message (quando disponível) para identificar oportunidades alinhadas ao contexto econômico brasileiro.
+      // Quando a geração parte de uma estratégia específica (botão "Gerar
+      // oportunidades" no card), focamos a IA em desdobrar AQUELA estratégia
+      // — sem forçar uma matriz Ansoff por categoria. A IA escolhe o tipo
+      // Ansoff que melhor classifica cada desdobramento.
+      const modoDerivado = !!estrategiaOrigem && focoSelecionado.length === 0;
+      const totalDerivado = modoDerivado ? Math.max(2, Math.min(4, quantidadePorTipo * 3)) : tiposGerar.length * quantidadePorTipo;
+
+      const systemPrompt = modoDerivado
+        ? `Você é um consultor estratégico sênior. Sua missão é desdobrar uma estratégia específica em oportunidades de crescimento concretas e acionáveis que efetivamente operacionalizem aquela estratégia. Use sempre linguagem simples e direta, sem jargões técnicos. Considere o cenário macroeconômico brasileiro quando disponível.
+
+REGRA CRÍTICA DE ADERÊNCIA À ESTRATÉGIA:
+- TODAS as oportunidades geradas DEVEM ser maneiras concretas de executar/viabilizar a "ESTRATÉGIA DE ORIGEM" descrita abaixo.
+- NÃO gere oportunidades sobre temas não relacionados à estratégia (ex.: se a estratégia é sobre governança, NÃO sugira programas de fidelização, novos produtos, etc.).
+- A Matriz de Ansoff (penetração, desenvolvimento de mercado, desenvolvimento de produto, diversificação) é apenas uma LENTE DE CLASSIFICAÇÃO. Escolha o tipo que melhor se aplica a cada oportunidade — não force categorias que não fazem sentido para a estratégia.
+- Se a estratégia é interna/organizacional (governança, processos, cultura, financeira), use preferencialmente "penetracao_mercado" ou o tipo mais próximo, mas mantenha o conteúdo fiel ao tema da estratégia.
+
+REGRA CRÍTICA DE DUPLICAÇÃO:
+- NUNCA repita oportunidades já listadas em "OPORTUNIDADES JÁ EXISTENTES".`
+        : `Você é um consultor estratégico sênior especializado em Matriz de Ansoff. Sua missão é identificar oportunidades de crescimento práticas e acionáveis. Use sempre linguagem simples e direta, sem jargões técnicos. Considere também o cenário macroeconômico atual presente no system message (quando disponível) para identificar oportunidades alinhadas ao contexto econômico brasileiro.
 
 REGRA CRÍTICA DE DUPLICAÇÃO:
 - Você DEVE analisar cuidadosamente todas as oportunidades já existentes listadas na seção "OPORTUNIDADES JÁ EXISTENTES"
 - NUNCA crie oportunidades que sejam semelhantes, parecidas ou que abordem os mesmos temas das oportunidades existentes
 - Cada nova oportunidade PRECISA ser única, inovadora e diferente de todas as anteriores
-- Se você sugerir algo muito parecido com o que já existe, está violando esta regra crítica`
-          },
-          {
-            role: "user",
-            content: `## PERFIL DA EMPRESA
-${contextoPerfil}
-${usarSwotOpor ? `
-## CONTEXTO ESTRATÉGICO (SWOT):
+- Se você sugerir algo muito parecido com o que já existe, está violando esta regra crítica`;
 
-### FORÇAS:
-${forcas.length > 0 ? forcas.map((f, i) => `${i + 1}. ${f}`).join("\n") : "Nenhuma força identificada"}
+      const tarefaPrompt = modoDerivado
+        ? `## TAREFA:
+Gere EXATAMENTE ${totalDerivado} oportunidade(s) que sejam desdobramentos diretos e fiéis da ESTRATÉGIA DE ORIGEM acima. Cada oportunidade deve responder à pergunta: "Que iniciativa de crescimento concreta operacionaliza essa estratégia?".
 
-### OPORTUNIDADES DE MERCADO:
-${oportunidades.length > 0 ? oportunidades.map((o, i) => `${i + 1}. ${o}`).join("\n") : "Nenhuma oportunidade identificada"}
-` : ""}${estrategiaOrigem ? `
-## ESTRATÉGIA DE ORIGEM (CONTEXTO PRIMÁRIO — todas as oportunidades devem derivar diretamente desta estratégia):
-Tipo: ${estrategiaOrigem.tipo}
-Título: ${estrategiaOrigem.titulo}
-Descrição: ${estrategiaOrigem.descricao}
-` : ""}${usarEstrategiasOpor && estrategiasOporResume ? `
-## ESTRATÉGIAS DEFINIDAS:
-${estrategiasOporResume}
-` : ""}${usarBmcOpor && bmcOporCtx ? `
-## MODELO DE NEGÓCIO (Business Model Canvas):
-${bmcOporCtx}
-` : ""}
-## OPORTUNIDADES JÁ EXISTENTES (NÃO REPITA NENHUMA DELAS):
-${oportunidadesExistentes.length > 0 ? oportunidadesResume : "Nenhuma oportunidade criada ainda - esta é a primeira geração"}
+Não introduza novos temas. Não gere oportunidades genéricas de mercado se a estratégia for interna/organizacional. Se a estratégia for sobre governança, sucessão, processos ou cultura, as oportunidades devem ser desdobramentos DESSA estratégia (ex.: programas, mecanismos, práticas, sistemas) — nunca sugestões aleatórias de produto ou mercado.
 
-${oportunidadesExistentes.length > 0 ? `
-⚠️ ATENÇÃO: Já existem ${oportunidadesExistentes.length} oportunidade(s) cadastrada(s) acima.
-Suas novas sugestões DEVEM ser completamente diferentes e abordar aspectos não cobertos pelas oportunidades existentes.
-Analise cada oportunidade existente antes de sugerir algo novo.
-` : ''}
+Classifique cada oportunidade no tipo Ansoff mais próximo dentre: ${tiposPermitidos.map((t) => `"${t}"`).join(", ")}.
 
-## TAREFA:
+Para cada oportunidade, forneça:
+- tipo: um dos valores acima (escolha o mais aderente ao conteúdo)
+- titulo: Um título objetivo (máx 80 caracteres) que reflita a estratégia de origem
+- descricao: 2-3 frases descrevendo como essa oportunidade desdobra a estratégia
+- potencial: "alto", "médio" ou "baixo"
+- risco: "alto", "médio" ou "baixo"`
+        : `## TAREFA:
 Com base na Matriz de Ansoff, gere EXATAMENTE ${quantidadePorTipo} oportunidade(s) ÚNICA(s) e DIFERENTE(s) para CADA UM dos tipos solicitados abaixo:
 
 ${tiposGerar.map((t) => {
@@ -5726,18 +5720,57 @@ Para cada oportunidade, forneça:
 - titulo: Um título objetivo (máx 80 caracteres)
 - descricao: Descrição detalhada da oportunidade (2-3 frases)
 - potencial: Potencial de crescimento - "alto", "médio" ou "baixo"
-- risco: Nível de risco associado - "alto", "médio" ou "baixo"
+- risco: Nível de risco associado - "alto", "médio" ou "baixo"`;
+
+      const completion = await openai.chat.completions.create({
+        model: getModelForPlan(empresa.planoTipo, "relatorios"),
+        messages: await injectMacroCtx([
+          { role: "system", content: systemPrompt },
+          {
+            role: "user",
+            content: `${estrategiaOrigem ? `## ESTRATÉGIA DE ORIGEM (CONTEXTO PRIMÁRIO — todas as oportunidades devem derivar diretamente desta estratégia):
+Tipo: ${estrategiaOrigem.tipo}
+Título: ${estrategiaOrigem.titulo}
+Descrição: ${estrategiaOrigem.descricao}
+
+` : ""}## PERFIL DA EMPRESA
+${contextoPerfil}
+${usarSwotOpor && !modoDerivado ? `
+## CONTEXTO ESTRATÉGICO (SWOT):
+
+### FORÇAS:
+${forcas.length > 0 ? forcas.map((f, i) => `${i + 1}. ${f}`).join("\n") : "Nenhuma força identificada"}
+
+### OPORTUNIDADES DE MERCADO:
+${oportunidades.length > 0 ? oportunidades.map((o, i) => `${i + 1}. ${o}`).join("\n") : "Nenhuma oportunidade identificada"}
+` : ""}${usarEstrategiasOpor && estrategiasOporResume && !modoDerivado ? `
+## ESTRATÉGIAS DEFINIDAS:
+${estrategiasOporResume}
+` : ""}${usarBmcOpor && bmcOporCtx ? `
+## MODELO DE NEGÓCIO (Business Model Canvas):
+${bmcOporCtx}
+` : ""}
+## OPORTUNIDADES JÁ EXISTENTES (NÃO REPITA NENHUMA DELAS):
+${oportunidadesExistentes.length > 0 ? oportunidadesResume : "Nenhuma oportunidade criada ainda - esta é a primeira geração"}
+
+${oportunidadesExistentes.length > 0 ? `
+⚠️ ATENÇÃO: Já existem ${oportunidadesExistentes.length} oportunidade(s) cadastrada(s) acima.
+Suas novas sugestões DEVEM ser completamente diferentes e abordar aspectos não cobertos pelas oportunidades existentes.
+Analise cada oportunidade existente antes de sugerir algo novo.
+` : ''}
+
+${tarefaPrompt}
 
 Responda OBRIGATORIAMENTE em JSON com este formato exato:
 {
   "oportunidades": [
-    {"tipo": "${tiposGerar[0]}", "titulo": "...", "descricao": "...", "potencial": "alto", "risco": "baixo"}
+    {"tipo": "${(modoDerivado ? tiposPermitidos : tiposGerar)[0]}", "titulo": "...", "descricao": "...", "potencial": "alto", "risco": "baixo"}
   ]
 }${instrucaoAdicionalOpor ? `\n\n## INSTRUÇÕES ADICIONAIS DO USUÁRIO:\n${instrucaoAdicionalOpor}` : ""}`
           }
         ]),
         response_format: { type: "json_object" },
-        temperature: 0.8,
+        temperature: modoDerivado ? 0.6 : 0.8,
       });
 
       const sugestoes = JSON.parse(completion.choices[0].message.content || "{}");

@@ -40,10 +40,42 @@ import {
 } from "@/components/ui/select";
 
 const perspectivas = [
-  { valor: "Financeira", label: "Financeira", icon: DollarSign, cor: "bg-green-500" },
-  { valor: "Clientes", label: "Clientes", icon: Users, cor: "bg-blue-500" },
-  { valor: "Processos Internos", label: "Processos Internos", icon: Cog, cor: "bg-orange-500" },
-  { valor: "Aprendizado e Crescimento", label: "Aprendizado e Crescimento", icon: GraduationCap, cor: "bg-purple-500" },
+  {
+    valor: "Financeira",
+    label: "Financeira",
+    icon: DollarSign,
+    iconBg: "bg-emerald-100 dark:bg-emerald-950",
+    iconText: "text-emerald-700 dark:text-emerald-300",
+    borderTop: "border-t-4 border-t-emerald-500 dark:border-t-emerald-600",
+    headerBg: "bg-emerald-50/60 dark:bg-emerald-950/30",
+  },
+  {
+    valor: "Clientes",
+    label: "Clientes",
+    icon: Users,
+    iconBg: "bg-sky-100 dark:bg-sky-950",
+    iconText: "text-sky-700 dark:text-sky-300",
+    borderTop: "border-t-4 border-t-sky-500 dark:border-t-sky-600",
+    headerBg: "bg-sky-50/60 dark:bg-sky-950/30",
+  },
+  {
+    valor: "Processos Internos",
+    label: "Processos Internos",
+    icon: Cog,
+    iconBg: "bg-amber-100 dark:bg-amber-950",
+    iconText: "text-amber-700 dark:text-amber-300",
+    borderTop: "border-t-4 border-t-amber-500 dark:border-t-amber-600",
+    headerBg: "bg-amber-50/60 dark:bg-amber-950/30",
+  },
+  {
+    valor: "Aprendizado e Crescimento",
+    label: "Aprendizado e Crescimento",
+    icon: GraduationCap,
+    iconBg: "bg-violet-100 dark:bg-violet-950",
+    iconText: "text-violet-700 dark:text-violet-300",
+    borderTop: "border-t-4 border-t-violet-500 dark:border-t-violet-600",
+    headerBg: "bg-violet-50/60 dark:bg-violet-950/30",
+  },
 ];
 
 type Membro = { id: string; nome: string; email: string };
@@ -1583,12 +1615,16 @@ export default function OKRs() {
             const objs = objetivosPorPerspectiva(perspectiva.valor);
             
             return (
-              <Card key={perspectiva.valor} className="p-4 sm:p-6 min-w-0 overflow-hidden" data-testid={`card-perspectiva-${perspectiva.valor}`}>
-                <div className="flex items-center justify-between gap-2 flex-wrap mb-4 pb-4 border-b">
+              <Card
+                key={perspectiva.valor}
+                className={`min-w-0 overflow-hidden ${perspectiva.borderTop}`}
+                data-testid={`card-perspectiva-${perspectiva.valor}`}
+              >
+                <div className={`flex items-center justify-between gap-2 flex-wrap p-4 sm:p-5 border-b ${perspectiva.headerBg}`}>
                   <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className={`h-10 w-10 rounded-full ${perspectiva.cor} flex items-center justify-center flex-shrink-0`}>
-                      <Icon className="h-5 w-5 text-white" />
-                    </div>
+                    <span className={`inline-flex h-10 w-10 items-center justify-center rounded-md ${perspectiva.iconBg} flex-shrink-0`}>
+                      <Icon className={`h-5 w-5 ${perspectiva.iconText}`} />
+                    </span>
                     <div className="min-w-0">
                       <h3 className="font-semibold text-base sm:text-lg truncate">{perspectiva.label}</h3>
                       <p className="text-sm text-muted-foreground">{objs.length} objetivo(s)</p>
@@ -1611,7 +1647,7 @@ export default function OKRs() {
                   </Button>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-3 p-4 sm:p-5">
                   {objs.length === 0 ? (
                     <div className="text-center py-8 text-sm text-muted-foreground">
                       Nenhum objetivo nesta perspectiva

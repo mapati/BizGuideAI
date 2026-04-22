@@ -43,24 +43,15 @@ function isExpiredDate(prazo: string): boolean {
   return d < today;
 }
 
-export function useAssistantStatus(): AssistantStatus {
-  const { empresa } = useAuth();
-  const [location] = useLocation();
-  const enabled = !!empresa?.id;
+// Derivação pura usada pelo hook. Exportada para permitir testes
+// unitários sem React/RTL. Mantém Task #248: indicadores são filtrados
+// por filterAcompanhamento antes de qualquer contagem.
+export function deriveAssistantStatus(
+  indicadores: IndicadorItem[],
+  iniciativas: IniciativaItem[],
+  location: string,
+): AssistantStatus {
   const isAnalysisPage = location in ANALYSIS_PAGES;
-
-  const { data: indicadores = [] } = useQuery<IndicadorItem[]>({
-    queryKey: ["/api/indicadores"],
-    enabled: enabled && isAnalysisPage,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const { data: iniciativas = [] } = useQuery<IniciativaItem[]>({
-    queryKey: ["/api/iniciativas", empresa?.id],
-    enabled: enabled && isAnalysisPage,
-    staleTime: 5 * 60 * 1000,
-  });
-
   if (!isAnalysisPage) {
     return {
       nivel: "neutro",
@@ -72,8 +63,6 @@ export function useAssistantStatus(): AssistantStatus {
 
   const alertas: Alerta[] = [];
 
-  // Task #248 — Sinais do Assistente devem considerar apenas indicadores
-  // de acompanhamento (BSC), nunca o diagnóstico inicial.
   const indicadoresAcompanhamento = filterAcompanhamento(indicadores);
   const vermelhosKpi = indicadoresAcompanhamento.filter((i) => i.status === "vermelho");
 
@@ -117,4 +106,25 @@ export function useAssistantStatus(): AssistantStatus {
   const pagina = ANALYSIS_PAGES[location] ?? null;
 
   return { nivel, preview, alertas, pagina };
+}
+
+export function useAssistantStatus(): AssistantStatus {
+  const { empresa } = useAuth();
+  const [location] = useLocation();
+  const enabled = !!empresa?.id;
+  const isAnalysisPage = location in ANALYSIS_PAGES;
+
+  const { data: indicadores = [] } = useQuery<IndicadorItem[]>({
+    queryKey: ["/api/indicadores"],
+    enabled: enabled && isAnalysisPage,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: iniciativas = [] } = useQuery<IniciativaItem[]>({
+    queryKey: ["/api/iniciativas", empresa?.id],
+    enabled: enabled && isAnalysisPage,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  return deriveAssistantStatus(indicadores, iniciativas, location);
 }

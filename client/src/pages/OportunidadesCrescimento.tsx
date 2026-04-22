@@ -61,14 +61,58 @@ const RiscoBadge = ({ risco }: { risco: "alto" | "médio" | "baixo" }) => {
   );
 };
 
-const TipoIcon = ({ tipo }: { tipo: string }) => {
-  const icons = {
-    penetracao_mercado: <Target className="h-5 w-5 text-blue-600" />,
-    desenvolvimento_mercado: <Users className="h-5 w-5 text-purple-600" />,
-    desenvolvimento_produto: <Package className="h-5 w-5 text-green-600" />,
-    diversificacao: <Rocket className="h-5 w-5 text-orange-600" />,
-  };
-  return icons[tipo as keyof typeof icons] || null;
+type TipoAnsoff = "penetracao_mercado" | "desenvolvimento_mercado" | "desenvolvimento_produto" | "diversificacao";
+
+const ANSOFF_THEME: Record<
+  TipoAnsoff,
+  {
+    icon: typeof Target;
+    iconBg: string;
+    iconText: string;
+    borderTop: string;
+    headerBg: string;
+    accentText: string;
+  }
+> = {
+  penetracao_mercado: {
+    icon: Target,
+    iconBg: "bg-sky-100 dark:bg-sky-950",
+    iconText: "text-sky-700 dark:text-sky-300",
+    borderTop: "border-t-4 border-t-sky-500 dark:border-t-sky-600",
+    headerBg: "bg-sky-50/60 dark:bg-sky-950/30",
+    accentText: "text-sky-700 dark:text-sky-300",
+  },
+  desenvolvimento_mercado: {
+    icon: Users,
+    iconBg: "bg-violet-100 dark:bg-violet-950",
+    iconText: "text-violet-700 dark:text-violet-300",
+    borderTop: "border-t-4 border-t-violet-500 dark:border-t-violet-600",
+    headerBg: "bg-violet-50/60 dark:bg-violet-950/30",
+    accentText: "text-violet-700 dark:text-violet-300",
+  },
+  desenvolvimento_produto: {
+    icon: Package,
+    iconBg: "bg-emerald-100 dark:bg-emerald-950",
+    iconText: "text-emerald-700 dark:text-emerald-300",
+    borderTop: "border-t-4 border-t-emerald-500 dark:border-t-emerald-600",
+    headerBg: "bg-emerald-50/60 dark:bg-emerald-950/30",
+    accentText: "text-emerald-700 dark:text-emerald-300",
+  },
+  diversificacao: {
+    icon: Rocket,
+    iconBg: "bg-amber-100 dark:bg-amber-950",
+    iconText: "text-amber-700 dark:text-amber-300",
+    borderTop: "border-t-4 border-t-amber-500 dark:border-t-amber-600",
+    headerBg: "bg-amber-50/60 dark:bg-amber-950/30",
+    accentText: "text-amber-700 dark:text-amber-300",
+  },
+};
+
+const TipoIcon = ({ tipo, className = "h-5 w-5" }: { tipo: string; className?: string }) => {
+  const cfg = ANSOFF_THEME[tipo as TipoAnsoff];
+  if (!cfg) return null;
+  const Icon = cfg.icon;
+  return <Icon className={`${className} ${cfg.iconText}`} />;
 };
 
 export default function OportunidadesCrescimento() {
@@ -622,21 +666,30 @@ export default function OportunidadesCrescimento() {
         <div className="mt-8 space-y-6">
           {Object.entries(oportunidadesPorTipo).map(([tipo, oportunidadesList]) => {
             if (oportunidadesList.length === 0) return null;
-            
+            const cfg = ANSOFF_THEME[tipo as TipoAnsoff];
+
             return (
               <div key={tipo}>
-                <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                  <TipoIcon tipo={tipo} />
-                  {getTipoLabel(tipo)}
-                  <span className="text-sm font-normal text-muted-foreground">({getTipoDesc(tipo)})</span>
-                </h3>
+                <div className={`flex items-center gap-3 mb-3 px-3 py-2 rounded-md ${cfg?.headerBg ?? ""}`}>
+                  <span className={`inline-flex h-9 w-9 items-center justify-center rounded-md ${cfg?.iconBg ?? ""}`}>
+                    <TipoIcon tipo={tipo} />
+                  </span>
+                  <div className="flex flex-col">
+                    <h3 className={`text-lg font-semibold leading-tight ${cfg?.accentText ?? ""}`}>{getTipoLabel(tipo)}</h3>
+                    <span className="text-xs text-muted-foreground">{getTipoDesc(tipo)}</span>
+                  </div>
+                </div>
                 <div className="grid gap-4 md:grid-cols-2">
                   {oportunidadesList.map((oportunidade) => (
-                    <Card key={oportunidade.id} className="p-4 hover-elevate" data-testid={`card-oportunidade-${oportunidade.id}`}>
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="flex items-center gap-2">
-                          <TipoIcon tipo={oportunidade.tipo} />
-                          <h4 className="font-semibold" data-testid={`text-titulo-${oportunidade.id}`}>{oportunidade.titulo}</h4>
+                    <Card
+                      key={oportunidade.id}
+                      className={`p-4 hover-elevate ${ANSOFF_THEME[oportunidade.tipo as TipoAnsoff]?.borderTop ?? ""}`}
+                      data-testid={`card-oportunidade-${oportunidade.id}`}
+                    >
+                      <div className="flex justify-between items-start mb-2 gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <TipoIcon tipo={oportunidade.tipo} className="h-4 w-4 shrink-0" />
+                          <h4 className="font-semibold truncate" data-testid={`text-titulo-${oportunidade.id}`}>{oportunidade.titulo}</h4>
                         </div>
                         <div className="flex gap-1">
                           <Button

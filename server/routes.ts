@@ -7813,6 +7813,31 @@ Responda APENAS com JSON: { "respostaEstrategica": "..." }`,
       res.json(await storage.getRevisoesAgendadas(req.session.empresaId!, { status }));
     } catch (e: any) { res.status(500).json({ error: e.message }); }
   });
+  app.patch("/api/ritos/decisoes/:id", requireAuth, async (req, res) => {
+    try {
+      const patchSchema = z.object({
+        titulo: z.string().min(1).max(300).optional(),
+        contexto: z.string().max(4000).optional(),
+        escolha: z.string().min(1).max(2000).optional(),
+        justificativa: z.string().max(4000).optional(),
+      });
+      const patch = patchSchema.parse(req.body);
+      const row = await storage.updateDecisaoEstrategica(req.params.id, req.session.empresaId!, patch);
+      res.json(row);
+    } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+  app.delete("/api/ritos/decisoes/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteDecisaoEstrategica(req.params.id, req.session.empresaId!);
+      res.json({ ok: true });
+    } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
+  app.delete("/api/ritos/revisoes/:id", requireAuth, async (req, res) => {
+    try {
+      await storage.deleteRevisaoAgendada(req.params.id, req.session.empresaId!);
+      res.json({ ok: true });
+    } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
   app.patch("/api/ritos/revisoes/:id", requireAuth, async (req, res) => {
     try {
       const patchSchema = z.object({

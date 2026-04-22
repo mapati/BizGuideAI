@@ -360,10 +360,13 @@ export interface IStorage {
   getReuniaoAtas(empresaId: string, limit?: number): Promise<ReuniaoAta[]>;
   createDecisaoEstrategica(data: InsertDecisaoEstrategica): Promise<DecisaoEstrategica>;
   getDecisoesEstrategicas(empresaId: string, limit?: number): Promise<DecisaoEstrategica[]>;
+  updateDecisaoEstrategica(id: string, empresaId: string, patch: Partial<InsertDecisaoEstrategica>): Promise<DecisaoEstrategica>;
+  deleteDecisaoEstrategica(id: string, empresaId: string): Promise<void>;
   createRevisaoAgendada(data: InsertRevisaoAgendada): Promise<RevisaoAgendada>;
   getRevisoesAgendadas(empresaId: string, opts?: { status?: string; limit?: number }): Promise<RevisaoAgendada[]>;
   getRevisoesPendentesAteData(empresaId: string, dataIso: string): Promise<RevisaoAgendada[]>;
   updateRevisaoAgendada(id: string, empresaId: string, patch: Partial<InsertRevisaoAgendada> & { status?: string; concluidaEm?: Date | null }): Promise<RevisaoAgendada>;
+  deleteRevisaoAgendada(id: string, empresaId: string): Promise<void>;
 }
 
 export type ResetGrupo = "diagnostico" | "mapa" | "plano-acao" | "execucao" | "tudo";
@@ -1863,6 +1866,24 @@ export class DbStorage implements IStorage {
       .orderBy(desc(decisoesEstrategicas.registradaEm))
       .limit(limit);
   }
+  async updateDecisaoEstrategica(
+    id: string,
+    empresaId: string,
+    patch: Partial<InsertDecisaoEstrategica>,
+  ): Promise<DecisaoEstrategica> {
+    const [row] = await db.update(decisoesEstrategicas)
+      .set(omitTenantFields(patch as Record<string, unknown>) as any)
+      .where(and(eq(decisoesEstrategicas.id, id), eq(decisoesEstrategicas.empresaId, empresaId)))
+      .returning();
+    if (!row) throw new Error("Decisão não encontrada ou acesso negado");
+    return row;
+  }
+  async deleteDecisaoEstrategica(id: string, empresaId: string): Promise<void> {
+    const result = await db.delete(decisoesEstrategicas)
+      .where(and(eq(decisoesEstrategicas.id, id), eq(decisoesEstrategicas.empresaId, empresaId)))
+      .returning();
+    if (!result[0]) throw new Error("Decisão não encontrada ou acesso negado");
+  }
   async createRevisaoAgendada(data: InsertRevisaoAgendada): Promise<RevisaoAgendada> {
     const [row] = await db.insert(revisoesAgendadas).values(data).returning();
     return row;
@@ -1894,6 +1915,12 @@ export class DbStorage implements IStorage {
       .returning();
     if (!row) throw new Error("Revisão não encontrada ou acesso negado");
     return row;
+  }
+  async deleteRevisaoAgendada(id: string, empresaId: string): Promise<void> {
+    const result = await db.delete(revisoesAgendadas)
+      .where(and(eq(revisoesAgendadas.id, id), eq(revisoesAgendadas.empresaId, empresaId)))
+      .returning();
+    if (!result[0]) throw new Error("Revisão não encontrada ou acesso negado");
   }
 }
 

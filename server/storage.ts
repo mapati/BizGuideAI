@@ -1033,6 +1033,8 @@ export class DbStorage implements IStorage {
         titulo: f.titulo,
         descricao: f.descricao,
         prazo: f.prazo,
+        // Task #268 — propaga prazo calendarizado quando a tool informar.
+        prazoData: f.prazoData ?? null,
         status: f.status ?? "planejada",
         prioridade: f.prioridade ?? mae.prioridade ?? "média",
         responsavel: f.responsavel ?? mae.responsavel ?? "",

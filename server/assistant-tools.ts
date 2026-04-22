@@ -119,12 +119,32 @@ function strField(label: string, valor: string | undefined | null) {
   return { label, valor: String(valor) };
 }
 
+// Task #266/#268 — `prazoData` (YYYY-MM-DD) é a forma normalizada do prazo,
+// que alimenta o pipeline de "atrasado" usado pela UI/dashboard. A IA deve
+// preenchê-la sempre que o usuário disser uma data explícita
+// (ex.: "até 31/12/2025"); `prazo` continua aceitando texto livre como
+// "Q4 2025" para retrocompatibilidade. Helpers ficam aqui no topo para
+// poderem ser reutilizados pelos schemas de iniciativa e OKR.
+const PRAZO_DATA_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const prazoDataOpt = z
+  .string()
+  .regex(PRAZO_DATA_REGEX, "prazoData deve ser YYYY-MM-DD")
+  .optional();
+const prazoDataOptNullable = z
+  .string()
+  .regex(PRAZO_DATA_REGEX, "prazoData deve ser YYYY-MM-DD")
+  .nullable()
+  .optional();
+
 // ---------- 1. criar_iniciativa ----------
 const criarIniciativaSchema = z.object({
   titulo: z.string().min(3).max(200),
   descricao: z.string().min(3).max(1000),
   prioridade: z.enum(PRIORIDADES).default("média"),
   prazo: z.string().min(4).max(32), // YYYY-MM-DD ou texto livre
+  // Task #268 — prazo calendarizado opcional, espelha o picker de prazo
+  // da UI de Iniciativas e alimenta o cálculo de atraso.
+  prazoData: prazoDataOpt,
   status: z.enum(STATUS_INICIATIVA).default("planejada"),
   responsavel: z.string().max(120).default(""),
   impacto: z.string().max(500).default(""),
@@ -147,7 +167,8 @@ const criarIniciativa: ToolDefinition<CriarIniciativaParams> = {
       titulo: { type: "string", description: "Nome curto da iniciativa (≤120 chars)" },
       descricao: { type: "string", description: "O que será feito, em 1-3 frases" },
       prioridade: { type: "string", enum: ["alta", "média", "baixa"] },
-      prazo: { type: "string", description: "Prazo no formato YYYY-MM-DD ou texto curto" },
+      prazo: { type: "string", description: "Texto livre do prazo (ex.: 'Q4 2025'). Para datas calendarizadas, use também prazoData." },
+      prazoData: { type: "string", description: "Prazo da iniciativa em YYYY-MM-DD. Preencha sempre que o usuário disser uma data calendarizada (ex.: 'até 31/12/2025'). Alimenta o cálculo de atraso na UI." },
       status: { type: "string", enum: [...STATUS_INICIATIVA] },
       responsavel: { type: "string", description: "Nome do responsável (string livre)" },
       impacto: { type: "string", description: "Impacto esperado em 1 frase" },
@@ -160,7 +181,7 @@ const criarIniciativa: ToolDefinition<CriarIniciativaParams> = {
     descricao: p.descricao,
     campos: [
       strField("Prioridade", p.prioridade),
-      strField("Prazo", p.prazo),
+      strField("Prazo", p.prazoData ? `${p.prazo} (${p.prazoData})` : p.prazo),
       strField("Responsável", p.responsavel),
       strField("Impacto esperado", p.impacto),
     ].filter(Boolean) as { label: string; valor: string }[],
@@ -190,6 +211,7 @@ const criarIniciativa: ToolDefinition<CriarIniciativaParams> = {
       status: p.status,
       prioridade: p.prioridade,
       prazo: p.prazo,
+      prazoData: p.prazoData ?? null,
       responsavel: p.responsavel || "",
       impacto: p.impacto || "",
       estrategiaId: estrategiaIdSafe,
@@ -213,6 +235,9 @@ const atualizarIniciativaSchema = z.object({
   descricao: z.string().max(1000).optional(),
   prioridade: z.enum(PRIORIDADES).optional(),
   prazo: z.string().max(32).optional(),
+  // Task #268 — passe `prazoData` (YYYY-MM-DD) para calendarizar o prazo
+  // da iniciativa, ou `null` para limpar a data normalizada.
+  prazoData: prazoDataOptNullable,
   status: z.enum(STATUS_INICIATIVA).optional(),
   responsavel: z.string().max(120).optional(),
 });
@@ -232,7 +257,8 @@ const atualizarIniciativa: ToolDefinition<AtualizarIniciativaParams> = {
       titulo: { type: "string" },
       descricao: { type: "string" },
       prioridade: { type: "string", enum: ["alta", "média", "baixa"] },
-      prazo: { type: "string" },
+      prazo: { type: "string", description: "Texto livre do prazo. Para datas calendarizadas, use também prazoData." },
+      prazoData: { type: ["string", "null"], description: "Prazo calendarizado em YYYY-MM-DD; passe null para limpar a data normalizada." },
       status: { type: "string", enum: [...STATUS_INICIATIVA] },
       responsavel: { type: "string" },
     },
@@ -246,6 +272,9 @@ const atualizarIniciativa: ToolDefinition<AtualizarIniciativaParams> = {
       strField("Status", p.status),
       strField("Prioridade", p.prioridade),
       strField("Prazo", p.prazo),
+      p.prazoData === null
+        ? { label: "Prazo (data)", valor: "(limpar)" }
+        : strField("Prazo (data)", p.prazoData ?? undefined),
       strField("Responsável", p.responsavel),
     ].filter(Boolean) as { label: string; valor: string }[],
     ctaConfirmar: "Aplicar mudanças",
@@ -262,6 +291,7 @@ const atualizarIniciativa: ToolDefinition<AtualizarIniciativaParams> = {
     if (p.descricao) patch.descricao = p.descricao;
     if (p.prioridade) patch.prioridade = p.prioridade;
     if (p.prazo) patch.prazo = p.prazo;
+    if (p.prazoData !== undefined) patch.prazoData = p.prazoData;
     if (p.status) patch.status = p.status;
     if (p.responsavel !== undefined) patch.responsavel = p.responsavel;
     const updated = await storage.updateIniciativa(p.id, ctx.empresaId, patch);
@@ -404,6 +434,8 @@ const subitemDividirSchema = z.object({
   titulo: z.string().min(3).max(200),
   descricao: z.string().min(3).max(1000),
   prazo: z.string().min(4).max(32),
+  // Task #268 — sub-iniciativas também propagam prazo calendarizado.
+  prazoData: prazoDataOpt,
   prioridade: z.enum(PRIORIDADES).optional(),
   responsavel: z.string().max(120).optional(),
 });
@@ -435,7 +467,8 @@ const dividirIniciativa: ToolDefinition<DividirIniciativaParams> = {
           properties: {
             titulo: { type: "string" },
             descricao: { type: "string" },
-            prazo: { type: "string", description: "YYYY-MM-DD ou texto curto" },
+            prazo: { type: "string", description: "Texto livre do prazo. Para datas calendarizadas, use também prazoData." },
+            prazoData: { type: "string", description: "Prazo da sub-iniciativa em YYYY-MM-DD. Preencha sempre que o usuário disser uma data calendarizada." },
             prioridade: { type: "string", enum: ["alta", "média", "baixa"] },
             responsavel: { type: "string" },
           },
@@ -450,7 +483,7 @@ const dividirIniciativa: ToolDefinition<DividirIniciativaParams> = {
       { label: "Iniciativa-mãe", valor: p.iniciativaId },
       ...p.subitens.map((s, i) => ({
         label: `Filha ${i + 1}`,
-        valor: `${s.titulo} (prazo ${s.prazo}${s.responsavel ? `, ${s.responsavel}` : ""})`,
+        valor: `${s.titulo} (prazo ${s.prazoData ? `${s.prazo} / ${s.prazoData}` : s.prazo}${s.responsavel ? `, ${s.responsavel}` : ""})`,
       })),
     ],
     ctaConfirmar: "Dividir e encerrar mãe",
@@ -467,6 +500,7 @@ const dividirIniciativa: ToolDefinition<DividirIniciativaParams> = {
         titulo: s.titulo,
         descricao: s.descricao,
         prazo: s.prazo,
+        prazoData: s.prazoData ?? null,
         prioridade: s.prioridade,
         responsavel: s.responsavel,
       })),
@@ -484,22 +518,8 @@ const dividirIniciativa: ToolDefinition<DividirIniciativaParams> = {
 };
 
 // ---------- 3. criar_okr ----------
-// Task #266 — `prazoData` (YYYY-MM-DD) é a forma normalizada do prazo, que
-// alimenta o pipeline de "atrasado" usado pela UI/dashboard. A IA deve
-// preenchê-la sempre que o usuário disser uma data explícita
-// (ex.: "até 31/12/2025"); `prazo` continua aceitando texto livre como
-// "Q4 2025" para retrocompatibilidade.
-const PRAZO_DATA_REGEX = /^\d{4}-\d{2}-\d{2}$/;
-const prazoDataOpt = z
-  .string()
-  .regex(PRAZO_DATA_REGEX, "prazoData deve ser YYYY-MM-DD")
-  .optional();
-const prazoDataOptNullable = z
-  .string()
-  .regex(PRAZO_DATA_REGEX, "prazoData deve ser YYYY-MM-DD")
-  .nullable()
-  .optional();
-
+// Task #266 — usa os helpers `prazoDataOpt` / `prazoDataOptNullable`
+// definidos no topo do arquivo (compartilhados com as tools de iniciativa).
 const criarOkrSchema = z.object({
   objetivoTitulo: z.string().min(3).max(200),
   objetivoDescricao: z.string().max(800).default(""),

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Home, Map, Target, TrendingUp, CheckCircle, FileText, Compass, Layers, Grid3x3, ListChecks, Briefcase, LogOut, BarChart3, ShieldCheck, Users, CheckCircle2, Circle, ArrowRight, ClipboardList, CloudLightning, ShieldAlert, Network, Share2, GitBranch, Bell, Zap, UserCircle, Calendar } from "lucide-react";
+import { Home, Map, Target, TrendingUp, CheckCircle, FileText, Compass, Layers, Grid3x3, ListChecks, Briefcase, LogOut, BarChart3, ShieldCheck, Users, CheckCircle2, Circle, ArrowRight, ClipboardList, CloudLightning, ShieldAlert, Network, Share2, GitBranch, Bell, Zap, UserCircle, Calendar, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -65,20 +65,28 @@ function isEtapaBloqueada(jornadaId: string | null, etapas: ReturnType<typeof us
 }
 
 function SidebarHeaderContent() {
-  const { state } = useSidebar();
-  const isCollapsed = state === "collapsed";
+  const { toggleSidebar } = useSidebar();
 
   return (
-    <Link href="/" data-testid="link-home">
-      <div className="flex items-center gap-2 cursor-pointer">
-        <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center flex-shrink-0">
-          <Target className="h-5 w-5 text-primary-foreground" />
+    <div className="flex items-center justify-between gap-2">
+      <Link href="/" data-testid="link-home" className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 cursor-pointer">
+          <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center flex-shrink-0">
+            <Target className="h-5 w-5 text-primary-foreground" />
+          </div>
+          <span className="text-lg font-semibold truncate">BizGuideAI</span>
         </div>
-        {!isCollapsed && (
-          <span className="text-lg font-semibold group-data-[collapsible=icon]:hidden">BizGuideAI</span>
-        )}
-      </div>
-    </Link>
+      </Link>
+      <Button
+        size="icon"
+        variant="ghost"
+        onClick={toggleSidebar}
+        title="Fechar menu"
+        data-testid="button-sidebar-close"
+      >
+        <PanelLeftClose className="h-4 w-4" />
+      </Button>
+    </div>
   );
 }
 
@@ -188,7 +196,7 @@ export function AppSidebar() {
     : null;
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="offcanvas">
       <SidebarHeader className="border-b p-4">
         <SidebarHeaderContent />
       </SidebarHeader>

@@ -3,7 +3,10 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
+import { Button } from "@/components/ui/button";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { PanelLeftOpen, Target } from "lucide-react";
 import { AppSidebar } from "@/components/AppSidebar";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { AssistantSidebar } from "@/components/AssistantSidebar";
@@ -218,22 +221,53 @@ function AppLayout() {
     "--sidebar-width-icon": "4rem",
   };
 
+  const LeftSidebarOpenStrip = () => {
+    const { open, setOpen, isMobile } = useSidebar();
+    if (open) return null;
+    if (isMobile) {
+      return (
+        <Button
+          size="icon"
+          variant="default"
+          onClick={() => setOpen(true)}
+          className="fixed bottom-4 left-4 rounded-full shadow-lg z-40"
+          title="Abrir menu"
+          data-testid="button-sidebar-toggle"
+        >
+          <Target className="h-4 w-4" />
+        </Button>
+      );
+    }
+    return (
+      <aside className="bg-background border-r flex flex-col flex-shrink-0 w-12">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="flex flex-col items-center gap-3 py-3 w-full hover-elevate"
+          title="Abrir menu"
+          data-testid="button-sidebar-toggle"
+        >
+          <PanelLeftOpen className="h-4 w-4 text-muted-foreground" />
+          <Target className="h-4 w-4 text-primary" />
+        </button>
+      </aside>
+    );
+  };
+
   const showTrialBanner = trialInfo?.planoStatus === "trial" && trialInfo?.diasRestantes !== null;
   const showUpgradeBanner = trialInfo?.planoStatus === "ativo" && (empresa?.planoTipo === "start" || !empresa?.planoTipo);
 
   return (
     <SidebarProvider defaultOpen={false} style={style as React.CSSProperties}>
       <div className="flex h-screen w-full flex-col">
-        {showTrialBanner && trialInfo.diasRestantes !== null && (
-          <TrialStatusBanner diasRestantes={trialInfo.diasRestantes} />
+        {showTrialBanner && trialInfo!.diasRestantes !== null && (
+          <TrialStatusBanner diasRestantes={trialInfo!.diasRestantes} />
         )}
         {showUpgradeBanner && <UpgradeBanner />}
         <div className="flex flex-1 overflow-hidden">
           <AppSidebar />
+          <LeftSidebarOpenStrip />
           <div className="flex flex-col flex-1 overflow-hidden min-w-0">
-            <header className="flex items-center justify-between p-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-              <SidebarTrigger data-testid="button-sidebar-toggle" />
-            </header>
             <main className="flex-1 overflow-auto p-8">
               <Switch>
                 <Route path="/" component={Home} />

@@ -795,8 +795,10 @@ export default function LandingPage() {
           className="absolute left-0 right-0 pointer-events-none"
           style={{
             height: "1px",
-            background: "linear-gradient(90deg, transparent 0%, rgba(99,102,241,0.35) 30%, rgba(56,189,248,0.35) 70%, transparent 100%)",
-            animation: "hero-scan 10s ease-in-out infinite",
+            background: "linear-gradient(90deg, transparent 0%, rgba(165,180,252,0.45) 30%, rgba(255,255,255,0.6) 50%, rgba(125,211,252,0.45) 70%, transparent 100%)",
+            boxShadow: "0 0 6px 1px rgba(99,102,241,0.25), 0 0 18px 3px rgba(56,189,248,0.15)",
+            filter: "blur(0.3px)",
+            animation: "hero-scan 5s ease-in-out infinite",
             animationDelay: "1s",
           }}
         />

@@ -388,14 +388,17 @@
 
 @keyframes hero-scan {
   0% {
-    top: -1px;
+    top: -2px;
     opacity: 0;
   }
-  5% {
+  10% {
+    opacity: 0.85;
+  }
+  50% {
     opacity: 1;
   }
-  95% {
-    opacity: 1;
+  90% {
+    opacity: 0.85;
   }
   100% {
     top: 100%;

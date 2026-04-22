@@ -46,6 +46,17 @@ export function AIAssistant() {
     setIsOpen(true);
   }, [progresso.jornadaConcluida, progresso.isLoading]);
 
+  // Permite que componentes filhos (ex.: PropostaCard ao "Ajustar") fechem
+  // o assistente para não sobrepor formulários de edição.
+  useEffect(() => {
+    const onClose = () => {
+      setIsOpen(false);
+      setShowUnlock(false);
+    };
+    window.addEventListener("biz-assistant:close", onClose);
+    return () => window.removeEventListener("biz-assistant:close", onClose);
+  }, []);
+
   // Briefing proativo — busca para alimentar o preview do chip, mas NÃO abre
   // o drawer sozinho. O cartão na Home e a página /assistente são os pontos
   // de entrada principais; o usuário abre o chat manualmente quando quiser.

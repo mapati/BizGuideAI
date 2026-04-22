@@ -205,6 +205,9 @@ export function PropostaCard({
         description: "Abrindo o formulário com os campos sugeridos.",
       });
       const url = construirUrlAjuste(r.formRota, r.ferramenta, r.parametros);
+      // Fecha o assistente para que o formulário de ajuste apareça sem
+      // sobreposição. AIAssistant escuta este evento e baixa o drawer.
+      window.dispatchEvent(new CustomEvent("biz-assistant:close"));
       setTimeout(() => navigate(url), 400);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

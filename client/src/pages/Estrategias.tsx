@@ -59,6 +59,63 @@ const STATUS_CONFIG = {
   concluida: { label: "Concluída", icon: CheckCircle2, className: "text-green-600 dark:text-green-400" },
 };
 
+type TipoEstrategia = "FO" | "FA" | "DO" | "DA";
+
+const STRATEGY_THEME: Record<
+  TipoEstrategia,
+  {
+    label: string;
+    sublabel: string;
+    icon: typeof ArrowUpRight;
+    iconBg: string;
+    iconText: string;
+    borderTop: string;
+    headerBg: string;
+    accentText: string;
+  }
+> = {
+  FO: {
+    label: "Ofensivas (FO)",
+    sublabel: "Força + Oportunidade — crescimento",
+    icon: ArrowUpRight,
+    iconBg: "bg-emerald-100 dark:bg-emerald-950",
+    iconText: "text-emerald-700 dark:text-emerald-300",
+    borderTop: "border-t-4 border-t-emerald-500 dark:border-t-emerald-600",
+    headerBg: "bg-emerald-50/60 dark:bg-emerald-950/30",
+    accentText: "text-emerald-700 dark:text-emerald-300",
+  },
+  FA: {
+    label: "Confronto (FA)",
+    sublabel: "Força + Ameaça — proteção",
+    icon: Shield,
+    iconBg: "bg-sky-100 dark:bg-sky-950",
+    iconText: "text-sky-700 dark:text-sky-300",
+    borderTop: "border-t-4 border-t-sky-500 dark:border-t-sky-600",
+    headerBg: "bg-sky-50/60 dark:bg-sky-950/30",
+    accentText: "text-sky-700 dark:text-sky-300",
+  },
+  DO: {
+    label: "Reorientação (DO)",
+    sublabel: "Fraqueza + Oportunidade — melhoria",
+    icon: TrendingUp,
+    iconBg: "bg-violet-100 dark:bg-violet-950",
+    iconText: "text-violet-700 dark:text-violet-300",
+    borderTop: "border-t-4 border-t-violet-500 dark:border-t-violet-600",
+    headerBg: "bg-violet-50/60 dark:bg-violet-950/30",
+    accentText: "text-violet-700 dark:text-violet-300",
+  },
+  DA: {
+    label: "Defensivas (DA)",
+    sublabel: "Fraqueza + Ameaça — sobrevivência",
+    icon: AlertCircle,
+    iconBg: "bg-amber-100 dark:bg-amber-950",
+    iconText: "text-amber-700 dark:text-amber-300",
+    borderTop: "border-t-4 border-t-amber-500 dark:border-t-amber-600",
+    headerBg: "bg-amber-50/60 dark:bg-amber-950/30",
+    accentText: "text-amber-700 dark:text-amber-300",
+  },
+};
+
 const PrioridadeBadge = ({ prioridade }: { prioridade: "alta" | "média" | "baixa" }) => {
   const variants = {
     alta: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
@@ -70,16 +127,6 @@ const PrioridadeBadge = ({ prioridade }: { prioridade: "alta" | "média" | "baix
       {prioridade.charAt(0).toUpperCase() + prioridade.slice(1)}
     </Badge>
   );
-};
-
-const TipoIcon = ({ tipo }: { tipo: string }) => {
-  const icons = {
-    FO: <ArrowUpRight className="h-5 w-5 text-green-600" />,
-    FA: <Shield className="h-5 w-5 text-blue-600" />,
-    DO: <TrendingUp className="h-5 w-5 text-purple-600" />,
-    DA: <AlertCircle className="h-5 w-5 text-orange-600" />,
-  };
-  return icons[tipo as keyof typeof icons] || null;
 };
 
 interface Vinculado {
@@ -1026,46 +1073,54 @@ export default function Estrategias() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-          {[
-            { tipo: "FO", label: "Ofensivas (FO)", items: grupos.FO, desc: "Força + Oportunidade" },
-            { tipo: "FA", label: "Confronto (FA)", items: grupos.FA, desc: "Força + Ameaça" },
-            { tipo: "DO", label: "Reorientação (DO)", items: grupos.DO, desc: "Fraqueza + Oportunidade" },
-            { tipo: "DA", label: "Defensivas (DA)", items: grupos.DA, desc: "Fraqueza + Ameaça" },
-          ].map((grupo) => (
-            <Card key={grupo.tipo} className="p-6" data-testid={`card-grupo-${grupo.tipo}`}>
-              <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <TipoIcon tipo={grupo.tipo} />
-                  <div>
-                    <h3 className="text-lg font-semibold">{grupo.label}</h3>
-                    <p className="text-xs text-muted-foreground">{grupo.desc}</p>
+          {(["FO", "FA", "DO", "DA"] as const).map((tipo) => {
+            const cfg = STRATEGY_THEME[tipo];
+            const Icon = cfg.icon;
+            const items = grupos[tipo];
+            return (
+              <Card
+                key={tipo}
+                className={`overflow-hidden p-0 ${cfg.borderTop}`}
+                data-testid={`card-grupo-${tipo}`}
+              >
+                <div className={`${cfg.headerBg} px-5 py-3 flex items-center gap-3`}>
+                  <div className={`${cfg.iconBg} ${cfg.iconText} rounded-md h-9 w-9 flex items-center justify-center flex-shrink-0`}>
+                    <Icon className="h-5 w-5" />
                   </div>
-                  <Badge variant="outline">{grupo.items.length}</Badge>
+                  <div className="min-w-0 flex-1">
+                    <h3 className={`text-base font-semibold leading-tight ${cfg.accentText}`}>
+                      {cfg.label}
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">{cfg.sublabel}</p>
+                  </div>
+                  <Badge variant="outline" className="ml-auto">
+                    {items.length}
+                  </Badge>
                 </div>
-              </div>
-              <div className="space-y-3">
-                {grupo.items.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    Nenhuma estratégia {grupo.label.toLowerCase()} ainda
-                  </p>
-                ) : (
-                  grupo.items.map(item => (
-                    <EstrategiaCard
-                      key={item.id}
-                      item={item}
-                      swotItens={swotItens}
-                      oportunidades={oportunidades}
-                      onEdit={handleEditEstrategia}
-                      onDelete={(id) => deletarEstrategiaMutation.mutate(id)}
-                      onStatusChange={(id, status) => atualizarStatusMutation.mutate({ id, status })}
-                      onGerarOportunidades={handleGerarOportunidades}
-                      isGenerating={isGenerating}
-                    />
-                  ))
-                )}
-              </div>
-            </Card>
-          ))}
+                <div className="p-4 space-y-3">
+                  {items.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-6">
+                      Nenhuma estratégia {cfg.label.toLowerCase()} ainda
+                    </p>
+                  ) : (
+                    items.map(item => (
+                      <EstrategiaCard
+                        key={item.id}
+                        item={item}
+                        swotItens={swotItens}
+                        oportunidades={oportunidades}
+                        onEdit={handleEditEstrategia}
+                        onDelete={(id) => deletarEstrategiaMutation.mutate(id)}
+                        onStatusChange={(id, status) => atualizarStatusMutation.mutate({ id, status })}
+                        onGerarOportunidades={handleGerarOportunidades}
+                        isGenerating={isGenerating}
+                      />
+                    ))
+                  )}
+                </div>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
+import { useDeepLinkDialog } from "@/hooks/useDeepLinkDialog";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -220,6 +221,14 @@ export default function Pestel() {
     setEditandoId(null);
     setFormData({ tipo: "", descricao: "", impacto: "médio", evidencia: "" });
   };
+
+  useDeepLinkDialog(!!empresa?.id && !isLoading, ({ editar }) => {
+    if (!editar) return;
+    const found = fatores.find((f) => f.id === editar);
+    if (!found) return false;
+    handleEditFator(found);
+    return true;
+  });
 
   const handleSuggest = async () => {
     if (!empresa) {

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useDeepLinkDialog } from "@/hooks/useDeepLinkDialog";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
@@ -304,6 +305,14 @@ export default function Swot() {
       setFormData({ tipo: "", descricao: "", impacto: "médio" });
     }
   };
+
+  useDeepLinkDialog(!!empresa?.id && !isLoading, ({ editar }) => {
+    if (!editar) return;
+    const found = analises.find((a) => a.id === editar);
+    if (!found) return false;
+    handleEditAnalise(found);
+    return true;
+  });
 
   const handleSuggestModal = async () => {
     if (!empresa) {

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useDeepLinkDialog } from "@/hooks/useDeepLinkDialog";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
@@ -188,6 +189,14 @@ export default function CincoForcasPage() {
     setEditandoId(null);
     setFormData({ forca: "", descricao: "", intensidade: "média", impacto: "" });
   };
+
+  useDeepLinkDialog(!!empresa?.id && !isLoading, ({ editar }) => {
+    if (!editar) return;
+    const found = forcasData.find((f) => f.id === editar);
+    if (!found) return false;
+    handleEditForca(found);
+    return true;
+  });
 
   const handleSuggest = async () => {
     if (!empresa) {

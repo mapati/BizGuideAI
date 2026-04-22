@@ -484,11 +484,28 @@ const dividirIniciativa: ToolDefinition<DividirIniciativaParams> = {
 };
 
 // ---------- 3. criar_okr ----------
+// Task #266 — `prazoData` (YYYY-MM-DD) é a forma normalizada do prazo, que
+// alimenta o pipeline de "atrasado" usado pela UI/dashboard. A IA deve
+// preenchê-la sempre que o usuário disser uma data explícita
+// (ex.: "até 31/12/2025"); `prazo` continua aceitando texto livre como
+// "Q4 2025" para retrocompatibilidade.
+const PRAZO_DATA_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const prazoDataOpt = z
+  .string()
+  .regex(PRAZO_DATA_REGEX, "prazoData deve ser YYYY-MM-DD")
+  .optional();
+const prazoDataOptNullable = z
+  .string()
+  .regex(PRAZO_DATA_REGEX, "prazoData deve ser YYYY-MM-DD")
+  .nullable()
+  .optional();
+
 const criarOkrSchema = z.object({
   objetivoTitulo: z.string().min(3).max(200),
   objetivoDescricao: z.string().max(800).default(""),
   perspectiva: z.enum(PERSPECTIVAS_OKR).default("Financeira"),
   prazo: z.string().min(4).max(32),
+  prazoData: prazoDataOpt,
   resultadosChave: z
     .array(
       z.object({
@@ -497,6 +514,7 @@ const criarOkrSchema = z.object({
         valorAlvo: z.number().or(z.string()).transform((v) => Number(v)),
         owner: z.string().min(1).max(120),
         prazo: z.string().min(4).max(32),
+        prazoData: prazoDataOpt,
         // Task #208 — Indicador (KPI) que esta meta busca melhorar (opcional).
         indicadorFonteId: z.string().optional(),
       })
@@ -519,7 +537,8 @@ const criarOkr: ToolDefinition<CriarOkrParams> = {
       objetivoTitulo: { type: "string" },
       objetivoDescricao: { type: "string" },
       perspectiva: { type: "string", enum: [...PERSPECTIVAS_OKR] },
-      prazo: { type: "string", description: "Ex.: 2026-Q2 ou YYYY-MM-DD" },
+      prazo: { type: "string", description: "Texto livre do prazo (ex.: 'Q4 2025', 'Mar/2026')." },
+      prazoData: { type: "string", description: "Prazo do objetivo em YYYY-MM-DD. Preencha sempre que o usuário disser uma data calendarizada (ex.: 'até 31/12/2025'). Alimenta o cálculo de atraso na UI." },
       resultadosChave: {
         type: "array",
         minItems: 1,
@@ -534,6 +553,7 @@ const criarOkr: ToolDefinition<CriarOkrParams> = {
             valorAlvo: { type: "number" },
             owner: { type: "string" },
             prazo: { type: "string" },
+            prazoData: { type: "string", description: "Prazo do KR em YYYY-MM-DD. Preencha sempre que o usuário disser uma data calendarizada para esta meta." },
             indicadorFonteId: { type: "string", description: "ID do indicador (KPI) que esta meta busca melhorar (opcional). Use o id do CATÁLOGO de Indicadores quando o usuário indicar que a meta ataca um KPI específico." },
           },
         },
@@ -545,10 +565,10 @@ const criarOkr: ToolDefinition<CriarOkrParams> = {
     descricao: p.objetivoDescricao || `Objetivo na perspectiva ${p.perspectiva}, prazo ${p.prazo}.`,
     campos: [
       { label: "Perspectiva", valor: p.perspectiva },
-      { label: "Prazo", valor: p.prazo },
+      { label: "Prazo", valor: p.prazoData ? `${p.prazo} (${p.prazoData})` : p.prazo },
       ...p.resultadosChave.map((r, i) => ({
         label: `KR ${i + 1}`,
-        valor: `${r.metrica} (${r.valorInicial} → ${r.valorAlvo}, ${r.owner}, ${r.prazo})`,
+        valor: `${r.metrica} (${r.valorInicial} → ${r.valorAlvo}, ${r.owner}, ${r.prazoData ? `${r.prazo} / ${r.prazoData}` : r.prazo})`,
       })),
     ],
     ctaConfirmar: "Criar OKR",
@@ -561,6 +581,7 @@ const criarOkr: ToolDefinition<CriarOkrParams> = {
       titulo: p.objetivoTitulo,
       descricao: p.objetivoDescricao || null,
       prazo: p.prazo,
+      prazoData: p.prazoData ?? null,
       perspectiva: p.perspectiva,
     });
     const krsCriados = [];
@@ -580,6 +601,7 @@ const criarOkr: ToolDefinition<CriarOkrParams> = {
           valorAtual: String(r.valorInicial),
           owner: r.owner,
           prazo: r.prazo,
+          prazoData: r.prazoData ?? null,
           indicadorFonteId: indicadorFonteIdSafe,
         },
         ctx.empresaId
@@ -604,6 +626,9 @@ const atualizarOkrSchema = z.object({
   descricao: z.string().max(800).optional(),
   perspectiva: z.enum(PERSPECTIVAS_OKR).optional(),
   prazo: z.string().min(4).max(32).optional(),
+  // Task #266 — passe `prazoData` (YYYY-MM-DD) para calendarizar o prazo,
+  // ou explicitamente `null` para limpar a data normalizada existente.
+  prazoData: prazoDataOptNullable,
 });
 type AtualizarOkrParams = z.infer<typeof atualizarOkrSchema>;
 
@@ -622,6 +647,7 @@ const atualizarOkr: ToolDefinition<AtualizarOkrParams> = {
       descricao: { type: "string" },
       perspectiva: { type: "string", enum: [...PERSPECTIVAS_OKR] },
       prazo: { type: "string" },
+      prazoData: { type: ["string", "null"], description: "Prazo calendarizado em YYYY-MM-DD; passe null para limpar a data normalizada." },
     },
   },
   preview: (p) => ({
@@ -632,6 +658,9 @@ const atualizarOkr: ToolDefinition<AtualizarOkrParams> = {
       strField("Novo título", p.titulo),
       strField("Perspectiva", p.perspectiva),
       strField("Prazo", p.prazo),
+      p.prazoData === null
+        ? { label: "Prazo (data)", valor: "limpar" }
+        : strField("Prazo (data)", p.prazoData ?? undefined),
       strField("Descrição", p.descricao),
     ].filter(Boolean) as { label: string; valor: string }[],
     ctaConfirmar: "Aplicar mudanças",
@@ -644,6 +673,7 @@ const atualizarOkr: ToolDefinition<AtualizarOkrParams> = {
     if (p.descricao !== undefined) patch.descricao = p.descricao;
     if (p.perspectiva) patch.perspectiva = p.perspectiva;
     if (p.prazo) patch.prazo = p.prazo;
+    if (p.prazoData !== undefined) patch.prazoData = p.prazoData;
     const updated = await storage.updateObjetivo(p.objetivoId, ctx.empresaId, patch);
     return {
       resumo: `OKR "${updated.titulo}" atualizado.`,
@@ -665,6 +695,8 @@ const adicionarKrAOkrSchema = z.object({
   valorAlvo: z.number().or(z.string()).transform((v) => Number(v)),
   owner: z.string().min(1).max(120),
   prazo: z.string().min(4).max(32),
+  // Task #266 — `prazoData` (YYYY-MM-DD) calendariza o prazo da meta.
+  prazoData: prazoDataOpt,
   // Task #208 — Indicador (KPI) que esta meta busca melhorar (opcional).
   indicadorFonteId: z.string().optional(),
 });
@@ -685,7 +717,8 @@ const adicionarKrAOkr: ToolDefinition<AdicionarKrAOkrParams> = {
       valorInicial: { type: "number" },
       valorAlvo: { type: "number" },
       owner: { type: "string" },
-      prazo: { type: "string", description: "Ex.: 2026-Q2 ou YYYY-MM-DD" },
+      prazo: { type: "string", description: "Texto livre do prazo (ex.: 'Q4 2025'). Para datas calendarizadas, use também prazoData." },
+      prazoData: { type: "string", description: "Prazo da meta em YYYY-MM-DD. Preencha sempre que o usuário disser uma data explícita (ex.: 'até 31/12/2025'). Alimenta o cálculo de atraso na UI." },
       indicadorFonteId: { type: "string", description: "ID do indicador (KPI) que esta meta busca melhorar (opcional). Use o id do CATÁLOGO de Indicadores quando o usuário indicar que a meta ataca um KPI específico." },
     },
   },
@@ -697,7 +730,7 @@ const adicionarKrAOkr: ToolDefinition<AdicionarKrAOkrParams> = {
       { label: "Métrica", valor: p.metrica },
       { label: "Valor inicial → alvo", valor: `${p.valorInicial} → ${p.valorAlvo}` },
       { label: "Dono", valor: p.owner },
-      { label: "Prazo", valor: p.prazo },
+      { label: "Prazo", valor: p.prazoData ? `${p.prazo} (${p.prazoData})` : p.prazo },
     ],
     ctaConfirmar: "Adicionar meta",
     ctaIgnorar: "Agora não",
@@ -720,6 +753,7 @@ const adicionarKrAOkr: ToolDefinition<AdicionarKrAOkrParams> = {
         valorAtual: String(p.valorInicial),
         owner: p.owner,
         prazo: p.prazo,
+        prazoData: p.prazoData ?? null,
         indicadorFonteId: indicadorFonteIdSafe,
       },
       ctx.empresaId,
@@ -746,6 +780,9 @@ const atualizarKrSchema = z.object({
   valorAlvo: z.number().or(z.string()).transform((v) => Number(v)).optional(),
   owner: z.string().min(1).max(120).optional(),
   prazo: z.string().min(4).max(32).optional(),
+  // Task #266 — passe `prazoData` (YYYY-MM-DD) para calendarizar o prazo,
+  // ou explicitamente `null` para limpar a data normalizada existente.
+  prazoData: prazoDataOptNullable,
 });
 type AtualizarKrParams = z.infer<typeof atualizarKrSchema>;
 
@@ -765,6 +802,7 @@ const atualizarKr: ToolDefinition<AtualizarKrParams> = {
       valorAlvo: { type: "number" },
       owner: { type: "string" },
       prazo: { type: "string" },
+      prazoData: { type: ["string", "null"], description: "Prazo calendarizado em YYYY-MM-DD; passe null para limpar a data normalizada." },
     },
   },
   preview: (p) => ({
@@ -777,6 +815,9 @@ const atualizarKr: ToolDefinition<AtualizarKrParams> = {
       p.valorAlvo !== undefined ? { label: "Valor-alvo", valor: String(p.valorAlvo) } : null,
       strField("Dono", p.owner),
       strField("Prazo", p.prazo),
+      p.prazoData === null
+        ? { label: "Prazo (data)", valor: "limpar" }
+        : strField("Prazo (data)", p.prazoData ?? undefined),
     ].filter(Boolean) as { label: string; valor: string }[],
     ctaConfirmar: "Aplicar mudanças",
     ctaIgnorar: "Manter como está",
@@ -789,6 +830,7 @@ const atualizarKr: ToolDefinition<AtualizarKrParams> = {
     if (p.valorAlvo !== undefined) patch.valorAlvo = String(p.valorAlvo);
     if (p.owner) patch.owner = p.owner;
     if (p.prazo) patch.prazo = p.prazo;
+    if (p.prazoData !== undefined) patch.prazoData = p.prazoData;
     const updated = await storage.updateResultadoChave(p.resultadoChaveId, ctx.empresaId, patch);
     return {
       resumo: `Meta "${updated.metrica}" atualizada.`,

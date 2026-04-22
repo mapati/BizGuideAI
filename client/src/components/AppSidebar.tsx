@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Home, Map, Target, TrendingUp, CheckCircle, FileText, Compass, Layers, Grid3x3, ListChecks, Briefcase, LogOut, BarChart3, ShieldCheck, Users, CheckCircle2, Circle, ArrowRight, ClipboardList, CloudLightning, ShieldAlert, Network, Share2, GitBranch, Bell, Zap, UserCircle, Calendar, PanelLeftClose, PanelLeftOpen, Stethoscope } from "lucide-react";
+import { Home, Map, Target, TrendingUp, CheckCircle, FileText, Compass, Layers, Grid3x3, ListChecks, Briefcase, LogOut, BarChart3, ShieldCheck, Users, CheckCircle2, Circle, ArrowRight, ClipboardList, CloudLightning, ShieldAlert, Network, Share2, GitBranch, Bell, Zap, UserCircle, Calendar, PanelLeftClose, PanelLeftOpen, Stethoscope, Activity } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -439,6 +439,7 @@ export function AppSidebar() {
             <SidebarMenu>
               {[
                 { title: "Diagnóstico Estratégico", url: "/diagnostico-estrategico", icon: Stethoscope, testId: "link-diagnostico-estrategico" },
+                { title: "Diagnóstico do Bizzy", url: "/diagnostico-bizzy", icon: Activity, testId: "link-diagnostico-bizzy" },
                 { title: "Performance das Metas", url: "/bsc", icon: ListChecks, testId: "link-bsc" },
                 { title: "Cenários Estratégicos", url: "/cenarios", icon: CloudLightning, testId: "link-cenarios" },
                 { title: "Rastreabilidade", url: "/rastreabilidade", icon: GitBranch, testId: "link-rastreabilidade" },

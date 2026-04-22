@@ -30,6 +30,7 @@ import BSC from "@/pages/BSC";
 import Indicadores from "@/pages/Indicadores";
 import DiagnosticoAtual from "@/pages/DiagnosticoAtual";
 import DiagnosticoEstrategico from "@/pages/DiagnosticoEstrategico";
+import Diagnostico from "@/pages/Diagnostico";
 import Acompanhamento from "@/pages/Acompanhamento";
 import Ritos from "@/pages/Ritos";
 import Rastreabilidade from "@/pages/Rastreabilidade";
@@ -285,6 +286,7 @@ function AppLayout() {
                 <Route path="/bsc" component={BSC} />
                 <Route path="/diagnostico" component={DiagnosticoAtual} />
                 <Route path="/diagnostico-estrategico" component={DiagnosticoEstrategico} />
+                <Route path="/diagnostico-bizzy" component={Diagnostico} />
                 <Route path="/indicadores" component={Indicadores} />
                 <Route path="/ritos" component={Acompanhamento} />
                 <Route path="/ritos/gestao" component={Ritos} />

@@ -3048,7 +3048,7 @@ function semaforoKpi(gapPct: number | null, tendencia: string): "verde" | "amare
   return "verde";
 }
 
-async function runAnalisarGap(
+export async function runAnalisarGap(
   args: { tipo: "kpi" | "kr" | "objetivo"; id: string },
   empresaId: string,
 ): Promise<Record<string, unknown>> {
@@ -3245,7 +3245,7 @@ async function runAnalisarGap(
   };
 }
 
-async function runDetectarLacunasCascata(empresaId: string): Promise<Record<string, unknown>> {
+export async function runDetectarLacunasCascata(empresaId: string): Promise<Record<string, unknown>> {
   const [objetivos, indicadoresAll, iniciativas, estrategias, krsAll] = await Promise.all([
     storage.getObjetivos(empresaId),
     storage.getIndicadores(empresaId),
@@ -3317,7 +3317,7 @@ async function runDetectarLacunasCascata(empresaId: string): Promise<Record<stri
   };
 }
 
-async function runDetectarDescarrilados(
+export async function runDetectarDescarrilados(
   empresaId: string,
   opts: { diasSemCheckin?: number; pctMinimo?: number },
 ): Promise<Record<string, unknown>> {
@@ -3380,7 +3380,7 @@ async function runDetectarDescarrilados(
   };
 }
 
-async function runConsistenciaEstrategica(empresaId: string): Promise<Record<string, unknown>> {
+export async function runConsistenciaEstrategica(empresaId: string): Promise<Record<string, unknown>> {
   const [estrategias, objetivos, iniciativas, indicadoresAll] = await Promise.all([
     storage.getEstrategias(empresaId),
     storage.getObjetivos(empresaId),
@@ -3430,7 +3430,7 @@ async function runConsistenciaEstrategica(empresaId: string): Promise<Record<str
   };
 }
 
-async function runSumarizarCiclo(
+export async function runSumarizarCiclo(
   empresaId: string,
   dataReferencia?: string,
 ): Promise<Record<string, unknown>> {

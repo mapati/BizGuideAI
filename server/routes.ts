@@ -12,7 +12,7 @@ import {
   renderTendenciaLinha,
   renderRelacoesLinhas,
 } from "./plan-insights";
-import { TOOLS, getTool, toOpenAITools, registrarProposta, LOOKUP_TOOLS_OPENAI, executarBuscaPorNome, READONLY_TOOLS_OPENAI, executarFerramentaReadonly, isReadonlyTool, getToolStatusLabel } from "./assistant-tools";
+import { TOOLS, getTool, toOpenAITools, registrarProposta, LOOKUP_TOOLS_OPENAI, executarBuscaPorNome, READONLY_TOOLS_OPENAI, executarFerramentaReadonly, isReadonlyTool, getToolStatusLabel, runAnalisarGap, runDetectarLacunasCascata, runDetectarDescarrilados, runConsistenciaEstrategica, runSumarizarCiclo } from "./assistant-tools";
 import { criarAssinatura, buscarAssinatura, cancelarAssinatura, buscarPagamento, motivoLegivel, validarAssinaturaWebhook, PLANOS_MP, type PlanoTipo, type MpSubscription, type MpPayment } from "./mp";
 import { randomBytes, createHash } from "crypto";
 import cron from "node-cron";
@@ -1619,6 +1619,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("[PLAN_QUALITY] erro:", error?.message ?? error);
       res.status(500).json({ error: error?.message ?? "Erro ao calcular qualidade do plano" });
+    }
+  });
+
+  // ─── Task #290 — Painel de Diagnóstico (Bizzy) ───
+  app.get("/api/diagnostico/lacunas-cascata", requireAuth, async (req, res) => {
+    try {
+      const data = await runDetectarLacunasCascata(req.session.empresaId!);
+      res.json(data);
+    } catch (error: any) {
+      console.error("[DIAG_LACUNAS] erro:", error?.message ?? error);
+      res.status(500).json({ error: error?.message ?? "Erro ao detectar lacunas da cascata" });
+    }
+  });
+
+  app.get("/api/diagnostico/descarrilados", requireAuth, async (req, res) => {
+    try {
+      const diasRaw = req.query.diasSemCheckin;
+      const pctRaw = req.query.pctMinimo;
+      const dias = typeof diasRaw === "string" ? Number(diasRaw) : undefined;
+      const pct = typeof pctRaw === "string" ? Number(pctRaw) : undefined;
+      const data = await runDetectarDescarrilados(req.session.empresaId!, {
+        diasSemCheckin: Number.isFinite(dias) ? dias : undefined,
+        pctMinimo: Number.isFinite(pct) ? pct : undefined,
+      });
+      res.json(data);
+    } catch (error: any) {
+      console.error("[DIAG_DESCARRILADOS] erro:", error?.message ?? error);
+      res.status(500).json({ error: error?.message ?? "Erro ao detectar objetivos descarrilados" });
+    }
+  });
+
+  app.get("/api/diagnostico/consistencia", requireAuth, async (req, res) => {
+    try {
+      const data = await runConsistenciaEstrategica(req.session.empresaId!);
+      res.json(data);
+    } catch (error: any) {
+      console.error("[DIAG_CONSISTENCIA] erro:", error?.message ?? error);
+      res.status(500).json({ error: error?.message ?? "Erro ao analisar consistência estratégica" });
+    }
+  });
+
+  app.get("/api/diagnostico/ciclo", requireAuth, async (req, res) => {
+    try {
+      const ref = typeof req.query.dataReferencia === "string" ? req.query.dataReferencia : undefined;
+      const data = await runSumarizarCiclo(req.session.empresaId!, ref);
+      res.json(data);
+    } catch (error: any) {
+      console.error("[DIAG_CICLO] erro:", error?.message ?? error);
+      res.status(500).json({ error: error?.message ?? "Erro ao sumarizar ciclo" });
+    }
+  });
+
+  app.get("/api/diagnostico/gap", requireAuth, async (req, res) => {
+    try {
+      const tipo = req.query.tipo;
+      const id = req.query.id;
+      if (typeof tipo !== "string" || (tipo !== "kpi" && tipo !== "kr" && tipo !== "objetivo")) {
+        return res.status(400).json({ error: "tipo deve ser kpi|kr|objetivo" });
+      }
+      if (typeof id !== "string" || !id) {
+        return res.status(400).json({ error: "id é obrigatório" });
+      }
+      const data = await runAnalisarGap({ tipo, id }, req.session.empresaId!);
+      res.json(data);
+    } catch (error: any) {
+      console.error("[DIAG_GAP] erro:", error?.message ?? error);
+      res.status(500).json({ error: error?.message ?? "Erro ao analisar gap" });
     }
   });
 

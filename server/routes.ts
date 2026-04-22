@@ -19,6 +19,7 @@ import cron from "node-cron";
 import { runGithubPush, getPushLogs, startGithubScheduler, stopGithubScheduler, isGitRepository, type PushFrequencia } from "./github-scheduler";
 import { runPlanoAgenticoHealing, getHealingLogs, startPlanoAgenticoHealingScheduler } from "./plano-agentico-healing";
 import { computePlanQuality, formatPlanQualityForPrompt } from "./plan-quality";
+import { dispararExtracaoBackground, extrairEPersistirMemoria } from "./memory-extractor";
 import { 
   insertEmpresaSchema,
   PLAN_LIMITS,
@@ -3758,15 +3759,120 @@ Responda OBRIGATORIAMENTE em JSON:
     }
   });
 
+  // ── Task #221 — Memória do Assistente: rotas de conversa e memória ──
+
+  // Hidratar conversa ativa (<12h sem encerrar). Retorna { conversa, mensagens }
+  // ou { conversa: null } se não houver — frontend mostra estado limpo.
+  app.get("/api/ai/conversas/ativa", requireAuth, async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const usuarioId = req.session.userId ?? null;
+      const conversa = await storage.getConversaAtiva(empresaId, usuarioId, 12);
+      if (!conversa) return res.json({ conversa: null, mensagens: [] });
+      const mensagens = await storage.getMensagens(conversa.id, 30);
+      res.json({ conversa, mensagens });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ error: message });
+    }
+  });
+
+  // Encerrar a conversa ativa (botão "Nova conversa"). Dispara extração de
+  // memória em background antes de marcar como encerrada.
+  app.post("/api/ai/conversas/encerrar", requireAuth, async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const usuarioId = req.session.userId ?? null;
+      const { conversaId } = (req.body ?? {}) as { conversaId?: string };
+      let conversa = conversaId
+        ? await storage.getConversa(conversaId)
+        : await storage.getConversaAtiva(empresaId, usuarioId, 12);
+      if (!conversa || conversa.empresaId !== empresaId) {
+        return res.json({ ok: true, encerradaId: null });
+      }
+      const planoTipo = (await storage.getEmpresa(empresaId))?.planoTipo ?? null;
+      // Roda extração SÍNCRONA antes de fechar para garantir que a última
+      // janela vire memória — mas com timeout via try/catch interno.
+      try {
+        await extrairEPersistirMemoria({ empresaId, conversaId: conversa.id, planoTipo, forcar: true });
+      } catch {}
+      await storage.encerrarConversa(conversa.id);
+      res.json({ ok: true, encerradaId: conversa.id });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ error: message });
+    }
+  });
+
+  // Listar memória da empresa (todas — ativas e desativadas) para a UI de
+  // gestão. Limite de 100 itens para evitar respostas grandes demais.
+  app.get("/api/ai/memoria", requireAuth, async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const fatos = await storage.getMemoriaTodas(empresaId, 100);
+      res.json({ fatos });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ error: message });
+    }
+  });
+
+  // Toggle ativo/desativado de um fato (única edição permitida ao usuário).
+  app.patch("/api/ai/memoria/:id", requireAuth, async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const { id } = req.params;
+      const { ativo } = (req.body ?? {}) as { ativo?: boolean };
+      if (typeof ativo !== "boolean") {
+        return res.status(400).json({ error: "Campo 'ativo' (boolean) é obrigatório." });
+      }
+      const atual = await storage.getMemoriaById(id, empresaId);
+      if (!atual) return res.status(404).json({ error: "Fato não encontrado." });
+      const row = await storage.setMemoriaAtivo(id, empresaId, ativo);
+      res.json({ fato: row });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ error: message });
+    }
+  });
+
   app.post("/api/ai/assistente", requireAuth, async (req, res) => {
     try {
-      const { pergunta, historico = [] } = req.body as {
+      const { pergunta, historico = [], conversaId: conversaIdInput } = req.body as {
         pergunta?: string;
         historico?: { role: "user" | "assistant"; content: string }[];
+        conversaId?: string;
       };
       if (!pergunta?.trim()) return res.status(400).json({ error: "Pergunta não pode ser vazia." });
 
       const empresaId = req.session.empresaId!;
+      const usuarioId = req.session.userId ?? null;
+
+      // Resolver/criar conversa persistente. Se conversaId vier do cliente e
+      // pertencer à empresa, reusa; senão tenta a ativa (<12h); senão cria.
+      let conversa = conversaIdInput
+        ? await storage.getConversa(conversaIdInput)
+        : undefined;
+      if (!conversa || conversa.empresaId !== empresaId || conversa.encerradaEm) {
+        conversa = await storage.getConversaAtiva(empresaId, usuarioId, 12);
+      }
+      if (!conversa) {
+        const tituloInicial = pergunta.trim().slice(0, 80);
+        conversa = await storage.criarConversa({
+          empresaId,
+          usuarioId,
+          titulo: tituloInicial,
+        });
+      }
+
+      // Persiste a mensagem do usuário ANTES da chamada ao LLM (assim sobrevive
+      // mesmo se o LLM falhar).
+      const msgUser = await storage.appendMensagem({
+        conversaId: conversa.id,
+        role: "user",
+        content: pergunta,
+        propostas: null,
+      });
 
       const [
         empresa,
@@ -4022,6 +4128,30 @@ Responda OBRIGATORIAMENTE em JSON:
         console.warn(`[ASSISTENTE] qualidade do plano falhou: ${err?.message ?? err}`);
       }
 
+      // Task #221 — bloco de memória persistente (fatos extraídos das conversas
+      // anteriores), inserido ANTES do CATÁLOGO. Lê os 20 fatos ativos mais
+      // recentes para não inflar o prompt.
+      try {
+        const memoriaAtiva = await storage.getMemoriaAtiva(empresaId, 20);
+        if (memoriaAtiva.length > 0) {
+          const porCat = memoriaAtiva.reduce<Record<string, string[]>>((acc, m) => {
+            (acc[m.categoria] ??= []).push(`- ${m.fato}`);
+            return acc;
+          }, {});
+          const ordem = ["decisao", "prioridade", "hipotese", "restricao", "contexto"];
+          const blocos = ordem
+            .filter((c) => porCat[c]?.length)
+            .map((c) => `### ${c.toUpperCase()}\n${porCat[c].join("\n")}`)
+            .join("\n\n");
+          ctx.unshift(
+            `## O QUE VOCÊ JÁ APRENDEU SOBRE ESTA EMPRESA\n${blocos}\n\n` +
+              `Estes fatos foram extraídos de conversas anteriores com o usuário. Use-os para manter continuidade — não os repita literalmente nas respostas, mas considere-os antes de propor ações.`,
+          );
+        }
+      } catch (memErr) {
+        console.warn("[ASSISTENTE] Falha ao carregar memória persistente:", memErr);
+      }
+
       const systemPrompt = `Você é o Assistente Estratégico do BizGuideAI, um consultor sênior de estratégia empresarial para PMEs brasileiras.
 
 Você tem acesso completo aos dados da empresa abaixo e a um conjunto de ferramentas (function tools) que executam ações reais quando o usuário aprovar.
@@ -4081,9 +4211,19 @@ LOOP AGÊNTICO (planos multi-passo):
 DADOS DA EMPRESA:
 ${ctx.join("\n\n")}`;
 
+      // Task #221 — usar histórico persistido (até 20 turnos) em vez do
+      // `historico` enviado pelo frontend (que era cortado em 10). A última
+      // mensagem (já persistida acima) já vem inclusa, então não duplicamos.
+      const dbHistorico = await storage.getMensagens(conversa.id, 20);
+      const historicoForLlm = dbHistorico.length
+        ? dbHistorico
+            .filter((m) => m.id !== msgUser.id)
+            .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }))
+        : (historico ?? []).slice(-10);
+
       const baseMessages: { role: "system" | "user" | "assistant"; content: string }[] = [
         { role: "system", content: systemPrompt },
-        ...(historico ?? []).slice(-10),
+        ...historicoForLlm,
         { role: "user", content: pergunta! },
       ];
 
@@ -4239,7 +4379,34 @@ ${ctx.join("\n\n")}`;
           ? "Preparei algumas ações para você revisar abaixo."
           : "Não consegui formular uma resposta agora. Tente reformular a pergunta.");
 
-      res.json({ resposta: respostaFinal, propostas, acoes: [], planoAtivo: planoAtivoOut });
+      // Task #221 — persiste a mensagem do assistente e dispara extração
+      // de memória em background a cada ~6 mensagens do usuário.
+      try {
+        await storage.appendMensagem({
+          conversaId: conversa.id,
+          role: "assistant",
+          content: respostaFinal,
+          propostas: propostas.length ? propostas : null,
+        });
+        const totalUser = await storage.countMensagensUsuario(conversa.id);
+        if (totalUser > 0 && totalUser % 6 === 0) {
+          dispararExtracaoBackground({
+            empresaId,
+            conversaId: conversa.id,
+            planoTipo: empresa?.planoTipo ?? null,
+          });
+        }
+      } catch (persistErr) {
+        console.warn("[ASSISTENTE] Falha ao persistir turno do assistente:", persistErr);
+      }
+
+      res.json({
+        resposta: respostaFinal,
+        propostas,
+        acoes: [],
+        planoAtivo: planoAtivoOut,
+        conversaId: conversa.id,
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       res.status(500).json({ error: message });

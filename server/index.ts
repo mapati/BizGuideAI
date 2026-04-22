@@ -388,6 +388,46 @@ async function runStartupMigrations() {
     await client.query(`CREATE INDEX IF NOT EXISTS idx_iniciativas_indicador_fonte_id ON iniciativas(indicador_fonte_id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_resultados_chave_indicador_fonte_id ON resultados_chave(indicador_fonte_id)`);
 
+    // Task #221 — Memória persistente do Assistente (conversas + mensagens + fatos)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS assistente_conversas (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        empresa_id VARCHAR NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+        usuario_id VARCHAR REFERENCES usuarios(id) ON DELETE SET NULL,
+        titulo TEXT NOT NULL DEFAULT '',
+        criada_em TIMESTAMP NOT NULL DEFAULT NOW(),
+        ultima_interacao_em TIMESTAMP NOT NULL DEFAULT NOW(),
+        encerrada_em TIMESTAMP
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_assistente_conversas_empresa_ultima ON assistente_conversas (empresa_id, ultima_interacao_em DESC)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_assistente_conversas_empresa_usuario ON assistente_conversas (empresa_id, usuario_id, ultima_interacao_em DESC)`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS assistente_mensagens (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        conversa_id VARCHAR NOT NULL REFERENCES assistente_conversas(id) ON DELETE CASCADE,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        propostas JSONB,
+        criada_em TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_assistente_mensagens_conversa ON assistente_mensagens (conversa_id, criada_em ASC)`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS assistente_memoria (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        empresa_id VARCHAR NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+        fato TEXT NOT NULL,
+        categoria TEXT NOT NULL DEFAULT 'contexto',
+        fonte_mensagem_id VARCHAR REFERENCES assistente_mensagens(id) ON DELETE SET NULL,
+        ativo BOOLEAN NOT NULL DEFAULT true,
+        criado_em TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_assistente_memoria_empresa_ativo ON assistente_memoria (empresa_id, ativo, criado_em DESC)`);
+
     // Seed: ensure the platform admin from env vars exists and has the correct password
     const adminEmail = process.env.ADMIN_EMAIL;
     const adminSenha = process.env.ADMIN_SENHA;

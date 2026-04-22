@@ -35,7 +35,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Users, Plus, Trash2, ShieldCheck, User, Key, Zap } from "lucide-react";
+import { Users, Plus, Trash2, ShieldCheck, User, Key, Zap, Brain } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useLocation, Link } from "wouter";
@@ -375,6 +377,8 @@ export default function Equipe() {
         </CardContent>
       </Card>
 
+      <MemoriaAssistenteCard />
+
       <NovoMembroDialog open={novoOpen} onClose={() => setNovoOpen(false)} />
       <UpgradeStartDialog open={upgradeOpen} onClose={() => setUpgradeOpen(false)} />
 
@@ -410,5 +414,103 @@ export default function Equipe() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+// Task #221 — gerenciamento da memória persistente do Assistente.
+interface MemoriaFato {
+  id: string;
+  fato: string;
+  categoria: string;
+  ativo: boolean;
+  criadoEm: string;
+}
+
+const CATEGORIA_LABEL: Record<string, string> = {
+  decisao: "Decisão",
+  prioridade: "Prioridade",
+  hipotese: "Hipótese",
+  restricao: "Restrição",
+  contexto: "Contexto",
+};
+
+function MemoriaAssistenteCard() {
+  const { toast } = useToast();
+  const { data, isLoading } = useQuery<{ fatos: MemoriaFato[] }>({
+    queryKey: ["/api/ai/memoria"],
+  });
+  const toggleMutation = useMutation({
+    mutationFn: async ({ id, ativo }: { id: string; ativo: boolean }) => {
+      return apiRequest("PATCH", `/api/ai/memoria/${id}`, { ativo });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/ai/memoria"] });
+    },
+    onError: () => {
+      toast({ title: "Não foi possível atualizar o fato.", variant: "destructive" });
+    },
+  });
+
+  const fatos = data?.fatos ?? [];
+
+  return (
+    <Card data-testid="card-memoria-assistente">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Brain className="h-4 w-4 text-primary" />
+          Memória do Assistente
+        </CardTitle>
+        <CardDescription>
+          Fatos persistentes que o assistente aprendeu sobre sua empresa nas conversas anteriores. Desative o que não fizer mais sentido.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="p-0">
+        {isLoading ? (
+          <div className="px-6 py-8 text-center text-muted-foreground text-sm">
+            Carregando memória...
+          </div>
+        ) : fatos.length === 0 ? (
+          <div className="px-6 py-8 text-center text-muted-foreground text-sm">
+            Nenhum fato registrado ainda. Converse com o assistente — a memória se forma sozinha.
+          </div>
+        ) : (
+          <div className="divide-y">
+            {fatos.map((f) => (
+              <div
+                key={f.id}
+                className="flex items-start gap-3 px-6 py-3"
+                data-testid={`row-memoria-${f.id}`}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Badge variant="secondary" className="text-xs" data-testid={`badge-memoria-cat-${f.id}`}>
+                      {CATEGORIA_LABEL[f.categoria] ?? f.categoria}
+                    </Badge>
+                    {!f.ativo && (
+                      <Badge variant="outline" className="text-xs">desativado</Badge>
+                    )}
+                  </div>
+                  <p
+                    className={cn(
+                      "text-sm leading-relaxed",
+                      !f.ativo && "text-muted-foreground line-through",
+                    )}
+                    data-testid={`text-memoria-fato-${f.id}`}
+                  >
+                    {f.fato}
+                  </p>
+                </div>
+                <Switch
+                  checked={f.ativo}
+                  onCheckedChange={(checked) => toggleMutation.mutate({ id: f.id, ativo: checked })}
+                  disabled={toggleMutation.isPending}
+                  data-testid={`switch-memoria-${f.id}`}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

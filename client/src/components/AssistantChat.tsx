@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Bot, User, Loader2, ArrowRight, Plus, Pencil, Clock } from "lucide-react";
+import { Send, Bot, User, Loader2, ArrowRight, Plus, Pencil, Clock, MessageSquarePlus } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -42,6 +42,18 @@ interface AssistanteResponse {
   acoes?: AssistantAcao[];
   propostas?: Proposta[];
   planoAtivo?: { plano: PlanoAgenticoView; passos: PlanoAgenticoPassoView[] } | null;
+  conversaId?: string;
+}
+
+// Task #221 — payload da hidratação da conversa ativa.
+interface ConversaAtivaResponse {
+  conversa: { id: string; titulo: string } | null;
+  mensagens: Array<{
+    id: string;
+    role: "user" | "assistant";
+    content: string;
+    propostas?: Proposta[] | null;
+  }>;
 }
 
 function buildHrefFromAcao(acao: AssistantAcao): string {
@@ -170,6 +182,8 @@ export function AssistantChat({
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [conversaId, setConversaId] = useState<string | null>(null);
+  const [encerrando, setEncerrando] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const initializedRef = useRef(false);
   const proactiveAppliedRef = useRef(false);
@@ -189,16 +203,39 @@ export function AssistantChat({
     scrollToBottom();
   }, [messages, isLoading]);
 
+  // Task #221 — hidrata a conversa ativa do servidor (<12h) e cai para a
+  // mensagem de boas-vindas só se não houver conversa.
   useEffect(() => {
-    if (!initializedRef.current) {
-      initializedRef.current = true;
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+    let cancelado = false;
+    (async () => {
+      try {
+        const json = (await apiRequest("GET", "/api/ai/conversas/ativa")) as ConversaAtivaResponse;
+        if (cancelado) return;
+        if (json.conversa && json.mensagens.length > 0) {
+          setConversaId(json.conversa.id);
+          setMessages(
+            json.mensagens.map((m) => ({
+              role: m.role,
+              content: m.content,
+              propostas: m.propostas ?? undefined,
+            })),
+          );
+          return;
+        }
+      } catch {
+        // se falhar, segue para boas-vindas
+      }
+      if (cancelado) return;
       setMessages([
         {
           role: "assistant",
           content: `Olá${user?.nome ? `, ${user.nome.split(" ")[0]}` : ""}! Sou o seu Assistente Estratégico. Tenho acesso a todos os dados da sua empresa — perfil, cenário externo, OKRs, indicadores, iniciativas e mais. Como posso ajudar?`,
         },
       ]);
-    }
+    })();
+    return () => { cancelado = true; };
   }, []);
 
   // Apply proactive briefing once
@@ -242,8 +279,10 @@ export function AssistantChat({
       const json = await apiRequest("POST", "/api/ai/assistente", {
         pergunta: trimmed,
         historico,
+        conversaId,
       });
       const typed = json as AssistanteResponse;
+      if (typed.conversaId) setConversaId(typed.conversaId);
       setMessages((prev) => [
         ...prev,
         {
@@ -291,6 +330,28 @@ export function AssistantChat({
     onCloseDrawer?.();
   };
 
+  // Task #221 — encerra a conversa atual e reseta o chat para novo início.
+  const iniciarNovaConversa = async () => {
+    if (encerrando) return;
+    setEncerrando(true);
+    try {
+      if (conversaId) {
+        try {
+          await apiRequest("POST", "/api/ai/conversas/encerrar", { conversaId });
+        } catch {}
+      }
+      setConversaId(null);
+      setMessages([
+        {
+          role: "assistant",
+          content: `Nova conversa iniciada. Como posso ajudar?`,
+        },
+      ]);
+    } finally {
+      setEncerrando(false);
+    }
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -302,6 +363,19 @@ export function AssistantChat({
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
+      <div className="flex items-center justify-end px-3 pt-2">
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={iniciarNovaConversa}
+          disabled={encerrando || isLoading}
+          className="gap-1.5 text-xs text-muted-foreground"
+          data-testid="button-nova-conversa"
+        >
+          <MessageSquarePlus className="h-3.5 w-3.5" />
+          Nova conversa
+        </Button>
+      </div>
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {planoAtivo && (
           <PlanoAgenticoCard

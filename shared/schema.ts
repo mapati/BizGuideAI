@@ -754,6 +754,63 @@ export const insertPlanoAgenticoPassoSchema = createInsertSchema(planoAgenticoPa
 export type InsertPlanoAgenticoPasso = z.infer<typeof insertPlanoAgenticoPassoSchema>;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Task #221 — Memória persistente do Assistente (conversas + mensagens + fatos)
+// Conversas agrupam mensagens contínuas; mensagens guardam o histórico real
+// (não só refletido pelo frontend); memória persiste fatos extraídos por IA.
+// ─────────────────────────────────────────────────────────────────────────────
+export const assistenteConversas = pgTable("assistente_conversas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  empresaId: varchar("empresa_id").notNull().references(() => empresas.id, { onDelete: "cascade" }),
+  usuarioId: varchar("usuario_id").references(() => usuarios.id, { onDelete: "set null" }),
+  titulo: text("titulo").notNull().default(""),
+  criadaEm: timestamp("criada_em").defaultNow().notNull(),
+  ultimaInteracaoEm: timestamp("ultima_interacao_em").defaultNow().notNull(),
+  encerradaEm: timestamp("encerrada_em"),
+});
+export type AssistenteConversa = typeof assistenteConversas.$inferSelect;
+export const insertAssistenteConversaSchema = createInsertSchema(assistenteConversas).omit({
+  id: true,
+  criadaEm: true,
+  ultimaInteracaoEm: true,
+  encerradaEm: true,
+});
+export type InsertAssistenteConversa = z.infer<typeof insertAssistenteConversaSchema>;
+
+export const assistenteMensagens = pgTable("assistente_mensagens", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversaId: varchar("conversa_id").notNull().references(() => assistenteConversas.id, { onDelete: "cascade" }),
+  role: text("role").notNull(), // 'user' | 'assistant'
+  content: text("content").notNull(),
+  propostas: jsonb("propostas"),
+  criadaEm: timestamp("criada_em").defaultNow().notNull(),
+});
+export type AssistenteMensagem = typeof assistenteMensagens.$inferSelect;
+export const insertAssistenteMensagemSchema = createInsertSchema(assistenteMensagens).omit({
+  id: true,
+  criadaEm: true,
+});
+export type InsertAssistenteMensagem = z.infer<typeof insertAssistenteMensagemSchema>;
+
+export const memoriaCategoriaEnum = z.enum(["decisao", "hipotese", "restricao", "prioridade", "contexto"]);
+export type MemoriaCategoria = z.infer<typeof memoriaCategoriaEnum>;
+
+export const assistenteMemoria = pgTable("assistente_memoria", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  empresaId: varchar("empresa_id").notNull().references(() => empresas.id, { onDelete: "cascade" }),
+  fato: text("fato").notNull(),
+  categoria: text("categoria").notNull().default("contexto"),
+  fonteMensagemId: varchar("fonte_mensagem_id").references(() => assistenteMensagens.id, { onDelete: "set null" }),
+  ativo: boolean("ativo").notNull().default(true),
+  criadoEm: timestamp("criado_em").defaultNow().notNull(),
+});
+export type AssistenteMemoria = typeof assistenteMemoria.$inferSelect;
+export const insertAssistenteMemoriaSchema = createInsertSchema(assistenteMemoria).omit({
+  id: true,
+  criadoEm: true,
+});
+export type InsertAssistenteMemoria = z.infer<typeof insertAssistenteMemoriaSchema>;
+
+// ─────────────────────────────────────────────────────────────────────────────
 // AI Generation Params (shared across /api/ai/gerar-* endpoints)
 // Used by the reusable <AIGenerationModal> on the client.
 // All fields are optional; endpoints fall back to current defaults when absent.

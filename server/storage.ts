@@ -102,6 +102,15 @@ import {
   planoAgenticoPasso,
   type PlanoAgenticoPasso,
   type InsertPlanoAgenticoPasso,
+  assistenteConversas,
+  type AssistenteConversa,
+  type InsertAssistenteConversa,
+  assistenteMensagens,
+  type AssistenteMensagem,
+  type InsertAssistenteMensagem,
+  assistenteMemoria,
+  type AssistenteMemoria,
+  type InsertAssistenteMemoria,
 } from "@shared/schema";
 import { eq, ne, and, or, desc, inArray, sql, lt, isNull } from "drizzle-orm";
 
@@ -305,6 +314,21 @@ export interface IStorage {
   getPassoByPropostaId(propostaId: string): Promise<PlanoAgenticoPasso | undefined>;
   getPassoByPlanoOrdem(planoId: string, ordem: number): Promise<PlanoAgenticoPasso | undefined>;
   listPassosByPlano(planoId: string): Promise<PlanoAgenticoPasso[]>;
+
+  // Task #221 — Memória persistente do Assistente
+  criarConversa(input: InsertAssistenteConversa): Promise<AssistenteConversa>;
+  getConversa(id: string): Promise<AssistenteConversa | undefined>;
+  getConversaAtiva(empresaId: string, usuarioId: string | null, janelaHoras?: number): Promise<AssistenteConversa | undefined>;
+  encerrarConversa(id: string): Promise<void>;
+  appendMensagem(input: InsertAssistenteMensagem): Promise<AssistenteMensagem>;
+  getMensagens(conversaId: string, limit?: number): Promise<AssistenteMensagem[]>;
+  countMensagensUsuario(conversaId: string): Promise<number>;
+  upsertMemoria(empresaId: string, fato: string, categoria: string, fonteMensagemId: string | null): Promise<AssistenteMemoria>;
+  getMemoriaAtiva(empresaId: string, limit?: number): Promise<AssistenteMemoria[]>;
+  getMemoriaTodas(empresaId: string, limit?: number): Promise<AssistenteMemoria[]>;
+  getMemoriaById(id: string, empresaId: string): Promise<AssistenteMemoria | undefined>;
+  setMemoriaAtivo(id: string, empresaId: string, ativo: boolean): Promise<AssistenteMemoria | undefined>;
+  getMensagemById(id: string): Promise<AssistenteMensagem | undefined>;
 }
 
 export type ResetGrupo = "diagnostico" | "mapa" | "plano-acao" | "execucao" | "tudo";
@@ -1583,6 +1607,132 @@ export class DbStorage implements IStorage {
       .from(planoAgenticoPasso)
       .where(eq(planoAgenticoPasso.planoId, planoId))
       .orderBy(planoAgenticoPasso.ordem);
+  }
+
+  // ── Task #221 — Memória persistente do Assistente ──
+  async criarConversa(input: InsertAssistenteConversa): Promise<AssistenteConversa> {
+    const [row] = await db.insert(assistenteConversas).values(input).returning();
+    return row;
+  }
+
+  async getConversa(id: string): Promise<AssistenteConversa | undefined> {
+    const [row] = await db.select().from(assistenteConversas).where(eq(assistenteConversas.id, id)).limit(1);
+    return row;
+  }
+
+  async getConversaAtiva(
+    empresaId: string,
+    usuarioId: string | null,
+    janelaHoras: number = 12,
+  ): Promise<AssistenteConversa | undefined> {
+    const cutoff = new Date(Date.now() - janelaHoras * 60 * 60 * 1000);
+    const cond = and(
+      eq(assistenteConversas.empresaId, empresaId),
+      isNull(assistenteConversas.encerradaEm),
+      sql`${assistenteConversas.ultimaInteracaoEm} >= ${cutoff}`,
+      usuarioId
+        ? or(isNull(assistenteConversas.usuarioId), eq(assistenteConversas.usuarioId, usuarioId))
+        : isNull(assistenteConversas.usuarioId),
+    );
+    const [row] = await db
+      .select()
+      .from(assistenteConversas)
+      .where(cond)
+      .orderBy(desc(assistenteConversas.ultimaInteracaoEm))
+      .limit(1);
+    return row;
+  }
+
+  async encerrarConversa(id: string): Promise<void> {
+    await db
+      .update(assistenteConversas)
+      .set({ encerradaEm: new Date() })
+      .where(eq(assistenteConversas.id, id));
+  }
+
+  async appendMensagem(input: InsertAssistenteMensagem): Promise<AssistenteMensagem> {
+    const [row] = await db.insert(assistenteMensagens).values(input).returning();
+    await db
+      .update(assistenteConversas)
+      .set({ ultimaInteracaoEm: new Date() })
+      .where(eq(assistenteConversas.id, input.conversaId));
+    return row;
+  }
+
+  async getMensagens(conversaId: string, limit: number = 30): Promise<AssistenteMensagem[]> {
+    const rows = await db
+      .select()
+      .from(assistenteMensagens)
+      .where(eq(assistenteMensagens.conversaId, conversaId))
+      .orderBy(desc(assistenteMensagens.criadaEm))
+      .limit(limit);
+    return rows.reverse();
+  }
+
+  async countMensagensUsuario(conversaId: string): Promise<number> {
+    const rows = await db
+      .select({ id: assistenteMensagens.id })
+      .from(assistenteMensagens)
+      .where(and(eq(assistenteMensagens.conversaId, conversaId), eq(assistenteMensagens.role, "user")));
+    return rows.length;
+  }
+
+  async getMensagemById(id: string): Promise<AssistenteMensagem | undefined> {
+    const [row] = await db.select().from(assistenteMensagens).where(eq(assistenteMensagens.id, id)).limit(1);
+    return row;
+  }
+
+  async upsertMemoria(
+    empresaId: string,
+    fato: string,
+    categoria: string,
+    fonteMensagemId: string | null,
+  ): Promise<AssistenteMemoria> {
+    const [row] = await db
+      .insert(assistenteMemoria)
+      .values({ empresaId, fato, categoria, fonteMensagemId })
+      .returning();
+    return row;
+  }
+
+  async getMemoriaAtiva(empresaId: string, limit: number = 20): Promise<AssistenteMemoria[]> {
+    return db
+      .select()
+      .from(assistenteMemoria)
+      .where(and(eq(assistenteMemoria.empresaId, empresaId), eq(assistenteMemoria.ativo, true)))
+      .orderBy(desc(assistenteMemoria.criadoEm))
+      .limit(limit);
+  }
+
+  async getMemoriaTodas(empresaId: string, limit: number = 100): Promise<AssistenteMemoria[]> {
+    return db
+      .select()
+      .from(assistenteMemoria)
+      .where(eq(assistenteMemoria.empresaId, empresaId))
+      .orderBy(desc(assistenteMemoria.criadoEm))
+      .limit(limit);
+  }
+
+  async getMemoriaById(id: string, empresaId: string): Promise<AssistenteMemoria | undefined> {
+    const [row] = await db
+      .select()
+      .from(assistenteMemoria)
+      .where(and(eq(assistenteMemoria.id, id), eq(assistenteMemoria.empresaId, empresaId)))
+      .limit(1);
+    return row;
+  }
+
+  async setMemoriaAtivo(
+    id: string,
+    empresaId: string,
+    ativo: boolean,
+  ): Promise<AssistenteMemoria | undefined> {
+    const [row] = await db
+      .update(assistenteMemoria)
+      .set({ ativo })
+      .where(and(eq(assistenteMemoria.id, id), eq(assistenteMemoria.empresaId, empresaId)))
+      .returning();
+    return row;
   }
 }
 

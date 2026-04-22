@@ -136,7 +136,7 @@ export async function detectarSinaisCriticos(empresaId: string): Promise<SinaisC
   };
 }
 
-async function carregarContextoEmpresa(empresaId: string): Promise<AvaliacaoCtx> {
+export async function carregarContextoEmpresa(empresaId: string): Promise<AvaliacaoCtx> {
   const [indicadores, iniciativas, objetivos] = await Promise.all([
     // Task #216 — usar apenas indicadores de acompanhamento (BSC). Diagnóstico
     // inicial não deve disparar sinais críticos no briefing/resumo semanal.
@@ -476,7 +476,7 @@ async function enviarResumoSemanal(
   }
 }
 
-function montarHtmlResumoSemanal(
+export function montarHtmlResumoSemanal(
   nome: string,
   kpisV: Indicador[],
   kpisA: Indicador[],

@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { isJornadaConcluida } from "./jornada-helper";
 import { sendVerificationEmail, sendPasswordResetEmail, getEmailDiagnostics } from "./email";
-import { runNotificationEngine, detectarSinaisCriticos, type EngineReport } from "./notification-engine";
+import { runNotificationEngine, detectarSinaisCriticos, carregarContextoEmpresa, montarHtmlResumoSemanal, type EngineReport } from "./notification-engine";
 import { runBriefingDiarioScheduler, gerarEPersistirBriefing, dataDeHojeSP } from "./briefing-engine";
 import { openai, AI_MODELS, loadModelConfig, getModelForPlan, buildEmpresaContextoIA, buildAcoesRecentesContextoIA, buildPlanoAtivoContextoIA } from "./ai-helpers";
 import { TOOLS, getTool, toOpenAITools, registrarProposta, LOOKUP_TOOLS_OPENAI, executarBuscaPorNome } from "./assistant-tools";
@@ -1621,6 +1621,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalAtrasados,
         indicadoresCriticos,
         total: objetivosMeus.length + krsCount + iniciativasMinhas.length + indicadoresMeus.length,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Task #217 — preview do "Resumo Semanal" para o usuário logado. Constrói
+  // o mesmo payload usado pelo motor de notificações (carregarContextoEmpresa
+  // + montarHtmlResumoSemanal) sem disparar e-mail. Útil para o usuário
+  // visualizar o resumo e para testes que protegem a separação entre
+  // diagnóstico inicial e KPIs do BSC (task #216).
+  app.get("/api/meu-painel/resumo-semanal-preview", requireAuth, async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const usuario = await storage.getUsuarioById(req.session.userId!);
+      if (!usuario) return res.status(401).json({ error: "Usuário não encontrado" });
+
+      const ctx = await carregarContextoEmpresa(empresaId);
+      const kpisVermelhos = ctx.indicadores.filter((i) => i.status === "vermelho");
+      const kpisAmarelos = ctx.indicadores.filter((i) => i.status === "amarelo");
+      const hoje = new Date();
+      const iniciativasAtras = ctx.iniciativas.filter((i) => {
+        if (i.status === "concluida" || i.status === "pausada") return false;
+        const d = parsePrazoDate(i.prazo);
+        return d !== null && d < hoje;
+      });
+      const limite = Date.now() - 14 * 24 * 60 * 60 * 1000;
+      const okrsParados = ctx.resultadosComObjetivo.filter(({ resultado }) => {
+        const ts = new Date(resultado.atualizadoEm ?? resultado.createdAt).getTime();
+        return ts < limite;
+      });
+
+      const html = montarHtmlResumoSemanal(
+        usuario.nome,
+        kpisVermelhos,
+        kpisAmarelos,
+        iniciativasAtras,
+        okrsParados,
+      );
+
+      res.json({
+        html,
+        kpisVermelhos: kpisVermelhos.map((k) => ({ id: k.id, nome: k.nome, perspectiva: k.perspectiva, atual: k.atual, meta: k.meta })),
+        kpisAmarelos: kpisAmarelos.map((k) => ({ id: k.id, nome: k.nome, perspectiva: k.perspectiva, atual: k.atual, meta: k.meta })),
+        iniciativasAtrasadas: iniciativasAtras.map((i) => ({ id: i.id, titulo: i.titulo, prazo: i.prazo, responsavel: i.responsavel })),
+        okrsParados: okrsParados.map(({ objetivo, resultado }) => ({ objetivoId: objetivo.id, objetivoTitulo: objetivo.titulo, resultadoId: resultado.id, metrica: resultado.metrica })),
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });

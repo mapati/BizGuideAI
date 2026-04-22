@@ -143,6 +143,7 @@ export interface IStorage {
   deleteObjetivo(id: string, empresaId: string): Promise<void>;
   
   getResultadosChave(objetivoId: string, empresaId: string): Promise<ResultadoChave[]>;
+  getResultadoChaveById(id: string, empresaId: string): Promise<ResultadoChave | undefined>;
   createResultadoChave(resultado: InsertResultadoChave, empresaId: string): Promise<ResultadoChave>;
   updateResultadoChave(id: string, empresaId: string, resultado: Partial<InsertResultadoChave>): Promise<ResultadoChave>;
   deleteResultadoChave(id: string, empresaId: string): Promise<void>;
@@ -506,6 +507,16 @@ export class DbStorage implements IStorage {
       .innerJoin(objetivos, eq(resultadosChave.objetivoId, objetivos.id))
       .where(and(eq(resultadosChave.objetivoId, objetivoId), eq(objetivos.empresaId, empresaId)));
     return result.map(r => r.resultadosChave);
+  }
+
+  async getResultadoChaveById(id: string, empresaId: string): Promise<ResultadoChave | undefined> {
+    const result = await db
+      .select({ resultadosChave })
+      .from(resultadosChave)
+      .innerJoin(objetivos, eq(resultadosChave.objetivoId, objetivos.id))
+      .where(and(eq(resultadosChave.id, id), eq(objetivos.empresaId, empresaId)))
+      .limit(1);
+    return result[0]?.resultadosChave;
   }
 
   async createResultadoChave(resultado: InsertResultadoChave, empresaId: string): Promise<ResultadoChave> {

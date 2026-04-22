@@ -174,17 +174,16 @@ function ResultadoChaveCard({ resultado, isEditing, editingData, onStartEdit, on
               data-testid={`input-edit-metrica-${resultado.id}`}
             />
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          {/* Calibragem: edita só baseline e meta. O valor atual (progresso) tem
+              fluxo próprio (ResultadoChaveCard / atualizar_progresso_kr) e não
+              deve ser confundido com a meta-alvo. */}
+          <div className="grid grid-cols-2 gap-2">
             <div>
-              <Label className="text-xs">Inicial</Label>
+              <Label className="text-xs">Valor inicial</Label>
               <Input type="number" value={editingData.valorInicial} onChange={(e) => onChangeEdit({ ...editingData, valorInicial: e.target.value })} data-testid={`input-edit-inicial-${resultado.id}`} />
             </div>
             <div>
-              <Label className="text-xs">Atual</Label>
-              <Input type="number" value={editingData.valorAtual} onChange={(e) => onChangeEdit({ ...editingData, valorAtual: e.target.value })} data-testid={`input-edit-atual-${resultado.id}`} />
-            </div>
-            <div>
-              <Label className="text-xs">Alvo</Label>
+              <Label className="text-xs">Valor-alvo</Label>
               <Input type="number" value={editingData.valorAlvo} onChange={(e) => onChangeEdit({ ...editingData, valorAlvo: e.target.value })} data-testid={`input-edit-alvo-${resultado.id}`} />
             </div>
           </div>
@@ -591,13 +590,15 @@ export default function OKRs() {
   const handleEditarResultado = async () => {
     if (!editandoResultado) return;
 
+    // Calibragem da meta: não enviamos valorAtual. O progresso só muda pelo
+    // fluxo dedicado (atualizar_progresso_kr), evitando ambiguidade entre
+    // ajustar a meta-alvo e registrar o avanço atual.
     await editarResultadoMutation.mutateAsync({
       id: editandoResultado.id,
       data: {
         metrica: editandoResultado.metrica,
         valorInicial: editandoResultado.valorInicial,
         valorAlvo: editandoResultado.valorAlvo,
-        valorAtual: editandoResultado.valorAtual,
         owner: editandoResultado.owner,
         prazo: editandoResultado.prazo,
       },
@@ -610,13 +611,46 @@ export default function OKRs() {
     return objetivos.filter(obj => obj.perspectiva === perspectiva);
   };
 
+  // Quando um deep-link `?editar=<krId>&tipo=kr` chega antes do KR estar
+  // carregado em cache (ex.: tool atualizar_kr, sem objetivoId no payload),
+  // disparamos um lookup pelo próprio id para descobrir o objetivo pai.
+  const [krLookupId, setKrLookupId] = useState<string | null>(null);
+  const { data: krLookup } = useQuery<ResultadoChave>({
+    queryKey: ["/api/resultados-chave/by-id", krLookupId],
+    enabled: !!krLookupId,
+    queryFn: async () => {
+      const res = await fetch(`/api/resultados-chave/by-id/${krLookupId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Não foi possível localizar a meta.");
+      return await res.json();
+    },
+  });
+
   useDeepLinkDialog(!!empresa?.id && !isLoading, ({ novo, editar, params }) => {
     const isKR = params.tipo === "kr" || params.tipo === "resultado-chave";
+    const isNovoKR = params.tipo === "novo-kr";
     if (editar) {
+      // Tool adicionar_kr_a_okr: abre o objetivo e já abre o sub-formulário
+      // de "Adicionar Métrica" pré-preenchido com os campos vindos da IA.
+      if (isNovoKR) {
+        const parent = objetivos.find((o) => o.id === editar);
+        if (!parent) return false;
+        setObjetivoSelecionado(parent);
+        setDialogResultadosOpen(true);
+        setNovoResultado({
+          metrica: params.metrica || "",
+          valorInicial: params.valorInicial || "",
+          valorAtual: params.valorAtual || "",
+          valorAlvo: params.valorAlvo || "",
+          owner: params.owner || "",
+          prazo: params.prazo || "",
+        });
+        setDialogNovoResultadoOpen(true);
+        return true;
+      }
       if (isKR) {
         // 1) Tentar localizar o KR já carregado.
-        let kr = resultadosChave.find((r) => r.id === editar);
-        let parent = kr ? objetivos.find((o) => o.id === kr.objetivoId) : null;
+        let kr: ResultadoChave | undefined = resultadosChave.find((r) => r.id === editar);
+        let parent: Objetivo | null = kr ? (objetivos.find((o) => o.id === kr!.objetivoId) ?? null) : null;
         // 2) Se não está carregado mas o backend nos passou o objetivoId
         //    (caso da tool abrir_entidade), abrimos o objetivo agora para
         //    disparar a query de KRs e voltamos depois (return false) para
@@ -630,7 +664,17 @@ export default function OKRs() {
           if (!dialogResultadosOpen) setDialogResultadosOpen(true);
           return false;
         }
-        if (!kr || !parent) return false;
+        // 3) Sem objetivoId no payload (caso da tool atualizar_kr): pedimos
+        //    ao backend o KR pelo seu próprio id para descobrir o pai.
+        if (!kr && krLookup && krLookup.id === editar) {
+          kr = krLookup;
+          parent = objetivos.find((o) => o.id === krLookup.objetivoId) ?? null;
+        }
+        if (!kr) {
+          if (krLookupId !== editar) setKrLookupId(editar);
+          return false;
+        }
+        if (!parent) return false;
         setObjetivoSelecionado(parent);
         setDialogResultadosOpen(true);
         setEditandoResultado({

@@ -41,7 +41,7 @@ const ENTIDADE_ID_PARAM: Record<string, { idField: string; extra?: Record<string
   atualizar_iniciativa: { idField: "id" },
   encerrar_iniciativa: { idField: "id" },
   atualizar_okr: { idField: "objetivoId" },
-  adicionar_kr_a_okr: { idField: "objetivoId" },
+  adicionar_kr_a_okr: { idField: "objetivoId", extra: { tipo: "novo-kr" } },
   atualizar_kr: { idField: "resultadoChaveId", extra: { tipo: "kr" } },
   atualizar_progresso_kr: { idField: "resultadoChaveId", extra: { tipo: "kr" } },
   atualizar_valor_indicador: { idField: "indicadorId" },

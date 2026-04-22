@@ -2223,6 +2223,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ==================== RESULTADOS CHAVE ====================
 
+  // Lookup individual KR pelo seu próprio id (não pelo objetivoId pai).
+  // Necessário para que deep-links como /okrs?editar=<krId>&tipo=kr consigam
+  // localizar o objetivo pai sem precisar varrer todos os KRs do tenant.
+  app.get("/api/resultados-chave/by-id/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const resultado = await storage.getResultadoChaveById(id, req.session.empresaId!);
+      if (!resultado) {
+        return res.status(404).json({ error: "Resultado-chave não encontrado" });
+      }
+      res.json(resultado);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get("/api/resultados-chave/:objetivoId", async (req, res) => {
     try {
       const { objetivoId } = req.params;

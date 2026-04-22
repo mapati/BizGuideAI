@@ -740,6 +740,9 @@ export const propostaPreviewSchema = z.object({
   campos: z.array(z.object({
     label: z.string(),
     valor: z.string(),
+    // Task #284 — valor anterior para renderizar diff "antes → depois"
+    // em propostas de atualização. Opcional, retrocompatível.
+    valorAnterior: z.string().optional(),
   })).default([]),
   ctaConfirmar: z.string().default("Confirmar"),
   ctaIgnorar: z.string().default("Ignorar"),

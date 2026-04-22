@@ -90,6 +90,17 @@ export interface ToolDefinition<TParams> {
   // Rota de formulário tradicional para o fluxo "Ajustar" (HITL).
   // O usuário é levado a essa rota com os params atuais para edição manual.
   formRota: string;
+  // Task #284 — rótulo curto exibido no chip de status durante o streaming
+  // ("Criando iniciativa…", "Atualizando KR…"). Opcional; quando ausente
+  // a rota usa um fallback genérico.
+  statusLabel?: string;
+  // Task #284 — enriquecimento async opcional do preview para incluir
+  // `valorAnterior` em campos atualizados (diff antes→depois).
+  enrichPreview?: (
+    preview: PropostaPreview,
+    params: TParams,
+    ctx: { empresaId: string; usuarioId?: string | null },
+  ) => Promise<PropostaPreview>;
 }
 
 // ---------- Helpers ----------
@@ -117,6 +128,29 @@ const PERSPECTIVAS_INDICADOR = ["Finanças", "Clientes", "Processos", "Pessoas"]
 function strField(label: string, valor: string | undefined | null) {
   if (!valor || !String(valor).trim()) return null;
   return { label, valor: String(valor) };
+}
+
+// Task #284 — helper compartilhado pelos `enrichPreview` das update tools.
+// Recebe um campo do preview e o "estado anterior" (raw + flag numeric).
+// Retorna o campo possivelmente decorado com `valorAnterior` apenas quando o
+// valor mudou. Trata vazio→preenchido como mudança ("(vazio)") e normaliza
+// valores numéricos para evitar diff falso-positivo (ex.: "1.00" vs "1").
+function applyDiff(
+  campo: { label: string; valor: string },
+  anterior: { raw: string | null | undefined; numeric?: boolean } | undefined,
+): { label: string; valor: string; valorAnterior?: string } {
+  if (!anterior) return campo;
+  const ant = anterior.raw;
+  const novo = campo.valor;
+  if (ant === undefined) return campo;
+  if (anterior.numeric) {
+    const a = ant != null ? Number(ant) : NaN;
+    const b = Number(novo);
+    if (!Number.isNaN(a) && !Number.isNaN(b) && a === b) return campo;
+  } else if (ant === novo) {
+    return campo;
+  }
+  return { ...campo, valorAnterior: ant && String(ant).trim() ? String(ant) : "(vazio)" };
 }
 
 // Task #266/#268 — `prazoData` (YYYY-MM-DD) é a forma normalizada do prazo,
@@ -304,6 +338,23 @@ const atualizarIniciativa: ToolDefinition<AtualizarIniciativaParams> = {
     };
   },
   formRota: "/iniciativas",
+  statusLabel: "Atualizando iniciativa…",
+  enrichPreview: async (preview, p, ctx) => {
+    try {
+      const existing = await storage.getIniciativa(p.id);
+      if (!existing || existing.empresaId !== ctx.empresaId) return preview;
+      const before: Record<string, { raw: string | null | undefined; numeric?: boolean }> = {
+        "Novo título": { raw: existing.titulo },
+        "Status": { raw: existing.status ?? null },
+        "Prioridade": { raw: existing.prioridade ?? null },
+        "Prazo": { raw: existing.prazo ?? null },
+        "Prazo (data)": { raw: existing.prazoData ?? null },
+        "Responsável": { raw: existing.responsavel ?? null },
+      };
+      const campos = (preview.campos ?? []).map((c) => applyDiff(c, before[c.label]));
+      return { ...preview, campos };
+    } catch { return preview; }
+  },
 };
 
 // ---------- 2b. encerrar_iniciativa ----------
@@ -704,6 +755,23 @@ const atualizarOkr: ToolDefinition<AtualizarOkrParams> = {
     };
   },
   formRota: "/okrs",
+  statusLabel: "Atualizando OKR…",
+  enrichPreview: async (preview, p, ctx) => {
+    try {
+      const lista = await storage.getObjetivos(ctx.empresaId);
+      const existing = lista.find((o) => o.id === p.objetivoId);
+      if (!existing) return preview;
+      const before: Record<string, { raw: string | null | undefined; numeric?: boolean }> = {
+        "Novo título": { raw: existing.titulo },
+        "Perspectiva": { raw: existing.perspectiva ?? null },
+        "Prazo": { raw: existing.prazo ?? null },
+        "Prazo (data)": { raw: (existing as { prazoData?: string | null }).prazoData ?? null },
+        "Descrição": { raw: (existing as { descricao?: string | null }).descricao ?? null },
+      };
+      const campos = (preview.campos ?? []).map((c) => applyDiff(c, before[c.label]));
+      return { ...preview, campos };
+    } catch { return preview; }
+  },
 };
 
 // ---------- 3c. adicionar_kr_a_okr ----------
@@ -861,6 +929,23 @@ const atualizarKr: ToolDefinition<AtualizarKrParams> = {
     };
   },
   formRota: "/okrs",
+  statusLabel: "Editando meta…",
+  enrichPreview: async (preview, p, ctx) => {
+    try {
+      const kr = await storage.getResultadoChaveById(p.resultadoChaveId, ctx.empresaId);
+      if (!kr) return preview;
+      const before: Record<string, { raw: string | null | undefined; numeric?: boolean }> = {
+        "Métrica": { raw: kr.metrica },
+        "Valor inicial": { raw: kr.valorInicial != null ? String(kr.valorInicial) : null, numeric: true },
+        "Valor-alvo": { raw: kr.valorAlvo != null ? String(kr.valorAlvo) : null, numeric: true },
+        "Dono": { raw: kr.owner ?? null },
+        "Prazo": { raw: kr.prazo ?? null },
+        "Prazo (data)": { raw: (kr as { prazoData?: string | null }).prazoData ?? null },
+      };
+      const campos = (preview.campos ?? []).map((c) => applyDiff(c, before[c.label]));
+      return { ...preview, campos };
+    } catch { return preview; }
+  },
 };
 
 // ---------- 4. atualizar_progresso_kr ----------
@@ -910,6 +995,18 @@ const atualizarProgressoKr: ToolDefinition<AtualizarProgressoKrParams> = {
     };
   },
   formRota: "/okrs",
+  statusLabel: "Atualizando progresso do KR…",
+  enrichPreview: async (preview, p, ctx) => {
+    try {
+      const kr = await storage.getResultadoChaveById(p.resultadoChaveId, ctx.empresaId);
+      if (!kr) return preview;
+      const before: Record<string, { raw: string | null | undefined; numeric?: boolean }> = {
+        "Novo valor atual": { raw: kr.valorAtual != null ? String(kr.valorAtual) : null, numeric: true },
+      };
+      const campos = (preview.campos ?? []).map((c) => applyDiff(c, before[c.label]));
+      return { ...preview, campos };
+    } catch { return preview; }
+  },
 };
 
 // ---------- 4b. vincular_kr_a_indicador ----------
@@ -1243,6 +1340,18 @@ const atualizarValorIndicador: ToolDefinition<AtualizarValorIndicadorParams> = {
     };
   },
   formRota: "/indicadores",
+  statusLabel: "Registrando leitura do KPI…",
+  enrichPreview: async (preview, p, ctx) => {
+    try {
+      const ind = await storage.getIndicador(p.indicadorId);
+      if (!ind || ind.empresaId !== ctx.empresaId) return preview;
+      const before: Record<string, { raw: string | null | undefined; numeric?: boolean }> = {
+        "Valor": { raw: (ind as { atual?: string | null }).atual ?? null },
+      };
+      const campos = (preview.campos ?? []).map((c) => applyDiff(c, before[c.label]));
+      return { ...preview, campos };
+    } catch { return preview; }
+  },
 };
 
 // ---------- 7. navegar_para ----------
@@ -2677,6 +2786,24 @@ const atualizarRisco: ToolDefinition<AtualizarRiscoParams> = {
     };
   },
   formRota: "/riscos",
+  statusLabel: "Atualizando risco…",
+  enrichPreview: async (preview, p, ctx) => {
+    try {
+      const existing = await storage.getRisco(p.riscoId);
+      if (!existing || existing.empresaId !== ctx.empresaId) return preview;
+      const before: Record<string, { raw: string | null | undefined; numeric?: boolean }> = {
+        "Nova descrição": { raw: existing.descricao ?? null },
+        "Categoria": { raw: existing.categoria ?? null },
+        "Probabilidade": { raw: existing.probabilidade != null ? `${existing.probabilidade}/5` : null },
+        "Impacto": { raw: existing.impacto != null ? `${existing.impacto}/5` : null },
+        "Status": { raw: existing.status ?? null },
+        "Plano de mitigação": { raw: (existing as { planoMitigacao?: string | null }).planoMitigacao ?? null },
+        "Responsável": { raw: (existing as { responsavelId?: string | null }).responsavelId ?? null },
+      };
+      const campos = (preview.campos ?? []).map((c) => applyDiff(c, before[c.label]));
+      return { ...preview, campos };
+    } catch { return preview; }
+  },
 };
 
 const registrarMitigacaoSchema = z.object({
@@ -3291,6 +3418,18 @@ export async function registrarProposta(opts: {
         opts.empresaId,
         tool.name,
       );
+    }
+  } catch { /* best-effort */ }
+
+  // Task #284 — diff "antes → depois" para tools de atualização que
+  // expõem `enrichPreview`. Best-effort: se falhar, mantém o preview já
+  // enriquecido com nomes amigáveis.
+  try {
+    if (typeof tool.enrichPreview === "function") {
+      preview = await tool.enrichPreview(preview, parsed.data, {
+        empresaId: opts.empresaId,
+        usuarioId: opts.usuarioId ?? null,
+      });
     }
   } catch { /* best-effort */ }
 

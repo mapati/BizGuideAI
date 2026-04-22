@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Bot, User, Loader2, ArrowRight, Plus, Pencil, Clock, MessageSquarePlus } from "lucide-react";
+import { Send, Bot, User, Loader2, ArrowRight, Plus, Pencil, Clock, MessageSquarePlus, ArrowDownToLine } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -363,7 +363,28 @@ export function AssistantChat({
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <div className="flex items-center justify-end px-3 pt-2">
+      <div className="flex items-center justify-end gap-1 px-3 pt-2">
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            const container = messagesEndRef.current?.parentElement;
+            if (!container) return;
+            const bubbles = container.querySelectorAll<HTMLElement>(
+              '[data-message-role="assistant"]',
+            );
+            const ultimo = bubbles[bubbles.length - 1];
+            if (ultimo) {
+              ultimo.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+          }}
+          disabled={isLoading || messages.filter((m) => m.role === "assistant").length === 0}
+          className="gap-1.5 text-xs text-muted-foreground"
+          data-testid="button-ultima-mensagem"
+        >
+          <ArrowDownToLine className="h-3.5 w-3.5" />
+          Última mensagem
+        </Button>
         <Button
           size="sm"
           variant="ghost"
@@ -387,7 +408,14 @@ export function AssistantChat({
           />
         )}
         {messages.map((msg, i) => (
-          <MessageBubble key={i} msg={msg} onAcaoClick={handleAcaoClick} onContinuacao={handleContinuacao} />
+          <div
+            key={i}
+            data-message-role={msg.role}
+            data-message-index={i}
+            data-testid={`message-${msg.role}-${i}`}
+          >
+            <MessageBubble msg={msg} onAcaoClick={handleAcaoClick} onContinuacao={handleContinuacao} />
+          </div>
         ))}
 
         {isLoading && (

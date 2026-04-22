@@ -180,6 +180,7 @@ export interface IStorage {
   deleteCenario(id: string, empresaId: string): Promise<void>;
 
   getRiscos(empresaId: string): Promise<Risco[]>;
+  getRisco(id: string): Promise<Risco | undefined>;
   createRisco(risco: InsertRisco): Promise<Risco>;
   updateRisco(id: string, empresaId: string, risco: Partial<InsertRisco>): Promise<Risco>;
   deleteRisco(id: string, empresaId: string): Promise<void>;
@@ -677,6 +678,10 @@ export class DbStorage implements IStorage {
 
   async getRiscos(empresaId: string): Promise<Risco[]> {
     return db.select().from(riscos).where(eq(riscos.empresaId, empresaId)).orderBy(desc(riscos.criadoEm));
+  }
+  async getRisco(id: string): Promise<Risco | undefined> {
+    const result = await db.select().from(riscos).where(eq(riscos.id, id)).limit(1);
+    return result[0];
   }
   async createRisco(risco: InsertRisco): Promise<Risco> {
     const result = await db.insert(riscos).values(risco).returning();

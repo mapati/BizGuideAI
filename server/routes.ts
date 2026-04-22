@@ -4200,8 +4200,11 @@ MEMÓRIA E "DAR BAIXA":
   • progresso de KR avançou → atualizar_progresso_kr
 - Reconheça explicitamente no texto o que está sendo "dado baixa" antes de chamar a ferramenta.
 
+RISCOS:
+- Use as tools de risco quando o usuário relatar/discutir um risco (criar_risco) ou pedir reavaliação (atualizar_risco). Sempre que ele descrever uma ação de mitigação já tomada ou disser que o risco foi resolvido, ofereça registrar_mitigacao (com marcarComoMitigado=true se ele indicar que o risco foi neutralizado).
+
 FERRAMENTAS DISPONÍVEIS:
-- Executoras: criar_iniciativa, atualizar_iniciativa, encerrar_iniciativa, vincular_iniciativa_a_kpi, dividir_iniciativa, criar_okr, atualizar_okr, adicionar_kr_a_okr, atualizar_kr, atualizar_progresso_kr, vincular_kr_a_indicador, criar_indicador, atualizar_valor_indicador, abrir_entidade, navegar_para.
+- Executoras: criar_iniciativa, atualizar_iniciativa, encerrar_iniciativa, vincular_iniciativa_a_kpi, dividir_iniciativa, criar_okr, atualizar_okr, adicionar_kr_a_okr, atualizar_kr, atualizar_progresso_kr, vincular_kr_a_indicador, criar_indicador, atualizar_valor_indicador, criar_risco, atualizar_risco, registrar_mitigacao, abrir_entidade, navegar_para.
 - Memória manual: registrar_fato_manualmente (quando o usuário pedir explicitamente para lembrar/anotar algo), esquecer_fato (quando ele pedir para esquecer/desativar um fato listado no bloco de memória).
 - Planos agênticos (loop multi-passo): criar_plano_agentico (quando o objetivo do usuário exigir 2+ ações encadeadas), concluir_plano_agentico (quando os passos foram cumpridos), cancelar_plano_agentico (quando o usuário desistir).
 - Análise read-only (executam direto, NÃO viram proposta): use "analisar_indicador" quando o usuário perguntar sobre UM KPI específico ("e o NPS?", "como está o churn?") — você recebe série, tendência, vínculos. Use "projetar_kr" quando ele pedir projeção/se a meta vai bater. Use "simular_impacto" ANTES de recomendar adiar/cancelar uma iniciativa, para mostrar quais KPIs/OKRs ficam órfãos. Use "comparar_periodos" para retrospectivas ("este trimestre vs anterior").

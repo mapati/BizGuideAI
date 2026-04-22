@@ -45,6 +45,8 @@ const ENTIDADE_ID_PARAM: Record<string, { idField: string; extra?: Record<string
   atualizar_kr: { idField: "resultadoChaveId", extra: { tipo: "kr" } },
   atualizar_progresso_kr: { idField: "resultadoChaveId", extra: { tipo: "kr" } },
   atualizar_valor_indicador: { idField: "indicadorId" },
+  atualizar_risco: { idField: "riscoId" },
+  registrar_mitigacao: { idField: "riscoId" },
 };
 
 function construirUrlAjuste(
@@ -92,6 +94,9 @@ const FERRAMENTAS_LABEL: Record<string, string> = {
   atualizar_progresso_kr: "Atualizar KR",
   criar_indicador: "Novo indicador",
   atualizar_valor_indicador: "Registrar leitura",
+  criar_risco: "Novo risco",
+  atualizar_risco: "Atualizar risco",
+  registrar_mitigacao: "Registrar mitigação",
   navegar_para: "Abrir página",
   abrir_entidade: "Abrir item",
 };

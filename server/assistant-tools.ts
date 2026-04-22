@@ -32,6 +32,9 @@ export type ToolName =
   | "vincular_kr_a_indicador"
   | "criar_indicador"
   | "atualizar_valor_indicador"
+  | "criar_risco"
+  | "atualizar_risco"
+  | "registrar_mitigacao"
   | "navegar_para"
   | "abrir_entidade"
   | "criar_plano_agentico"
@@ -2258,6 +2261,250 @@ export async function executarFerramentaReadonly(
     return { ok: false, ferramenta: name, mensagem: `Falha ao executar ${name}: ${(err as Error).message.slice(0, 160)}` };
   }
 }
+// ---------- Riscos (Task #232) ----------
+const CATEGORIAS_RISCO = [
+  "operacional",
+  "financeiro",
+  "estrategico",
+  "regulatorio",
+  "tecnologico",
+  "reputacao",
+] as const;
+const STATUS_RISCO = [
+  "identificado",
+  "em_mitigacao",
+  "aceito",
+  "eliminado",
+  "mitigado",
+] as const;
+
+function criticidadeLabel(prob: number, imp: number): string {
+  const score = prob * imp;
+  if (score >= 16) return "Crítico";
+  if (score >= 9) return "Alto";
+  if (score >= 4) return "Médio";
+  return "Baixo";
+}
+
+const criarRiscoSchema = z.object({
+  descricao: z.string().min(10).max(1000),
+  categoria: z.enum(CATEGORIAS_RISCO).default("estrategico"),
+  probabilidade: z.number().int().min(1).max(5).default(3),
+  impacto: z.number().int().min(1).max(5).default(3),
+  planoMitigacao: z.string().max(1500).default(""),
+  responsavelId: z.string().optional(),
+  origemSwotId: z.string().optional(),
+});
+type CriarRiscoParams = z.infer<typeof criarRiscoSchema>;
+
+const criarRisco: ToolDefinition<CriarRiscoParams> = {
+  name: "criar_risco",
+  description:
+    "Registra um novo risco estratégico/operacional. Use quando o usuário relatar uma ameaça em discussão (ex.: 'o NPS pode despencar se o concorrente lançar X', 'temos risco de perder o cliente Y'). Sempre que registrar, oriente o usuário a também planejar mitigação depois.",
+  paramsSchema: criarRiscoSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["descricao"],
+    properties: {
+      descricao: { type: "string", description: "Descrição clara do risco (≥10 chars)." },
+      categoria: { type: "string", enum: [...CATEGORIAS_RISCO] },
+      probabilidade: { type: "integer", minimum: 1, maximum: 5, description: "1=muito baixa, 5=muito alta" },
+      impacto: { type: "integer", minimum: 1, maximum: 5, description: "1=muito baixo, 5=muito alto" },
+      planoMitigacao: { type: "string", description: "Ações iniciais de mitigação (opcional)." },
+      responsavelId: { type: "string", description: "ID do usuário responsável (opcional)." },
+      origemSwotId: { type: "string", description: "ID de fator SWOT que originou o risco (opcional)." },
+    },
+  },
+  preview: (p) => ({
+    titulo: `Registrar risco: ${p.descricao.slice(0, 80)}`,
+    descricao: `Novo risco na categoria ${p.categoria}, criticidade ${criticidadeLabel(p.probabilidade, p.impacto)} (${p.probabilidade * p.impacto} pts).`,
+    campos: [
+      { label: "Descrição", valor: p.descricao },
+      { label: "Categoria", valor: p.categoria },
+      { label: "Probabilidade", valor: `${p.probabilidade}/5` },
+      { label: "Impacto", valor: `${p.impacto}/5` },
+      { label: "Criticidade", valor: `${criticidadeLabel(p.probabilidade, p.impacto)} (${p.probabilidade * p.impacto} pts)` },
+      ...(p.planoMitigacao ? [{ label: "Plano de mitigação", valor: p.planoMitigacao }] : []),
+    ],
+    ctaConfirmar: "Registrar risco",
+    ctaIgnorar: "Agora não",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    let origemSwotIdSafe: string | undefined = undefined;
+    if (p.origemSwotId) {
+      const swots = await storage.getAnaliseSwot(ctx.empresaId);
+      if (swots.some((s) => s.id === p.origemSwotId)) origemSwotIdSafe = p.origemSwotId;
+    }
+    let responsavelIdSafe: string | undefined = undefined;
+    if (p.responsavelId) {
+      const u = await storage.getUsuarioById(p.responsavelId);
+      if (u && u.empresaId === ctx.empresaId) responsavelIdSafe = u.id;
+    }
+    const created = await storage.createRisco({
+      empresaId: ctx.empresaId,
+      descricao: p.descricao,
+      categoria: p.categoria,
+      probabilidade: p.probabilidade,
+      impacto: p.impacto,
+      status: "identificado",
+      planoMitigacao: p.planoMitigacao || "",
+      responsavelId: responsavelIdSafe,
+      origemSwotId: origemSwotIdSafe,
+    });
+    return {
+      resumo: `Risco "${created.descricao.slice(0, 60)}" registrado (${criticidadeLabel(created.probabilidade, created.impacto)}).`,
+      dados: { id: created.id },
+      rota: "/riscos",
+      entidadeTipo: "risco",
+      entidadeId: created.id,
+    };
+  },
+  formRota: "/riscos",
+};
+
+const atualizarRiscoSchema = z.object({
+  riscoId: z.string().min(8),
+  descricao: z.string().min(10).max(1000).optional(),
+  categoria: z.enum(CATEGORIAS_RISCO).optional(),
+  probabilidade: z.number().int().min(1).max(5).optional(),
+  impacto: z.number().int().min(1).max(5).optional(),
+  status: z.enum(STATUS_RISCO).optional(),
+  planoMitigacao: z.string().max(1500).optional(),
+  responsavelId: z.string().optional(),
+});
+type AtualizarRiscoParams = z.infer<typeof atualizarRiscoSchema>;
+
+const atualizarRisco: ToolDefinition<AtualizarRiscoParams> = {
+  name: "atualizar_risco",
+  description:
+    "Atualiza campos de um risco existente — status, probabilidade, impacto, responsável, plano de mitigação ou descrição. Use quando o usuário pedir reavaliação ou mudança de status. Para apenas registrar uma ação tomada de mitigação, prefira registrar_mitigacao.",
+  paramsSchema: atualizarRiscoSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["riscoId"],
+    properties: {
+      riscoId: { type: "string", description: "ID real do risco (do CATÁLOGO)." },
+      descricao: { type: "string" },
+      categoria: { type: "string", enum: [...CATEGORIAS_RISCO] },
+      probabilidade: { type: "integer", minimum: 1, maximum: 5 },
+      impacto: { type: "integer", minimum: 1, maximum: 5 },
+      status: { type: "string", enum: [...STATUS_RISCO] },
+      planoMitigacao: { type: "string" },
+      responsavelId: { type: "string" },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Atualizar risco",
+    descricao: "Vamos ajustar o risco selecionado.",
+    campos: [
+      { label: "ID", valor: p.riscoId },
+      strField("Nova descrição", p.descricao),
+      strField("Categoria", p.categoria),
+      p.probabilidade !== undefined ? { label: "Probabilidade", valor: `${p.probabilidade}/5` } : null,
+      p.impacto !== undefined ? { label: "Impacto", valor: `${p.impacto}/5` } : null,
+      strField("Status", p.status),
+      strField("Plano de mitigação", p.planoMitigacao),
+      strField("Responsável", p.responsavelId),
+    ].filter(Boolean) as { label: string; valor: string }[],
+    ctaConfirmar: "Aplicar mudanças",
+    ctaIgnorar: "Manter como está",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const existing = await storage.getRisco(p.riscoId);
+    if (!existing || existing.empresaId !== ctx.empresaId) {
+      throw new Error("Risco não encontrado nesta empresa.");
+    }
+    const patch: Partial<typeof existing> = {};
+    if (p.descricao) patch.descricao = p.descricao;
+    if (p.categoria) patch.categoria = p.categoria;
+    if (p.probabilidade !== undefined) patch.probabilidade = p.probabilidade;
+    if (p.impacto !== undefined) patch.impacto = p.impacto;
+    if (p.status) patch.status = p.status;
+    if (p.planoMitigacao !== undefined) patch.planoMitigacao = p.planoMitigacao;
+    if (p.responsavelId !== undefined) {
+      if (p.responsavelId === "") {
+        (patch as Record<string, unknown>).responsavelId = null;
+      } else {
+        const u = await storage.getUsuarioById(p.responsavelId);
+        if (u && u.empresaId === ctx.empresaId) patch.responsavelId = u.id;
+      }
+    }
+    const updated = await storage.updateRisco(p.riscoId, ctx.empresaId, patch);
+    return {
+      resumo: `Risco "${updated.descricao.slice(0, 60)}" atualizado.`,
+      dados: { id: updated.id },
+      rota: "/riscos",
+      entidadeTipo: "risco",
+      entidadeId: updated.id,
+    };
+  },
+  formRota: "/riscos",
+};
+
+const registrarMitigacaoSchema = z.object({
+  riscoId: z.string().min(8),
+  acao: z.string().min(3).max(600),
+  marcarComoMitigado: z.boolean().default(false),
+});
+type RegistrarMitigacaoParams = z.infer<typeof registrarMitigacaoSchema>;
+
+const registrarMitigacao: ToolDefinition<RegistrarMitigacaoParams> = {
+  name: "registrar_mitigacao",
+  description:
+    "Anexa uma ação de mitigação tomada ao histórico do risco (preserva o texto anterior, prependendo uma linha datada [YYYY-MM-DD]). Opcionalmente, marca o risco como 'mitigado'. Use quando o usuário disser que executou uma ação contra um risco existente (ex.: 'já implementei o plano de contingência X', 'esse risco já foi resolvido', 'mitigamos com Y').",
+  paramsSchema: registrarMitigacaoSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["riscoId", "acao"],
+    properties: {
+      riscoId: { type: "string", description: "ID real do risco (do CATÁLOGO)." },
+      acao: { type: "string", description: "Ação de mitigação tomada (texto livre, vai para o histórico)." },
+      marcarComoMitigado: { type: "boolean", description: "Se true, muda também o status para 'mitigado'." },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Registrar ação de mitigação",
+    descricao: p.marcarComoMitigado
+      ? "Vamos anexar a ação ao histórico do risco e marcá-lo como mitigado."
+      : "Vamos anexar a ação ao histórico do plano de mitigação do risco.",
+    campos: [
+      { label: "Risco", valor: p.riscoId },
+      { label: "Ação tomada", valor: p.acao },
+      { label: "Marcar como mitigado", valor: p.marcarComoMitigado ? "Sim" : "Não" },
+    ],
+    ctaConfirmar: "Registrar mitigação",
+    ctaIgnorar: "Agora não",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const existing = await storage.getRisco(p.riscoId);
+    if (!existing || existing.empresaId !== ctx.empresaId) {
+      throw new Error("Risco não encontrado nesta empresa.");
+    }
+    const data = new Date().toISOString().slice(0, 10);
+    const linhaNova = `[${data}] ${p.acao.trim()}`;
+    const atual = (existing.planoMitigacao ?? "").trim();
+    const novoPlano = atual ? `${linhaNova}\n${atual}` : linhaNova;
+    const patch: Partial<typeof existing> = { planoMitigacao: novoPlano };
+    if (p.marcarComoMitigado) patch.status = "mitigado";
+    const updated = await storage.updateRisco(p.riscoId, ctx.empresaId, patch);
+    return {
+      resumo: p.marcarComoMitigado
+        ? `Mitigação registrada e risco "${updated.descricao.slice(0, 50)}" marcado como mitigado.`
+        : `Mitigação registrada no risco "${updated.descricao.slice(0, 50)}".`,
+      dados: { id: updated.id, status: updated.status },
+      rota: "/riscos",
+      entidadeTipo: "risco",
+      entidadeId: updated.id,
+    };
+  },
+  formRota: "/riscos",
+};
 
 // ---------- Registry ----------
 // Cada ToolDefinition tem um TParams concreto; o registry, porém, precisa
@@ -2282,6 +2529,9 @@ export const TOOLS: Record<ToolName, ToolDefinition<unknown>> = {
   vincular_kr_a_indicador: wrap(vincularKrAIndicador),
   criar_indicador: wrap(criarIndicador),
   atualizar_valor_indicador: wrap(atualizarValorIndicador),
+  criar_risco: wrap(criarRisco),
+  atualizar_risco: wrap(atualizarRisco),
+  registrar_mitigacao: wrap(registrarMitigacao),
   navegar_para: wrap(navegarPara),
   abrir_entidade: wrap(abrirEntidade),
   criar_plano_agentico: wrap(criarPlanoAgentico),
@@ -2307,6 +2557,9 @@ const TOOLS_EXECUTORAS: ReadonlySet<ToolName> = new Set<ToolName>([
   "vincular_kr_a_indicador",
   "criar_indicador",
   "atualizar_valor_indicador",
+  "criar_risco",
+  "atualizar_risco",
+  "registrar_mitigacao",
   "navegar_para",
   "abrir_entidade",
 ]);

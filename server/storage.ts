@@ -232,6 +232,13 @@ export interface IStorage {
   createIniciativa(iniciativa: InsertIniciativa): Promise<Iniciativa>;
   updateIniciativa(id: string, empresaId: string, iniciativa: Partial<InsertIniciativa>): Promise<Iniciativa>;
   deleteIniciativa(id: string, empresaId: string): Promise<void>;
+  // Task #231 — quebra atômica de iniciativa em filhas; encerra a mãe.
+  dividirIniciativa(
+    iniciativaId: string,
+    empresaId: string,
+    filhas: Array<Partial<InsertIniciativa> & { titulo: string; descricao: string; prazo: string }>,
+    notaEncerramento: string,
+  ): Promise<{ mae: Iniciativa; filhas: Iniciativa[] }>;
   
   getRituais(empresaId: string): Promise<Ritual[]>;
   createRitual(ritual: InsertRitual): Promise<Ritual>;
@@ -948,6 +955,50 @@ export class DbStorage implements IStorage {
       .where(and(eq(iniciativas.id, id), eq(iniciativas.empresaId, empresaId)))
       .returning();
     if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
+  }
+
+  async dividirIniciativa(
+    iniciativaId: string,
+    empresaId: string,
+    filhas: Array<Partial<InsertIniciativa> & { titulo: string; descricao: string; prazo: string }>,
+    notaEncerramento: string,
+  ): Promise<{ mae: Iniciativa; filhas: Iniciativa[] }> {
+    return await db.transaction(async (tx) => {
+      const maeRows = await tx.select().from(iniciativas)
+        .where(and(eq(iniciativas.id, iniciativaId), eq(iniciativas.empresaId, empresaId)))
+        .limit(1);
+      const mae = maeRows[0];
+      if (!mae) throw new Error("Iniciativa não encontrada nesta empresa.");
+      const statusAtual = (mae.status ?? "").toLowerCase();
+      if (mae.encerradaEm || ["concluida", "concluída", "cancelada", "encerrada"].includes(statusAtual)) {
+        throw new Error("Iniciativa já está encerrada e não pode ser dividida.");
+      }
+      const novasInsert = filhas.map((f) => ({
+        empresaId,
+        titulo: f.titulo,
+        descricao: f.descricao,
+        prazo: f.prazo,
+        status: f.status ?? "planejada",
+        prioridade: f.prioridade ?? mae.prioridade ?? "média",
+        responsavel: f.responsavel ?? mae.responsavel ?? "",
+        responsavelId: f.responsavelId ?? mae.responsavelId ?? null,
+        impacto: f.impacto ?? mae.impacto ?? "",
+        estrategiaId: f.estrategiaId ?? mae.estrategiaId ?? null,
+        oportunidadeId: f.oportunidadeId ?? mae.oportunidadeId ?? null,
+        indicadorFonteId: f.indicadorFonteId ?? mae.indicadorFonteId ?? null,
+      })) as InsertIniciativa[];
+      const inseridas = await tx.insert(iniciativas).values(novasInsert).returning();
+      const maeAtualizada = await tx.update(iniciativas)
+        .set({
+          status: "cancelada",
+          notaEncerramento,
+          encerradaEm: new Date(),
+        })
+        .where(and(eq(iniciativas.id, iniciativaId), eq(iniciativas.empresaId, empresaId)))
+        .returning();
+      if (!maeAtualizada[0]) throw new Error("Falha ao encerrar iniciativa-mãe.");
+      return { mae: maeAtualizada[0], filhas: inseridas };
+    });
   }
 
   async getRituais(empresaId: string): Promise<Ritual[]> {

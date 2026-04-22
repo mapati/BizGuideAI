@@ -13,11 +13,14 @@ export type ToolName =
   | "criar_iniciativa"
   | "atualizar_iniciativa"
   | "encerrar_iniciativa"
+  | "vincular_iniciativa_a_kpi"
+  | "dividir_iniciativa"
   | "criar_okr"
   | "atualizar_okr"
   | "adicionar_kr_a_okr"
   | "atualizar_kr"
   | "atualizar_progresso_kr"
+  | "vincular_kr_a_indicador"
   | "criar_indicador"
   | "atualizar_valor_indicador"
   | "navegar_para"
@@ -307,6 +310,149 @@ const encerrarIniciativa: ToolDefinition<EncerrarIniciativaParams> = {
       rota: "/iniciativas",
       entidadeTipo: "iniciativa",
       entidadeId: updated.id,
+    };
+  },
+  formRota: "/iniciativas",
+};
+
+// ---------- 2c. vincular_iniciativa_a_kpi ----------
+// Task #231 — fecha lacuna "iniciativas conectadas à estratégia / KPIs vivos"
+// preenchendo `iniciativas.indicadorFonteId`.
+const vincularIniciativaAKpiSchema = z.object({
+  iniciativaId: z.string().min(8),
+  indicadorId: z.string().min(8),
+});
+type VincularIniciativaAKpiParams = z.infer<typeof vincularIniciativaAKpiSchema>;
+
+const vincularIniciativaAKpi: ToolDefinition<VincularIniciativaAKpiParams> = {
+  name: "vincular_iniciativa_a_kpi",
+  description:
+    "Vincula uma iniciativa existente a um indicador (KPI) — preenche o campo indicadorFonteId. Use quando a QUALIDADE DO PLANO mostrar 'iniciativa sem KPI vinculado' ou quando o usuário disser que a iniciativa X serve para atacar o KPI Y. Não cria nada — só conecta dois itens já existentes (use IDs do CATÁLOGO).",
+  paramsSchema: vincularIniciativaAKpiSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["iniciativaId", "indicadorId"],
+    properties: {
+      iniciativaId: { type: "string", description: "ID real da iniciativa (do CATÁLOGO)" },
+      indicadorId: { type: "string", description: "ID real do indicador/KPI (do CATÁLOGO)" },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Vincular iniciativa a KPI",
+    descricao: "A iniciativa selecionada passará a atacar o KPI indicado.",
+    campos: [
+      { label: "Iniciativa", valor: p.iniciativaId },
+      { label: "KPI", valor: p.indicadorId },
+    ],
+    ctaConfirmar: "Vincular",
+    ctaIgnorar: "Agora não",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const ini = await storage.getIniciativa(p.iniciativaId);
+    if (!ini || ini.empresaId !== ctx.empresaId) {
+      throw new Error("Iniciativa não encontrada nesta empresa.");
+    }
+    const ind = await storage.getIndicador(p.indicadorId);
+    if (!ind || ind.empresaId !== ctx.empresaId) {
+      throw new Error("Indicador não encontrado nesta empresa.");
+    }
+    const updated = await storage.updateIniciativa(p.iniciativaId, ctx.empresaId, {
+      indicadorFonteId: p.indicadorId,
+    });
+    return {
+      resumo: `Iniciativa "${updated.titulo}" agora ataca o KPI "${ind.nome}".`,
+      dados: { iniciativaId: updated.id, indicadorId: ind.id },
+      rota: "/iniciativas",
+      entidadeTipo: "iniciativa",
+      entidadeId: updated.id,
+    };
+  },
+  formRota: "/iniciativas",
+};
+
+// ---------- 2d. dividir_iniciativa ----------
+// Task #231 — quebra uma iniciativa parada/atrasada em 2-5 sub-iniciativas
+// executáveis e encerra a mãe com nota apontando para as filhas. Atômico.
+const subitemDividirSchema = z.object({
+  titulo: z.string().min(3).max(200),
+  descricao: z.string().min(3).max(1000),
+  prazo: z.string().min(4).max(32),
+  prioridade: z.enum(PRIORIDADES).optional(),
+  responsavel: z.string().max(120).optional(),
+});
+const dividirIniciativaSchema = z.object({
+  iniciativaId: z.string().min(8),
+  subitens: z.array(subitemDividirSchema).min(2).max(5),
+});
+type DividirIniciativaParams = z.infer<typeof dividirIniciativaSchema>;
+
+const dividirIniciativa: ToolDefinition<DividirIniciativaParams> = {
+  name: "dividir_iniciativa",
+  description:
+    "Divide uma iniciativa parada/atrasada em 2 a 5 sub-iniciativas executáveis e encerra a mãe (status=cancelada) com nota apontando para as filhas. Use quando uma iniciativa estiver parada há muito tempo (>60 dias) ou for grande demais para sair do papel. As filhas herdam estratégia, KPI-fonte e responsável da mãe quando não informados. Não use para edição comum — para isso use atualizar_iniciativa.",
+  paramsSchema: dividirIniciativaSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["iniciativaId", "subitens"],
+    properties: {
+      iniciativaId: { type: "string", description: "ID real da iniciativa-mãe (do CATÁLOGO)" },
+      subitens: {
+        type: "array",
+        minItems: 2,
+        maxItems: 5,
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["titulo", "descricao", "prazo"],
+          properties: {
+            titulo: { type: "string" },
+            descricao: { type: "string" },
+            prazo: { type: "string", description: "YYYY-MM-DD ou texto curto" },
+            prioridade: { type: "string", enum: ["alta", "média", "baixa"] },
+            responsavel: { type: "string" },
+          },
+        },
+      },
+    },
+  },
+  preview: (p) => ({
+    titulo: `Dividir iniciativa em ${p.subitens.length} entregas`,
+    descricao: "A iniciativa selecionada será encerrada (cancelada) e substituída pelas sub-iniciativas abaixo, que herdam estratégia, KPI e responsável quando não informados.",
+    campos: [
+      { label: "Iniciativa-mãe", valor: p.iniciativaId },
+      ...p.subitens.map((s, i) => ({
+        label: `Filha ${i + 1}`,
+        valor: `${s.titulo} (prazo ${s.prazo}${s.responsavel ? `, ${s.responsavel}` : ""})`,
+      })),
+    ],
+    ctaConfirmar: "Dividir e encerrar mãe",
+    ctaIgnorar: "Manter como está",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const titulosFilhas = p.subitens.map((s) => s.titulo).join("; ");
+    const nota = `Dividida em ${p.subitens.length} entregas: ${titulosFilhas}`.slice(0, 600);
+    const { mae, filhas } = await storage.dividirIniciativa(
+      p.iniciativaId,
+      ctx.empresaId,
+      p.subitens.map((s) => ({
+        titulo: s.titulo,
+        descricao: s.descricao,
+        prazo: s.prazo,
+        prioridade: s.prioridade,
+        responsavel: s.responsavel,
+      })),
+      nota,
+    );
+    return {
+      resumo: `Iniciativa "${mae.titulo}" dividida em ${filhas.length} sub-iniciativas.`,
+      dados: { maeId: mae.id, filhasIds: filhas.map((f) => f.id) },
+      rota: "/iniciativas",
+      entidadeTipo: "iniciativa",
+      entidadeId: mae.id,
     };
   },
   formRota: "/iniciativas",
@@ -671,6 +817,60 @@ const atualizarProgressoKr: ToolDefinition<AtualizarProgressoKrParams> = {
     return {
       resumo: `KR atualizado para ${updated.valorAtual}.`,
       dados: { id: updated.id, valorAtual: updated.valorAtual },
+      rota: "/okrs",
+      entidadeTipo: "resultado_chave",
+      entidadeId: updated.id,
+    };
+  },
+  formRota: "/okrs",
+};
+
+// ---------- 4b. vincular_kr_a_indicador ----------
+// Task #231 — fecha lacuna "KRs ligados a um indicador" (uma das 8 dimensões
+// do Score). Preenche resultados_chave.indicadorFonteId.
+const vincularKrAIndicadorSchema = z.object({
+  krId: z.string().min(8),
+  indicadorId: z.string().min(8),
+});
+type VincularKrAIndicadorParams = z.infer<typeof vincularKrAIndicadorSchema>;
+
+const vincularKrAIndicador: ToolDefinition<VincularKrAIndicadorParams> = {
+  name: "vincular_kr_a_indicador",
+  description:
+    "Vincula um Resultado-chave (KR) existente a um indicador (KPI) — preenche o campo indicadorFonteId do KR. Use quando a QUALIDADE DO PLANO mostrar 'KR sem indicador-fonte' ou quando o usuário disser que a meta X usa o indicador Y como fonte. Não cria nada — só conecta dois itens já existentes (use IDs do CATÁLOGO).",
+  paramsSchema: vincularKrAIndicadorSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["krId", "indicadorId"],
+    properties: {
+      krId: { type: "string", description: "ID real do KR / resultado-chave (do CATÁLOGO)" },
+      indicadorId: { type: "string", description: "ID real do indicador/KPI (do CATÁLOGO)" },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Vincular KR a indicador",
+    descricao: "O resultado-chave selecionado passará a usar o indicador indicado como fonte.",
+    campos: [
+      { label: "KR", valor: p.krId },
+      { label: "Indicador-fonte", valor: p.indicadorId },
+    ],
+    ctaConfirmar: "Vincular",
+    ctaIgnorar: "Agora não",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    // updateResultadoChave já valida tenant via join com objetivos.empresaId.
+    const ind = await storage.getIndicador(p.indicadorId);
+    if (!ind || ind.empresaId !== ctx.empresaId) {
+      throw new Error("Indicador não encontrado nesta empresa.");
+    }
+    const updated = await storage.updateResultadoChave(p.krId, ctx.empresaId, {
+      indicadorFonteId: p.indicadorId,
+    });
+    return {
+      resumo: `KR "${updated.metrica}" agora usa o indicador "${ind.nome}" como fonte.`,
+      dados: { krId: updated.id, indicadorId: ind.id },
       rota: "/okrs",
       entidadeTipo: "resultado_chave",
       entidadeId: updated.id,
@@ -1651,11 +1851,14 @@ export const TOOLS: Record<ToolName, ToolDefinition<unknown>> = {
   criar_iniciativa: wrap(criarIniciativa),
   atualizar_iniciativa: wrap(atualizarIniciativa),
   encerrar_iniciativa: wrap(encerrarIniciativa),
+  vincular_iniciativa_a_kpi: wrap(vincularIniciativaAKpi),
+  dividir_iniciativa: wrap(dividirIniciativa),
   criar_okr: wrap(criarOkr),
   atualizar_okr: wrap(atualizarOkr),
   adicionar_kr_a_okr: wrap(adicionarKrAOkr),
   atualizar_kr: wrap(atualizarKr),
   atualizar_progresso_kr: wrap(atualizarProgressoKr),
+  vincular_kr_a_indicador: wrap(vincularKrAIndicador),
   criar_indicador: wrap(criarIndicador),
   atualizar_valor_indicador: wrap(atualizarValorIndicador),
   navegar_para: wrap(navegarPara),
@@ -1673,11 +1876,14 @@ const TOOLS_EXECUTORAS: ReadonlySet<ToolName> = new Set<ToolName>([
   "criar_iniciativa",
   "atualizar_iniciativa",
   "encerrar_iniciativa",
+  "vincular_iniciativa_a_kpi",
+  "dividir_iniciativa",
   "criar_okr",
   "atualizar_okr",
   "adicionar_kr_a_okr",
   "atualizar_kr",
   "atualizar_progresso_kr",
+  "vincular_kr_a_indicador",
   "criar_indicador",
   "atualizar_valor_indicador",
   "navegar_para",

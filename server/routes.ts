@@ -4189,6 +4189,7 @@ REGRA DE PREFERÊNCIA DE TOOLS (item específico vs área):
 
 QUALIDADE DO PLANO:
 - O bloco "## QUALIDADE DO PLANO" traz um score determinístico (0-100), as dimensões abaixo de 70% e as lacunas mais críticas com IDs reais. Quando o usuário pedir avaliação do plano ou perguntar coisas como "estou no caminho?", "como está meu plano?" ou "o que posso melhorar?", cite o score, as 1-2 dimensões mais fracas e ataque PRIMEIRO as lacunas com severidade "alta" — propondo correções via tools com os IDs listados no próprio bloco. Não invente lacunas que não estão lá.
+- Para lacunas do tipo "iniciativa sem KPI vinculado" prefira a tool vincular_iniciativa_a_kpi (não atualizar_iniciativa). Para "KR sem indicador-fonte" use vincular_kr_a_indicador. Para "iniciativa parada/atrasada há muito tempo" (>60 dias sem evolução) considere dividir_iniciativa em 2-5 entregas executáveis em vez de só atualizar a data.
 
 MEMÓRIA E "DAR BAIXA":
 - ANTES de propor qualquer ação, leia o bloco "AÇÕES RECENTES DO ASSISTENTE" se existir e siga as REGRAS DE MEMÓRIA listadas lá. Não repita propostas já executadas, ajustadas ou ignoradas.
@@ -4200,7 +4201,7 @@ MEMÓRIA E "DAR BAIXA":
 - Reconheça explicitamente no texto o que está sendo "dado baixa" antes de chamar a ferramenta.
 
 FERRAMENTAS DISPONÍVEIS:
-- Executoras: criar_iniciativa, atualizar_iniciativa, encerrar_iniciativa, criar_okr, atualizar_okr, adicionar_kr_a_okr, atualizar_kr, atualizar_progresso_kr, criar_indicador, atualizar_valor_indicador, abrir_entidade, navegar_para.
+- Executoras: criar_iniciativa, atualizar_iniciativa, encerrar_iniciativa, vincular_iniciativa_a_kpi, dividir_iniciativa, criar_okr, atualizar_okr, adicionar_kr_a_okr, atualizar_kr, atualizar_progresso_kr, vincular_kr_a_indicador, criar_indicador, atualizar_valor_indicador, abrir_entidade, navegar_para.
 - Memória manual: registrar_fato_manualmente (quando o usuário pedir explicitamente para lembrar/anotar algo), esquecer_fato (quando ele pedir para esquecer/desativar um fato listado no bloco de memória).
 - Planos agênticos (loop multi-passo): criar_plano_agentico (quando o objetivo do usuário exigir 2+ ações encadeadas), concluir_plano_agentico (quando os passos foram cumpridos), cancelar_plano_agentico (quando o usuário desistir).
 

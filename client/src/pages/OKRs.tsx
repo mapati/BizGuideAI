@@ -842,9 +842,8 @@ export default function OKRs() {
         }
       } else {
         toast({
-          title: "Nenhum objetivo novo",
-          description: "Todos os objetivos sugeridos já existem ou são muito similares.",
-          variant: "destructive",
+          title: "Nada para adicionar",
+          description: "A IA decidiu não criar novos objetivos — o BSC atual já cobre bem o contexto selecionado.",
         });
       }
       setGerandoPerspectiva(null);
@@ -2058,7 +2057,11 @@ export default function OKRs() {
             ? `Gerar objetivos com IA — ${aiObjetivosPerspectivaInicial}`
             : "Gerar objetivos com IA"
         }
-        description="Configure quantas perspectivas e quantos objetivos por perspectiva a IA deve gerar."
+        description={
+          aiObjetivosPerspectivaInicial
+            ? "A IA gera os objetivos desta perspectiva com base no contexto selecionado, priorizando suas iniciativas mais críticas e frentes de maior potencial."
+            : "A IA monta um BSC equilibrado a partir do contexto selecionado, decidindo quantos objetivos cada perspectiva precisa e priorizando suas iniciativas mais críticas e frentes de maior potencial."
+        }
         isGenerating={gerarObjetivosMutation.isPending}
         testIdPrefix="ai-objetivos"
         origem={{
@@ -2074,17 +2077,10 @@ export default function OKRs() {
           ],
           emptyMessage: "Nenhuma Iniciativa ou Estratégia cadastrada. Crie uma antes de gerar objetivos.",
         }}
-        quantidade={{
-          label: "Por perspectiva",
-          default: 1,
-          min: 1,
-          max: 3,
-          suffixSingular: "objetivo",
-          suffixPlural: "objetivos",
-        }}
         foco={{
           label: "Perspectivas do BSC",
-          description: "Selecione as perspectivas para as quais a IA deve criar objetivos.",
+          description: "Opcional. Sem seleção, a IA equilibra todas as 4 perspectivas conforme o contexto.",
+          requireAtLeastOne: false,
           items: perspectivas.map((p) => ({ value: p.valor, label: p.label })),
           defaultSelected: aiObjetivosPerspectivaInicial
             ? [aiObjetivosPerspectivaInicial]

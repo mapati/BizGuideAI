@@ -6523,8 +6523,6 @@ ${tarefaIniciativas}${instrucaoAdicionalIni ? `\n\n## INSTRUÇÕES ADICIONAIS DO
       const todasPerspectivasBSC = ["Financeira", "Clientes", "Processos Internos", "Aprendizado e Crescimento"];
       const perspectivasFoco: string[] = (aiParamsObj.data.foco ?? [])
         .filter((p): p is string => typeof p === "string" && todasPerspectivasBSC.includes(p));
-      const rawQtdObj = aiParamsObj.data.quantidade;
-      const quantidadePorPerspectiva = rawQtdObj && rawQtdObj >= 1 && rawQtdObj <= 5 ? rawQtdObj : 1;
       const instrucaoAdicionalObj = (aiParamsObj.data.instrucaoAdicional ?? "").trim();
 
       // Fontes de contexto opcionais (usuário escolhe quais incluir)
@@ -6546,9 +6544,23 @@ ${tarefaIniciativas}${instrucaoAdicionalIni ? `\n\n## INSTRUÇÕES ADICIONAIS DO
       const iniciativas = usarIniciativasObj ? await storage.getIniciativas(empresaId) : [];
       const modeloNegocio = usarBmcObj ? await storage.getModeloNegocio(empresaId) : [];
 
+      // Ranking: prioridade alta antes de média antes de baixa, idem para potencial.
+      const ordemPrioridade: Record<string, number> = { alta: 0, média: 1, media: 1, baixa: 2 };
+      const ordemPotencial: Record<string, number> = { alto: 0, médio: 1, medio: 1, baixo: 2 };
+      const iniciativasOrdenadas = [...iniciativas].sort(
+        (a, b) => (ordemPrioridade[a.prioridade?.toLowerCase()] ?? 9) - (ordemPrioridade[b.prioridade?.toLowerCase()] ?? 9)
+      );
+      const oportunidadesOrdenadas = [...oportunidades].sort(
+        (a, b) => (ordemPotencial[a.potencial?.toLowerCase()] ?? 9) - (ordemPotencial[b.potencial?.toLowerCase()] ?? 9)
+      );
+
       const estrategiasResume = estrategiasLista.map(e => `${e.tipo}: ${e.titulo} - ${e.descricao}`).join("\n");
-      const oportunidadesResume = oportunidades.map(o => `${o.tipo}: ${o.titulo} - ${o.descricao}`).join("\n");
-      const iniciativasResume = iniciativas.map(i => `${i.titulo} (Prioridade: ${i.prioridade})`).join("\n");
+      const oportunidadesResume = oportunidadesOrdenadas
+        .map(o => `[${(o.potencial || "?").toUpperCase()}] ${o.tipo}: ${o.titulo} - ${o.descricao}`)
+        .join("\n");
+      const iniciativasResume = iniciativasOrdenadas
+        .map(i => `[${(i.prioridade || "?").toUpperCase()}/Impacto ${(i.impacto || "?").toUpperCase()}] ${i.titulo}`)
+        .join("\n");
 
       const blocosObjetivos = ["proposta_valor", "segmentos_clientes", "atividades_principais"];
       const bmcObjetivosCtx = modeloNegocio
@@ -6575,7 +6587,7 @@ ${tarefaIniciativas}${instrucaoAdicionalIni ? `\n\n## INSTRUÇÕES ADICIONAIS DO
         }
       };
 
-      const gerarParaPerspectiva = async (perspectiva: string, qtd: number = 1) => {
+      const gerarParaPerspectiva = async (perspectiva: string) => {
         const def = definicoesPerspectivasBSC[perspectiva];
         const objetivosDestaPerspectiva = objetivosExistentes.filter(o => o.perspectiva === perspectiva);
         const objetivosResume = objetivosDestaPerspectiva.map(o => `- ${o.titulo}`).join("\n");
@@ -6594,17 +6606,21 @@ ${def.exemplos}
 
 REGRA ABSOLUTA: Todo objetivo que você criar DEVE pertencer exclusivamente à perspectiva "${perspectiva}". Se o objetivo não se encaixa perfeitamente nessa perspectiva, NÃO o inclua.
 
-REGRA DE DUPLICAÇÃO: Nunca repita objetivos já existentes listados pelo usuário.`
+REGRA DE DUPLICAÇÃO: Nunca repita objetivos já existentes listados pelo usuário.
+
+REGRA DE QUANTIDADE: Você decide quantos objetivos criar (entre 1 e 3) com base em quão rico o contexto é para esta perspectiva. Se o contexto desta perspectiva for raso ou já estiver bem coberto pelos objetivos existentes, prefira criar menos objetivos (até zero) em vez de inventar repetições.
+
+REGRA DE PRIORIZAÇÃO: As iniciativas estão listadas em ordem decrescente de prioridade ([ALTA] vem antes de [MÉDIA] e [BAIXA]) e as oportunidades em ordem decrescente de potencial ([ALTO] antes de [MÉDIO]/[BAIXO]). Foque os objetivos nas iniciativas/oportunidades de maior peso quando elas se encaixarem nesta perspectiva.`
             },
             {
               role: "user",
               content: `## PERFIL DA EMPRESA
 ${contextoPerfil}
 
-## CONTEXTO ESTRATÉGICO:
+## CONTEXTO ESTRATÉGICO (ordenado por importância):
 ${estrategiasLista.length > 0 ? `Estratégias:\n${estrategiasResume}` : ""}
-${oportunidades.length > 0 ? `\nOportunidades de crescimento:\n${oportunidadesResume}` : ""}
-${iniciativas.length > 0 ? `\nIniciativas prioritárias:\n${iniciativasResume}` : ""}
+${oportunidadesOrdenadas.length > 0 ? `\nFrentes de crescimento (ordenadas por POTENCIAL):\n${oportunidadesResume}` : ""}
+${iniciativasOrdenadas.length > 0 ? `\nIniciativas (ordenadas por PRIORIDADE/IMPACTO):\n${iniciativasResume}` : ""}
 ${bmcObjetivosCtx ? `\nModelo de Negócio (Business Model Canvas):\n${bmcObjetivosCtx}` : ""}
 ${origemContextObj ? `\n## ORIGEM PRIMÁRIA (o objetivo deve derivar diretamente desta ${origemContextObj.tipo}):\n${origemContextObj.texto}\n` : ""}
 
@@ -6612,12 +6628,18 @@ ${origemContextObj ? `\n## ORIGEM PRIMÁRIA (o objetivo deve derivar diretamente
 ${objetivosDestaPerspectiva.length > 0 ? objetivosResume : "Nenhum ainda"}
 
 ## TAREFA:
-Crie EXATAMENTE ${qtd} objetivo(s) estratégico(s) para a perspectiva "${perspectiva}" desta empresa.
+Crie de 1 a 3 objetivos estratégicos para a perspectiva "${perspectiva}" desta empresa.
+
+Você decide quantos:
+- Crie mais objetivos quando há várias iniciativas de ALTA prioridade ou oportunidades de ALTO potencial relevantes para esta perspectiva.
+- Crie menos (ou nenhum) quando o contexto for raso ou os objetivos existentes já cobrirem bem a perspectiva.
+- O resultado deve ajudar a montar um BSC equilibrado entre as 4 perspectivas, sem inflar artificialmente uma delas.
 
 Cada objetivo deve:
 - ser qualitativo e aspiracional (sem números no título)
 - refletir claramente a perspectiva "${perspectiva}"
 - ser relevante para o setor e contexto desta empresa
+- estar ancorado nas iniciativas/oportunidades de maior peso quando aplicável
 - ser diferente dos já existentes e diferente entre si
 
 Responda em JSON:
@@ -6665,7 +6687,7 @@ Responda em JSON:
       }
 
       const resultadosPorPersp = await Promise.all(
-        perspectivasParaGerar.map(p => gerarParaPerspectiva(p, quantidadePorPerspectiva))
+        perspectivasParaGerar.map(p => gerarParaPerspectiva(p))
       );
       let objetivosGerados = resultadosPorPersp
         .flat()

@@ -6,7 +6,7 @@ import { sendVerificationEmail, sendPasswordResetEmail, getEmailDiagnostics } fr
 import { runNotificationEngine, detectarSinaisCriticos, type EngineReport } from "./notification-engine";
 import { runBriefingDiarioScheduler, gerarEPersistirBriefing, dataDeHojeSP } from "./briefing-engine";
 import { openai, AI_MODELS, loadModelConfig, getModelForPlan, buildEmpresaContextoIA, buildAcoesRecentesContextoIA, buildPlanoAtivoContextoIA } from "./ai-helpers";
-import { TOOLS, getTool, toOpenAITools, registrarProposta } from "./assistant-tools";
+import { TOOLS, getTool, toOpenAITools, registrarProposta, LOOKUP_TOOLS_OPENAI, executarBuscaPorNome } from "./assistant-tools";
 import { criarAssinatura, buscarAssinatura, cancelarAssinatura, buscarPagamento, motivoLegivel, validarAssinaturaWebhook, PLANOS_MP, type PlanoTipo, type MpSubscription, type MpPayment } from "./mp";
 import { randomBytes, createHash } from "crypto";
 import cron from "node-cron";
@@ -3808,7 +3808,12 @@ Responda OBRIGATORIAMENTE em JSON:
         );
       }
       if (catalogoLinhas.length > 0) {
-        ctx.push(`## CATÁLOGO (IDs para tools)\n${catalogoLinhas.join("\n")}`);
+        ctx.push(
+          `## CATÁLOGO (IDs para tools)\n${catalogoLinhas.join("\n")}\n\n` +
+          `OBS: este bloco mostra apenas até ${TOP_N} itens mais recentes por tipo. ` +
+          `Se o usuário citar pelo nome um item que NÃO aparece aqui, NÃO assuma que ele não existe — ` +
+          `chame antes a tool "buscar_entidade_por_nome" com {tipo, termo} para tentar achar o id real.`,
+        );
       }
 
       const systemPrompt = `Você é o Assistente Estratégico do BizGuideAI, um consultor sênior de estratégia empresarial para PMEs brasileiras.
@@ -3825,14 +3830,18 @@ QUANDO USAR FERRAMENTAS (tool calls):
 - Se o usuário aprovar/sugerir uma ação concreta executável (ex.: "crie a iniciativa X", "registre a leitura do KPI Y como 92"), CHAME a ferramenta apropriada.
 - Cada chamada vira uma proposta que o usuário ainda precisa CONFIRMAR antes de ser executada — explique brevemente no texto o que está propondo.
 - Use no máximo 3 chamadas de ferramenta por resposta.
-- Se a ação envolver um item existente (atualizar iniciativa/KR/indicador), use SOMENTE IDs reais que aparecem no bloco "## CATÁLOGO".
+- Se a ação envolver um item existente (atualizar iniciativa/KR/indicador), use SOMENTE IDs reais — vindos do bloco "## CATÁLOGO" ou retornados por uma chamada anterior de buscar_entidade_por_nome. Nunca invente um id.
 - Se a pergunta for analítica ou aberta (ex.: "como estão meus OKRs?"), responda só em texto, sem chamar ferramenta.
 
 REGRA DE PREFERÊNCIA DE TOOLS (item específico vs área):
 - Quando o usuário pedir ação sobre um item ESPECÍFICO citado por nome (ex.: "abre o indicador de custo de produção", "edita a iniciativa X", "ajusta a meta do KR Y") e o item aparecer no "## CATÁLOGO":
   • Se ele já forneceu o NOVO VALOR (ex.: "atualiza o custo de produção para 95"), chame a tool de atualização específica (atualizar_valor_indicador, atualizar_progresso_kr, atualizar_iniciativa, atualizar_okr) com o id do catálogo.
   • Se ele só pediu para "abrir/editar/ajustar" sem dizer o novo valor, chame "abrir_entidade" com {tipo, id, nome} do catálogo — isso já abre o modal de edição certo. NÃO chame navegar_para nesse caso.
-- Use "navegar_para" SOMENTE quando o pedido for explorar uma área inteira sem alvo específico (ex.: "me leva para os indicadores", "abre a tela de riscos") OU quando o item citado NÃO estiver no catálogo (peça antes para o usuário criar).
+- Quando o item citado NÃO aparecer no "## CATÁLOGO" (lembre que ele só lista até 30 por tipo), NÃO sugira criar um novo nem caia em navegar_para genérico: primeiro chame "buscar_entidade_por_nome" com {tipo, termo} usando o nome citado pelo usuário. Aguarde o resultado.
+  • Se voltar exatamente 1 candidato com nome muito próximo, prossiga com a ação no item encontrado (abrir_entidade ou tool de atualização específica) usando o id retornado.
+  • Se voltarem 2 ou mais candidatos com nomes parecidos, NÃO chame nenhuma tool executora: responda em texto listando os candidatos e pergunte ao usuário qual ele quis dizer.
+  • Se voltar 0 candidato, aí sim avise o usuário que o item não foi encontrado e ofereça criar um novo (criar_iniciativa / criar_indicador / criar_okr) ou ir para a página com navegar_para.
+- Use "navegar_para" SOMENTE quando o pedido for explorar uma área inteira sem alvo específico (ex.: "me leva para os indicadores", "abre a tela de riscos").
 - Se houver ambiguidade (dois itens com nome parecido no catálogo), pergunte em texto qual deles antes de chamar a tool.
 
 MEMÓRIA E "DAR BAIXA":
@@ -3867,18 +3876,105 @@ ${ctx.join("\n\n")}`;
 
       const messages = await injectMacroCtx(baseMessages);
 
-      const completion = await openai.chat.completions.create({
-        model: getModelForPlan(empresa?.planoTipo, "relatorios"),
-        messages: messages as Parameters<typeof openai.chat.completions.create>[0]["messages"],
+      // Tools list combina HITL (toOpenAITools) e LOOKUPs (sem HITL).
+      const allTools = [...toOpenAITools(), ...LOOKUP_TOOLS_OPENAI];
+      const model = getModelForPlan(empresa?.planoTipo, "relatorios");
+      // Conversa mutável usada para suportar até 1 rodada intermediária com a
+      // tool de busca por nome (Task #203). Após a busca server-side, o modelo
+      // recebe os matches e decide se propõe uma ação ou pergunta ao usuário.
+      const convo: OpenAI.Chat.ChatCompletionMessageParam[] =
+        [...messages] as OpenAI.Chat.ChatCompletionMessageParam[];
+
+      let completion = await openai.chat.completions.create({
+        model,
+        messages: convo as Parameters<typeof openai.chat.completions.create>[0]["messages"],
         temperature: 0.5,
         max_tokens: 900,
-        tools: toOpenAITools(),
+        tools: allTools,
         tool_choice: "auto",
       });
+      let choice = completion.choices[0];
 
-      const choice = completion.choices[0];
+      // Loop de busca por nome: se o modelo chamou buscar_entidade_por_nome,
+      // executa server-side e devolve resultados como tool message. Cap = 2
+      // rodadas para evitar loops longos.
+      // Importante: só entramos no loop quando TODAS as tool_calls do turno
+      // são lookups. Se vier misturado (lookup + executora HITL), saímos do
+      // loop e processamos tudo no pipeline pós-loop — assim evitamos enviar
+      // de volta ao OpenAI uma assistant message com tool_call_ids cujas
+      // respostas (tool messages) ainda não existem (a API rejeita isso).
+      const MAX_LOOKUP_ROUNDS = 2;
+      for (let round = 0; round < MAX_LOOKUP_ROUNDS; round++) {
+        const calls = choice.message.tool_calls ?? [];
+        if (calls.length === 0) break;
+        const lookupCalls = calls.filter(
+          (c) => c.type === "function" && c.function.name === "buscar_entidade_por_nome",
+        );
+        const naoLookup = calls.filter(
+          (c) => !(c.type === "function" && c.function.name === "buscar_entidade_por_nome"),
+        );
+        if (lookupCalls.length === 0) break;
+        if (naoLookup.length > 0) {
+          // Mistura: não dá para reinvocar mantendo o protocolo. Saímos do
+          // loop preservando `choice` atual; as HITL viram propostas e os
+          // lookups são descartados pelo filtro pós-loop.
+          break;
+        }
+
+        // Anexa a mensagem do assistente (com tool_calls) à conversa.
+        convo.push(choice.message as OpenAI.Chat.ChatCompletionMessageParam);
+
+        // Executa cada busca e anexa um tool message com o resultado.
+        for (const call of lookupCalls) {
+          if (call.type !== "function") continue;
+          let args: unknown = {};
+          try { args = JSON.parse(call.function.arguments || "{}"); } catch { args = {}; }
+          const r = await executarBuscaPorNome(args, {
+            empresaId,
+            usuarioId: req.session.userId ?? null,
+          });
+          const payload = r.ok
+            ? {
+                tipo: r.tipo,
+                termo: r.termo,
+                total: r.matches.length,
+                matches: r.matches.map((m) => ({
+                  id: m.id,
+                  nome: m.nome,
+                  ...(m.contexto ? { contexto: m.contexto } : {}),
+                  ...(m.objetivoId ? { objetivoId: m.objetivoId } : {}),
+                })),
+                instrucao:
+                  r.matches.length === 0
+                    ? "Nenhum item encontrado com esse nome. Avise o usuário e ofereça criar um novo ou navegar para a área."
+                    : r.matches.length === 1
+                    ? "1 item encontrado. Use o id retornado em abrir_entidade ou na tool de atualização específica."
+                    : "Vários itens parecidos. NÃO chame tool executora: responda em texto listando-os e pergunte qual o usuário quis dizer.",
+              }
+            : { erro: r.mensagem };
+          convo.push({
+            role: "tool",
+            tool_call_id: call.id,
+            content: JSON.stringify(payload),
+          } as OpenAI.Chat.ChatCompletionMessageParam);
+        }
+
+        completion = await openai.chat.completions.create({
+          model,
+          messages: convo as Parameters<typeof openai.chat.completions.create>[0]["messages"],
+          temperature: 0.5,
+          max_tokens: 900,
+          tools: allTools,
+          tool_choice: "auto",
+        });
+        choice = completion.choices[0];
+      }
+
       const rawText = (choice.message.content ?? "").trim();
-      const toolCalls = (choice.message.tool_calls ?? []).slice(0, 3);
+      // Após o loop, descarta eventuais lookup calls residuais — só HITL viram propostas.
+      const toolCalls = (choice.message.tool_calls ?? [])
+        .filter((c) => !(c.type === "function" && c.function.name === "buscar_entidade_por_nome"))
+        .slice(0, 3);
 
       const propostas: Array<{
         logId: string;

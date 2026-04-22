@@ -991,6 +991,154 @@ const cancelarPlanoAgentico: ToolDefinition<CancelarPlanoAgenticoParams> = {
   formRota: "/assistente",
 };
 
+// ─── Task #203 — Lookup tool: buscar_entidade_por_nome ───
+// Diferente das tools acima, esta NÃO é HITL (não vira proposta).
+// O modelo a chama em uma rodada intermediária para resolver pelo nome um
+// item que ficou fora do "## CATÁLOGO" (limite 30 por tipo). O handler do
+// /api/ai/assistente executa imediatamente e devolve os matches ao modelo,
+// que então decide se chama abrir_entidade/atualizar_* com o id encontrado
+// ou pergunta ao usuário em caso de ambiguidade.
+const TIPOS_BUSCA_NOME = [
+  "indicador",
+  "iniciativa",
+  "objetivo",
+  "kr",
+  "risco",
+  "oportunidade",
+  "estrategia",
+] as const;
+export type TipoBuscaNome = typeof TIPOS_BUSCA_NOME[number];
+
+const buscarEntidadePorNomeSchema = z.object({
+  tipo: z.enum(TIPOS_BUSCA_NOME),
+  termo: z.string().min(1).max(120),
+});
+export type BuscarEntidadePorNomeParams = z.infer<typeof buscarEntidadePorNomeSchema>;
+
+export interface BuscaEntidadeMatch {
+  id: string;
+  nome: string;
+  contexto?: string;
+  objetivoId?: string;
+}
+
+function normalizar(s: string): string {
+  return (s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function scoreMatch(nome: string, termo: string): number {
+  const n = normalizar(nome);
+  const t = normalizar(termo);
+  if (!n || !t) return 0;
+  if (n === t) return 100;
+  if (n.startsWith(t)) return 80;
+  if (n.includes(t)) return 60;
+  // fallback por tokens
+  const tokens = t.split(" ").filter((x) => x.length >= 3);
+  if (!tokens.length) return 0;
+  const hits = tokens.filter((tk) => n.includes(tk)).length;
+  if (!hits) return 0;
+  return Math.round((hits / tokens.length) * 50);
+}
+
+export const LOOKUP_TOOLS_OPENAI = [
+  {
+    type: "function" as const,
+    function: {
+      name: "buscar_entidade_por_nome",
+      description:
+        "Busca itens existentes da empresa pelo NOME quando o id não está no '## CATÁLOGO' (que mostra apenas os 30 mais recentes). Use ANTES de propor abrir_entidade/atualizar_* sempre que o usuário citar um item por nome e você não encontrar o id no catálogo. NÃO use para criar nada — só para descobrir o id de itens já existentes. Devolve até 5 candidatos {id, nome}; se vier mais de um próximo, pergunte ao usuário qual antes de agir.",
+      parameters: {
+        type: "object",
+        additionalProperties: false,
+        required: ["tipo", "termo"],
+        properties: {
+          tipo: {
+            type: "string",
+            enum: [...TIPOS_BUSCA_NOME],
+            description: "Tipo de entidade a buscar.",
+          },
+          termo: {
+            type: "string",
+            description: "Trecho do nome citado pelo usuário (ex.: 'custo de produção').",
+          },
+        },
+      },
+    },
+  },
+];
+
+export async function executarBuscaPorNome(
+  rawArgs: unknown,
+  ctx: ToolApplyContext,
+): Promise<{ ok: true; matches: BuscaEntidadeMatch[]; tipo: TipoBuscaNome; termo: string } | { ok: false; mensagem: string }> {
+  const parsed = buscarEntidadePorNomeSchema.safeParse(rawArgs);
+  if (!parsed.success) {
+    return { ok: false, mensagem: `Parâmetros inválidos: ${parsed.error.message.slice(0, 200)}` };
+  }
+  const { tipo, termo } = parsed.data;
+  const empresaId = ctx.empresaId;
+  let candidatos: BuscaEntidadeMatch[] = [];
+  try {
+    switch (tipo) {
+      case "indicador": {
+        const lista = await storage.getIndicadores(empresaId);
+        candidatos = lista.map((i) => ({ id: i.id, nome: i.nome, contexto: i.perspectiva }));
+        break;
+      }
+      case "iniciativa": {
+        const lista = await storage.getIniciativas(empresaId);
+        candidatos = lista.map((i) => ({ id: i.id, nome: i.titulo, contexto: i.status }));
+        break;
+      }
+      case "objetivo": {
+        const lista = await storage.getObjetivos(empresaId);
+        candidatos = lista.map((o) => ({ id: o.id, nome: o.titulo, contexto: o.perspectiva }));
+        break;
+      }
+      case "kr": {
+        const objs = await storage.getObjetivos(empresaId);
+        for (const o of objs) {
+          const krs = await storage.getResultadosChave(o.id, empresaId);
+          for (const k of krs) {
+            candidatos.push({ id: k.id, nome: k.metrica, contexto: `do OKR "${o.titulo}"`, objetivoId: o.id });
+          }
+        }
+        break;
+      }
+      case "risco": {
+        const lista = await storage.getRiscos(empresaId);
+        candidatos = lista.map((r) => ({ id: r.id, nome: r.descricao ?? "Risco", contexto: r.status }));
+        break;
+      }
+      case "oportunidade": {
+        const lista = await storage.getOportunidadesCrescimento(empresaId);
+        candidatos = lista.map((o) => ({ id: o.id, nome: o.titulo ?? "Oportunidade", contexto: o.tipo }));
+        break;
+      }
+      case "estrategia": {
+        const lista = await storage.getEstrategias(empresaId);
+        candidatos = lista.map((e) => ({ id: e.id, nome: e.titulo, contexto: e.tipo }));
+        break;
+      }
+    }
+  } catch (err) {
+    return { ok: false, mensagem: `Falha ao buscar ${tipo}: ${(err as Error).message.slice(0, 160)}` };
+  }
+  const ranked = candidatos
+    .map((c) => ({ c, score: scoreMatch(c.nome, termo) }))
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5)
+    .map((x) => x.c);
+  return { ok: true, matches: ranked, tipo, termo };
+}
+
 // ---------- Registry ----------
 // Cada ToolDefinition tem um TParams concreto; o registry, porém, precisa
 // guardar todos juntos. `wrap` faz o "sealing" para `unknown` em um único

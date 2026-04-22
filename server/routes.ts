@@ -12,6 +12,7 @@ import { randomBytes, createHash } from "crypto";
 import cron from "node-cron";
 import { runGithubPush, getPushLogs, startGithubScheduler, stopGithubScheduler, isGitRepository, type PushFrequencia } from "./github-scheduler";
 import { runPlanoAgenticoHealing, getHealingLogs, startPlanoAgenticoHealingScheduler } from "./plano-agentico-healing";
+import { computePlanQuality, formatPlanQualityForPrompt } from "./plan-quality";
 import { 
   insertEmpresaSchema,
   PLAN_LIMITS,
@@ -1574,6 +1575,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Task #220 — Score de qualidade do plano (determinístico, sem IA).
+  app.get("/api/plano/qualidade", requireAuth, async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const result = await computePlanQuality(empresaId);
+      res.json(result);
+    } catch (error: any) {
+      console.error("[PLAN_QUALITY] erro:", error?.message ?? error);
+      res.status(500).json({ error: error?.message ?? "Erro ao calcular qualidade do plano" });
     }
   });
 
@@ -3942,6 +3955,15 @@ Responda OBRIGATORIAMENTE em JSON:
         );
       }
 
+      // Task #220 — bloco compacto de qualidade do plano para o assistente
+      // citar score/dimensões fracas/lacunas com IDs reais.
+      try {
+        const qualidade = await computePlanQuality(empresaId);
+        ctx.push(formatPlanQualityForPrompt(qualidade));
+      } catch (err: any) {
+        console.warn(`[ASSISTENTE] qualidade do plano falhou: ${err?.message ?? err}`);
+      }
+
       const systemPrompt = `Você é o Assistente Estratégico do BizGuideAI, um consultor sênior de estratégia empresarial para PMEs brasileiras.
 
 Você tem acesso completo aos dados da empresa abaixo e a um conjunto de ferramentas (function tools) que executam ações reais quando o usuário aprovar.
@@ -3972,6 +3994,9 @@ REGRA DE PREFERÊNCIA DE TOOLS (item específico vs área):
   • Se voltar 0 candidato, aí sim avise o usuário que o item não foi encontrado e ofereça criar um novo (criar_iniciativa / criar_indicador / criar_okr) ou ir para a página com navegar_para.
 - Use "navegar_para" SOMENTE quando o pedido for explorar uma área inteira sem alvo específico (ex.: "me leva para os indicadores", "abre a tela de riscos").
 - Se houver ambiguidade (dois itens com nome parecido no catálogo), pergunte em texto qual deles antes de chamar a tool.
+
+QUALIDADE DO PLANO:
+- O bloco "## QUALIDADE DO PLANO" traz um score determinístico (0-100), as dimensões abaixo de 70% e as lacunas mais críticas com IDs reais. Quando o usuário pedir avaliação do plano ou perguntar coisas como "estou no caminho?", "como está meu plano?" ou "o que posso melhorar?", cite o score, as 1-2 dimensões mais fracas e ataque PRIMEIRO as lacunas com severidade "alta" — propondo correções via tools com os IDs listados no próprio bloco. Não invente lacunas que não estão lá.
 
 MEMÓRIA E "DAR BAIXA":
 - ANTES de propor qualquer ação, leia o bloco "AÇÕES RECENTES DO ASSISTENTE" se existir e siga as REGRAS DE MEMÓRIA listadas lá. Não repita propostas já executadas, ajustadas ou ignoradas.

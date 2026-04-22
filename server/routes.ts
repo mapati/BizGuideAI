@@ -5665,6 +5665,16 @@ ${instrucaoAdicional}` : ""}`
       const estrategiasOpor = usarEstrategiasOpor ? await storage.getEstrategias(empresaId) : [];
       const modeloNegocioOpor = usarBmcOpor ? await storage.getModeloNegocio(empresaId) : [];
 
+      // Estratégias ofensivas (FO/DO) — sempre carregadas no modo matriz, pois
+      // as Frentes de Crescimento (Ansoff) operacionalizam justamente essas
+      // estratégias. No modo derivado (origem específica) já temos a âncora.
+      const todasEstrategiasFoDo = !estrategiaOrigem
+        ? (await storage.getEstrategias(empresaId)).filter((e) => e.tipo === "FO" || e.tipo === "DO")
+        : [];
+      const estrategiasFoDoCtx = todasEstrategiasFoDo
+        .map((e, i) => `${i + 1}. [${e.tipo}] ${e.titulo}\n   ${e.descricao}`)
+        .join("\n\n");
+
       const forcas = swotExistente.filter(s => s.tipo === "forca").map(s => s.descricao);
       const oportunidades = swotExistente.filter(s => s.tipo === "oportunidade").map(s => s.descricao);
       const estrategiasOporResume = estrategiasOpor.map(e => `${e.tipo}: ${e.titulo}`).join("\n");
@@ -5750,6 +5760,11 @@ Para cada oportunidade, forneça:
 Tipo: ${estrategiaOrigem.tipo}
 Título: ${estrategiaOrigem.titulo}
 Descrição: ${estrategiaOrigem.descricao}
+
+` : ""}${!estrategiaOrigem && estrategiasFoDoCtx ? `## ESTRATÉGIAS OFENSIVAS DA EMPRESA (CONTEXTO PRIMÁRIO — as frentes Ansoff devem operacionalizar estas estratégias FO/DO):
+${estrategiasFoDoCtx}
+
+Quando uma frente tiver aderência clara a uma destas estratégias, inclua o campo "estrategiaId" no JSON com o id correspondente. Os ids são, na ordem listada acima: ${todasEstrategiasFoDo.map((e) => `"${e.id}"`).join(", ") || "(nenhum)"}.
 
 ` : ""}## PERFIL DA EMPRESA
 ${contextoPerfil}

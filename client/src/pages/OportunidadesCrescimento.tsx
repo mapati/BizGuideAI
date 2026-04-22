@@ -335,13 +335,15 @@ export default function OportunidadesCrescimento() {
 
       if (response.oportunidades && response.oportunidades.length > 0) {
         let adicionadas = 0;
-        // Garante o vínculo com a Estratégia de origem mesmo que a IA não tenha estampado.
-        const estrategiaIdFallback = params.origemId || null;
         for (const oportunidade of response.oportunidades) {
           try {
+            // A IA pode anexar `estrategiaId` quando a frente tem aderência clara
+            // a uma estratégia ofensiva (FO/DO) específica. Caso contrário,
+            // a frente é salva sem vínculo direto (continua aparecendo na cascata
+            // de Frentes na visão geral).
             await apiRequest("POST", "/api/oportunidades-crescimento", {
               ...oportunidade,
-              estrategiaId: oportunidade.estrategiaId || estrategiaIdFallback,
+              estrategiaId: oportunidade.estrategiaId || undefined,
               empresaId: empresa.id,
             });
             adicionadas++;
@@ -427,25 +429,9 @@ export default function OportunidadesCrescimento() {
           onOpenChange={setIsAIModalOpen}
           onConfirm={handleGenerateOpportunities}
           title="Gerar frentes de crescimento com IA"
-          description="Configure quais quadrantes da Matriz de Ansoff e quantas frentes por quadrante a IA deve gerar."
+          description="A IA gera automaticamente uma Matriz de Ansoff a partir de todas as suas estratégias ofensivas (FO/DO). Escolha quantas frentes por quadrante, em quais quadrantes focar e quais fontes de contexto considerar."
           isGenerating={isGenerating}
           testIdPrefix="ai-oportunidades"
-          origem={{
-            label: "Estratégia ofensiva de origem",
-            description: origemObrigatoria
-              ? "Escolha de qual Estratégia ofensiva (FO/DO) derivar as frentes. Obrigatório durante a primeira jornada."
-              : "Opcional: vincule as frentes a uma Estratégia ofensiva (FO/DO) para manter a cascata. Estratégias FA/DA desdobram diretamente em Iniciativas.",
-            placeholder: "Selecione uma estratégia ofensiva (FO/DO)…",
-            required: origemObrigatoria,
-            items: estrategias
-              .filter((e) => e.tipo === "FO" || e.tipo === "DO")
-              .map((e) => ({
-                id: e.id,
-                label: e.titulo,
-                group: e.tipo,
-              })),
-            emptyMessage: "Nenhuma estratégia ofensiva (FO/DO) cadastrada. Crie estratégias ofensivas antes de gerar frentes.",
-          }}
           quantidade={{
             label: "Por quadrante",
             default: 1,

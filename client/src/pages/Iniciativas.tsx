@@ -336,6 +336,9 @@ interface IniciativasView {
   modo: "lista" | "kanban";
 }
 
+type IniciativasViewArrayKey =
+  | "status" | "prioridade" | "impacto" | "prazo" | "responsavel" | "origem";
+
 const VIEW_DEFAULT: IniciativasView = {
   status: [], prioridade: [], impacto: [], prazo: [], responsavel: [], origem: [],
   busca: "", modo: "lista",
@@ -376,19 +379,23 @@ function useIniciativasView(empresaId?: string) {
     setView((prev) => ({ ...prev, [k]: v }));
   }, []);
 
-  const toggle = useCallback((k: keyof IniciativasView, value: string) => {
+  const toggle = useCallback((k: IniciativasViewArrayKey, value: string) => {
     setView((prev) => {
-      const arr = prev[k] as string[];
+      const arr = prev[k];
       const next = arr.includes(value) ? arr.filter((x) => x !== value) : [...arr, value];
-      return { ...prev, [k]: next } as IniciativasView;
+      return { ...prev, [k]: next };
     });
+  }, []);
+
+  const clearGroup = useCallback((k: IniciativasViewArrayKey) => {
+    setView((prev) => ({ ...prev, [k]: [] }));
   }, []);
 
   const clearFilters = useCallback(() => {
     setView((prev) => ({ ...VIEW_DEFAULT, modo: prev.modo }));
   }, []);
 
-  return { view, setView, update, toggle, clearFilters };
+  return { view, setView, update, toggle, clearGroup, clearFilters };
 }
 
 interface FilterOption { value: string; label: string }
@@ -474,8 +481,8 @@ function MultiSelectFilter({
 interface FilterBarProps {
   view: IniciativasView;
   totalAtivos: number;
-  onToggleFilter: (k: keyof IniciativasView, value: string) => void;
-  onClearGroup: (k: keyof IniciativasView) => void;
+  onToggleFilter: (k: IniciativasViewArrayKey, value: string) => void;
+  onClearGroup: (k: IniciativasViewArrayKey) => void;
   onSearch: (s: string) => void;
   onClearAll: () => void;
   options: {
@@ -1060,7 +1067,7 @@ export default function Iniciativas() {
   const totalAlvosMatriz = estrategiasFaDa.length + oportunidades.length;
 
   // ---- Task #253: filtros + view mode --------------------------------------
-  const { view, update, toggle, clearFilters } = useIniciativasView(empresa?.id);
+  const { view, update, toggle, clearGroup, clearFilters } = useIniciativasView(empresa?.id);
 
   const filterOptions = useMemo(() => {
     const prazos = Array.from(new Set(iniciativas.map((i) => i.prazo).filter(Boolean))).sort();
@@ -1641,8 +1648,8 @@ export default function Iniciativas() {
             view={view}
             options={filterOptions}
             totalAtivos={totalFiltrosAtivos}
-            onToggleFilter={(k, v) => toggle(k, v)}
-            onClearGroup={(k) => update(k, [] as never)}
+            onToggleFilter={toggle}
+            onClearGroup={clearGroup}
             onSearch={(s) => update("busca", s)}
             onClearAll={clearFilters}
             modo={view.modo}

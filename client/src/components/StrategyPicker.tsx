@@ -140,12 +140,13 @@ export function StrategyPicker({ open, onClose, onSave, onAbort, candidatas, isL
   const tiposOrdem: Array<"FO" | "FA" | "DO" | "DA"> = ["FO", "FA", "DO", "DA"];
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o && !isLoading && !isSaving) onClose(); }}>
       <DialogContent
         className="max-w-4xl max-h-[90vh] overflow-y-auto"
         hideClose
         onPointerDownOutside={(e) => e.preventDefault()}
         onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => { if (isLoading || isSaving) e.preventDefault(); }}
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

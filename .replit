@@ -53,6 +53,10 @@ args = "typecheck"
 task = "workflow.run"
 args = "lint"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "test"
+
 [[workflows.workflow]]
 name = "Start application"
 author = "agent"
@@ -80,6 +84,17 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npx eslint client server shared"
+
+[workflows.workflow.metadata]
+isValidation = true
+
+[[workflows.workflow]]
+name = "test"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "bash scripts/test-unit.sh"
 
 [workflows.workflow.metadata]
 isValidation = true

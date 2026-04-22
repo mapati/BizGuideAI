@@ -189,10 +189,7 @@ function ObjetivoCard({ objetivo, membros, estrategias, iniciativas, resultadosC
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <h4 className="font-semibold text-sm mb-1 break-words">{objetivo.titulo}</h4>
-          {objetivo.descricao && (
-            <p className="text-xs text-muted-foreground mb-2 break-words">{objetivo.descricao}</p>
-          )}
+          <h4 className="font-semibold text-sm mb-2 break-words">{objetivo.titulo}</h4>
           <div className="flex items-center flex-wrap gap-2">
             <p className="text-xs text-muted-foreground">Prazo: {objetivo.prazo}</p>
             {objetivo.responsavelId && (() => {

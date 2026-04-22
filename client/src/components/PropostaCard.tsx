@@ -246,7 +246,13 @@ export function PropostaCard({
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => navigate(rotaEntidade)}
+                      onClick={() => {
+                        // Fecha o assistente para que o formulário/dialog
+                        // de edição apareça sem sobreposição. AIAssistant
+                        // escuta este evento e baixa o drawer.
+                        window.dispatchEvent(new CustomEvent("biz-assistant:close"));
+                        setTimeout(() => navigate(rotaEntidade), 200);
+                      }}
                       data-testid={`button-proposta-abrir-${logId}`}
                       className="h-6 px-2 text-[10px] gap-1"
                     >

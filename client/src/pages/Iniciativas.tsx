@@ -38,6 +38,19 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type Iniciativa, type InsertIniciativa, type AIGenerationParams } from "@shared/schema";
 import { AIGenerationModal } from "@/components/AIGenerationModal";
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
 import { z } from "zod";
 
 interface Estrategia {
@@ -607,14 +620,35 @@ interface KanbanCardProps {
   onDelete: (id: string) => void;
 }
 
-function IniciativaKanbanCard({ iniciativa, estrategias, oportunidades, onMove, onEdit, onDelete }: KanbanCardProps) {
+function IniciativaKanbanCard({
+  iniciativa, estrategias, oportunidades, onMove, onEdit, onDelete,
+  draggable = false, dragging = false, overlay = false,
+}: KanbanCardProps & { draggable?: boolean; dragging?: boolean; overlay?: boolean }) {
   const est = estrategias.find((e) => e.id === iniciativa.estrategiaId);
   const op = oportunidades.find((o) => o.id === iniciativa.oportunidadeId);
   const origem = est ? `${est.tipo} — ${est.titulo}` : op ? op.titulo : null;
   const outros = STATUS_VALUES.filter((s) => s !== iniciativa.status);
 
+  const draggableState = useDraggable({ id: iniciativa.id, disabled: !draggable });
+  const setNodeRef = draggable ? draggableState.setNodeRef : undefined;
+  const listeners = draggable ? draggableState.listeners : undefined;
+  const attributes = draggable ? draggableState.attributes : undefined;
+
+  const cardClassName = [
+    "hover-elevate",
+    draggable ? "touch-none cursor-grab active:cursor-grabbing" : "",
+    dragging ? "opacity-40" : "",
+    overlay ? "shadow-lg ring-1 ring-border cursor-grabbing" : "",
+  ].filter(Boolean).join(" ");
+
   return (
-    <Card className="hover-elevate" data-testid={`card-kanban-${iniciativa.id}`}>
+    <Card
+      ref={setNodeRef}
+      className={cardClassName}
+      data-testid={`card-kanban-${iniciativa.id}`}
+      {...listeners}
+      {...attributes}
+    >
       <CardContent className="space-y-2 p-3">
         <div className="flex items-start justify-between gap-2">
           <button
@@ -682,6 +716,73 @@ function IniciativaKanbanCard({ iniciativa, estrategias, oportunidades, onMove, 
   );
 }
 
+function KanbanColumn({
+  status, items, activeId, estrategias, oportunidades, onMove, onEdit, onDelete,
+}: {
+  status: StatusValue;
+  items: Iniciativa[];
+  activeId: string | null;
+  estrategias: Estrategia[];
+  oportunidades: Array<{ id: string; titulo: string }>;
+  onMove: (id: string, status: StatusValue) => void;
+  onEdit: (i: Iniciativa) => void;
+  onDelete: (id: string) => void;
+}) {
+  const { setNodeRef, isOver, active } = useDroppable({ id: status });
+  const activeIsFromAnotherColumn =
+    !!active && items.every((it) => it.id !== active.id);
+  const showPlaceholder = isOver && activeIsFromAnotherColumn;
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`flex w-72 shrink-0 flex-col gap-2 rounded-md border p-2 transition-colors ${
+        isOver ? "border-primary/60 bg-primary/5" : "bg-muted/30"
+      }`}
+      data-testid={`kanban-column-${status}`}
+      aria-label={`Coluna ${statusLabels[status]}`}
+    >
+      <div className="flex items-center justify-between px-1 py-1">
+        <h3 className="text-sm font-semibold">{statusLabels[status]}</h3>
+        <Badge variant="secondary" className="h-5 px-1.5 text-xs" data-testid={`kanban-count-${status}`}>
+          {items.length}
+        </Badge>
+      </div>
+      <div className="flex flex-col gap-2">
+        {items.length === 0 && !showPlaceholder ? (
+          <div className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
+            Nenhuma iniciativa
+          </div>
+        ) : (
+          <>
+            {items.map((it) => (
+              <IniciativaKanbanCard
+                key={it.id}
+                iniciativa={it}
+                estrategias={estrategias}
+                oportunidades={oportunidades}
+                onMove={onMove}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                draggable
+                dragging={activeId === it.id}
+              />
+            ))}
+            {showPlaceholder && (
+              <div
+                className="rounded-md border-2 border-dashed border-primary/50 bg-primary/5 p-4 text-center text-xs text-primary"
+                data-testid={`kanban-placeholder-${status}`}
+              >
+                Soltar para mover para {statusLabels[status]}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function KanbanBoard({
   iniciativas, estrategias, oportunidades, onMove, onEdit, onDelete,
 }: {
@@ -704,43 +805,70 @@ function KanbanBoard({
     return map;
   }, [iniciativas]);
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(KeyboardSensor),
+  );
+
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const activeIniciativa = activeId
+    ? iniciativas.find((i) => i.id === activeId) ?? null
+    : null;
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(String(event.active.id));
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    setActiveId(null);
+    const { active, over } = event;
+    if (!over) return;
+    const newStatus = String(over.id);
+    if (!(STATUS_VALUES as readonly string[]).includes(newStatus)) return;
+    const it = iniciativas.find((i) => i.id === active.id);
+    if (!it || it.status === newStatus) return;
+    onMove(it.id, newStatus as StatusValue);
+  };
+
   return (
-    <div className="flex gap-3 overflow-x-auto pb-2" data-testid="kanban-board">
-      {STATUS_VALUES.map((s) => {
-        const items = grupos[s];
-        return (
-          <div
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={() => setActiveId(null)}
+    >
+      <div className="flex gap-3 overflow-x-auto pb-2" data-testid="kanban-board">
+        {STATUS_VALUES.map((s) => (
+          <KanbanColumn
             key={s}
-            className="flex w-72 shrink-0 flex-col gap-2 rounded-md border bg-muted/30 p-2"
-            data-testid={`kanban-column-${s}`}
-          >
-            <div className="flex items-center justify-between px-1 py-1">
-              <h3 className="text-sm font-semibold">{statusLabels[s]}</h3>
-              <Badge variant="secondary" className="h-5 px-1.5 text-xs" data-testid={`kanban-count-${s}`}>
-                {items.length}
-              </Badge>
-            </div>
-            <div className="flex flex-col gap-2">
-              {items.length === 0 ? (
-                <div className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
-                  Nenhuma iniciativa
-                </div>
-              ) : items.map((it) => (
-                <IniciativaKanbanCard
-                  key={it.id}
-                  iniciativa={it}
-                  estrategias={estrategias}
-                  oportunidades={oportunidades}
-                  onMove={onMove}
-                  onEdit={onEdit}
-                  onDelete={onDelete}
-                />
-              ))}
-            </div>
+            status={s}
+            items={grupos[s]}
+            activeId={activeId}
+            estrategias={estrategias}
+            oportunidades={oportunidades}
+            onMove={onMove}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
+        ))}
+      </div>
+      <DragOverlay dropAnimation={null}>
+        {activeIniciativa ? (
+          <div className="w-72">
+            <IniciativaKanbanCard
+              iniciativa={activeIniciativa}
+              estrategias={estrategias}
+              oportunidades={oportunidades}
+              onMove={onMove}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              overlay
+            />
           </div>
-        );
-      })}
-    </div>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
   );
 }
 

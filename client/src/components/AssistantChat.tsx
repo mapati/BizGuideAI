@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, User, Loader2, ArrowRight, Plus, Pencil, Clock, MessageSquarePlus, ArrowDownToLine } from "lucide-react";
+import { Send, User, Loader2, ArrowRight, Plus, Pencil, Clock, MessageSquarePlus, ArrowDownToLine, Square } from "lucide-react";
 import { BizzyAvatar } from "@/components/BizzyAvatar";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/AuthContext";
@@ -27,6 +27,9 @@ interface Message {
   content: string;
   acoes?: AssistantAcao[];
   propostas?: Proposta[];
+  // Task #284 — quando true, este balão foi interrompido pelo usuário no meio
+  // do streaming (botão Parar). Mostra rótulo discreto abaixo do texto.
+  interrompido?: boolean;
 }
 
 interface AssistantChatProps {
@@ -86,12 +89,20 @@ function MessageBubble({
   msg,
   onAcaoClick,
   onContinuacao,
+  streaming,
+  statusLabel,
 }: {
   msg: Message;
   onAcaoClick: (acao: AssistantAcao) => void;
   onContinuacao?: (cont: ContinuacaoPlano) => void;
+  // Task #284 — quando true este é o balão atual recebendo deltas SSE.
+  // Mostra cursor ▍ ao final do texto e (se ainda sem texto) o chip de status.
+  streaming?: boolean;
+  statusLabel?: string | null;
 }) {
   const isUser = msg.role === "user";
+  const showStatusChip = !!streaming && !isUser && msg.content === "" && !!statusLabel;
+  const showCursor = !!streaming && !isUser && msg.content !== "";
   return (
     <div className={cn("flex gap-2.5 text-sm", isUser ? "flex-row-reverse" : "flex-row")}>
       {isUser ? (
@@ -104,16 +115,46 @@ function MessageBubble({
         </div>
       )}
       <div className={cn("flex flex-col gap-2 max-w-[82%]", isUser ? "items-end" : "items-start")}>
-        <div
-          className={cn(
-            "rounded-xl px-3.5 py-2.5 leading-relaxed break-words",
-            isUser
-              ? "bg-primary text-primary-foreground rounded-tr-sm whitespace-pre-wrap"
-              : "bg-muted text-foreground rounded-tl-sm"
-          )}
-        >
-          {isUser ? msg.content : <AssistantMarkdown content={msg.content} />}
-        </div>
+        {showStatusChip && (
+          <div
+            className="bg-muted text-muted-foreground rounded-xl rounded-tl-sm px-3.5 py-2.5 flex items-center gap-1.5 text-xs"
+            data-testid="status-chip-bizzy"
+            aria-live="polite"
+          >
+            <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+            <span>{statusLabel}</span>
+          </div>
+        )}
+        {(msg.content !== "" || !streaming) && (
+          <div
+            className={cn(
+              "rounded-xl px-3.5 py-2.5 leading-relaxed break-words",
+              isUser
+                ? "bg-primary text-primary-foreground rounded-tr-sm whitespace-pre-wrap"
+                : "bg-muted text-foreground rounded-tl-sm"
+            )}
+          >
+            {isUser ? (
+              msg.content
+            ) : (
+              <>
+                <AssistantMarkdown content={msg.content} />
+                {showCursor && (
+                  <span
+                    className="inline-block ml-0.5 w-1.5 h-3.5 align-[-1px] bg-foreground/70 animate-pulse motion-reduce:animate-none"
+                    data-testid="cursor-streaming"
+                    aria-hidden="true"
+                  />
+                )}
+              </>
+            )}
+          </div>
+        )}
+        {!isUser && msg.interrompido && (
+          <span className="text-xs text-muted-foreground pl-1" data-testid="text-interrompido">
+            Interrompido por você
+          </span>
+        )}
         {!isUser && msg.propostas && msg.propostas.length > 0 && (
           <div className="flex flex-col gap-2 w-full">
             {msg.propostas.map((p) => (
@@ -182,6 +223,12 @@ export function AssistantChat({
   const [isLoading, setIsLoading] = useState(false);
   const [conversaId, setConversaId] = useState<string | null>(null);
   const [encerrando, setEncerrando] = useState(false);
+  // Task #284 — streaming SSE: índice do balão atual (último assistant) e
+  // último rótulo de status recebido. Quando deltas começam a chegar o chip
+  // some e cede lugar ao texto + cursor.
+  const [streamingIndex, setStreamingIndex] = useState<number | null>(null);
+  const [statusLabel, setStatusLabel] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const initializedRef = useRef(false);
   const proactiveAppliedRef = useRef(false);
@@ -260,47 +307,173 @@ export function AssistantChat({
     }
   }, [initialContext]);
 
+  // Task #284 — botão Parar: aborta o fetch streaming em andamento. O cleanup
+  // do balão (marcar interrompido, encerrar loading) é feito no catch do
+  // sendMessage quando o AbortError é detectado.
+  const stopStreaming = () => {
+    abortRef.current?.abort();
+  };
+
   const sendMessage = async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || isLoading) return;
-
-    const newUserMsg: Message = { role: "user", content: trimmed };
-    const updatedMessages = [...messages, newUserMsg];
-    setMessages(updatedMessages);
-    setInput("");
+    // Setamos isLoading antes de qualquer outra coisa para fechar a janela
+    // de race em cliques rápidos consecutivos.
     setIsLoading(true);
+    setStatusLabel(null);
 
+    // Acrescenta a mensagem do usuário e um placeholder vazio do assistente
+    // que será preenchido pelos `delta` SSE.
+    const newUserMsg: Message = { role: "user", content: trimmed };
+    const placeholder: Message = { role: "assistant", content: "" };
+    setMessages((prev) => [...prev, newUserMsg, placeholder]);
+    setInput("");
+
+    // O índice é definido após o setMessages aplicar — usamos o tamanho
+    // anterior para calcular sem depender do callback.
+    const idxBalao = messages.length + 1;
+    setStreamingIndex(idxBalao);
+
+    const historico = [...messages, newUserMsg]
+      .slice(0, -1)
+      .map((m) => ({ role: m.role, content: m.content }));
+
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+
+    let lastFinalArrived = false;
     try {
-      const historico = updatedMessages
-        .slice(0, -1)
-        .map((m) => ({ role: m.role, content: m.content }));
-      const json = await apiRequest("POST", "/api/ai/assistente", {
-        pergunta: trimmed,
-        historico,
-        conversaId,
+      const resp = await fetch("/api/ai/assistente", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+        credentials: "include",
+        body: JSON.stringify({ pergunta: trimmed, historico, conversaId }),
+        signal: ctrl.signal,
       });
-      const typed = json as AssistanteResponse;
-      if (typed.conversaId) setConversaId(typed.conversaId);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: typed.resposta,
-          acoes: typed.acoes,
-          propostas: typed.propostas,
-        },
-      ]);
-      planoAtivoQuery.refetch();
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "Desculpe, ocorreu um erro ao processar sua pergunta. Tente novamente.",
-        },
-      ]);
+      if (!resp.ok || !resp.body) {
+        throw new Error(`Falha HTTP ${resp.status}`);
+      }
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      const handleEvent = (event: string, dataRaw: string) => {
+        let data: unknown = null;
+        try { data = JSON.parse(dataRaw); } catch { /* ignore */ }
+        if (event === "meta") {
+          const m = data as { conversaId?: string };
+          if (m?.conversaId) setConversaId(m.conversaId);
+        } else if (event === "status") {
+          const s = data as { label?: string };
+          if (s?.label) setStatusLabel(s.label);
+        } else if (event === "delta") {
+          const d = data as { text?: string };
+          if (d?.text) {
+            setMessages((prev) => {
+              const next = [...prev];
+              const cur = next[idxBalao];
+              if (cur && cur.role === "assistant") {
+                next[idxBalao] = { ...cur, content: cur.content + d.text };
+              }
+              return next;
+            });
+          }
+        } else if (event === "final") {
+          lastFinalArrived = true;
+          const f = data as AssistanteResponse;
+          if (f?.conversaId) setConversaId(f.conversaId);
+          setMessages((prev) => {
+            const next = [...prev];
+            const cur = next[idxBalao];
+            if (cur && cur.role === "assistant") {
+              next[idxBalao] = {
+                ...cur,
+                // Usamos o texto final autoritativo do servidor (cobre o
+                // fallback "Preparei algumas ações…" quando o modelo só
+                // chamou tools sem narrar).
+                content: f.resposta || cur.content,
+                acoes: f.acoes,
+                propostas: f.propostas,
+              };
+            }
+            return next;
+          });
+          planoAtivoQuery.refetch();
+        } else if (event === "error") {
+          const e = data as { message?: string };
+          setMessages((prev) => {
+            const next = [...prev];
+            const cur = next[idxBalao];
+            if (cur && cur.role === "assistant") {
+              next[idxBalao] = {
+                ...cur,
+                content:
+                  cur.content ||
+                  `Desculpe, ocorreu um erro ao processar sua pergunta${
+                    e?.message ? `: ${e.message}` : ""
+                  }. Tente novamente.`,
+              };
+            }
+            return next;
+          });
+        }
+      };
+
+      // Parser SSE: divide por delimitador "\n\n", cada evento é um conjunto
+      // de linhas "event: …" + "data: …".
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let sepIdx: number;
+        while ((sepIdx = buffer.indexOf("\n\n")) !== -1) {
+          const rawEvent = buffer.slice(0, sepIdx);
+          buffer = buffer.slice(sepIdx + 2);
+          let evName = "message";
+          const dataLines: string[] = [];
+          for (const line of rawEvent.split("\n")) {
+            if (line.startsWith("event:")) evName = line.slice(6).trim();
+            else if (line.startsWith("data:")) dataLines.push(line.slice(5).replace(/^ /, ""));
+          }
+          if (dataLines.length > 0) handleEvent(evName, dataLines.join("\n"));
+        }
+      }
+    } catch (err) {
+      const isAbort = (err as { name?: string })?.name === "AbortError";
+      if (isAbort) {
+        // Marca o balão como interrompido (preserva o texto parcial recebido).
+        setMessages((prev) => {
+          const next = [...prev];
+          const cur = next[idxBalao];
+          if (cur && cur.role === "assistant") {
+            next[idxBalao] = {
+              ...cur,
+              content: cur.content || "Resposta interrompida.",
+              interrompido: true,
+            };
+          }
+          return next;
+        });
+      } else if (!lastFinalArrived) {
+        setMessages((prev) => {
+          const next = [...prev];
+          const cur = next[idxBalao];
+          if (cur && cur.role === "assistant") {
+            next[idxBalao] = {
+              ...cur,
+              content:
+                cur.content ||
+                "Desculpe, ocorreu um erro ao processar sua pergunta. Tente novamente.",
+            };
+          }
+          return next;
+        });
+      }
     } finally {
+      abortRef.current = null;
       setIsLoading(false);
+      setStreamingIndex(null);
+      setStatusLabel(null);
     }
   };
 
@@ -412,19 +585,15 @@ export function AssistantChat({
             data-message-index={i}
             data-testid={`message-${msg.role}-${i}`}
           >
-            <MessageBubble msg={msg} onAcaoClick={handleAcaoClick} onContinuacao={handleContinuacao} />
+            <MessageBubble
+              msg={msg}
+              onAcaoClick={handleAcaoClick}
+              onContinuacao={handleContinuacao}
+              streaming={i === streamingIndex && isLoading}
+              statusLabel={i === streamingIndex ? statusLabel : null}
+            />
           </div>
         ))}
-
-        {isLoading && (
-          <div className="flex gap-2.5">
-            <BizzyAvatar size="sm" mode="assistente" showModeBadge={false} />
-            <div className="bg-muted rounded-xl rounded-tl-sm px-3.5 py-2.5 flex items-center gap-1.5">
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">Analisando seus dados...</span>
-            </div>
-          </div>
-        )}
 
         <div ref={messagesEndRef} />
       </div>
@@ -454,14 +623,27 @@ export function AssistantChat({
           rows={1}
           data-testid="textarea-ai-input"
         />
-        <Button
-          size="icon"
-          onClick={() => sendMessage(input)}
-          disabled={!input.trim() || isLoading}
-          data-testid="button-ai-submit"
-        >
-          <Send className="h-4 w-4" />
-        </Button>
+        {isLoading ? (
+          <Button
+            size="icon"
+            variant="outline"
+            onClick={stopStreaming}
+            data-testid="button-ai-stop"
+            aria-label="Parar resposta"
+            title="Parar resposta"
+          >
+            <Square className="h-3.5 w-3.5 fill-current" />
+          </Button>
+        ) : (
+          <Button
+            size="icon"
+            onClick={() => sendMessage(input)}
+            disabled={!input.trim()}
+            data-testid="button-ai-submit"
+          >
+            <Send className="h-4 w-4" />
+          </Button>
+        )}
       </div>
     </div>
   );

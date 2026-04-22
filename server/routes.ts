@@ -12,7 +12,7 @@ import {
   renderTendenciaLinha,
   renderRelacoesLinhas,
 } from "./plan-insights";
-import { TOOLS, getTool, toOpenAITools, registrarProposta, LOOKUP_TOOLS_OPENAI, executarBuscaPorNome, READONLY_TOOLS_OPENAI, executarFerramentaReadonly, isReadonlyTool } from "./assistant-tools";
+import { TOOLS, getTool, toOpenAITools, registrarProposta, LOOKUP_TOOLS_OPENAI, executarBuscaPorNome, READONLY_TOOLS_OPENAI, executarFerramentaReadonly, isReadonlyTool, getToolStatusLabel } from "./assistant-tools";
 import { criarAssinatura, buscarAssinatura, cancelarAssinatura, buscarPagamento, motivoLegivel, validarAssinaturaWebhook, PLANOS_MP, type PlanoTipo, type MpSubscription, type MpPayment } from "./mp";
 import { randomBytes, createHash } from "crypto";
 import cron from "node-cron";
@@ -4395,192 +4395,299 @@ ${ctx.join("\n\n")}`;
       const convo: OpenAI.Chat.ChatCompletionMessageParam[] =
         [...messages] as OpenAI.Chat.ChatCompletionMessageParam[];
 
-      let completion = await openai.chat.completions.create({
-        model,
-        messages: convo as Parameters<typeof openai.chat.completions.create>[0]["messages"],
-        temperature: 0.5,
-        max_tokens: 900,
-        tools: allTools,
-        tool_choice: "auto",
-      });
-      let choice = completion.choices[0];
+      // ─── Streaming SSE (Task #284) ───
+      // A partir daqui a resposta vira text/event-stream; emitimos eventos
+      // `meta` (conversaId), `status` (rótulo PT-BR antes de cada chamada
+      // interna), `delta` (pedaços de texto vindos do modelo), `final`
+      // (payload completo) e, em caso de falha, `error`.
+      res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+      res.setHeader("Cache-Control", "no-cache, no-transform");
+      res.setHeader("Connection", "keep-alive");
+      res.setHeader("X-Accel-Buffering", "no");
+      // flushHeaders pode não existir em ambientes de teste; chamada defensiva.
+      (res as unknown as { flushHeaders?: () => void }).flushHeaders?.();
 
-      // Loop de busca por nome: se o modelo chamou buscar_entidade_por_nome,
-      // executa server-side e devolve resultados como tool message. Cap = 2
-      // rodadas para evitar loops longos.
-      // Importante: só entramos no loop quando TODAS as tool_calls do turno
-      // são lookups. Se vier misturado (lookup + executora HITL), saímos do
-      // loop e processamos tudo no pipeline pós-loop — assim evitamos enviar
-      // de volta ao OpenAI uma assistant message com tool_call_ids cujas
-      // respostas (tool messages) ainda não existem (a API rejeita isso).
-      // Task #230 — o loop intermediário agora também executa as read-only
-      // tools (analisar_indicador, projetar_kr, simular_impacto,
-      // comparar_periodos) no mesmo padrão da busca por nome: server-side,
-      // resultado retorna como tool message para o modelo narrar.
-      const isLookupName = (n: string) => n === "buscar_entidade_por_nome" || isReadonlyTool(n);
-      const MAX_LOOKUP_ROUNDS = 3;
-      for (let round = 0; round < MAX_LOOKUP_ROUNDS; round++) {
-        const calls = choice.message.tool_calls ?? [];
-        if (calls.length === 0) break;
-        const lookupCalls = calls.filter(
-          (c) => c.type === "function" && isLookupName(c.function.name),
-        );
-        const naoLookup = calls.filter(
-          (c) => !(c.type === "function" && isLookupName(c.function.name)),
-        );
-        if (lookupCalls.length === 0) break;
-        if (naoLookup.length > 0) {
-          // Mistura: não dá para reinvocar mantendo o protocolo. Saímos do
-          // loop preservando `choice` atual; as HITL viram propostas e os
-          // lookups são descartados pelo filtro pós-loop.
-          break;
-        }
-
-        // Anexa a mensagem do assistente (com tool_calls) à conversa.
-        convo.push(choice.message as OpenAI.Chat.ChatCompletionMessageParam);
-
-        // Executa cada lookup/readonly e anexa tool message com o resultado.
-        for (const call of lookupCalls) {
-          if (call.type !== "function") continue;
-          let args: unknown = {};
-          try { args = JSON.parse(call.function.arguments || "{}"); } catch { args = {}; }
-          let payload: unknown;
-          if (call.function.name === "buscar_entidade_por_nome") {
-            const r = await executarBuscaPorNome(args, {
-              empresaId,
-              usuarioId: req.session.userId ?? null,
-            });
-            payload = r.ok
-              ? {
-                  tipo: r.tipo,
-                  termo: r.termo,
-                  total: r.matches.length,
-                  matches: r.matches.map((m) => ({
-                    id: m.id,
-                    nome: m.nome,
-                    ...(m.contexto ? { contexto: m.contexto } : {}),
-                    ...(m.objetivoId ? { objetivoId: m.objetivoId } : {}),
-                  })),
-                  instrucao:
-                    r.matches.length === 0
-                      ? "Nenhum item encontrado com esse nome. Avise o usuário e ofereça criar um novo ou navegar para a área."
-                      : r.matches.length === 1
-                      ? "1 item encontrado. Use o id retornado em abrir_entidade ou na tool de atualização específica."
-                      : "Vários itens parecidos. NÃO chame tool executora: responda em texto listando-os e pergunte qual o usuário quis dizer.",
-                }
-              : { erro: r.mensagem };
-          } else {
-            const r = await executarFerramentaReadonly(call.function.name, args, {
-              empresaId,
-              usuarioId: req.session.userId ?? null,
-            });
-            payload = r.ok ? r.dados : { erro: r.mensagem };
-          }
-          convo.push({
-            role: "tool",
-            tool_call_id: call.id,
-            content: JSON.stringify(payload),
-          } as OpenAI.Chat.ChatCompletionMessageParam);
-        }
-
-        completion = await openai.chat.completions.create({
-          model,
-          messages: convo as Parameters<typeof openai.chat.completions.create>[0]["messages"],
-          temperature: 0.5,
-          max_tokens: 900,
-          tools: allTools,
-          tool_choice: "auto",
-        });
-        choice = completion.choices[0];
-      }
-
-      const rawText = (choice.message.content ?? "").trim();
-      // Após o loop, descarta eventuais lookup/readonly calls residuais — só HITL viram propostas.
-      const toolCalls = (choice.message.tool_calls ?? [])
-        .filter((c) => !(c.type === "function" && isLookupName(c.function.name)))
-        .slice(0, 3);
-
-      const propostas: Array<{
-        logId: string;
-        ferramenta: string;
-        preview: unknown;
-        parametros: Record<string, unknown>;
-      }> = [];
-
-      for (const call of toolCalls) {
-        if (call.type !== "function") continue;
-        let args: unknown = {};
+      const sseSend = (event: string, data: unknown) => {
         try {
-          args = JSON.parse(call.function.arguments || "{}");
+          res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
         } catch {
-          args = {};
+          /* socket pode ter sido fechado pelo cliente */
         }
-        const result = await registrarProposta({
-          toolName: call.function.name,
-          rawArgs: args,
-          empresaId,
-          usuarioId: req.session.userId ?? null,
-          origem: "chat",
-        });
-        if (result.ok) {
-          propostas.push({
-            logId: result.logId,
-            ferramenta: result.ferramenta,
-            preview: result.preview,
-            parametros: result.parametros,
-          });
-        } else {
-          console.warn(`[ASSISTENTE] Tool call rejeitada (${call.function.name}): ${result.mensagem}`);
-        }
-      }
+      };
 
-      // Task #189 — devolve plano agêntico ativo para o frontend exibir o card.
-      const planoAtivo = await storage.getPlanoAtivoEmpresaUsuario(empresaId, req.session.userId ?? null);
-      const planoAtivoOut = planoAtivo
-        ? await (async () => {
-            const passos = await storage.listPassosByPlano(planoAtivo.id);
-            return { plano: planoAtivo, passos };
-          })()
-        : null;
-
-      // Fallback: se modelo não chamou tool e não retornou texto, devolve mensagem padrão
-      const respostaFinal =
-        rawText ||
-        (propostas.length > 0
-          ? "Preparei algumas ações para você revisar abaixo."
-          : "Não consegui formular uma resposta agora. Tente reformular a pergunta.");
-
-      // Task #221 — persiste a mensagem do assistente e dispara extração
-      // de memória em background a cada ~6 mensagens do usuário.
-      try {
-        await storage.appendMensagem({
-          conversaId: conversa.id,
-          role: "assistant",
-          content: respostaFinal,
-          propostas: propostas.length ? propostas : null,
-        });
-        const totalUser = await storage.countMensagensUsuario(conversa.id);
-        if (totalUser > 0 && totalUser % 6 === 0) {
-          dispararExtracaoBackground({
-            empresaId,
-            conversaId: conversa.id,
-            planoTipo: empresa?.planoTipo ?? null,
-          });
-        }
-      } catch (persistErr) {
-        console.warn("[ASSISTENTE] Falha ao persistir turno do assistente:", persistErr);
-      }
-
-      res.json({
-        resposta: respostaFinal,
-        propostas,
-        acoes: [],
-        planoAtivo: planoAtivoOut,
-        conversaId: conversa.id,
+      const abortCtrl = new AbortController();
+      let clientGone = false;
+      req.on("close", () => {
+        clientGone = true;
+        abortCtrl.abort();
       });
+
+      sseSend("meta", { conversaId: conversa.id });
+      sseSend("status", { label: "Pensando…" });
+
+      // Helper: executa UMA rodada de chat completion com stream:true,
+      // acumula content text e tool_calls (que vêm fragmentados como JSON
+      // parcial em delta.tool_calls[idx].function.arguments). Emite `delta`
+      // SSE conforme o conteúdo chega.
+      type StreamRoundResult = {
+        message: {
+          role: "assistant";
+          content: string | null;
+          tool_calls: Array<{
+            id: string;
+            type: "function";
+            function: { name: string; arguments: string };
+          }>;
+        };
+      };
+      const streamRound = async (): Promise<StreamRoundResult> => {
+        const stream = await openai.chat.completions.create(
+          {
+            model,
+            messages: convo as Parameters<typeof openai.chat.completions.create>[0]["messages"],
+            temperature: 0.5,
+            max_tokens: 900,
+            tools: allTools,
+            tool_choice: "auto",
+            stream: true,
+          },
+          { signal: abortCtrl.signal },
+        );
+        let content = "";
+        const acc = new Map<number, { id: string; name: string; args: string }>();
+        for await (const chunk of stream) {
+          if (clientGone) break;
+          const delta = chunk.choices?.[0]?.delta;
+          if (!delta) continue;
+          if (delta.content) {
+            content += delta.content;
+            sseSend("delta", { text: delta.content });
+          }
+          if (delta.tool_calls) {
+            for (const tc of delta.tool_calls) {
+              const idx = tc.index ?? 0;
+              let cur = acc.get(idx);
+              if (!cur) {
+                cur = { id: "", name: "", args: "" };
+                acc.set(idx, cur);
+              }
+              if (tc.id) cur.id = tc.id;
+              if (tc.function?.name) cur.name += tc.function.name;
+              if (tc.function?.arguments) cur.args += tc.function.arguments;
+            }
+          }
+        }
+        const tool_calls = Array.from(acc.entries())
+          .sort((a, b) => a[0] - b[0])
+          .map(([_idx, v]) => ({
+            id: v.id,
+            type: "function" as const,
+            function: { name: v.name, arguments: v.args },
+          }))
+          .filter((tc) => tc.function.name); // descarta entradas vazias
+        return {
+          message: {
+            role: "assistant",
+            content: content || null,
+            tool_calls,
+          },
+        };
+      }
+
+      try {
+        let choice = await streamRound();
+
+        // Loop de busca por nome / read-only: se o modelo chamou
+        // buscar_entidade_por_nome ou alguma readonly tool, executa
+        // server-side e devolve resultados como tool message. Cap = 3 rodadas.
+        // Só entramos no loop quando TODAS as tool_calls do turno são
+        // lookups; misturas são tratadas pós-loop.
+        const isLookupName = (n: string) => n === "buscar_entidade_por_nome" || isReadonlyTool(n);
+        const MAX_LOOKUP_ROUNDS = 3;
+        for (let round = 0; round < MAX_LOOKUP_ROUNDS && !clientGone; round++) {
+          const calls = choice.message.tool_calls ?? [];
+          if (calls.length === 0) break;
+          const lookupCalls = calls.filter((c) => isLookupName(c.function.name));
+          const naoLookup = calls.filter((c) => !isLookupName(c.function.name));
+          if (lookupCalls.length === 0) break;
+          if (naoLookup.length > 0) break;
+
+          // Anexa a mensagem do assistente (com tool_calls) à conversa.
+          convo.push(choice.message as OpenAI.Chat.ChatCompletionMessageParam);
+
+          // Executa cada lookup/readonly e anexa tool message com o resultado.
+          for (const call of lookupCalls) {
+            if (clientGone) break;
+            sseSend("status", { label: getToolStatusLabel(call.function.name) });
+            let args: unknown = {};
+            try { args = JSON.parse(call.function.arguments || "{}"); } catch { args = {}; }
+            let payload: unknown;
+            if (call.function.name === "buscar_entidade_por_nome") {
+              const r = await executarBuscaPorNome(args, {
+                empresaId,
+                usuarioId: req.session.userId ?? null,
+              });
+              payload = r.ok
+                ? {
+                    tipo: r.tipo,
+                    termo: r.termo,
+                    total: r.matches.length,
+                    matches: r.matches.map((m) => ({
+                      id: m.id,
+                      nome: m.nome,
+                      ...(m.contexto ? { contexto: m.contexto } : {}),
+                      ...(m.objetivoId ? { objetivoId: m.objetivoId } : {}),
+                    })),
+                    instrucao:
+                      r.matches.length === 0
+                        ? "Nenhum item encontrado com esse nome. Avise o usuário e ofereça criar um novo ou navegar para a área."
+                        : r.matches.length === 1
+                        ? "1 item encontrado. Use o id retornado em abrir_entidade ou na tool de atualização específica."
+                        : "Vários itens parecidos. NÃO chame tool executora: responda em texto listando-os e pergunte qual o usuário quis dizer.",
+                  }
+                : { erro: r.mensagem };
+            } else {
+              const r = await executarFerramentaReadonly(call.function.name, args, {
+                empresaId,
+                usuarioId: req.session.userId ?? null,
+              });
+              payload = r.ok ? r.dados : { erro: r.mensagem };
+            }
+            convo.push({
+              role: "tool",
+              tool_call_id: call.id,
+              content: JSON.stringify(payload),
+            } as OpenAI.Chat.ChatCompletionMessageParam);
+          }
+
+          if (clientGone) break;
+          sseSend("status", { label: "Refletindo sobre os dados…" });
+          choice = await streamRound();
+        }
+
+        if (clientGone) {
+          // Cliente cancelou: não persiste nada nem emite final.
+          try { res.end(); } catch { /* socket fechado */ }
+          return;
+        }
+
+        const rawText = (choice.message.content ?? "").trim();
+        // Após o loop, descarta eventuais lookup/readonly calls residuais — só HITL viram propostas.
+        const toolCalls = (choice.message.tool_calls ?? [])
+          .filter((c) => !isLookupName(c.function.name))
+          .slice(0, 3);
+
+        const propostas: Array<{
+          logId: string;
+          ferramenta: string;
+          preview: unknown;
+          parametros: Record<string, unknown>;
+        }> = [];
+
+        for (const call of toolCalls) {
+          if (clientGone) break;
+          sseSend("status", { label: getToolStatusLabel(call.function.name) });
+          let args: unknown = {};
+          try {
+            args = JSON.parse(call.function.arguments || "{}");
+          } catch {
+            args = {};
+          }
+          const result = await registrarProposta({
+            toolName: call.function.name,
+            rawArgs: args,
+            empresaId,
+            usuarioId: req.session.userId ?? null,
+            origem: "chat",
+          });
+          if (result.ok) {
+            propostas.push({
+              logId: result.logId,
+              ferramenta: result.ferramenta,
+              preview: result.preview,
+              parametros: result.parametros,
+            });
+          } else {
+            console.warn(`[ASSISTENTE] Tool call rejeitada (${call.function.name}): ${result.mensagem}`);
+          }
+        }
+
+        if (clientGone) {
+          try { res.end(); } catch { /* socket fechado */ }
+          return;
+        }
+
+        // Task #189 — devolve plano agêntico ativo para o frontend exibir o card.
+        const planoAtivo = await storage.getPlanoAtivoEmpresaUsuario(empresaId, req.session.userId ?? null);
+        const planoAtivoOut = planoAtivo
+          ? await (async () => {
+              const passos = await storage.listPassosByPlano(planoAtivo.id);
+              return { plano: planoAtivo, passos };
+            })()
+          : null;
+
+        // Fallback: se modelo não chamou tool e não retornou texto, devolve mensagem padrão
+        const respostaFinal =
+          rawText ||
+          (propostas.length > 0
+            ? "Preparei algumas ações para você revisar abaixo."
+            : "Não consegui formular uma resposta agora. Tente reformular a pergunta.");
+
+        // Task #221 — persiste a mensagem do assistente e dispara extração
+        // de memória em background a cada ~6 mensagens do usuário.
+        let mensagemId: string | null = null;
+        try {
+          const persisted = await storage.appendMensagem({
+            conversaId: conversa.id,
+            role: "assistant",
+            content: respostaFinal,
+            propostas: propostas.length ? propostas : null,
+          });
+          mensagemId = persisted.id;
+          const totalUser = await storage.countMensagensUsuario(conversa.id);
+          if (totalUser > 0 && totalUser % 6 === 0) {
+            dispararExtracaoBackground({
+              empresaId,
+              conversaId: conversa.id,
+              planoTipo: empresa?.planoTipo ?? null,
+            });
+          }
+        } catch (persistErr) {
+          console.warn("[ASSISTENTE] Falha ao persistir turno do assistente:", persistErr);
+        }
+
+        sseSend("final", {
+          mensagemId,
+          resposta: respostaFinal,
+          propostas,
+          acoes: [],
+          planoAtivo: planoAtivoOut,
+          conversaId: conversa.id,
+        });
+        try { res.end(); } catch { /* socket fechado */ }
+      } catch (streamErr) {
+        const isAbort = (streamErr as { name?: string })?.name === "AbortError";
+        if (isAbort || clientGone) {
+          try { res.end(); } catch { /* */ }
+          return;
+        }
+        const message = streamErr instanceof Error ? streamErr.message : String(streamErr);
+        console.error("[ASSISTENTE] Erro no stream:", streamErr);
+        sseSend("error", { message });
+        try { res.end(); } catch { /* */ }
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      res.status(500).json({ error: message });
+      // Se headers ainda não foram enviados, devolve JSON 500 (compatibilidade
+      // com o pre-stream — útil para erros de validação/sessão antes da fase LLM).
+      if (!res.headersSent) {
+        res.status(500).json({ error: message });
+      } else {
+        try {
+          res.write(`event: error\ndata: ${JSON.stringify({ message })}\n\n`);
+          res.end();
+        } catch { /* */ }
+      }
     }
   });
 

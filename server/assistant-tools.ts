@@ -3566,3 +3566,59 @@ export async function registrarProposta(opts: {
     passo,
   };
 }
+
+// ─── Status labels para SSE (chip de "o que o agente está fazendo") ───
+// Registro central PT-BR para todas as tools — HITL (writes), lookup
+// (buscar_entidade_por_nome) e read-only (analisar_indicador, projetar_kr,
+// simular_impacto, comparar_periodos). Usado por /api/ai/assistente para
+// emitir `event: status` antes de cada chamada interna.
+export const STATUS_LABELS: Readonly<Record<string, string>> = {
+  // Iniciativas
+  criar_iniciativa: "Preparando iniciativa…",
+  atualizar_iniciativa: "Atualizando iniciativa…",
+  encerrar_iniciativa: "Encerrando iniciativa…",
+  vincular_iniciativa_a_kpi: "Vinculando iniciativa ao KPI…",
+  dividir_iniciativa: "Dividindo iniciativa em entregas…",
+  // OKRs / KRs
+  criar_okr: "Criando OKR…",
+  atualizar_okr: "Atualizando OKR…",
+  adicionar_kr_a_okr: "Adicionando meta ao OKR…",
+  atualizar_kr: "Editando meta…",
+  atualizar_progresso_kr: "Atualizando progresso da meta…",
+  vincular_kr_a_indicador: "Vinculando meta ao KPI…",
+  registrar_checkin_kr: "Registrando check-in da meta…",
+  revisar_qualidade_kr: "Revisando qualidade da meta…",
+  // Indicadores
+  criar_indicador: "Criando KPI…",
+  atualizar_valor_indicador: "Registrando leitura do KPI…",
+  // Riscos
+  criar_risco: "Registrando risco…",
+  atualizar_risco: "Atualizando risco…",
+  registrar_mitigacao: "Registrando mitigação…",
+  // Memória persistente
+  registrar_fato_manualmente: "Anotando fato na memória…",
+  esquecer_fato: "Removendo fato da memória…",
+  // Planos agênticos
+  criar_plano_agentico: "Montando plano agêntico…",
+  concluir_plano_agentico: "Concluindo plano agêntico…",
+  cancelar_plano_agentico: "Cancelando plano agêntico…",
+  // Rituais de gestão
+  gerar_pauta_reuniao: "Gerando pauta de reunião…",
+  registrar_ata: "Registrando ata da reunião…",
+  registrar_decisao: "Registrando decisão estratégica…",
+  agendar_revisao: "Agendando revisão…",
+  // Navegação / abertura
+  navegar_para: "Preparando navegação…",
+  abrir_entidade: "Abrindo item…",
+  // Lookup (read-only, sem HITL)
+  buscar_entidade_por_nome: "Buscando item pelo nome…",
+  // Read-only de análise (sem HITL)
+  analisar_indicador: "Consultando indicador…",
+  projetar_kr: "Projetando meta…",
+  simular_impacto: "Simulando impacto…",
+  comparar_periodos: "Comparando períodos…",
+};
+
+export function getToolStatusLabel(name: string): string {
+  return STATUS_LABELS[name] ?? "Trabalhando…";
+}

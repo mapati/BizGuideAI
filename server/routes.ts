@@ -4959,17 +4959,25 @@ INSTRUÇÕES:
       if (!log || !podeAtuarNaProposta(log, { empresaId, userId })) {
         return res.status(404).json({ error: "Proposta não encontrada." });
       }
-      if (log.status !== "proposta") {
-        return res.status(409).json({ error: `Proposta já está ${log.status}.`, status: log.status });
-      }
       const tool = getTool(log.ferramenta);
       if (!tool) return res.status(400).json({ error: "Ferramenta desconhecida." });
 
-      const updated = await storage.updatePropostaLog(log.id, {
-        status: "ajustada",
-        resolvidoEm: new Date(),
-      });
-      await rollbackPassoIfVinculado(log.id);
+      // Confirmadas/ignoradas continuam bloqueadas — só ajustar uma proposta
+      // já confirmada não faz sentido. Mas se ela já estava ajustada,
+      // tornamos a operação idempotente: o usuário pode ter recarregado o
+      // chat e clicado de novo para reabrir o formulário.
+      if (log.status === "confirmada" || log.status === "ignorada" || log.status === "falhou") {
+        return res.status(409).json({ error: `Proposta já está ${log.status}.`, status: log.status });
+      }
+
+      let updated = log;
+      if (log.status === "proposta") {
+        updated = (await storage.updatePropostaLog(log.id, {
+          status: "ajustada",
+          resolvidoEm: new Date(),
+        })) ?? log;
+        await rollbackPassoIfVinculado(log.id);
+      }
       res.json({
         ok: true,
         log: updated,

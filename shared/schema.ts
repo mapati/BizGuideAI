@@ -870,6 +870,7 @@ export type InsertAssistenteMemoria = z.infer<typeof insertAssistenteMemoriaSche
 // ─────────────────────────────────────────────────────────────────────────────
 export const aiGenerationParamsSchema = z.object({
   quantidade: z.number().int().min(1).max(10).optional(),
+  quantidadeSecundaria: z.number().int().min(1).max(10).optional(),
   foco: z.array(z.string()).optional(),
   focoSecundario: z.array(z.string()).optional(),
   instrucaoAdicional: z.string().max(2000).optional(),

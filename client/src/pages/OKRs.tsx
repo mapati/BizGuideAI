@@ -852,6 +852,7 @@ export default function OKRs() {
     },
     onSuccess: async (data, vars) => {
       const perspectiva = vars.perspectiva;
+      const qtdMetricas = vars.params?.quantidadeSecundaria;
       if (data.objetivos && data.objetivos.length > 0) {
         const label = perspectiva ? `perspectiva ${perspectiva}` : "todas as perspectivas";
         toast({
@@ -859,8 +860,9 @@ export default function OKRs() {
           description: `${data.objetivos.length} objetivo(s) sugerido(s) pela IA para ${label}.`,
         });
         // Backend já escolhe a iniciativa/estratégia de origem para cada objetivo.
+        let totalMetricasGeradas = 0;
         for (const obj of data.objetivos) {
-          await criarObjetivoMutation.mutateAsync({
+          const novoObjetivo = await criarObjetivoMutation.mutateAsync({
             empresaId,
             titulo: obj.titulo,
             descricao: obj.descricao,
@@ -868,6 +870,42 @@ export default function OKRs() {
             perspectiva: obj.perspectiva || perspectiva || "Financeira",
             estrategiaId: obj.estrategiaId ?? null,
             iniciativaId: obj.iniciativaId ?? null,
+          }) as unknown as Objetivo;
+
+          // Geração automática de métricas (KRs) para o objetivo recém-criado.
+          if (qtdMetricas && novoObjetivo?.id) {
+            try {
+              const krResp = await apiRequest("POST", "/api/ai/gerar-resultados-chave", {
+                objetivoId: novoObjetivo.id,
+                quantidade: qtdMetricas,
+              });
+              const krs = krResp?.resultados ?? [];
+              for (const res of krs) {
+                const membroAi = membros.find(m =>
+                  m.nome.toLowerCase() === (res.owner || "").toLowerCase()
+                  || m.email?.toLowerCase() === (res.owner || "").toLowerCase()
+                );
+                await criarResultadoMutation.mutateAsync({
+                  objetivoId: novoObjetivo.id,
+                  metrica: res.metrica,
+                  valorInicial: res.valorInicial.toString(),
+                  valorAlvo: res.valorAlvo.toString(),
+                  valorAtual: res.valorAtual.toString(),
+                  owner: membroAi?.nome || res.owner || "—",
+                  responsavelId: membroAi?.id ?? null,
+                  prazo: res.prazo,
+                });
+                totalMetricasGeradas++;
+              }
+            } catch {
+              // não bloqueia o restante do fluxo se a geração de KRs falhar para um objetivo
+            }
+          }
+        }
+        if (qtdMetricas && totalMetricasGeradas > 0) {
+          toast({
+            title: "Métricas geradas",
+            description: `${totalMetricasGeradas} resultado(s)-chave criado(s) automaticamente.`,
           });
         }
       } else {
@@ -2105,6 +2143,15 @@ export default function OKRs() {
           max: 5,
           suffixSingular: "objetivo",
           suffixPlural: "objetivos",
+        }}
+        quantidadeSecundaria={{
+          label: "Métricas por objetivo",
+          description: "Quantos resultados-chave (KRs) a IA deve gerar automaticamente para cada objetivo criado.",
+          default: 3,
+          min: 1,
+          max: 5,
+          suffixSingular: "métrica",
+          suffixPlural: "métricas",
         }}
         foco={{
           label: "Perspectivas do BSC",

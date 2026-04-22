@@ -47,6 +47,17 @@ export interface AIGenerationModalProps {
     suffixPlural?: string;
   };
 
+  /** Quantidade secundária (ex.: métricas por objetivo). Se omitido, não exibe. */
+  quantidadeSecundaria?: {
+    label: string;
+    description?: string;
+    min?: number;
+    max?: number;
+    default: number;
+    suffixSingular?: string;
+    suffixPlural?: string;
+  };
+
   /** Lista de focos (quadrantes/perspectivas/prioridades/...). */
   foco?: {
     label: string;
@@ -107,6 +118,7 @@ export function AIGenerationModal({
   isGenerating = false,
   testIdPrefix = "ai-modal",
   quantidade,
+  quantidadeSecundaria,
   foco,
   focoSecundario,
   fontesContexto,
@@ -115,6 +127,7 @@ export function AIGenerationModal({
   origem,
 }: AIGenerationModalProps) {
   const [qtd, setQtd] = useState<number>(quantidade?.default ?? 3);
+  const [qtdSec, setQtdSec] = useState<number>(quantidadeSecundaria?.default ?? 3);
   const [focoSel, setFocoSel] = useState<Record<string, boolean>>({});
   const [focoSecSel, setFocoSecSel] = useState<Record<string, boolean>>({});
   const [fontesSel, setFontesSel] = useState<Record<string, boolean>>({});
@@ -125,6 +138,7 @@ export function AIGenerationModal({
   useEffect(() => {
     if (!open) return;
     setQtd(quantidade?.default ?? 3);
+    setQtdSec(quantidadeSecundaria?.default ?? 3);
     if (foco) {
       const def = new Set(foco.defaultSelected ?? foco.items.map((i) => i.value));
       const initial: Record<string, boolean> = {};
@@ -170,6 +184,7 @@ export function AIGenerationModal({
   const handleConfirm = () => {
     const params: AIGenerationParams = {};
     if (quantidade) params.quantidade = qtd;
+    if (quantidadeSecundaria) params.quantidadeSecundaria = qtdSec;
     if (foco) {
       params.foco = Object.entries(focoSel).filter(([, v]) => v).map(([k]) => k);
     }
@@ -302,6 +317,26 @@ export function AIGenerationModal({
                   )}
                 </div>
               ) : null}
+
+              {quantidadeSecundaria && (
+                <div className="flex items-center justify-between gap-4 pt-1">
+                  <div>
+                    <Label className="text-sm font-medium">{quantidadeSecundaria.label}</Label>
+                    {quantidadeSecundaria.description && (
+                      <p className="text-xs text-muted-foreground mt-0.5">{quantidadeSecundaria.description}</p>
+                    )}
+                  </div>
+                  <QuantidadeSelect
+                    value={qtdSec}
+                    onValueChange={setQtdSec}
+                    min={quantidadeSecundaria.min ?? 1}
+                    max={quantidadeSecundaria.max ?? 5}
+                    suffixSingular={quantidadeSecundaria.suffixSingular ?? "opção"}
+                    suffixPlural={quantidadeSecundaria.suffixPlural ?? "opções"}
+                    testId={`${testIdPrefix}-select-quantidade-secundaria`}
+                  />
+                </div>
+              )}
 
               {foco && (
                 <div className="space-y-2">

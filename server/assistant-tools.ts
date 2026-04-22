@@ -2356,6 +2356,83 @@ export function toOpenAITools() {
  * Valida os parâmetros recebidos do modelo, persiste a proposta no log
  * e devolve o registro pronto para o frontend exibir como PropostaCard.
  */
+// Task #246 — Resolvedores de IDs → nomes amigáveis para o preview HITL.
+// Cada chave do parsed.data cujo nome bate com o registro abaixo é
+// resolvido contra o storage (com checagem de tenant) e o resultado é
+// usado para substituir qualquer campo do preview cujo `valor` seja
+// exatamente esse ID. Best-effort: falhas viram null e não quebram a
+// proposta.
+const ID_RESOLVERS: Record<string, (id: string, empresaId: string) => Promise<string | null>> = {
+  objetivoId: async (id, e) => {
+    const list = await storage.getObjetivos(e);
+    return list.find((o) => o.id === id)?.titulo ?? null;
+  },
+  indicadorId: async (id, e) => {
+    const ind = await storage.getIndicador(id);
+    return ind && ind.empresaId === e ? ind.nome : null;
+  },
+  indicadorFonteId: async (id, e) => {
+    const ind = await storage.getIndicador(id);
+    return ind && ind.empresaId === e ? ind.nome : null;
+  },
+  iniciativaId: async (id, e) => {
+    const it = await storage.getIniciativa(id);
+    return it && it.empresaId === e ? it.titulo : null;
+  },
+  krId: async (id, e) => {
+    const kr = await storage.getResultadoChaveById(id, e);
+    return kr ? kr.metrica : null;
+  },
+  resultadoChaveId: async (id, e) => {
+    const kr = await storage.getResultadoChaveById(id, e);
+    return kr ? kr.metrica : null;
+  },
+  oportunidadeId: async (id, e) => {
+    const op = await storage.getOportunidadeCrescimento(id);
+    return op && op.empresaId === e ? op.titulo : null;
+  },
+  estrategiaId: async (id, e) => {
+    const est = await storage.getEstrategia(id);
+    return est && est.empresaId === e ? est.titulo : null;
+  },
+};
+
+// Tools que recebem o ID da entidade alvo na chave genérica `id` em vez de
+// usar o nome explícito (ex.: `iniciativaId`). Mapeia toolName → resolver.
+const TOOL_ID_RESOLVERS: Record<string, (id: string, empresaId: string) => Promise<string | null>> = {
+  atualizar_iniciativa: ID_RESOLVERS.iniciativaId,
+  encerrar_iniciativa: ID_RESOLVERS.iniciativaId,
+};
+
+async function enrichPreviewWithFriendlyNames(
+  preview: PropostaPreview,
+  parsed: Record<string, unknown>,
+  empresaId: string,
+  toolName?: string,
+): Promise<PropostaPreview> {
+  const idMap = new Map<string, string>();
+  for (const [key, val] of Object.entries(parsed)) {
+    if (typeof val !== "string" || val.length < 8) continue;
+    let resolver: ((id: string, empresaId: string) => Promise<string | null>) | undefined =
+      ID_RESOLVERS[key];
+    if (!resolver && key === "id" && toolName) {
+      resolver = TOOL_ID_RESOLVERS[toolName];
+    }
+    if (!resolver) continue;
+    if (idMap.has(val)) continue;
+    try {
+      const friendly = await resolver(val, empresaId);
+      if (friendly) idMap.set(val, friendly);
+    } catch { /* best-effort */ }
+  }
+  if (idMap.size === 0) return preview;
+  const campos = (preview.campos ?? []).map((c) => {
+    const friendly = idMap.get(c.valor);
+    return friendly ? { ...c, valor: friendly } : c;
+  });
+  return { ...preview, campos };
+}
+
 export async function registrarProposta(opts: {
   toolName: string;
   rawArgs: unknown;
@@ -2402,6 +2479,20 @@ export async function registrarProposta(opts: {
   }
 
   let preview = tool.preview(parsed.data);
+
+  // Task #246 — Substitui IDs (UUIDs) por nomes amigáveis no preview HITL
+  // (ex.: objetivoId → título do objetivo). Best-effort: se a resolução
+  // falhar, mantém o valor original.
+  try {
+    if (parsed.data && typeof parsed.data === "object" && !Array.isArray(parsed.data)) {
+      preview = await enrichPreviewWithFriendlyNames(
+        preview,
+        parsed.data as Record<string, unknown>,
+        opts.empresaId,
+        tool.name,
+      );
+    }
+  } catch { /* best-effort */ }
 
   // Task #193 — Aviso explícito quando o usuário já tem um plano agêntico
   // ativo. Em vez de cancelar silenciosamente o plano anterior, enriquecemos

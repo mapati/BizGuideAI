@@ -4135,7 +4135,8 @@ Responda OBRIGATORIAMENTE em JSON:
         const memoriaAtiva = await storage.getMemoriaAtiva(empresaId, 20);
         if (memoriaAtiva.length > 0) {
           const porCat = memoriaAtiva.reduce<Record<string, string[]>>((acc, m) => {
-            (acc[m.categoria] ??= []).push(`- ${m.fato}`);
+            // Task #234 — IDs estáveis para a tool "esquecer_fato".
+            (acc[m.categoria] ??= []).push(`- [id=${m.id}] ${m.fato}`);
             return acc;
           }, {});
           const ordem = ["decisao", "prioridade", "hipotese", "restricao", "contexto"];
@@ -4145,7 +4146,9 @@ Responda OBRIGATORIAMENTE em JSON:
             .join("\n\n");
           ctx.unshift(
             `## O QUE VOCÊ JÁ APRENDEU SOBRE ESTA EMPRESA\n${blocos}\n\n` +
-              `Estes fatos foram extraídos de conversas anteriores com o usuário. Use-os para manter continuidade — não os repita literalmente nas respostas, mas considere-os antes de propor ações.`,
+              `Estes fatos foram extraídos de conversas anteriores com o usuário. Use-os para manter continuidade — não os repita literalmente nas respostas, mas considere-os antes de propor ações.\n` +
+              `- Se o usuário disser explicitamente "lembre que…", "guarda isso", "fica registrado que…", "anota aí que…" ou equivalente, use a tool "registrar_fato_manualmente" em vez de aguardar a extração automática.\n` +
+              `- Se o usuário disser "isso mudou", "esquece esse fato", "esse fato não vale mais" ou equivalente, identifique o fato pelo ID listado neste bloco e use a tool "esquecer_fato" com esse fatoId.`,
           );
         }
       } catch (memErr) {
@@ -4198,6 +4201,7 @@ MEMÓRIA E "DAR BAIXA":
 
 FERRAMENTAS DISPONÍVEIS:
 - Executoras: criar_iniciativa, atualizar_iniciativa, encerrar_iniciativa, criar_okr, atualizar_okr, adicionar_kr_a_okr, atualizar_kr, atualizar_progresso_kr, criar_indicador, atualizar_valor_indicador, abrir_entidade, navegar_para.
+- Memória manual: registrar_fato_manualmente (quando o usuário pedir explicitamente para lembrar/anotar algo), esquecer_fato (quando ele pedir para esquecer/desativar um fato listado no bloco de memória).
 - Planos agênticos (loop multi-passo): criar_plano_agentico (quando o objetivo do usuário exigir 2+ ações encadeadas), concluir_plano_agentico (quando os passos foram cumpridos), cancelar_plano_agentico (quando o usuário desistir).
 
 LOOP AGÊNTICO (planos multi-passo):

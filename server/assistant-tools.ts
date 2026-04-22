@@ -24,7 +24,9 @@ export type ToolName =
   | "abrir_entidade"
   | "criar_plano_agentico"
   | "concluir_plano_agentico"
-  | "cancelar_plano_agentico";
+  | "cancelar_plano_agentico"
+  | "registrar_fato_manualmente"
+  | "esquecer_fato";
 
 export interface ToolApplyContext {
   empresaId: string;
@@ -1223,6 +1225,148 @@ const cancelarPlanoAgentico: ToolDefinition<CancelarPlanoAgenticoParams> = {
   formRota: "/assistente",
 };
 
+// ---------- Task #234 — Tools de memória manual ----------
+// Mesmo enum usado pelo extrator automático (server/memory-extractor.ts).
+const CATEGORIAS_MEMORIA = [
+  "decisao",
+  "prioridade",
+  "hipotese",
+  "restricao",
+  "contexto",
+] as const;
+const CATEGORIA_MEMORIA_LABEL: Record<typeof CATEGORIAS_MEMORIA[number], string> = {
+  decisao: "Decisão",
+  prioridade: "Prioridade",
+  hipotese: "Hipótese",
+  restricao: "Restrição",
+  contexto: "Contexto",
+};
+
+const registrarFatoManualmenteSchema = z.object({
+  fato: z.string().min(5).max(280),
+  categoria: z.enum(CATEGORIAS_MEMORIA),
+});
+type RegistrarFatoManualmenteParams = z.infer<typeof registrarFatoManualmenteSchema>;
+
+const registrarFatoManualmente: ToolDefinition<RegistrarFatoManualmenteParams> = {
+  name: "registrar_fato_manualmente",
+  description:
+    "Registra IMEDIATAMENTE um fato na memória persistente do assistente, sem esperar o extrator automático. Use quando o usuário disser explicitamente 'lembre que…', 'guarda isso', 'fica registrado que…', 'anota aí que…' ou equivalente. O fato passa a aparecer no bloco 'O QUE VOCÊ JÁ APRENDEU SOBRE ESTA EMPRESA' nas próximas conversas.",
+  paramsSchema: registrarFatoManualmenteSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["fato", "categoria"],
+    properties: {
+      fato: {
+        type: "string",
+        description: "Texto curto e autocontido do fato a lembrar (5–280 caracteres). Reescreva na 3ª pessoa ('a empresa decidiu…') quando fizer sentido.",
+      },
+      categoria: {
+        type: "string",
+        enum: [...CATEGORIAS_MEMORIA],
+        description: "decisao | prioridade | hipotese | restricao | contexto.",
+      },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Registrar na memória do assistente",
+    descricao: `Vou lembrar: «${p.fato}» (categoria: ${CATEGORIA_MEMORIA_LABEL[p.categoria]}).`,
+    campos: [
+      { label: "Categoria", valor: CATEGORIA_MEMORIA_LABEL[p.categoria] },
+      { label: "Fato", valor: p.fato },
+    ],
+    ctaConfirmar: "Salvar na memória",
+    ctaIgnorar: "Não salvar",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    // Best-effort: tenta vincular à última mensagem do usuário na conversa
+    // ativa. Se não houver, persiste sem fonte.
+    let fonteMensagemId: string | null = null;
+    try {
+      const conversa = await storage.getConversaAtiva(ctx.empresaId, ctx.usuarioId ?? null, 12);
+      if (conversa) {
+        const msgs = await storage.getMensagens(conversa.id, 10);
+        const ultimaUser = [...msgs].reverse().find((m) => m.role === "user");
+        if (ultimaUser) fonteMensagemId = ultimaUser.id;
+      }
+    } catch {
+      /* fonte é opcional — segue sem ela */
+    }
+    const row = await storage.upsertMemoria(ctx.empresaId, p.fato, p.categoria, fonteMensagemId);
+    return {
+      resumo: `Fato registrado na memória (${CATEGORIA_MEMORIA_LABEL[p.categoria]}).`,
+      dados: { id: row.id, categoria: row.categoria },
+      rota: "/equipe?aba=memoria",
+    };
+  },
+  formRota: "/equipe?aba=memoria",
+};
+
+const esquecerFatoSchema = z.object({
+  fatoId: z.string().min(8),
+  // Texto do fato apenas para o preview HITL — copie literalmente do bloco
+  // "O QUE VOCÊ JÁ APRENDEU…" do contexto. Não muda o que será desativado.
+  fato: z.string().max(280).optional(),
+});
+type EsquecerFatoParams = z.infer<typeof esquecerFatoSchema>;
+
+const esquecerFato: ToolDefinition<EsquecerFatoParams> = {
+  name: "esquecer_fato",
+  description:
+    "Desativa um fato da memória persistente (ele continua no banco para auditoria, mas para de entrar no system prompt). Use quando o usuário disser 'isso mudou', 'esquece esse fato', 'esse fato não vale mais', 'remove da memória'. Identifique o fatoId pelo ID listado no bloco 'O QUE VOCÊ JÁ APRENDEU SOBRE ESTA EMPRESA' do contexto e copie o texto do fato no campo 'fato' para que o usuário veja exatamente o que vai esquecer.",
+  paramsSchema: esquecerFatoSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["fatoId"],
+    properties: {
+      fatoId: {
+        type: "string",
+        description: "ID do fato a desativar — use o id mostrado no bloco de memória do contexto.",
+      },
+      fato: {
+        type: "string",
+        description: "Texto do fato (copie literalmente do bloco de memória). Aparece no preview de confirmação para o usuário ter certeza do que está esquecendo.",
+      },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Esquecer fato da memória",
+    descricao: p.fato
+      ? `Vou desativar: «${p.fato}». O fato deixará de ser usado nas próximas conversas (continua no histórico para auditoria).`
+      : "O fato será desativado e deixará de ser usado nas próximas conversas. Você pode reativá-lo depois em Equipe → Memória do Assistente.",
+    campos: [
+      ...(p.fato ? [{ label: "Fato", valor: p.fato }] : []),
+      { label: "ID do fato", valor: p.fatoId },
+    ],
+    ctaConfirmar: "Esquecer fato",
+    ctaIgnorar: "Manter",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const atual = await storage.getMemoriaById(p.fatoId, ctx.empresaId);
+    if (!atual) {
+      throw new Error("Fato não encontrado nesta empresa.");
+    }
+    if (!atual.ativo) {
+      return {
+        resumo: "Esse fato já estava desativado.",
+        dados: { id: atual.id },
+        rota: "/equipe?aba=memoria",
+      };
+    }
+    const row = await storage.setMemoriaAtivo(p.fatoId, ctx.empresaId, false);
+    return {
+      resumo: `Fato desativado: «${(row?.fato ?? atual.fato).slice(0, 80)}».`,
+      dados: { id: atual.id },
+      rota: "/equipe?aba=memoria",
+    };
+  },
+  formRota: "/equipe?aba=memoria",
+};
+
 // ─── Task #203 — Lookup tool: buscar_entidade_por_nome ───
 // Diferente das tools acima, esta NÃO é HITL (não vira proposta).
 // O modelo a chama em uma rodada intermediária para resolver pelo nome um
@@ -1519,6 +1663,8 @@ export const TOOLS: Record<ToolName, ToolDefinition<unknown>> = {
   criar_plano_agentico: wrap(criarPlanoAgentico),
   concluir_plano_agentico: wrap(concluirPlanoAgentico),
   cancelar_plano_agentico: wrap(cancelarPlanoAgentico),
+  registrar_fato_manualmente: wrap(registrarFatoManualmente),
+  esquecer_fato: wrap(esquecerFato),
 };
 
 // Tools que executam ações de negócio (passíveis de vínculo com plano).

@@ -12,7 +12,7 @@ import {
   renderTendenciaLinha,
   renderRelacoesLinhas,
 } from "./plan-insights";
-import { TOOLS, getTool, toOpenAITools, registrarProposta, LOOKUP_TOOLS_OPENAI, executarBuscaPorNome } from "./assistant-tools";
+import { TOOLS, getTool, toOpenAITools, registrarProposta, LOOKUP_TOOLS_OPENAI, executarBuscaPorNome, READONLY_TOOLS_OPENAI, executarFerramentaReadonly, isReadonlyTool } from "./assistant-tools";
 import { criarAssinatura, buscarAssinatura, cancelarAssinatura, buscarPagamento, motivoLegivel, validarAssinaturaWebhook, PLANOS_MP, type PlanoTipo, type MpSubscription, type MpPayment } from "./mp";
 import { randomBytes, createHash } from "crypto";
 import cron from "node-cron";
@@ -4204,6 +4204,8 @@ FERRAMENTAS DISPONÍVEIS:
 - Executoras: criar_iniciativa, atualizar_iniciativa, encerrar_iniciativa, vincular_iniciativa_a_kpi, dividir_iniciativa, criar_okr, atualizar_okr, adicionar_kr_a_okr, atualizar_kr, atualizar_progresso_kr, vincular_kr_a_indicador, criar_indicador, atualizar_valor_indicador, abrir_entidade, navegar_para.
 - Memória manual: registrar_fato_manualmente (quando o usuário pedir explicitamente para lembrar/anotar algo), esquecer_fato (quando ele pedir para esquecer/desativar um fato listado no bloco de memória).
 - Planos agênticos (loop multi-passo): criar_plano_agentico (quando o objetivo do usuário exigir 2+ ações encadeadas), concluir_plano_agentico (quando os passos foram cumpridos), cancelar_plano_agentico (quando o usuário desistir).
+- Análise read-only (executam direto, NÃO viram proposta): use "analisar_indicador" quando o usuário perguntar sobre UM KPI específico ("e o NPS?", "como está o churn?") — você recebe série, tendência, vínculos. Use "projetar_kr" quando ele pedir projeção/se a meta vai bater. Use "simular_impacto" ANTES de recomendar adiar/cancelar uma iniciativa, para mostrar quais KPIs/OKRs ficam órfãos. Use "comparar_periodos" para retrospectivas ("este trimestre vs anterior").
+- Após receber o payload de uma análise read-only, narre os achados em texto (cite IDs/nomes que vieram no payload) — só DEPOIS chame uma tool executora HITL se o usuário aprovar uma ação concreta.
 
 LOOP AGÊNTICO (planos multi-passo):
 - Quando o pedido for AMPLO ("monte um plano de retomada de vendas", "estruture meu trimestre", "ataque o problema do KPI X de ponta a ponta"), prefira chamar criar_plano_agentico com 3 a 6 passos curtos antes de executar qualquer ação.
@@ -4235,7 +4237,7 @@ ${ctx.join("\n\n")}`;
       const messages = await injectMacroCtx(baseMessages);
 
       // Tools list combina HITL (toOpenAITools) e LOOKUPs (sem HITL).
-      const allTools = [...toOpenAITools(), ...LOOKUP_TOOLS_OPENAI];
+      const allTools = [...toOpenAITools(), ...LOOKUP_TOOLS_OPENAI, ...READONLY_TOOLS_OPENAI];
       const model = getModelForPlan(empresa?.planoTipo, "relatorios");
       // Conversa mutável usada para suportar até 1 rodada intermediária com a
       // tool de busca por nome (Task #203). Após a busca server-side, o modelo
@@ -4261,15 +4263,20 @@ ${ctx.join("\n\n")}`;
       // loop e processamos tudo no pipeline pós-loop — assim evitamos enviar
       // de volta ao OpenAI uma assistant message com tool_call_ids cujas
       // respostas (tool messages) ainda não existem (a API rejeita isso).
-      const MAX_LOOKUP_ROUNDS = 2;
+      // Task #230 — o loop intermediário agora também executa as read-only
+      // tools (analisar_indicador, projetar_kr, simular_impacto,
+      // comparar_periodos) no mesmo padrão da busca por nome: server-side,
+      // resultado retorna como tool message para o modelo narrar.
+      const isLookupName = (n: string) => n === "buscar_entidade_por_nome" || isReadonlyTool(n);
+      const MAX_LOOKUP_ROUNDS = 3;
       for (let round = 0; round < MAX_LOOKUP_ROUNDS; round++) {
         const calls = choice.message.tool_calls ?? [];
         if (calls.length === 0) break;
         const lookupCalls = calls.filter(
-          (c) => c.type === "function" && c.function.name === "buscar_entidade_por_nome",
+          (c) => c.type === "function" && isLookupName(c.function.name),
         );
         const naoLookup = calls.filter(
-          (c) => !(c.type === "function" && c.function.name === "buscar_entidade_por_nome"),
+          (c) => !(c.type === "function" && isLookupName(c.function.name)),
         );
         if (lookupCalls.length === 0) break;
         if (naoLookup.length > 0) {
@@ -4282,34 +4289,43 @@ ${ctx.join("\n\n")}`;
         // Anexa a mensagem do assistente (com tool_calls) à conversa.
         convo.push(choice.message as OpenAI.Chat.ChatCompletionMessageParam);
 
-        // Executa cada busca e anexa um tool message com o resultado.
+        // Executa cada lookup/readonly e anexa tool message com o resultado.
         for (const call of lookupCalls) {
           if (call.type !== "function") continue;
           let args: unknown = {};
           try { args = JSON.parse(call.function.arguments || "{}"); } catch { args = {}; }
-          const r = await executarBuscaPorNome(args, {
-            empresaId,
-            usuarioId: req.session.userId ?? null,
-          });
-          const payload = r.ok
-            ? {
-                tipo: r.tipo,
-                termo: r.termo,
-                total: r.matches.length,
-                matches: r.matches.map((m) => ({
-                  id: m.id,
-                  nome: m.nome,
-                  ...(m.contexto ? { contexto: m.contexto } : {}),
-                  ...(m.objetivoId ? { objetivoId: m.objetivoId } : {}),
-                })),
-                instrucao:
-                  r.matches.length === 0
-                    ? "Nenhum item encontrado com esse nome. Avise o usuário e ofereça criar um novo ou navegar para a área."
-                    : r.matches.length === 1
-                    ? "1 item encontrado. Use o id retornado em abrir_entidade ou na tool de atualização específica."
-                    : "Vários itens parecidos. NÃO chame tool executora: responda em texto listando-os e pergunte qual o usuário quis dizer.",
-              }
-            : { erro: r.mensagem };
+          let payload: unknown;
+          if (call.function.name === "buscar_entidade_por_nome") {
+            const r = await executarBuscaPorNome(args, {
+              empresaId,
+              usuarioId: req.session.userId ?? null,
+            });
+            payload = r.ok
+              ? {
+                  tipo: r.tipo,
+                  termo: r.termo,
+                  total: r.matches.length,
+                  matches: r.matches.map((m) => ({
+                    id: m.id,
+                    nome: m.nome,
+                    ...(m.contexto ? { contexto: m.contexto } : {}),
+                    ...(m.objetivoId ? { objetivoId: m.objetivoId } : {}),
+                  })),
+                  instrucao:
+                    r.matches.length === 0
+                      ? "Nenhum item encontrado com esse nome. Avise o usuário e ofereça criar um novo ou navegar para a área."
+                      : r.matches.length === 1
+                      ? "1 item encontrado. Use o id retornado em abrir_entidade ou na tool de atualização específica."
+                      : "Vários itens parecidos. NÃO chame tool executora: responda em texto listando-os e pergunte qual o usuário quis dizer.",
+                }
+              : { erro: r.mensagem };
+          } else {
+            const r = await executarFerramentaReadonly(call.function.name, args, {
+              empresaId,
+              usuarioId: req.session.userId ?? null,
+            });
+            payload = r.ok ? r.dados : { erro: r.mensagem };
+          }
           convo.push({
             role: "tool",
             tool_call_id: call.id,
@@ -4329,9 +4345,9 @@ ${ctx.join("\n\n")}`;
       }
 
       const rawText = (choice.message.content ?? "").trim();
-      // Após o loop, descarta eventuais lookup calls residuais — só HITL viram propostas.
+      // Após o loop, descarta eventuais lookup/readonly calls residuais — só HITL viram propostas.
       const toolCalls = (choice.message.tool_calls ?? [])
-        .filter((c) => !(c.type === "function" && c.function.name === "buscar_entidade_por_nome"))
+        .filter((c) => !(c.type === "function" && isLookupName(c.function.name)))
         .slice(0, 3);
 
       const propostas: Array<{

@@ -7,6 +7,15 @@
 import { z } from "zod/v4";
 import { storage, PlanoAtivoJaExisteError } from "./storage";
 import type { PropostaPreview } from "@shared/schema";
+import {
+  getKpiTendencia,
+  getRelacoesIndicador,
+  projetarValorKr,
+  contarAtualizacoesKr,
+  comparePeriodos,
+  type EscopoComparacao,
+  type PeriodoIso,
+} from "./plan-insights";
 
 // ---------- Tipos públicos ----------
 export type ToolName =
@@ -1836,6 +1845,418 @@ export async function executarBuscaPorNome(
     .slice(0, 5)
     .map((x) => x.c);
   return { ok: true, matches: ranked, tipo, termo };
+}
+
+// ---------- Task #230 — Read-only analysis tools (sem HITL) ----------
+// Padrão idêntico ao de `buscar_entidade_por_nome`: o modelo chama, o
+// servidor executa direto e devolve um payload pequeno como tool message.
+// Não passam por `registrarProposta` e não viram PropostaCard.
+
+const READONLY_TOOL_NAMES = [
+  "analisar_indicador",
+  "projetar_kr",
+  "simular_impacto",
+  "comparar_periodos",
+] as const;
+export type ReadonlyToolName = typeof READONLY_TOOL_NAMES[number];
+
+export function isReadonlyTool(name: string): name is ReadonlyToolName {
+  return (READONLY_TOOL_NAMES as readonly string[]).includes(name);
+}
+
+// --- analisar_indicador ---
+const analisarIndicadorSchema = z.object({ indicadorId: z.string().min(8) });
+
+// --- projetar_kr ---
+const projetarKrSchema = z.object({ krId: z.string().min(8) });
+
+// --- simular_impacto ---
+const simularImpactoSchema = z.object({
+  iniciativaId: z.string().min(8),
+  mudanca: z.discriminatedUnion("tipo", [
+    z.object({ tipo: z.literal("adiar_dias"), valor: z.number().int().min(1).max(720) }),
+    z.object({ tipo: z.literal("cancelar") }),
+    z.object({ tipo: z.literal("concluir") }),
+  ]),
+});
+
+// --- comparar_periodos ---
+const periodoSchema = z.object({
+  inicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  fim: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+const compararPeriodosSchema = z.object({
+  escopo: z.enum(["kpis", "iniciativas", "okrs", "tudo"]),
+  periodoA: periodoSchema,
+  periodoB: periodoSchema,
+});
+
+export const READONLY_TOOLS_OPENAI = [
+  {
+    type: "function" as const,
+    function: {
+      name: "analisar_indicador",
+      description:
+        "Analisa um KPI específico que o usuário citou. Devolve série recente (últimas 6 leituras), tendência classificada, valor atual vs meta, benchmark setorial (se houver) e iniciativas/KRs vinculados via indicadorFonteId. Use quando o usuário perguntar sobre UM KPI ('e o NPS?', 'como está o churn?'). NÃO usa HITL — executa direto.",
+      parameters: {
+        type: "object",
+        additionalProperties: false,
+        required: ["indicadorId"],
+        properties: {
+          indicadorId: { type: "string", description: "ID do indicador (use o id do CATÁLOGO ou de buscar_entidade_por_nome)." },
+        },
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "projetar_kr",
+      description:
+        "Projeta linearmente se um KR vai bater o alvo no prazo, a partir do ritmo médio observado entre valorInicial e valorAtual. Devolve valor projetado, % vs alvo, dias restantes e nível de confiança ('alta' se houver ≥3 atualizações registradas com progresso; 'baixa' caso contrário). Use quando o usuário perguntar 'esse KR vai bater?' / 'estamos no ritmo?'. Não é ML — é regra simples.",
+      parameters: {
+        type: "object",
+        additionalProperties: false,
+        required: ["krId"],
+        properties: {
+          krId: { type: "string", description: "ID do resultado-chave (use o id do CATÁLOGO ou de buscar_entidade_por_nome com tipo='kr')." },
+        },
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "simular_impacto",
+      description:
+        "Simula o impacto determinístico de mudar uma iniciativa (adiar N dias, cancelar ou concluir) — sem persistir nada. Devolve os KPIs/KRs/OKRs vinculados via indicadorFonteId/estrategiaId e uma anotação por item ('KPI X perde a iniciativa Y; nenhuma outra iniciativa ataca este KPI'). Use ANTES de recomendar adiar/cancelar uma iniciativa para mostrar o que está em jogo.",
+      parameters: {
+        type: "object",
+        additionalProperties: false,
+        required: ["iniciativaId", "mudanca"],
+        properties: {
+          iniciativaId: { type: "string", description: "ID da iniciativa." },
+          mudanca: {
+            type: "object",
+            additionalProperties: false,
+            required: ["tipo"],
+            properties: {
+              tipo: { type: "string", enum: ["adiar_dias", "cancelar", "concluir"] },
+              valor: { type: "integer", minimum: 1, maximum: 720, description: "Quantos dias adiar (apenas para tipo='adiar_dias')." },
+            },
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "comparar_periodos",
+      description:
+        "Compara dois períodos para retrospectiva. escopo ∈ {kpis,iniciativas,okrs,tudo}. Para KPIs conta quantos melhoraram/pioraram (última leitura por janela). Para iniciativas conta criadas/concluídas/atrasadas. Para OKRs traz % médio atingido por KR dos OKRs criados em cada janela. Devolve totais + top 5 movimentações com IDs. Use para perguntas tipo 'como foi este trimestre vs o anterior?'.",
+      parameters: {
+        type: "object",
+        additionalProperties: false,
+        required: ["escopo", "periodoA", "periodoB"],
+        properties: {
+          escopo: { type: "string", enum: ["kpis", "iniciativas", "okrs", "tudo"] },
+          periodoA: {
+            type: "object",
+            additionalProperties: false,
+            required: ["inicio", "fim"],
+            properties: {
+              inicio: { type: "string", description: "Data ISO YYYY-MM-DD." },
+              fim: { type: "string", description: "Data ISO YYYY-MM-DD." },
+            },
+          },
+          periodoB: {
+            type: "object",
+            additionalProperties: false,
+            required: ["inicio", "fim"],
+            properties: {
+              inicio: { type: "string", description: "Data ISO YYYY-MM-DD." },
+              fim: { type: "string", description: "Data ISO YYYY-MM-DD." },
+            },
+          },
+        },
+      },
+    },
+  },
+];
+
+export interface ReadonlyToolResult {
+  ok: true;
+  ferramenta: ReadonlyToolName;
+  dados: Record<string, unknown>;
+}
+export interface ReadonlyToolErr {
+  ok: false;
+  ferramenta: ReadonlyToolName | string;
+  mensagem: string;
+}
+
+export async function executarFerramentaReadonly(
+  name: string,
+  rawArgs: unknown,
+  ctx: ToolApplyContext,
+): Promise<ReadonlyToolResult | ReadonlyToolErr> {
+  if (!isReadonlyTool(name)) {
+    return { ok: false, ferramenta: name, mensagem: `Ferramenta read-only desconhecida: ${name}` };
+  }
+  try {
+    if (name === "analisar_indicador") {
+      const parsed = analisarIndicadorSchema.safeParse(rawArgs);
+      if (!parsed.success) return { ok: false, ferramenta: name, mensagem: `Parâmetros inválidos: ${parsed.error.message.slice(0, 200)}` };
+      const ind = await storage.getIndicador(parsed.data.indicadorId);
+      if (!ind || ind.empresaId !== ctx.empresaId) {
+        return { ok: false, ferramenta: name, mensagem: "Indicador não encontrado para esta empresa." };
+      }
+      const tendencia = await getKpiTendencia(ind.id);
+      // carrega iniciativas + krs da empresa para o helper de relações
+      const [iniciativas, objetivos] = await Promise.all([
+        storage.getIniciativas(ctx.empresaId),
+        storage.getObjetivos(ctx.empresaId),
+      ]);
+      const krs = (
+        await Promise.all(objetivos.map((o) => storage.getResultadosChave(o.id, ctx.empresaId)))
+      ).flat();
+      const relacoes = getRelacoesIndicador(ind.id, iniciativas, krs);
+      const atual = ind.atual != null ? parseFloat(String(ind.atual)) : null;
+      const meta = ind.meta != null ? parseFloat(String(ind.meta)) : null;
+      const pctAtingido =
+        atual != null && meta != null && Number.isFinite(atual) && Number.isFinite(meta) && meta !== 0
+          ? atual / meta
+          : null;
+      const status =
+        atual != null && meta != null && Number.isFinite(atual) && Number.isFinite(meta)
+          ? atual >= meta
+            ? "Verde"
+            : atual >= meta * 0.8
+            ? "Amarelo"
+            : "Vermelho"
+          : "Sem dados";
+      if (tendencia.tendencia === "sem_dados") {
+        return {
+          ok: true,
+          ferramenta: name,
+          dados: {
+            indicador: { id: ind.id, nome: ind.nome, perspectiva: ind.perspectiva, valorAtual: atual, meta, pctAtingido, status, benchmarkSetorial: ind.benchmarkSetorial ?? null },
+            serie: [],
+            tendencia: "sem_dados",
+            deltaPercentual: null,
+            vinculos: relacoes,
+            instrucao: "Sem leituras suficientes para inferir tendência. Diga isso ao usuário em vez de inventar.",
+          },
+        };
+      }
+      return {
+        ok: true,
+        ferramenta: name,
+        dados: {
+          indicador: {
+            id: ind.id,
+            nome: ind.nome,
+            perspectiva: ind.perspectiva,
+            valorAtual: atual,
+            meta,
+            pctAtingido,
+            status,
+            benchmarkSetorial: ind.benchmarkSetorial ?? null,
+          },
+          serie: tendencia.ultimasLeituras,
+          tendencia: tendencia.tendencia,
+          deltaPercentual: tendencia.deltaPercentual,
+          vinculos: relacoes,
+        },
+      };
+    }
+
+    if (name === "projetar_kr") {
+      const parsed = projetarKrSchema.safeParse(rawArgs);
+      if (!parsed.success) return { ok: false, ferramenta: name, mensagem: `Parâmetros inválidos: ${parsed.error.message.slice(0, 200)}` };
+      const kr = await storage.getResultadoChaveById(parsed.data.krId, ctx.empresaId);
+      if (!kr) return { ok: false, ferramenta: name, mensagem: "KR não encontrado para esta empresa." };
+      const numAtualizacoes = await contarAtualizacoesKr(ctx.empresaId, kr.id);
+      const proj = projetarValorKr(kr, numAtualizacoes);
+      return {
+        ok: true,
+        ferramenta: name,
+        dados: {
+          kr: { id: kr.id, metrica: kr.metrica, objetivoId: kr.objetivoId },
+          ...proj,
+        },
+      };
+    }
+
+    if (name === "simular_impacto") {
+      const parsed = simularImpactoSchema.safeParse(rawArgs);
+      if (!parsed.success) return { ok: false, ferramenta: name, mensagem: `Parâmetros inválidos: ${parsed.error.message.slice(0, 200)}` };
+      const ini = await storage.getIniciativa(parsed.data.iniciativaId);
+      if (!ini || ini.empresaId !== ctx.empresaId) {
+        return { ok: false, ferramenta: name, mensagem: "Iniciativa não encontrada para esta empresa." };
+      }
+      // novoPrazo só faz sentido para "adiar_dias"
+      let novoPrazo: string | null = null;
+      if (parsed.data.mudanca.tipo === "adiar_dias") {
+        const base = ini.prazo ? new Date(ini.prazo) : null;
+        if (base && !isNaN(base.getTime())) {
+          base.setDate(base.getDate() + parsed.data.mudanca.valor);
+          const yy = base.getUTCFullYear();
+          const mm = String(base.getUTCMonth() + 1).padStart(2, "0");
+          const dd = String(base.getUTCDate()).padStart(2, "0");
+          novoPrazo = `${yy}-${mm}-${dd}`;
+        }
+      }
+
+      // levantar todos os atacantes por KPI: iniciativas + KRs com mesmo indicadorFonteId
+      const [todasInis, objetivos] = await Promise.all([
+        storage.getIniciativas(ctx.empresaId),
+        storage.getObjetivos(ctx.empresaId),
+      ]);
+      const krsAll = (
+        await Promise.all(objetivos.map(async (o) => (await storage.getResultadosChave(o.id, ctx.empresaId)).map((kr) => ({ kr, objetivo: o }))))
+      ).flat();
+
+      const impactos: Array<Record<string, unknown>> = [];
+
+      const krsImpactadosIds = new Set<string>();
+
+      // KPIs atacados pela iniciativa em questão
+      if (ini.indicadorFonteId) {
+        const ind = await storage.getIndicador(ini.indicadorFonteId);
+        if (ind && ind.empresaId === ctx.empresaId) {
+          const outrosAtacantesInis = todasInis.filter(
+            (i) => i.indicadorFonteId === ind.id && i.id !== ini.id && i.status !== "concluida" && i.status !== "pausada",
+          );
+          const krsLigadosAoKpi = krsAll.filter((p) => p.kr.indicadorFonteId === ind.id);
+          let notaKpi = "";
+          if (parsed.data.mudanca.tipo === "cancelar") {
+            notaKpi = `KPI "${ind.nome}" perde esta iniciativa por cancelamento. ${outrosAtacantesInis.length === 0 && krsLigadosAoKpi.length === 0 ? "NENHUM outro item ataca este KPI — fica órfão." : `Restam ${outrosAtacantesInis.length} iniciativa(s) e ${krsLigadosAoKpi.length} KR(s) atacando-o.`}`;
+          } else if (parsed.data.mudanca.tipo === "concluir") {
+            notaKpi = `KPI "${ind.nome}" deve receber o impacto desta iniciativa em breve, se a tese de causa-efeito se confirmar.`;
+          } else {
+            notaKpi = `KPI "${ind.nome}" perde a iniciativa do prazo original (${ini.prazo ?? "sem prazo"}); novo prazo proposto: ${novoPrazo ?? "indefinido"}.`;
+          }
+          impactos.push({
+            tipo: "kpi",
+            id: ind.id,
+            nome: ind.nome,
+            outrosAtacantesIniciativas: outrosAtacantesInis.length,
+            outrosAtacantesKrs: krsLigadosAoKpi.length,
+            nota: notaKpi,
+          });
+
+          // KRs vinculados ao mesmo KPI sentem o impacto diretamente.
+          for (const { kr, objetivo } of krsLigadosAoKpi) {
+            krsImpactadosIds.add(kr.id);
+            const notaKr =
+              parsed.data.mudanca.tipo === "cancelar"
+                ? `KR "${kr.metrica}" depende deste KPI — sem outras iniciativas atacando-o, fica vulnerável.`
+                : parsed.data.mudanca.tipo === "concluir"
+                ? `KR "${kr.metrica}" deve se beneficiar do movimento esperado neste KPI.`
+                : `KR "${kr.metrica}" verá o efeito esperado adiado em ~${parsed.data.mudanca.valor}d.`;
+            impactos.push({
+              tipo: "kr",
+              id: kr.id,
+              metrica: kr.metrica,
+              objetivoId: objetivo.id,
+              objetivoTitulo: objetivo.titulo,
+              indicadorFonteId: ind.id,
+              nota: notaKr,
+            });
+          }
+        }
+      }
+
+      // OKRs/KRs ligados pela estratégia (mesmo sem KPI compartilhado)
+      if (ini.estrategiaId) {
+        for (const o of objetivos) {
+          if (o.estrategiaId !== ini.estrategiaId) continue;
+          const krsDoObj = krsAll.filter((p) => p.objetivo.id === o.id).map((p) => p.kr);
+          impactos.push({
+            tipo: "okr",
+            id: o.id,
+            nome: o.titulo,
+            krs: krsDoObj.length,
+            nota:
+              parsed.data.mudanca.tipo === "cancelar"
+                ? `OKR "${o.titulo}" perde uma das iniciativas que apoiavam sua estratégia.`
+                : parsed.data.mudanca.tipo === "concluir"
+                ? `OKR "${o.titulo}" deve sentir o efeito desta entrega.`
+                : `OKR "${o.titulo}" terá uma de suas iniciativas atrasada em ${parsed.data.mudanca.valor}d (novo prazo: ${novoPrazo ?? "indefinido"}).`,
+          });
+          for (const kr of krsDoObj) {
+            if (krsImpactadosIds.has(kr.id)) continue;
+            krsImpactadosIds.add(kr.id);
+            const notaKr =
+              parsed.data.mudanca.tipo === "cancelar"
+                ? `KR "${kr.metrica}" pertence ao OKR "${o.titulo}", afetado pelo cancelamento desta iniciativa.`
+                : parsed.data.mudanca.tipo === "concluir"
+                ? `KR "${kr.metrica}" pode avançar via efeito indireto da entrega desta iniciativa.`
+                : `KR "${kr.metrica}" pode ter avanço esperado adiado em ${parsed.data.mudanca.valor}d (mesma estratégia).`;
+            impactos.push({
+              tipo: "kr",
+              id: kr.id,
+              metrica: kr.metrica,
+              objetivoId: o.id,
+              objetivoTitulo: o.titulo,
+              indicadorFonteId: kr.indicadorFonteId ?? null,
+              nota: notaKr,
+            });
+          }
+        }
+      }
+
+      // Cap por tipo p/ manter payload compacto (~600 tokens) em tenants grandes.
+      const CAP_POR_TIPO = 5;
+      const porTipo = new Map<string, Array<Record<string, unknown>>>();
+      for (const it of impactos) {
+        const tipo = String(it.tipo);
+        if (!porTipo.has(tipo)) porTipo.set(tipo, []);
+        porTipo.get(tipo)!.push(it);
+      }
+      const impactosCapados: Array<Record<string, unknown>> = [];
+      const totaisPorTipo: Record<string, number> = {};
+      porTipo.forEach((arr, tipo) => {
+        totaisPorTipo[tipo] = arr.length;
+        impactosCapados.push(...arr.slice(0, CAP_POR_TIPO));
+      });
+
+      return {
+        ok: true,
+        ferramenta: name,
+        dados: {
+          iniciativa: { id: ini.id, titulo: ini.titulo, status: ini.status, prazo: ini.prazo },
+          mudanca: parsed.data.mudanca,
+          novoPrazo,
+          impactos: impactosCapados,
+          totaisPorTipo,
+          truncado: impactosCapados.length < impactos.length,
+          aviso: impactos.length === 0
+            ? "Nenhum vínculo encontrado (esta iniciativa não está ligada a KPI/estratégia). Cite isso ao usuário."
+            : null,
+        },
+      };
+    }
+
+    if (name === "comparar_periodos") {
+      const parsed = compararPeriodosSchema.safeParse(rawArgs);
+      if (!parsed.success) return { ok: false, ferramenta: name, mensagem: `Parâmetros inválidos: ${parsed.error.message.slice(0, 200)}` };
+      const r = await comparePeriodos(
+        ctx.empresaId,
+        parsed.data.escopo as EscopoComparacao,
+        parsed.data.periodoA as PeriodoIso,
+        parsed.data.periodoB as PeriodoIso,
+      );
+      if (!r.ok) return { ok: false, ferramenta: name, mensagem: r.mensagem };
+      return { ok: true, ferramenta: name, dados: r.resultado as unknown as Record<string, unknown> };
+    }
+
+    return { ok: false, ferramenta: name, mensagem: "Caminho não implementado." };
+  } catch (err) {
+    return { ok: false, ferramenta: name, mensagem: `Falha ao executar ${name}: ${(err as Error).message.slice(0, 160)}` };
+  }
 }
 
 // ---------- Registry ----------

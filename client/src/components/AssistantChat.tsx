@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Bot, User, Loader2, ArrowRight, Plus, Pencil, Clock, MessageSquarePlus, ArrowDownToLine } from "lucide-react";
+import { Send, User, Loader2, ArrowRight, Plus, Pencil, Clock, MessageSquarePlus, ArrowDownToLine } from "lucide-react";
+import { BizzyAvatar } from "@/components/BizzyAvatar";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -93,18 +94,15 @@ function MessageBubble({
   const isUser = msg.role === "user";
   return (
     <div className={cn("flex gap-2.5 text-sm", isUser ? "flex-row-reverse" : "flex-row")}>
-      <div
-        className={cn(
-          "h-7 w-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5",
-          isUser ? "bg-primary" : "bg-muted"
-        )}
-      >
-        {isUser ? (
+      {isUser ? (
+        <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center flex-shrink-0 mt-0.5">
           <User className="h-3.5 w-3.5 text-primary-foreground" />
-        ) : (
-          <Bot className="h-3.5 w-3.5 text-muted-foreground" />
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="mt-0.5">
+          <BizzyAvatar size="sm" mode="assistente" showModeBadge={false} />
+        </div>
+      )}
       <div className={cn("flex flex-col gap-2 max-w-[82%]", isUser ? "items-end" : "items-start")}>
         <div
           className={cn(
@@ -420,9 +418,7 @@ export function AssistantChat({
 
         {isLoading && (
           <div className="flex gap-2.5">
-            <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-              <Bot className="h-3.5 w-3.5 text-muted-foreground" />
-            </div>
+            <BizzyAvatar size="sm" mode="assistente" showModeBadge={false} />
             <div className="bg-muted rounded-xl rounded-tl-sm px-3.5 py-2.5 flex items-center gap-1.5">
               <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
               <span className="text-xs text-muted-foreground">Analisando seus dados...</span>

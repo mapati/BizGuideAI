@@ -5,9 +5,9 @@ import {
   Lock,
   ArrowRight,
   AlertTriangle,
-  Sparkles,
 } from "lucide-react";
 import { Link } from "wouter";
+import { BizzyAvatar } from "@/components/BizzyAvatar";
 import type { JornadaEtapa, JornadaProgresso } from "@/hooks/useJornadaProgresso";
 
 interface GuiaContentProps {
@@ -227,10 +227,10 @@ export function GuiaContent({ progresso, onNavigate }: GuiaContentProps) {
         data-testid="footer-assistente-bloqueado"
       >
         <Lock className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-        <p className="text-xs text-muted-foreground leading-snug">
-          Complete a jornada para desbloquear o{" "}
+        <p className="text-xs text-muted-foreground leading-snug inline-flex items-center gap-1.5 flex-wrap">
+          Complete a jornada para desbloquear o
           <span className="inline-flex items-center gap-1 font-medium text-foreground">
-            <Sparkles className="h-3 w-3" />
+            <BizzyAvatar size="xs" mode="assistente" showModeBadge={false} />
             Bizzy no modo Assistente
           </span>
         </p>

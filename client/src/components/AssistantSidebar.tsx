@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Sparkles, PanelRightClose, PanelRightOpen, Loader2, Target, Compass } from "lucide-react";
+import { PanelRightClose, PanelRightOpen, Loader2, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
@@ -11,6 +11,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { AssistantChat } from "@/components/AssistantChat";
 import { PropostaHistorico } from "@/components/PropostaHistorico";
 import { GuiaContent } from "@/components/GuiaContent";
+import { BizzyAvatar } from "@/components/BizzyAvatar";
 import {
   PlanoAgenticoCard,
   type PlanoAgenticoView,
@@ -70,13 +71,7 @@ export function AssistantSidebar() {
         {open && (
           <div className="flex items-center justify-between px-3 py-2.5 border-b flex-shrink-0">
             <div className="flex items-center gap-2 min-w-0">
-              <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center flex-shrink-0">
-                {showGuia ? (
-                  <Compass className="h-3.5 w-3.5 text-primary-foreground" />
-                ) : (
-                  <Sparkles className="h-3.5 w-3.5 text-primary-foreground" />
-                )}
-              </div>
+              <BizzyAvatar size="md" mode={showGuia ? "guia" : "assistente"} />
               <div className="min-w-0">
                 <p className="text-sm font-semibold leading-none truncate">Bizzy</p>
                 <p className="text-xs text-muted-foreground mt-0.5 truncate">
@@ -152,29 +147,22 @@ export function AssistantSidebar() {
             data-testid="button-assistant-sidebar-toggle"
           >
             <PanelRightOpen className="h-4 w-4 text-muted-foreground" />
-            {showGuia ? (
-              <Compass className="h-4 w-4 text-primary" />
-            ) : (
-              <Sparkles className="h-4 w-4 text-primary" />
-            )}
+            <BizzyAvatar size="sm" mode={showGuia ? "guia" : "assistente"} />
           </button>
         )}
       </aside>
 
       {isMobile && !open && (
-        <Button
-          size="icon"
+        <button
+          type="button"
           onClick={() => setOpen(true)}
-          className="fixed bottom-4 right-4 rounded-full shadow-lg z-40"
+          className="fixed bottom-4 right-4 rounded-full shadow-lg z-40 p-1 bg-background border hover-elevate active-elevate-2"
           data-testid="button-assistant-sidebar-toggle"
           title={showGuia ? "Abrir Bizzy (modo Guia)" : "Abrir Bizzy"}
+          aria-label={showGuia ? "Abrir Bizzy (modo Guia)" : "Abrir Bizzy"}
         >
-          {showGuia ? (
-            <Compass className="h-4 w-4" />
-          ) : (
-            <Sparkles className="h-4 w-4" />
-          )}
-        </Button>
+          <BizzyAvatar size="md" mode={showGuia ? "guia" : "assistente"} />
+        </button>
       )}
 
       {isMobile && open && (

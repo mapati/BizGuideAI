@@ -7179,13 +7179,29 @@ Gere uma descrição completa e profissional desta empresa.`,
         return res.status(404).json({ error: "Empresa não encontrada" });
       }
 
+      // Parâmetros opcionais do <AIGenerationModal>. Quando omitidos,
+      // mantém comportamento legado (8 indicadores, 2 por perspectiva).
+      const aiParamsKpi = aiGenerationParamsSchema.safeParse(req.body ?? {});
+      if (!aiParamsKpi.success) {
+        return res.status(400).json({ error: "Parâmetros de IA inválidos", issues: aiParamsKpi.error.issues });
+      }
+      const perspectivasValidas = ["Finanças", "Clientes", "Processos", "Pessoas"] as const;
+      type PerspectivaKpi = typeof perspectivasValidas[number];
+      const focoSel = (aiParamsKpi.data.foco ?? [])
+        .filter((p): p is PerspectivaKpi => (perspectivasValidas as readonly string[]).includes(p));
+      const perspectivasAlvo: PerspectivaKpi[] = focoSel.length > 0 ? focoSel : [...perspectivasValidas];
+      const rawQtdKpi = aiParamsKpi.data.quantidade;
+      const quantidadePorPerspectiva = rawQtdKpi && rawQtdKpi >= 1 && rawQtdKpi <= 5 ? rawQtdKpi : 2;
+      const fontesKpi = new Set(aiParamsKpi.data.fontesContexto ?? ["objetivos", "estrategias", "oportunidades", "iniciativas"]);
+      const instrucaoAdicionalKpi = (aiParamsKpi.data.instrucaoAdicional ?? "").trim();
+
       const contextoPerfil = buildEmpresaContextoIA(empresa);
 
       const indicadoresExistentes = await storage.getIndicadores(empresaId);
-      const estrategiasLista = await storage.getEstrategias(empresaId);
-      const oportunidades = await storage.getOportunidadesCrescimento(empresaId);
-      const iniciativas = await storage.getIniciativas(empresaId);
-      const objetivosList = await storage.getObjetivos(empresaId);
+      const estrategiasLista = fontesKpi.has("estrategias") ? await storage.getEstrategias(empresaId) : [];
+      const oportunidades = fontesKpi.has("oportunidades") ? await storage.getOportunidadesCrescimento(empresaId) : [];
+      const iniciativas = fontesKpi.has("iniciativas") ? await storage.getIniciativas(empresaId) : [];
+      const objetivosList = fontesKpi.has("objetivos") ? await storage.getObjetivos(empresaId) : [];
 
       const indicadoresResume = indicadoresExistentes.map(i => 
         `[${i.perspectiva}] ${i.nome} - Owner: ${i.owner}`
@@ -7201,13 +7217,14 @@ Gere uma descrição completa e profissional desta empresa.`,
         messages: [
           {
             role: "system",
-            content: `Você é um consultor especializado em Balanced Scorecard (BSC) e KPIs. Sua missão é criar indicadores de desempenho equilibrados nas 4 perspectivas do BSC que ajudem a monitorar a execução da estratégia. Use linguagem simples.
+            content: `Você é um consultor especializado em Balanced Scorecard (BSC) e KPIs. Sua missão é criar indicadores de desempenho que ajudem a monitorar a execução da estratégia. Use linguagem simples.
 
 REGRA CRÍTICA:
 - Analise TODOS os indicadores existentes
 - NUNCA crie indicadores duplicados ou muito similares
 - Cada indicador DEVE ser único
-- Distribua entre as 4 perspectivas: Finanças, Clientes, Processos, Pessoas`
+- Use APENAS as perspectivas pedidas pelo usuário
+- Respeite a quantidade exata por perspectiva solicitada`
           },
           {
             role: "user",
@@ -7215,18 +7232,19 @@ REGRA CRÍTICA:
 ${contextoPerfil}
 
 ## CONTEXTO ESTRATÉGICO:
-
+${fontesKpi.has("objetivos") ? `
 ### OBJETIVOS ESTRATÉGICOS:
 ${objetivosList.length > 0 ? objetivosResume : "Nenhum objetivo definido"}
-
+` : ""}${fontesKpi.has("estrategias") ? `
 ### ESTRATÉGIAS:
 ${estrategiasLista.length > 0 ? estrategiasResume : "Nenhuma estratégia"}
-
+` : ""}${fontesKpi.has("oportunidades") ? `
 ### OPORTUNIDADES:
 ${oportunidades.length > 0 ? oportunidadesResume : "Nenhuma oportunidade"}
-
+` : ""}${fontesKpi.has("iniciativas") ? `
 ### INICIATIVAS:
 ${iniciativas.length > 0 ? iniciativasResume : "Nenhuma iniciativa"}
+` : ""}
 
 ## INDICADORES JÁ EXISTENTES (NÃO REPITA):
 ${indicadoresExistentes.length > 0 ? indicadoresResume : "Nenhum indicador criado"}
@@ -7236,27 +7254,24 @@ ${indicadoresExistentes.length > 0 ? `
 ` : ''}
 
 ## TAREFA:
-Crie EXATAMENTE 8 indicadores BSC ÚNICOS (2 por perspectiva).
+Crie EXATAMENTE ${perspectivasAlvo.length * quantidadePorPerspectiva} indicadores BSC ÚNICOS (${quantidadePorPerspectiva} por perspectiva).
+
+Perspectivas a usar (use APENAS estas, e exatamente ${quantidadePorPerspectiva} indicador(es) em cada):
+${perspectivasAlvo.map(p => `- ${p}`).join("\n")}
 
 Para cada indicador:
-- perspectiva: "Finanças", "Clientes", "Processos" ou "Pessoas"
+- perspectiva: uma das listadas acima
 - nome: Nome claro do indicador (ex: "Margem de Lucro Líquido", "Taxa de Retenção de Clientes")
 - meta: Meta em formato texto (ex: "R$ 500 mil", "85%", "< 15 dias") - SEM valores numéricos hardcoded, use placeholders realistas
 - atual: Valor atual (mesmo formato da meta, pode ser "A definir" se não souber)
 - status: "verde", "amarelo" ou "vermelho" (distribua de forma realista)
 - owner: Cargo/área responsável (ex: "CFO", "Gerente Comercial", "RH")
 
-Responda em JSON:
+${instrucaoAdicionalKpi ? `## INSTRUÇÕES ADICIONAIS DO USUÁRIO:\n${instrucaoAdicionalKpi}\n` : ""}
+Responda em JSON puro:
 {
   "indicadores": [
-    {"perspectiva": "Finanças", "nome": "...", "meta": "...", "atual": "...", "status": "verde", "owner": "..."},
-    {"perspectiva": "Finanças", "nome": "...", "meta": "...", "atual": "...", "status": "amarelo", "owner": "..."},
-    {"perspectiva": "Clientes", "nome": "...", "meta": "...", "atual": "...", "status": "verde", "owner": "..."},
-    {"perspectiva": "Clientes", "nome": "...", "meta": "...", "atual": "...", "status": "amarelo", "owner": "..."},
-    {"perspectiva": "Processos", "nome": "...", "meta": "...", "atual": "...", "status": "amarelo", "owner": "..."},
-    {"perspectiva": "Processos", "nome": "...", "meta": "...", "atual": "...", "status": "vermelho", "owner": "..."},
-    {"perspectiva": "Pessoas", "nome": "...", "meta": "...", "atual": "...", "status": "verde", "owner": "..."},
-    {"perspectiva": "Pessoas", "nome": "...", "meta": "...", "atual": "...", "status": "amarelo", "owner": "..."}
+    {"perspectiva": "...", "nome": "...", "meta": "...", "atual": "...", "status": "verde|amarelo|vermelho", "owner": "..."}
   ]
 }`
           }

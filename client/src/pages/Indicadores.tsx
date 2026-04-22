@@ -56,7 +56,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { filterAcompanhamento } from "@/lib/indicadores";
-import type { Indicador, KpiLeitura } from "@shared/schema";
+import type { Indicador, KpiLeitura, AIGenerationParams } from "@shared/schema";
+import { AIGenerationModal } from "@/components/AIGenerationModal";
 import { Link } from "wouter";
 import {
   AreaChart,
@@ -723,6 +724,27 @@ export default function Indicadores() {
     queryKey: ["/api/membros"],
   });
 
+  // Fontes de contexto da janela "Gerar com IA" — usadas só para mostrar
+  // a contagem de itens disponíveis em cada fonte na modal.
+  const { data: objetivosCtx = [] } = useQuery<Array<{ id: string }>>({
+    queryKey: ["/api/objetivos"],
+    enabled: !!empresa?.id,
+  });
+  const { data: estrategiasCtx = [] } = useQuery<Array<{ id: string }>>({
+    queryKey: ["/api/estrategias"],
+    enabled: !!empresa?.id,
+  });
+  const { data: oportunidadesCtx = [] } = useQuery<Array<{ id: string }>>({
+    queryKey: ["/api/oportunidades-crescimento"],
+    enabled: !!empresa?.id,
+  });
+  const { data: iniciativasCtx = [] } = useQuery<Array<{ id: string }>>({
+    queryKey: ["/api/iniciativas"],
+    enabled: !!empresa?.id,
+  });
+
+  const [aiGerarOpen, setAiGerarOpen] = useState(false);
+
   // Task #248 — A página de Indicadores (acompanhamento BSC) nunca exibe
   // os indicadores do diagnóstico inicial. Filtragem centralizada em
   // `@/lib/indicadores`.
@@ -787,7 +809,8 @@ export default function Indicadores() {
   });
 
   const gerarMutation = useMutation({
-    mutationFn: () => apiRequest("POST", "/api/ai/gerar-indicadores", {}),
+    mutationFn: (params: AIGenerationParams) =>
+      apiRequest("POST", "/api/ai/gerar-indicadores", params),
     onSuccess: async (data) => {
       if (!data?.indicadores?.length) {
         toast({
@@ -921,7 +944,7 @@ export default function Indicadores() {
             </Button>
             <Button
               variant="outline"
-              onClick={() => gerarMutation.mutate()}
+              onClick={() => setAiGerarOpen(true)}
               disabled={gerarMutation.isPending}
               data-testid="button-gerar-kpis-ia"
             >
@@ -998,7 +1021,7 @@ export default function Indicadores() {
             </p>
             <div className="flex gap-2 justify-center flex-wrap">
               <Button
-                onClick={() => gerarMutation.mutate()}
+                onClick={() => setAiGerarOpen(true)}
                 disabled={gerarMutation.isPending}
                 data-testid="button-gerar-kpis-empty"
               >
@@ -1248,6 +1271,46 @@ export default function Indicadores() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AIGenerationModal
+        open={aiGerarOpen}
+        onOpenChange={setAiGerarOpen}
+        onConfirm={(params) => {
+          setAiGerarOpen(false);
+          gerarMutation.mutate(params);
+        }}
+        title="Gerar indicadores com IA"
+        description="Defina quantos indicadores quer por perspectiva do BSC e quais fontes de contexto a IA deve considerar."
+        isGenerating={gerarMutation.isPending}
+        testIdPrefix="ai-indicadores"
+        quantidade={{
+          label: "Quantidade por perspectiva",
+          default: 2,
+          min: 1,
+          max: 5,
+          suffixSingular: "indicador",
+          suffixPlural: "indicadores",
+        }}
+        foco={{
+          label: "Perspectivas do BSC",
+          description: "Selecione as perspectivas que deseja gerar. Sem seleção, a IA gera nas 4.",
+          requireAtLeastOne: false,
+          items: PERSPECTIVAS.map((p) => ({ value: p.valor, label: p.label })),
+          defaultSelected: PERSPECTIVAS.map((p) => p.valor),
+        }}
+        fontesContexto={{
+          label: "Fontes de contexto",
+          items: [
+            { id: "objetivos", label: "Objetivos estratégicos", desc: "Objetivos e KRs já definidos", count: objetivosCtx.length },
+            { id: "estrategias", label: "Estratégias TOWS", desc: "Apostas estratégicas já definidas", count: estrategiasCtx.length },
+            { id: "oportunidades", label: "Frentes de Crescimento", desc: "Quadrantes da Matriz de Ansoff", count: oportunidadesCtx.length },
+            { id: "iniciativas", label: "Iniciativas", desc: "Iniciativas prioritárias", count: iniciativasCtx.length },
+          ],
+        }}
+        instrucaoAdicional={{
+          placeholder: "Ex: Priorize indicadores de eficiência operacional e satisfação do cliente.",
+        }}
+      />
     </div>
   );
 }

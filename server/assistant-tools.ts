@@ -50,7 +50,19 @@ export type ToolName =
   | "gerar_pauta_reuniao"
   | "registrar_ata"
   | "registrar_decisao"
-  | "agendar_revisao";
+  | "agendar_revisao"
+  // Task #287 — Modelo & Estratégia
+  | "criar_estrategia"
+  | "atualizar_estrategia"
+  | "arquivar_estrategia"
+  | "criar_bloco_bmc"
+  | "atualizar_bloco_bmc"
+  | "arquivar_bloco_bmc"
+  | "criar_relacao_bsc"
+  | "remover_relacao_bsc"
+  | "criar_cenario"
+  | "atualizar_cenario"
+  | "arquivar_cenario";
 
 export interface ToolApplyContext {
   empresaId: string;
@@ -70,7 +82,11 @@ export type EntidadeTipo =
   | "reuniao_pauta"
   | "reuniao_ata"
   | "decisao_estrategica"
-  | "revisao_agendada";
+  | "revisao_agendada"
+  // Task #287 — Modelo & Estratégia
+  | "modelo_negocio"
+  | "cenario"
+  | "bsc_relacao";
 
 export interface ToolApplyResult {
   resumo: string;
@@ -1412,6 +1428,30 @@ const navegarPara: ToolDefinition<NavegarParaParams> = {
 // entidade existente (indicador, iniciativa, OKR, KR, risco, oportunidade,
 // estratégia) usando deep link `?editar=<id>`. Diferente de navegar_para
 // (que leva à página inteira), esta tool já abre o item específico.
+// Task #287 — Constantes do BMC (declaradas cedo por serem usadas em abrir_entidade).
+const BLOCOS_BMC = [
+  "segmentos_clientes",
+  "proposta_valor",
+  "canais",
+  "relacionamento_clientes",
+  "fontes_receita",
+  "recursos_principais",
+  "atividades_principais",
+  "parcerias_principais",
+  "estrutura_custos",
+] as const;
+const BLOCO_BMC_LABEL: Record<typeof BLOCOS_BMC[number], string> = {
+  segmentos_clientes: "Segmentos de Clientes",
+  proposta_valor: "Proposta de Valor",
+  canais: "Canais",
+  relacionamento_clientes: "Relacionamento com Clientes",
+  fontes_receita: "Fontes de Receita",
+  recursos_principais: "Recursos Principais",
+  atividades_principais: "Atividades Principais",
+  parcerias_principais: "Parcerias Principais",
+  estrutura_custos: "Estrutura de Custos",
+};
+
 const TIPOS_ABRIR_ENTIDADE = [
   "indicador",
   "iniciativa",
@@ -1420,6 +1460,8 @@ const TIPOS_ABRIR_ENTIDADE = [
   "risco",
   "oportunidade",
   "estrategia",
+  "bmc",
+  "cenario",
 ] as const;
 
 const TIPO_ROTA_ABRIR: Record<typeof TIPOS_ABRIR_ENTIDADE[number], string> = {
@@ -1430,6 +1472,8 @@ const TIPO_ROTA_ABRIR: Record<typeof TIPOS_ABRIR_ENTIDADE[number], string> = {
   risco:        "/riscos",
   oportunidade: "/oportunidades-crescimento",
   estrategia:   "/estrategias",
+  bmc:          "/modelo-negocio",
+  cenario:      "/cenarios",
 };
 
 const TIPO_LABEL_ABRIR: Record<typeof TIPOS_ABRIR_ENTIDADE[number], string> = {
@@ -1440,6 +1484,8 @@ const TIPO_LABEL_ABRIR: Record<typeof TIPOS_ABRIR_ENTIDADE[number], string> = {
   risco:        "risco",
   oportunidade: "oportunidade de crescimento",
   estrategia:   "estratégia",
+  bmc:          "bloco do BMC",
+  cenario:      "cenário",
 };
 
 const abrirEntidadeSchema = z.object({
@@ -1497,6 +1543,19 @@ async function resolverNomeEntidade(
         if (!e || e.empresaId !== empresaId) return { ok: false, nome: "" };
         return { ok: true, nome: e.titulo };
       }
+      case "bmc": {
+        const blocos = await storage.getModeloNegocio(empresaId);
+        const e = blocos.find((b) => b.id === id);
+        if (!e) return { ok: false, nome: "" };
+        const label = BLOCO_BMC_LABEL[e.bloco as typeof BLOCOS_BMC[number]] ?? e.bloco;
+        return { ok: true, nome: `BMC — ${label}` };
+      }
+      case "cenario": {
+        const lista = await storage.getCenarios(empresaId);
+        const e = lista.find((c) => c.id === id);
+        if (!e) return { ok: false, nome: "" };
+        return { ok: true, nome: e.titulo };
+      }
     }
   } catch {
     return { ok: false, nome: "" };
@@ -1548,6 +1607,8 @@ const abrirEntidade: ToolDefinition<AbrirEntidadeParams> = {
       p.tipo === "kr" ? "resultado_chave" :
       p.tipo === "risco" ? "risco" :
       p.tipo === "oportunidade" ? "oportunidade_crescimento" :
+      p.tipo === "bmc" ? "modelo_negocio" :
+      p.tipo === "cenario" ? "cenario" :
       "estrategia";
     return {
       resumo: `Abrindo ${TIPO_LABEL_ABRIR[p.tipo]}: ${resolvido.nome}.`,
@@ -3181,6 +3242,658 @@ const agendarRevisao: ToolDefinition<AgendarRevisaoParams> = {
   formRota: "/ritos/gestao?aba=revisoes",
 };
 
+// ─── Task #287 — Modelo & Estratégia (BMC / Estratégia / Mapa BSC / Cenários) ───
+
+const TIPOS_ESTRATEGIA = ["FO", "FA", "DO", "DA"] as const;
+const STATUS_ESTRATEGIA = ["planejada", "em_andamento", "concluida", "arquivada"] as const;
+
+const criarEstrategiaSchema = z.object({
+  titulo: z.string().min(3).max(200),
+  descricao: z.string().min(3).max(2000),
+  tipo: z.enum(TIPOS_ESTRATEGIA).default("FO"),
+  prioridade: z.enum(PRIORIDADES).default("média"),
+  status: z.enum(STATUS_ESTRATEGIA).default("planejada"),
+  swotOrigemIds: z.array(z.string()).optional(),
+});
+type CriarEstrategiaParams = z.infer<typeof criarEstrategiaSchema>;
+const criarEstrategia: ToolDefinition<CriarEstrategiaParams> = {
+  name: "criar_estrategia",
+  description:
+    "Cria uma nova estratégia-mãe (FO/FA/DO/DA da matriz SWOT). Use quando o usuário aprovar uma estratégia clara antes de virar iniciativas/OKRs (ex.: 'cria uma estratégia de fidelização para o segmento premium e linka com o objetivo de receita recorrente').",
+  paramsSchema: criarEstrategiaSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["titulo", "descricao"],
+    properties: {
+      titulo: { type: "string" },
+      descricao: { type: "string" },
+      tipo: { type: "string", enum: [...TIPOS_ESTRATEGIA], description: "FO/FA/DO/DA da matriz SWOT." },
+      prioridade: { type: "string", enum: [...PRIORIDADES] },
+      status: { type: "string", enum: [...STATUS_ESTRATEGIA] },
+      swotOrigemIds: { type: "array", items: { type: "string" }, description: "IDs de fatores SWOT que originam a estratégia (opcional)." },
+    },
+  },
+  preview: (p) => ({
+    titulo: `Nova estratégia: ${p.titulo}`,
+    descricao: `Estratégia ${p.tipo}, prioridade ${p.prioridade}.`,
+    campos: [
+      { label: "Título", valor: p.titulo },
+      { label: "Tipo", valor: p.tipo },
+      { label: "Prioridade", valor: p.prioridade },
+      { label: "Status", valor: p.status },
+      { label: "Descrição", valor: p.descricao.slice(0, 240) },
+    ],
+    ctaConfirmar: "Criar estratégia",
+    ctaIgnorar: "Agora não",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const created = await storage.createEstrategia({
+      empresaId: ctx.empresaId,
+      tipo: p.tipo,
+      titulo: p.titulo,
+      descricao: p.descricao,
+      prioridade: p.prioridade,
+      status: p.status,
+      swotOrigemIds: p.swotOrigemIds ?? null,
+    });
+    return {
+      resumo: `Estratégia "${created.titulo}" criada.`,
+      dados: { id: created.id },
+      rota: `/estrategias?editar=${created.id}`,
+      entidadeTipo: "estrategia",
+      entidadeId: created.id,
+    };
+  },
+  formRota: "/estrategias",
+  statusLabel: "Criando estratégia…",
+};
+
+const atualizarEstrategiaSchema = z.object({
+  estrategiaId: z.string().min(8),
+  titulo: z.string().min(3).max(200).optional(),
+  descricao: z.string().min(3).max(2000).optional(),
+  tipo: z.enum(TIPOS_ESTRATEGIA).optional(),
+  prioridade: z.enum(PRIORIDADES).optional(),
+  status: z.enum(STATUS_ESTRATEGIA).optional(),
+});
+type AtualizarEstrategiaParams = z.infer<typeof atualizarEstrategiaSchema>;
+const atualizarEstrategia: ToolDefinition<AtualizarEstrategiaParams> = {
+  name: "atualizar_estrategia",
+  description:
+    "Atualiza uma estratégia existente (título, descrição, tipo SWOT, prioridade ou status). Use quando o usuário pedir reescrita ou repriorização de uma estratégia já listada no CATÁLOGO.",
+  paramsSchema: atualizarEstrategiaSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["estrategiaId"],
+    properties: {
+      estrategiaId: { type: "string", description: "ID real da estratégia (do CATÁLOGO)." },
+      titulo: { type: "string" },
+      descricao: { type: "string" },
+      tipo: { type: "string", enum: [...TIPOS_ESTRATEGIA] },
+      prioridade: { type: "string", enum: [...PRIORIDADES] },
+      status: { type: "string", enum: [...STATUS_ESTRATEGIA] },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Atualizar estratégia",
+    descricao: "Vamos ajustar a estratégia selecionada.",
+    campos: [
+      { label: "ID", valor: p.estrategiaId },
+      strField("Novo título", p.titulo),
+      strField("Tipo", p.tipo),
+      strField("Prioridade", p.prioridade),
+      strField("Status", p.status),
+      strField("Nova descrição", p.descricao),
+    ].filter(Boolean) as { label: string; valor: string }[],
+    ctaConfirmar: "Aplicar mudanças",
+    ctaIgnorar: "Manter como está",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const existing = await storage.getEstrategia(p.estrategiaId);
+    if (!existing || existing.empresaId !== ctx.empresaId) {
+      throw new Error("Estratégia não encontrada nesta empresa.");
+    }
+    const patch: Partial<typeof existing> = {};
+    if (p.titulo !== undefined) patch.titulo = p.titulo;
+    if (p.descricao !== undefined) patch.descricao = p.descricao;
+    if (p.tipo !== undefined) patch.tipo = p.tipo;
+    if (p.prioridade !== undefined) patch.prioridade = p.prioridade;
+    if (p.status !== undefined) patch.status = p.status;
+    const updated = await storage.updateEstrategia(p.estrategiaId, ctx.empresaId, patch);
+    return {
+      resumo: `Estratégia "${updated.titulo}" atualizada.`,
+      dados: { id: updated.id },
+      rota: `/estrategias?editar=${updated.id}`,
+      entidadeTipo: "estrategia",
+      entidadeId: updated.id,
+    };
+  },
+  formRota: "/estrategias",
+  statusLabel: "Atualizando estratégia…",
+  enrichPreview: async (preview, p, ctx) => {
+    try {
+      const existing = await storage.getEstrategia(p.estrategiaId);
+      if (!existing || existing.empresaId !== ctx.empresaId) return preview;
+      const before: Record<string, { raw: string | null | undefined }> = {
+        "Novo título": { raw: existing.titulo ?? null },
+        "Tipo": { raw: existing.tipo ?? null },
+        "Prioridade": { raw: existing.prioridade ?? null },
+        "Status": { raw: existing.status ?? null },
+        "Nova descrição": { raw: existing.descricao ?? null },
+      };
+      const campos = (preview.campos ?? [])
+        .map((c) => applyDiff(c, before[c.label]))
+        .filter((c): c is { label: string; valor: string; valorAnterior?: string } => c !== null);
+      return { ...preview, campos };
+    } catch { return preview; }
+  },
+};
+
+const arquivarEstrategiaSchema = z.object({
+  estrategiaId: z.string().min(8),
+  motivo: z.string().max(500).default(""),
+});
+type ArquivarEstrategiaParams = z.infer<typeof arquivarEstrategiaSchema>;
+const arquivarEstrategia: ToolDefinition<ArquivarEstrategiaParams> = {
+  name: "arquivar_estrategia",
+  description:
+    "Arquiva uma estratégia obsoleta (status='arquivada'). NÃO apaga: mantém a estratégia para fins históricos. Use quando o usuário decidir abandonar ou substituir uma estratégia.",
+  paramsSchema: arquivarEstrategiaSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["estrategiaId"],
+    properties: {
+      estrategiaId: { type: "string", description: "ID real da estratégia (do CATÁLOGO)." },
+      motivo: { type: "string", description: "Motivo do arquivamento (opcional)." },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Arquivar estratégia",
+    descricao: p.motivo ? `Motivo: ${p.motivo}` : "Vamos arquivar esta estratégia.",
+    campos: [
+      { label: "ID", valor: p.estrategiaId },
+      ...(p.motivo ? [{ label: "Motivo", valor: p.motivo }] : []),
+    ],
+    ctaConfirmar: "Arquivar",
+    ctaIgnorar: "Manter ativa",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const existing = await storage.getEstrategia(p.estrategiaId);
+    if (!existing || existing.empresaId !== ctx.empresaId) {
+      throw new Error("Estratégia não encontrada nesta empresa.");
+    }
+    const updated = await storage.updateEstrategia(p.estrategiaId, ctx.empresaId, { status: "arquivada" });
+    return {
+      resumo: `Estratégia "${updated.titulo}" arquivada.`,
+      dados: { id: updated.id },
+      rota: `/estrategias?editar=${updated.id}`,
+      entidadeTipo: "estrategia",
+      entidadeId: updated.id,
+    };
+  },
+  formRota: "/estrategias",
+  statusLabel: "Arquivando estratégia…",
+};
+
+// ── BMC (Business Model Canvas) ──
+// (BLOCOS_BMC e BLOCO_BMC_LABEL declarados acima — usados também por abrir_entidade.)
+
+const criarBlocoBmcSchema = z.object({
+  bloco: z.enum(BLOCOS_BMC),
+  descricao: z.string().min(3).max(2000),
+});
+type CriarBlocoBmcParams = z.infer<typeof criarBlocoBmcSchema>;
+const criarBlocoBmc: ToolDefinition<CriarBlocoBmcParams> = {
+  name: "criar_bloco_bmc",
+  description:
+    "Cria/preenche um bloco do Business Model Canvas (BMC). Use quando o usuário decidir adicionar conteúdo a um dos 9 blocos do canvas (ex.: 'adiciona consultoria embarcada na Proposta de Valor').",
+  paramsSchema: criarBlocoBmcSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["bloco", "descricao"],
+    properties: {
+      bloco: { type: "string", enum: [...BLOCOS_BMC], description: "Um dos 9 blocos canônicos do BMC." },
+      descricao: { type: "string", description: "Conteúdo do bloco (texto livre)." },
+    },
+  },
+  preview: (p) => ({
+    titulo: `BMC — ${BLOCO_BMC_LABEL[p.bloco]}`,
+    descricao: `Vamos preencher o bloco "${BLOCO_BMC_LABEL[p.bloco]}" no canvas.`,
+    campos: [
+      { label: "Bloco", valor: BLOCO_BMC_LABEL[p.bloco] },
+      { label: "Conteúdo", valor: p.descricao.slice(0, 300) },
+    ],
+    ctaConfirmar: "Adicionar ao BMC",
+    ctaIgnorar: "Agora não",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const created = await storage.createModeloNegocio({
+      empresaId: ctx.empresaId,
+      bloco: p.bloco,
+      descricao: p.descricao,
+    });
+    return {
+      resumo: `Bloco "${BLOCO_BMC_LABEL[p.bloco]}" criado no BMC.`,
+      dados: { id: created.id },
+      rota: `/modelo-negocio?editar=${created.id}`,
+      entidadeTipo: "modelo_negocio",
+      entidadeId: created.id,
+    };
+  },
+  formRota: "/modelo-negocio",
+  statusLabel: "Atualizando BMC…",
+};
+
+const atualizarBlocoBmcSchema = z.object({
+  blocoId: z.string().min(8),
+  descricao: z.string().min(3).max(2000),
+});
+type AtualizarBlocoBmcParams = z.infer<typeof atualizarBlocoBmcSchema>;
+const atualizarBlocoBmc: ToolDefinition<AtualizarBlocoBmcParams> = {
+  name: "atualizar_bloco_bmc",
+  description:
+    "Atualiza o conteúdo de um bloco BMC já existente. Use quando o usuário pedir para reescrever/ajustar texto de um bloco do canvas.",
+  paramsSchema: atualizarBlocoBmcSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["blocoId", "descricao"],
+    properties: {
+      blocoId: { type: "string", description: "ID real do bloco BMC." },
+      descricao: { type: "string", description: "Novo conteúdo do bloco." },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Atualizar bloco do BMC",
+    descricao: "Vamos reescrever este bloco do canvas.",
+    campos: [
+      { label: "ID", valor: p.blocoId },
+      { label: "Nova descrição", valor: p.descricao.slice(0, 300) },
+    ],
+    ctaConfirmar: "Aplicar mudanças",
+    ctaIgnorar: "Manter como está",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const blocos = await storage.getModeloNegocio(ctx.empresaId);
+    const existing = blocos.find((b) => b.id === p.blocoId);
+    if (!existing) throw new Error("Bloco BMC não encontrado nesta empresa.");
+    const updated = await storage.updateModeloNegocio(p.blocoId, ctx.empresaId, { descricao: p.descricao });
+    const label = BLOCO_BMC_LABEL[updated.bloco as typeof BLOCOS_BMC[number]] ?? updated.bloco;
+    return {
+      resumo: `Bloco "${label}" atualizado.`,
+      dados: { id: updated.id },
+      rota: `/modelo-negocio?editar=${updated.id}`,
+      entidadeTipo: "modelo_negocio",
+      entidadeId: updated.id,
+    };
+  },
+  formRota: "/modelo-negocio",
+  statusLabel: "Atualizando BMC…",
+  enrichPreview: async (preview, p, ctx) => {
+    try {
+      const blocos = await storage.getModeloNegocio(ctx.empresaId);
+      const existing = blocos.find((b) => b.id === p.blocoId);
+      if (!existing) return preview;
+      const before: Record<string, { raw: string | null | undefined }> = {
+        "Nova descrição": { raw: existing.descricao ?? null },
+      };
+      const campos = (preview.campos ?? [])
+        .map((c) => applyDiff(c, before[c.label]))
+        .filter((c): c is { label: string; valor: string; valorAnterior?: string } => c !== null);
+      return { ...preview, campos };
+    } catch { return preview; }
+  },
+};
+
+const arquivarBlocoBmcSchema = z.object({
+  blocoId: z.string().min(8),
+});
+type ArquivarBlocoBmcParams = z.infer<typeof arquivarBlocoBmcSchema>;
+const arquivarBlocoBmc: ToolDefinition<ArquivarBlocoBmcParams> = {
+  name: "arquivar_bloco_bmc",
+  description:
+    "Arquiva (remove) um bloco do BMC quando o conteúdo ficou obsoleto. O bloco pode ser recriado depois com nova descrição.",
+  paramsSchema: arquivarBlocoBmcSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["blocoId"],
+    properties: {
+      blocoId: { type: "string", description: "ID real do bloco BMC a remover." },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Arquivar bloco do BMC",
+    descricao: "Vamos remover este bloco do canvas (pode ser recriado depois).",
+    campos: [{ label: "ID", valor: p.blocoId }],
+    ctaConfirmar: "Arquivar",
+    ctaIgnorar: "Manter",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const blocos = await storage.getModeloNegocio(ctx.empresaId);
+    const existing = blocos.find((b) => b.id === p.blocoId);
+    if (!existing) throw new Error("Bloco BMC não encontrado nesta empresa.");
+    await storage.deleteModeloNegocio(p.blocoId, ctx.empresaId);
+    const label = BLOCO_BMC_LABEL[existing.bloco as typeof BLOCOS_BMC[number]] ?? existing.bloco;
+    return {
+      resumo: `Bloco "${label}" arquivado.`,
+      rota: "/modelo-negocio",
+      entidadeTipo: "modelo_negocio",
+      entidadeId: p.blocoId,
+    };
+  },
+  formRota: "/modelo-negocio",
+  statusLabel: "Arquivando bloco BMC…",
+};
+
+// ── Mapa BSC (relações causa-efeito entre objetivos) ──
+const TIPOS_RELACAO_BSC = ["causa_efeito", "correlacao"] as const;
+const criarRelacaoBscSchema = z.object({
+  origemId: z.string().min(8),
+  destinoId: z.string().min(8),
+  tipo: z.enum(TIPOS_RELACAO_BSC).default("causa_efeito"),
+});
+type CriarRelacaoBscParams = z.infer<typeof criarRelacaoBscSchema>;
+const criarRelacaoBsc: ToolDefinition<CriarRelacaoBscParams> = {
+  name: "criar_relacao_bsc",
+  description:
+    "Cria uma relação no Mapa Estratégico (BSC) ligando dois objetivos com tipo causa-efeito ou correlação. Use quando o usuário pedir para 'amarrar', 'ligar' ou 'conectar' dois objetivos no mapa estratégico (ex.: 'amarra o objetivo de NPS ao objetivo de Receita').",
+  paramsSchema: criarRelacaoBscSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["origemId", "destinoId"],
+    properties: {
+      origemId: { type: "string", description: "ID do objetivo de origem (causa)." },
+      destinoId: { type: "string", description: "ID do objetivo de destino (efeito)." },
+      tipo: { type: "string", enum: [...TIPOS_RELACAO_BSC], description: "causa_efeito (default) ou correlacao." },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Nova relação no Mapa BSC",
+    descricao: `Vamos ligar dois objetivos no mapa estratégico (${p.tipo === "causa_efeito" ? "causa-efeito" : "correlação"}).`,
+    campos: [
+      { label: "Origem", valor: p.origemId },
+      { label: "Destino", valor: p.destinoId },
+      { label: "Tipo", valor: p.tipo === "causa_efeito" ? "causa-efeito" : "correlação" },
+    ],
+    ctaConfirmar: "Criar relação",
+    ctaIgnorar: "Agora não",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    if (p.origemId === p.destinoId) {
+      throw new Error("Origem e destino não podem ser o mesmo objetivo.");
+    }
+    const objs = await storage.getObjetivos(ctx.empresaId);
+    const origem = objs.find((o) => o.id === p.origemId);
+    const destino = objs.find((o) => o.id === p.destinoId);
+    if (!origem || !destino) throw new Error("Um dos objetivos não foi encontrado nesta empresa.");
+    const existentes = await storage.getBscRelacoes(ctx.empresaId);
+    const dup = existentes.find(
+      (r) =>
+        (r.origemId === p.origemId && r.destinoId === p.destinoId) ||
+        (r.origemId === p.destinoId && r.destinoId === p.origemId),
+    );
+    if (dup) throw new Error("Já existe uma relação entre estes dois objetivos.");
+    const created = await storage.createBscRelacao({
+      empresaId: ctx.empresaId,
+      origemId: p.origemId,
+      destinoId: p.destinoId,
+    });
+    return {
+      resumo: `Relação criada: "${origem.titulo}" → "${destino.titulo}".`,
+      dados: { id: created.id, tipo: p.tipo },
+      rota: "/mapa-bsc",
+      entidadeTipo: "bsc_relacao",
+      entidadeId: created.id,
+    };
+  },
+  formRota: "/mapa-bsc",
+  statusLabel: "Criando relação BSC…",
+};
+
+const removerRelacaoBscSchema = z.object({
+  relacaoId: z.string().min(8),
+});
+type RemoverRelacaoBscParams = z.infer<typeof removerRelacaoBscSchema>;
+const removerRelacaoBsc: ToolDefinition<RemoverRelacaoBscParams> = {
+  name: "remover_relacao_bsc",
+  description: "Remove uma relação do Mapa BSC entre dois objetivos.",
+  paramsSchema: removerRelacaoBscSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["relacaoId"],
+    properties: {
+      relacaoId: { type: "string", description: "ID real da relação BSC." },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Remover relação do Mapa BSC",
+    descricao: "Vamos desfazer esta ligação entre os dois objetivos.",
+    campos: [{ label: "ID", valor: p.relacaoId }],
+    ctaConfirmar: "Remover",
+    ctaIgnorar: "Manter",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const existentes = await storage.getBscRelacoes(ctx.empresaId);
+    const existing = existentes.find((r) => r.id === p.relacaoId);
+    if (!existing) throw new Error("Relação BSC não encontrada nesta empresa.");
+    await storage.deleteBscRelacao(p.relacaoId, ctx.empresaId);
+    return {
+      resumo: "Relação BSC removida.",
+      rota: "/mapa-bsc",
+      entidadeTipo: "bsc_relacao",
+      entidadeId: p.relacaoId,
+    };
+  },
+  formRota: "/mapa-bsc",
+  statusLabel: "Removendo relação BSC…",
+};
+
+// ── Cenários ──
+const TIPOS_CENARIO = ["pessimista", "base", "realista", "otimista"] as const;
+const criarCenarioSchema = z.object({
+  tipo: z.enum(TIPOS_CENARIO),
+  titulo: z.string().min(3).max(200),
+  descricao: z.string().max(2000).default(""),
+  premissas: z.array(z.string().max(500)).default([]),
+  respostaEstrategica: z.string().max(2000).default(""),
+});
+type CriarCenarioParams = z.infer<typeof criarCenarioSchema>;
+const criarCenario: ToolDefinition<CriarCenarioParams> = {
+  name: "criar_cenario",
+  description:
+    "Registra um cenário no planejamento (otimista, realista/base ou pessimista). Use quando o usuário pedir para registrar uma hipótese de futuro (ex.: 'cria um cenário pessimista de queda de 20% na receita').",
+  paramsSchema: criarCenarioSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["tipo", "titulo"],
+    properties: {
+      tipo: { type: "string", enum: [...TIPOS_CENARIO] },
+      titulo: { type: "string" },
+      descricao: { type: "string" },
+      premissas: { type: "array", items: { type: "string" }, description: "Variáveis-chave / premissas do cenário." },
+      respostaEstrategica: { type: "string", description: "Resposta estratégica preparada para este cenário." },
+    },
+  },
+  preview: (p) => ({
+    titulo: `Novo cenário ${p.tipo}: ${p.titulo}`,
+    descricao: p.descricao || `Cenário ${p.tipo} com ${p.premissas.length} premissa(s).`,
+    campos: [
+      { label: "Tipo", valor: p.tipo },
+      { label: "Título", valor: p.titulo },
+      ...(p.descricao ? [{ label: "Descrição", valor: p.descricao.slice(0, 240) }] : []),
+      ...(p.premissas.length ? [{ label: "Premissas", valor: p.premissas.join(" • ").slice(0, 300) }] : []),
+      ...(p.respostaEstrategica ? [{ label: "Resposta estratégica", valor: p.respostaEstrategica.slice(0, 240) }] : []),
+    ],
+    ctaConfirmar: "Registrar cenário",
+    ctaIgnorar: "Agora não",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const created = await storage.createCenario({
+      empresaId: ctx.empresaId,
+      tipo: p.tipo,
+      titulo: p.titulo,
+      descricao: p.descricao,
+      premissas: JSON.stringify(p.premissas),
+      respostaEstrategica: p.respostaEstrategica,
+    });
+    return {
+      resumo: `Cenário ${p.tipo} "${created.titulo}" registrado.`,
+      dados: { id: created.id },
+      rota: `/cenarios?editar=${created.id}`,
+      entidadeTipo: "cenario",
+      entidadeId: created.id,
+    };
+  },
+  formRota: "/cenarios",
+  statusLabel: "Registrando cenário…",
+};
+
+const atualizarCenarioSchema = z.object({
+  cenarioId: z.string().min(8),
+  tipo: z.enum(TIPOS_CENARIO).optional(),
+  titulo: z.string().min(3).max(200).optional(),
+  descricao: z.string().max(2000).optional(),
+  premissas: z.array(z.string().max(500)).optional(),
+  respostaEstrategica: z.string().max(2000).optional(),
+});
+type AtualizarCenarioParams = z.infer<typeof atualizarCenarioSchema>;
+const atualizarCenario: ToolDefinition<AtualizarCenarioParams> = {
+  name: "atualizar_cenario",
+  description:
+    "Atualiza um cenário existente (tipo, título, descrição, premissas ou resposta estratégica).",
+  paramsSchema: atualizarCenarioSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["cenarioId"],
+    properties: {
+      cenarioId: { type: "string" },
+      tipo: { type: "string", enum: [...TIPOS_CENARIO] },
+      titulo: { type: "string" },
+      descricao: { type: "string" },
+      premissas: { type: "array", items: { type: "string" } },
+      respostaEstrategica: { type: "string" },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Atualizar cenário",
+    descricao: "Vamos ajustar o cenário selecionado.",
+    campos: [
+      { label: "ID", valor: p.cenarioId },
+      strField("Tipo", p.tipo),
+      strField("Novo título", p.titulo),
+      strField("Nova descrição", p.descricao),
+      p.premissas ? { label: "Novas premissas", valor: p.premissas.join(" • ").slice(0, 300) } : null,
+      strField("Resposta estratégica", p.respostaEstrategica),
+    ].filter(Boolean) as { label: string; valor: string }[],
+    ctaConfirmar: "Aplicar mudanças",
+    ctaIgnorar: "Manter como está",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const existentes = await storage.getCenarios(ctx.empresaId);
+    const existing = existentes.find((c) => c.id === p.cenarioId);
+    if (!existing) throw new Error("Cenário não encontrado nesta empresa.");
+    const patch: Partial<typeof existing> = {};
+    if (p.tipo !== undefined) patch.tipo = p.tipo;
+    if (p.titulo !== undefined) patch.titulo = p.titulo;
+    if (p.descricao !== undefined) patch.descricao = p.descricao;
+    if (p.premissas !== undefined) patch.premissas = JSON.stringify(p.premissas);
+    if (p.respostaEstrategica !== undefined) patch.respostaEstrategica = p.respostaEstrategica;
+    const updated = await storage.updateCenario(p.cenarioId, ctx.empresaId, patch);
+    return {
+      resumo: `Cenário "${updated.titulo}" atualizado.`,
+      dados: { id: updated.id },
+      rota: `/cenarios?editar=${updated.id}`,
+      entidadeTipo: "cenario",
+      entidadeId: updated.id,
+    };
+  },
+  formRota: "/cenarios",
+  statusLabel: "Atualizando cenário…",
+  enrichPreview: async (preview, p, ctx) => {
+    try {
+      const existentes = await storage.getCenarios(ctx.empresaId);
+      const existing = existentes.find((c) => c.id === p.cenarioId);
+      if (!existing) return preview;
+      let premissasAnt = "";
+      try {
+        const arr = JSON.parse(existing.premissas ?? "[]");
+        if (Array.isArray(arr)) premissasAnt = arr.join(" • ").slice(0, 300);
+      } catch { premissasAnt = existing.premissas ?? ""; }
+      const before: Record<string, { raw: string | null | undefined }> = {
+        "Tipo": { raw: existing.tipo ?? null },
+        "Novo título": { raw: existing.titulo ?? null },
+        "Nova descrição": { raw: existing.descricao ?? null },
+        "Novas premissas": { raw: premissasAnt },
+        "Resposta estratégica": { raw: existing.respostaEstrategica ?? null },
+      };
+      const campos = (preview.campos ?? [])
+        .map((c) => applyDiff(c, before[c.label]))
+        .filter((c): c is { label: string; valor: string; valorAnterior?: string } => c !== null);
+      return { ...preview, campos };
+    } catch { return preview; }
+  },
+};
+
+const arquivarCenarioSchema = z.object({
+  cenarioId: z.string().min(8),
+});
+type ArquivarCenarioParams = z.infer<typeof arquivarCenarioSchema>;
+const arquivarCenario: ToolDefinition<ArquivarCenarioParams> = {
+  name: "arquivar_cenario",
+  description:
+    "Arquiva (remove) um cenário obsoleto do planejamento. Use quando o usuário decidir descartar uma hipótese.",
+  paramsSchema: arquivarCenarioSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["cenarioId"],
+    properties: {
+      cenarioId: { type: "string" },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Arquivar cenário",
+    descricao: "Vamos remover este cenário do planejamento.",
+    campos: [{ label: "ID", valor: p.cenarioId }],
+    ctaConfirmar: "Arquivar",
+    ctaIgnorar: "Manter",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const existentes = await storage.getCenarios(ctx.empresaId);
+    const existing = existentes.find((c) => c.id === p.cenarioId);
+    if (!existing) throw new Error("Cenário não encontrado nesta empresa.");
+    await storage.deleteCenario(p.cenarioId, ctx.empresaId);
+    return {
+      resumo: `Cenário "${existing.titulo}" arquivado.`,
+      rota: "/cenarios",
+      entidadeTipo: "cenario",
+      entidadeId: p.cenarioId,
+    };
+  },
+  formRota: "/cenarios",
+  statusLabel: "Arquivando cenário…",
+};
+
 // Cada ToolDefinition tem um TParams concreto; o registry, porém, precisa
 // guardar todos juntos. `wrap` faz o "sealing" para `unknown` em um único
 // ponto tipado, evitando `any` espalhado pelo módulo. A validação de runtime
@@ -3219,6 +3932,18 @@ export const TOOLS: Record<ToolName, ToolDefinition<unknown>> = {
   registrar_ata: wrap(registrarAta),
   registrar_decisao: wrap(registrarDecisao),
   agendar_revisao: wrap(agendarRevisao),
+  // Task #287
+  criar_estrategia: wrap(criarEstrategia),
+  atualizar_estrategia: wrap(atualizarEstrategia),
+  arquivar_estrategia: wrap(arquivarEstrategia),
+  criar_bloco_bmc: wrap(criarBlocoBmc),
+  atualizar_bloco_bmc: wrap(atualizarBlocoBmc),
+  arquivar_bloco_bmc: wrap(arquivarBlocoBmc),
+  criar_relacao_bsc: wrap(criarRelacaoBsc),
+  remover_relacao_bsc: wrap(removerRelacaoBsc),
+  criar_cenario: wrap(criarCenario),
+  atualizar_cenario: wrap(atualizarCenario),
+  arquivar_cenario: wrap(arquivarCenario),
 };
 
 // Tools que executam ações de negócio (passíveis de vínculo com plano).
@@ -3248,6 +3973,17 @@ const TOOLS_EXECUTORAS: ReadonlySet<ToolName> = new Set<ToolName>([
   "registrar_ata",
   "registrar_decisao",
   "agendar_revisao",
+  "criar_estrategia",
+  "atualizar_estrategia",
+  "arquivar_estrategia",
+  "criar_bloco_bmc",
+  "atualizar_bloco_bmc",
+  "arquivar_bloco_bmc",
+  "criar_relacao_bsc",
+  "remover_relacao_bsc",
+  "criar_cenario",
+  "atualizar_cenario",
+  "arquivar_cenario",
 ]);
 
 export function isToolExecutora(name: string): boolean {
@@ -3333,6 +4069,34 @@ const ID_RESOLVERS: Record<string, (id: string, empresaId: string) => Promise<st
   estrategiaId: async (id, e) => {
     const est = await storage.getEstrategia(id);
     return est && est.empresaId === e ? est.titulo : null;
+  },
+  // Task #287
+  blocoId: async (id, e) => {
+    const list = await storage.getModeloNegocio(e);
+    const b = list.find((x) => x.id === id);
+    if (!b) return null;
+    return BLOCO_BMC_LABEL[b.bloco as typeof BLOCOS_BMC[number]] ?? b.bloco;
+  },
+  cenarioId: async (id, e) => {
+    const list = await storage.getCenarios(e);
+    return list.find((c) => c.id === id)?.titulo ?? null;
+  },
+  relacaoId: async (id, e) => {
+    const list = await storage.getBscRelacoes(e);
+    const rel = list.find((r) => r.id === id);
+    if (!rel) return null;
+    const objs = await storage.getObjetivos(e);
+    const o = objs.find((x) => x.id === rel.origemId)?.titulo ?? "?";
+    const d = objs.find((x) => x.id === rel.destinoId)?.titulo ?? "?";
+    return `${o} → ${d}`;
+  },
+  origemId: async (id, e) => {
+    const list = await storage.getObjetivos(e);
+    return list.find((o) => o.id === id)?.titulo ?? null;
+  },
+  destinoId: async (id, e) => {
+    const list = await storage.getObjetivos(e);
+    return list.find((o) => o.id === id)?.titulo ?? null;
   },
 };
 
@@ -3610,6 +4374,18 @@ export const STATUS_LABELS: Readonly<Record<string, string>> = {
   // Navegação / abertura
   navegar_para: "Preparando navegação…",
   abrir_entidade: "Abrindo item…",
+  // Modelo & Estratégia (Task #287)
+  criar_estrategia: "Criando estratégia…",
+  atualizar_estrategia: "Atualizando estratégia…",
+  arquivar_estrategia: "Arquivando estratégia…",
+  criar_bloco_bmc: "Atualizando BMC…",
+  atualizar_bloco_bmc: "Atualizando BMC…",
+  arquivar_bloco_bmc: "Arquivando bloco do BMC…",
+  criar_relacao_bsc: "Conectando objetivos no Mapa BSC…",
+  remover_relacao_bsc: "Removendo relação do Mapa BSC…",
+  criar_cenario: "Registrando cenário…",
+  atualizar_cenario: "Atualizando cenário…",
+  arquivar_cenario: "Arquivando cenário…",
   // Lookup (read-only, sem HITL)
   buscar_entidade_por_nome: "Buscando item pelo nome…",
   // Read-only de análise (sem HITL)

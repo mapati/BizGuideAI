@@ -51,6 +51,14 @@ const ENTIDADE_ID_PARAM: Record<string, { idField: string; extra?: Record<string
   atualizar_valor_indicador: { idField: "indicadorId" },
   atualizar_risco: { idField: "riscoId" },
   registrar_mitigacao: { idField: "riscoId" },
+  // Task #287
+  atualizar_estrategia: { idField: "estrategiaId" },
+  arquivar_estrategia: { idField: "estrategiaId" },
+  atualizar_bloco_bmc: { idField: "blocoId" },
+  arquivar_bloco_bmc: { idField: "blocoId" },
+  atualizar_cenario: { idField: "cenarioId" },
+  arquivar_cenario: { idField: "cenarioId" },
+  remover_relacao_bsc: { idField: "relacaoId" },
 };
 
 function construirUrlAjuste(
@@ -103,6 +111,18 @@ const FERRAMENTAS_LABEL: Record<string, string> = {
   registrar_mitigacao: "Registrar mitigação",
   navegar_para: "Abrir página",
   abrir_entidade: "Abrir item",
+  // Task #287
+  criar_estrategia: "Nova estratégia",
+  atualizar_estrategia: "Atualizar estratégia",
+  arquivar_estrategia: "Arquivar estratégia",
+  criar_bloco_bmc: "Bloco do BMC",
+  atualizar_bloco_bmc: "Atualizar bloco BMC",
+  arquivar_bloco_bmc: "Arquivar bloco BMC",
+  criar_relacao_bsc: "Nova relação BSC",
+  remover_relacao_bsc: "Remover relação BSC",
+  criar_cenario: "Novo cenário",
+  atualizar_cenario: "Atualizar cenário",
+  arquivar_cenario: "Arquivar cenário",
 };
 
 // Tools cuja confirmação não cria/atualiza dado: o objetivo é apenas levar o

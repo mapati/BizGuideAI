@@ -334,6 +334,7 @@ REGRAS DE FORMATO (obrigatórias):
 - Sempre sugira o PRÓXIMO PASSO concreto da prioridade principal.
 - Use APENAS números, nomes e IDs que aparecem nos dados fornecidos. Não invente métricas.
 - Compare brevemente com o briefing de ontem: se a situação está igual, reconheça isso (ex.: "mesmo cenário de ontem"); se mudou, explicite.
+- Para cada KPI crítico, os dados já trazem TENDÊNCIA (série recente em "tendencia.ultimasLeituras" e classificação em "tendencia.tendencia") e ITENS VINCULADOS ("iniciativasVinculadas", "krsVinculados"). Use isso para narrar fato + provável causa (ex.: "esse KPI vem caindo desde X e a iniciativa Y, que ataca esse mesmo indicador, está atrasada há Zd"). Não invente relações que não apareçam no JSON. Se "tendencia.tendencia" for "sem_dados", reconheça a falta de leituras em vez de inventar.
 - Considere as AÇÕES RECENTES DO ASSISTENTE: se algo já foi proposto e CONFIRMADO/EXECUTADO, NÃO repita como se fosse novo — reconheça o avanço (ex.: "a iniciativa criada ontem está em andamento"). Se algo foi IGNORADO, evite ressuscitar a mesma sugestão. Se há proposta PENDENTE de confirmação, lembre-a brevemente.
 - Se houver PLANO AGÊNTICO ATIVO, ancore o briefing nele: cite o objetivo do plano, o passo atual e o próximo passo pendente — em vez de propor ações soltas que dupliquem passos já planejados.
 
@@ -353,6 +354,7 @@ REGRAS DE AÇÕES:
 
   const sinaisJson = JSON.stringify({
     kpisVermelhos: sinais.kpisVermelhos,
+    kpisAmarelos: sinais.kpisAmarelos ?? [],
     iniciativasAtrasadas: sinais.iniciativasAtrasadas,
     okrsParados: sinais.okrsParados,
     riscosAltosSemMitigacao: sinais.riscosAltosSemMitigacao,

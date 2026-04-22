@@ -1,6 +1,14 @@
 import { storage } from "./storage";
 import { sendAlertEmail, getEmailDiagnostics, type EmailDiagnostics } from "./email";
 import type { Indicador, Iniciativa, Objetivo, ResultadoChave } from "@shared/schema";
+import {
+  getKpiTendencia,
+  getRelacoesIndicador,
+  getKpiAtacadoPorIniciativa,
+  type KpiTendencia,
+  type IniciativaVinculadaResumo,
+  type KrVinculadoResumo,
+} from "./plan-insights";
 
 export type EngineSkipReason =
   | "config_ausente"
@@ -64,9 +72,39 @@ interface AvaliacaoCtx {
   resultadosComObjetivo: Array<{ objetivo: Objetivo; resultado: ResultadoChave }>;
 }
 
+/**
+ * Task #219 — campos de enriquecimento (tendência + causalidade narrativa)
+ * são todos opcionais para preservar o contrato externo. Consumidores antigos
+ * que não os leem continuam funcionando; novos consumidores (assistente +
+ * briefing) usam-nos para conectar fato → causa provável.
+ */
+export interface KpiVermelhoSinal {
+  id: string;
+  nome: string;
+  perspectiva: string;
+  atual: string;
+  meta: string;
+  tendencia?: KpiTendencia;
+  iniciativasVinculadas?: IniciativaVinculadaResumo[];
+  krsVinculados?: KrVinculadoResumo[];
+}
+
+export interface IniciativaAtrasadaSinal {
+  id: string;
+  titulo: string;
+  prazo: string;
+  diasAtraso: number;
+  responsavel: string;
+  kpiAtacado?: { id: string; nome: string } | null;
+}
+
 export interface SinaisCriticos {
-  kpisVermelhos: Array<{ id: string; nome: string; perspectiva: string; atual: string; meta: string }>;
-  iniciativasAtrasadas: Array<{ id: string; titulo: string; prazo: string; diasAtraso: number; responsavel: string }>;
+  kpisVermelhos: KpiVermelhoSinal[];
+  // Task #219 — KPIs em "atenção" (amarelo) também recebem enriquecimento
+  // (tendência + vínculos) para que o assistente narre causa provável quando
+  // o usuário perguntar sobre eles. Campo opcional para preservar contrato.
+  kpisAmarelos?: KpiVermelhoSinal[];
+  iniciativasAtrasadas: IniciativaAtrasadaSinal[];
   okrsParados: Array<{ objetivoId: string; resultadoId: string; metrica: string; objetivo: string; diasParado: number }>;
   riscosAltosSemMitigacao: Array<{ id: string; descricao: string; categoria: string; score: number }>;
   total: number;
@@ -81,9 +119,33 @@ export async function detectarSinaisCriticos(empresaId: string): Promise<SinaisC
     riscos = [];
   }
 
-  const kpisVermelhos = ctx.indicadores
-    .filter((i) => i.status === "vermelho")
-    .map((i) => ({ id: i.id, nome: i.nome, perspectiva: i.perspectiva, atual: i.atual, meta: i.meta }));
+  const krsArray: ResultadoChave[] = ctx.resultadosComObjetivo.map((r) => r.resultado);
+
+  // Task #219 — enriquecimento: tendência (kpi_leituras) + relações
+  // (iniciativas/KRs com indicadorFonteId apontando para este KPI). Falhas
+  // individuais não derrubam a detecção (o KPI vai sem enriquecimento).
+  // Aplicado tanto a Vermelho (já parte do contrato) quanto a Amarelo (novo
+  // bloco opcional kpisAmarelos) — o assistente/briefing usam os dois para
+  // narrar causa provável.
+  const enriquecerKpi = async (i: Indicador): Promise<KpiVermelhoSinal> => {
+    const base: KpiVermelhoSinal = {
+      id: i.id, nome: i.nome, perspectiva: i.perspectiva, atual: i.atual, meta: i.meta,
+    };
+    try {
+      const tendencia = await getKpiTendencia(i.id);
+      const rel = getRelacoesIndicador(i.id, ctx.iniciativas, krsArray);
+      return { ...base, tendencia, iniciativasVinculadas: rel.iniciativasVinculadas, krsVinculados: rel.krsVinculados };
+    } catch {
+      return base;
+    }
+  };
+
+  const kpisVermelhos: KpiVermelhoSinal[] = await Promise.all(
+    ctx.indicadores.filter((i) => i.status === "vermelho").map(enriquecerKpi),
+  );
+  const kpisAmarelos: KpiVermelhoSinal[] = await Promise.all(
+    ctx.indicadores.filter((i) => i.status === "amarelo").map(enriquecerKpi),
+  );
 
   const agoraTs = Date.now();
   const iniciativasAtrasadas = ctx.iniciativas
@@ -95,7 +157,8 @@ export async function detectarSinaisCriticos(empresaId: string): Promise<SinaisC
       fimDoDia.setHours(23, 59, 59, 999);
       if (fimDoDia.getTime() >= agoraTs) return null;
       const diasAtraso = Math.floor((agoraTs - fimDoDia.getTime()) / DAY_MS);
-      return { id: i.id, titulo: i.titulo, prazo: i.prazo, diasAtraso, responsavel: i.responsavel };
+      const kpiAtacado = getKpiAtacadoPorIniciativa(i, ctx.indicadores);
+      return { id: i.id, titulo: i.titulo, prazo: i.prazo, diasAtraso, responsavel: i.responsavel, kpiAtacado };
     })
     .filter((v): v is NonNullable<typeof v> => v !== null);
 
@@ -129,9 +192,12 @@ export async function detectarSinaisCriticos(empresaId: string): Promise<SinaisC
 
   return {
     kpisVermelhos,
+    kpisAmarelos,
     iniciativasAtrasadas,
     okrsParados,
     riscosAltosSemMitigacao,
+    // `total` continua contando só Vermelhos para preservar o threshold de
+    // disparo do briefing/notificações (Amarelo é enriquecimento, não gatilho).
     total: kpisVermelhos.length + iniciativasAtrasadas.length + okrsParados.length + riscosAltosSemMitigacao.length,
   };
 }

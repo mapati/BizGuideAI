@@ -6,6 +6,12 @@ import { sendVerificationEmail, sendPasswordResetEmail, getEmailDiagnostics } fr
 import { runNotificationEngine, detectarSinaisCriticos, carregarContextoEmpresa, montarHtmlResumoSemanal, type EngineReport } from "./notification-engine";
 import { runBriefingDiarioScheduler, gerarEPersistirBriefing, dataDeHojeSP } from "./briefing-engine";
 import { openai, AI_MODELS, loadModelConfig, getModelForPlan, buildEmpresaContextoIA, buildAcoesRecentesContextoIA, buildPlanoAtivoContextoIA } from "./ai-helpers";
+import {
+  getKpiTendencia,
+  getRelacoesIndicador,
+  renderTendenciaLinha,
+  renderRelacoesLinhas,
+} from "./plan-insights";
 import { TOOLS, getTool, toOpenAITools, registrarProposta, LOOKUP_TOOLS_OPENAI, executarBuscaPorNome } from "./assistant-tools";
 import { criarAssinatura, buscarAssinatura, cancelarAssinatura, buscarPagamento, motivoLegivel, validarAssinaturaWebhook, PLANOS_MP, type PlanoTipo, type MpSubscription, type MpPayment } from "./mp";
 import { randomBytes, createHash } from "crypto";
@@ -3849,18 +3855,70 @@ Responda OBRIGATORIAMENTE em JSON:
       }
 
       if (indicadores.length > 0) {
-        ctx.push(`## INDICADORES DE DESEMPENHO (KPIs / BSC)\n${indicadores.map(i => {
+        // Task #219 — Para cada KPI crítico (Vermelho/Amarelo) anexamos
+        // tendência (últimos 6 pontos de kpi_leituras + classificação
+        // determinística) e os itens vinculados via indicadorFonteId
+        // (iniciativas e KRs que atacam este KPI). Assim o assistente pode
+        // narrar "fato + provável causa" em vez de só listar o número.
+        const krsTodos = resultadosPorObjetivo.flatMap(({ resultados }) => resultados);
+        const linhasIndicadores: string[] = [];
+        for (const i of indicadores) {
           const atualVal = i.atual != null ? parseFloat(String(i.atual)) : null;
           const metaVal = i.meta != null ? parseFloat(String(i.meta)) : null;
           const status = atualVal != null && metaVal != null
             ? (atualVal >= metaVal ? "Verde" : atualVal >= metaVal * 0.8 ? "Amarelo" : "Vermelho")
             : "Sem dados";
-          return `- [${i.perspectiva}] ${i.nome}: atual=${atualVal ?? "—"}, meta=${metaVal ?? "—"} — ${status}`;
-        }).join("\n")}`);
+          linhasIndicadores.push(`- [${i.perspectiva}] ${i.nome} (id=${i.id}): atual=${atualVal ?? "—"}, meta=${metaVal ?? "—"} — ${status}`);
+          if (status === "Vermelho" || status === "Amarelo") {
+            try {
+              const tend = await getKpiTendencia(i.id);
+              linhasIndicadores.push(`    • ${renderTendenciaLinha(tend)}`);
+              const rel = getRelacoesIndicador(i.id, iniciativas, krsTodos);
+              const linhasRel = renderRelacoesLinhas(rel, "    ");
+              if (linhasRel.length > 0) linhasIndicadores.push(...linhasRel);
+            } catch {
+              /* enriquecimento é best-effort */
+            }
+          }
+        }
+        ctx.push(`## INDICADORES DE DESEMPENHO (KPIs / BSC)\n${linhasIndicadores.join("\n")}`);
       }
 
       if (iniciativas.length > 0) {
-        ctx.push(`## INICIATIVAS PRIORITÁRIAS\n${iniciativas.map(i => `- ${i.titulo} [${i.status}] prazo: ${i.prazo || "não definido"} responsável: ${i.responsavel || "não definido"}`).join("\n")}`);
+        // Task #219 — anota dias_em_atraso e KPI atacado para que o assistente
+        // conecte iniciativa atrasada ↔ KPI crítico sem precisar adivinhar.
+        const indNomeByIdLocal = new Map<string, string>(indicadores.map((i) => [i.id, i.nome]));
+        const linhasIni = iniciativas.map((i) => {
+          let extra = "";
+          const prazoDt = i.prazo ? new Date(i.prazo) : null;
+          if (
+            prazoDt &&
+            !isNaN(prazoDt.getTime()) &&
+            i.status !== "concluida" &&
+            i.status !== "pausada"
+          ) {
+            const fim = new Date(prazoDt);
+            fim.setHours(23, 59, 59, 999);
+            const diff = Date.now() - fim.getTime();
+            if (diff > 0) {
+              const dias = Math.floor(diff / (24 * 60 * 60 * 1000));
+              extra += ` | atrasada há ${dias}d`;
+            }
+          }
+          if (i.encerradaEm) {
+            const dias = Math.floor((Date.now() - new Date(i.encerradaEm).getTime()) / (24 * 60 * 60 * 1000));
+            if (dias <= 30) {
+              extra += ` | encerrada há ${dias}d`;
+              if (i.notaEncerramento) extra += ` (nota: "${i.notaEncerramento.slice(0, 80)}")`;
+            }
+          }
+          if (i.indicadorFonteId) {
+            const nome = indNomeByIdLocal.get(i.indicadorFonteId);
+            if (nome) extra += ` | atacando KPI="${nome}"`;
+          }
+          return `- ${i.titulo} [${i.status}] prazo: ${i.prazo || "não definido"} responsável: ${i.responsavel || "não definido"}${extra}`;
+        });
+        ctx.push(`## INICIATIVAS PRIORITÁRIAS\n${linhasIni.join("\n")}`);
       }
 
       if (rituais.length > 0) {
@@ -3973,6 +4031,7 @@ PRINCÍPIOS:
 - Use os dados reais da empresa nas respostas; nunca invente números ou IDs.
 - Seja conciso (≤ 350 palavras), com markdown leve (negrito, itálico, listas curtas).
 - Foque em ações concretas e priorizadas.
+- Quando o usuário perguntar sobre um KPI crítico (Vermelho/Amarelo), conecte FATO + TENDÊNCIA + INICIATIVA/KR VINCULADO ao narrar a provável causa, usando as linhas anexadas abaixo de cada KPI no bloco "INDICADORES". Não invente relações que não estejam no contexto. Se não houver série de leituras suficientes ("sem leituras suficientes"), reconheça a falta de dados em vez de inventar tendência.
 
 QUANDO USAR FERRAMENTAS (tool calls):
 - Se o usuário aprovar/sugerir uma ação concreta executável (ex.: "crie a iniciativa X", "registre a leitura do KPI Y como 92"), CHAME a ferramenta apropriada.

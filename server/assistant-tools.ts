@@ -1233,19 +1233,140 @@ function normalizar(s: string): string {
     .trim();
 }
 
+// Task #206 — Dicionário de sinônimos e abreviações comuns de gestão.
+// Cada grupo lista termos tratados como equivalentes na busca por nome.
+// Todos os termos são escritos JÁ normalizados (minúsculo, sem acento).
+// Para multi-palavra, o casamento exige que o termo apareça como sequência
+// completa de palavras no nome (não dentro de outra palavra).
+const SINONIMOS: ReadonlyArray<ReadonlyArray<string>> = [
+  ["cac", "custo de aquisicao de cliente", "custo de aquisicao de clientes", "customer acquisition cost"],
+  ["mrr", "receita recorrente mensal", "monthly recurring revenue"],
+  ["arr", "receita recorrente anual", "annual recurring revenue"],
+  ["ltv", "lifetime value", "valor vitalicio do cliente", "valor do tempo de vida do cliente"],
+  ["nps", "net promoter score"],
+  ["roi", "retorno sobre investimento"],
+  ["roas", "retorno sobre investimento em anuncios", "return on ad spend"],
+  ["churn", "taxa de cancelamento", "taxa de evasao", "churn rate"],
+  ["ticket medio", "valor medio de pedido", "average order value", "aov"],
+  ["taxa de conversao", "conversao", "conversion rate"],
+  ["okr", "objetivos e resultados chave", "objetivo e resultado chave"],
+  ["kpi", "indicador chave de desempenho", "indicador-chave de desempenho"],
+  ["ebitda", "lucro antes de juros impostos depreciacao e amortizacao"],
+  ["b2b", "business to business"],
+  ["b2c", "business to consumer"],
+  ["sla", "acordo de nivel de servico", "service level agreement"],
+  ["cpa", "custo por aquisicao"],
+  ["cpc", "custo por clique"],
+  ["cpm", "custo por mil"],
+  ["ctr", "taxa de cliques", "click through rate"],
+  ["mvp", "produto minimo viavel"],
+  ["faq", "perguntas frequentes"],
+  ["rh", "recursos humanos"],
+  ["ti", "tecnologia da informacao"],
+  ["p&d", "pd", "pesquisa e desenvolvimento", "r&d"],
+  ["mql", "lead qualificado por marketing"],
+  ["sql lead", "lead qualificado por vendas"],
+  ["pdca", "planejar fazer checar agir"],
+  ["bsc", "balanced scorecard"],
+  ["swot", "fofa", "forcas oportunidades fraquezas ameacas"],
+  ["margem de lucro", "lucratividade", "margem liquida"],
+  ["fluxo de caixa", "cash flow"],
+];
+
+// Levenshtein limitado — usado só como fallback para detectar typos pequenos.
+function levenshtein(a: string, b: string): number {
+  if (a === b) return 0;
+  const al = a.length;
+  const bl = b.length;
+  if (!al) return bl;
+  if (!bl) return al;
+  if (Math.abs(al - bl) > 3) return 99;
+  const v0 = Array.from({ length: bl + 1 }, (_, i) => i);
+  const v1 = new Array<number>(bl + 1).fill(0);
+  for (let i = 0; i < al; i++) {
+    v1[0] = i + 1;
+    for (let j = 0; j < bl; j++) {
+      const cost = a[i] === b[j] ? 0 : 1;
+      v1[j + 1] = Math.min(v1[j] + 1, v0[j + 1] + 1, v0[j] + cost);
+    }
+    for (let j = 0; j <= bl; j++) v0[j] = v1[j];
+  }
+  return v0[bl];
+}
+
+// Verifica se `termo` aparece como sequência completa de palavras em `s`
+// (já normalizados). Ex.: "cac" casa em "novo cac mensal", mas não em "vacao".
+function contemPalavraOuFrase(s: string, termo: string): boolean {
+  if (!termo) return false;
+  return ` ${s} `.includes(` ${termo} `);
+}
+
+// Gera variantes de uma string substituindo termos conhecidos por seus
+// sinônimos/abreviações. A string de entrada já deve estar normalizada.
+function expandirSinonimos(s: string): string[] {
+  const variantes = new Set<string>([s]);
+  for (const grupo of SINONIMOS) {
+    for (const termo of grupo) {
+      if (!contemPalavraOuFrase(s, termo)) continue;
+      for (const outro of grupo) {
+        if (outro === termo) continue;
+        // substitui ocorrências como palavra inteira
+        const padded = ` ${s} `.split(` ${termo} `).join(` ${outro} `);
+        variantes.add(padded.slice(1, -1));
+        // adiciona o próprio sinônimo isolado, útil quando o termo do
+        // usuário é apenas a abreviação (ex.: "cac").
+        variantes.add(outro);
+      }
+    }
+  }
+  return Array.from(variantes);
+}
+
 function scoreMatch(nome: string, termo: string): number {
   const n = normalizar(nome);
   const t = normalizar(termo);
   if (!n || !t) return 0;
-  if (n === t) return 100;
-  if (n.startsWith(t)) return 80;
-  if (n.includes(t)) return 60;
-  // fallback por tokens
-  const tokens = t.split(" ").filter((x) => x.length >= 3);
-  if (!tokens.length) return 0;
-  const hits = tokens.filter((tk) => n.includes(tk)).length;
-  if (!hits) return 0;
-  return Math.round((hits / tokens.length) * 50);
+
+  const variantesT = expandirSinonimos(t);
+  const variantesN = expandirSinonimos(n);
+
+  let melhor = 0;
+  for (const tv of variantesT) {
+    for (const nv of variantesN) {
+      if (!tv) continue;
+      if (nv === tv) {
+        melhor = Math.max(melhor, 100);
+      } else if (nv.startsWith(`${tv} `)) {
+        melhor = Math.max(melhor, 80);
+      } else if (contemPalavraOuFrase(nv, tv)) {
+        melhor = Math.max(melhor, 70);
+      } else if (nv.includes(tv)) {
+        melhor = Math.max(melhor, 60);
+      }
+    }
+  }
+  if (melhor >= 60) return melhor;
+
+  // Fallback por tokens, tolerando typos pequenos (1-2 caracteres).
+  const tokensT = t.split(" ").filter((x) => x.length >= 3);
+  if (!tokensT.length) return melhor;
+  const tokensN = n.split(" ").filter(Boolean);
+  const setN = new Set(tokensN);
+  let hits = 0;
+  for (const tk of tokensT) {
+    if (setN.has(tk) || n.includes(tk)) {
+      hits++;
+      continue;
+    }
+    const tolerancia = tk.length <= 4 ? 1 : 2;
+    const achouTypo = tokensN.some((ntk) => {
+      if (Math.abs(ntk.length - tk.length) > tolerancia) return false;
+      return levenshtein(ntk, tk) <= tolerancia;
+    });
+    if (achouTypo) hits++;
+  }
+  if (!hits) return melhor;
+  return Math.max(melhor, Math.round((hits / tokensT.length) * 50));
 }
 
 export const LOOKUP_TOOLS_OPENAI = [

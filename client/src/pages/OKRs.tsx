@@ -826,9 +826,7 @@ export default function OKRs() {
           title: "Objetivo(s) Gerado(s)!",
           description: `${data.objetivos.length} objetivo(s) sugerido(s) pela IA para ${label}.`,
         });
-        // Garante o vínculo da cascata mesmo se a IA não estampou.
-        const origemId = vars.params?.origemId || null;
-        const isIniciativa = !!origemId && iniciativas.some((i) => i.id === origemId);
+        // Backend já escolhe a iniciativa/estratégia de origem para cada objetivo.
         for (const obj of data.objetivos) {
           await criarObjetivoMutation.mutateAsync({
             empresaId,
@@ -836,8 +834,8 @@ export default function OKRs() {
             descricao: obj.descricao,
             prazo: obj.prazo,
             perspectiva: obj.perspectiva || perspectiva || "Financeira",
-            estrategiaId: obj.estrategiaId || (isIniciativa ? null : origemId),
-            iniciativaId: obj.iniciativaId || (isIniciativa ? origemId : null),
+            estrategiaId: obj.estrategiaId ?? null,
+            iniciativaId: obj.iniciativaId ?? null,
           });
         }
       } else {
@@ -2059,23 +2057,18 @@ export default function OKRs() {
         }
         description={
           aiObjetivosPerspectivaInicial
-            ? "A IA gera os objetivos desta perspectiva com base no contexto selecionado, priorizando suas iniciativas mais críticas e frentes de maior potencial."
-            : "A IA monta um BSC equilibrado a partir do contexto selecionado, decidindo quantos objetivos cada perspectiva precisa e priorizando suas iniciativas mais críticas e frentes de maior potencial."
+            ? "Defina quantos objetivos quer nesta perspectiva. A IA escolhe automaticamente as iniciativas/estratégias de origem com base no contexto."
+            : "Defina quantos objetivos quer por perspectiva. A IA escolhe automaticamente as iniciativas/estratégias de origem com base no contexto e prioriza o que é mais crítico."
         }
         isGenerating={gerarObjetivosMutation.isPending}
         testIdPrefix="ai-objetivos"
-        origem={{
-          label: "Origem do objetivo",
-          description: origemObrigatoria
-            ? "Escolha de qual Iniciativa ou Estratégia derivar os objetivos. Obrigatório durante a primeira jornada."
-            : "Opcional: vincule os objetivos a uma Iniciativa ou Estratégia para manter a cascata.",
-          placeholder: "Selecione uma origem…",
-          required: origemObrigatoria,
-          items: [
-            ...iniciativas.map((i) => ({ id: i.id, label: i.titulo, group: "Iniciativa" })),
-            ...estrategias.map((e) => ({ id: e.id, label: e.titulo, group: `Estratégia · ${e.tipo}` })),
-          ],
-          emptyMessage: "Nenhuma Iniciativa ou Estratégia cadastrada. Crie uma antes de gerar objetivos.",
+        quantidade={{
+          label: "Quantidade por perspectiva",
+          default: 1,
+          min: 1,
+          max: 5,
+          suffixSingular: "objetivo",
+          suffixPlural: "objetivos",
         }}
         foco={{
           label: "Perspectivas do BSC",

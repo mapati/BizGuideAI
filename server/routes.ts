@@ -6473,46 +6473,25 @@ ${tarefaIniciativas}${instrucaoAdicionalIni ? `\n\n## INSTRUÇÕES ADICIONAIS DO
     try {
       const empresaId = req.session.empresaId!;
       const { perspectiva: perspectivaSolicitada } = req.body;
-      // Aceita campos legados explícitos ou `origemId` genérico (vindo do <AIGenerationModal>).
-      // origemId pode apontar para uma Iniciativa (preferencial) ou para uma Estratégia — descobrimos por lookup.
-      let origemIniciativaId: string | undefined = req.body?.iniciativaId;
-      let origemEstrategiaId: string | undefined = req.body?.estrategiaId;
-      const origemIdGenericoObj: string | undefined = req.body?.origemId;
-      if (origemIdGenericoObj && !origemIniciativaId && !origemEstrategiaId) {
-        const iniMaybe = await storage.getIniciativa(origemIdGenericoObj);
-        if (iniMaybe && iniMaybe.empresaId === empresaId) {
-          origemIniciativaId = origemIdGenericoObj;
-        } else {
-          origemEstrategiaId = origemIdGenericoObj;
-        }
-      }
 
       const empresa = await storage.getEmpresa(empresaId);
       if (!empresa) {
         return res.status(404).json({ error: "Empresa não encontrada" });
       }
 
-      let origemContextObj: { tipo: "iniciativa" | "estrategia"; iniciativaId?: string; estrategiaId?: string; texto: string } | null = null;
-      if (origemIniciativaId) {
-        const ini = await storage.getIniciativa(origemIniciativaId);
-        if (!ini || ini.empresaId !== empresaId) {
-          return res.status(400).json({ error: "Iniciativa de origem inválida" });
-        }
-        origemContextObj = {
-          tipo: "iniciativa",
-          iniciativaId: ini.id,
-          texto: `Iniciativa: ${ini.titulo}\n${ini.descricao}`,
-        };
-      } else if (origemEstrategiaId) {
-        const e = await storage.getEstrategia(origemEstrategiaId);
-        if (!e || e.empresaId !== empresaId) {
-          return res.status(400).json({ error: "Estratégia de origem inválida" });
-        }
-        origemContextObj = {
-          tipo: "estrategia",
-          estrategiaId: e.id,
-          texto: `Estratégia [${e.tipo}] ${e.titulo}\n${e.descricao}`,
-        };
+      // ── Compat: chamadas legadas (ex.: tela de Iniciativas) podem passar uma origem
+      // explícita via iniciativaId/estrategiaId no body. Quando vier, forçamos todos os
+      // objetivos gerados a derivarem dessa origem (a IA não pode escolher outra).
+      const explicitIniciativaId: string | undefined = req.body?.iniciativaId;
+      const explicitEstrategiaId: string | undefined = req.body?.estrategiaId;
+      let forcedIniciativaId: string | null = null;
+      let forcedEstrategiaId: string | null = null;
+      if (explicitIniciativaId) {
+        const ini = await storage.getIniciativa(explicitIniciativaId);
+        if (ini && ini.empresaId === empresaId) forcedIniciativaId = ini.id;
+      } else if (explicitEstrategiaId) {
+        const e = await storage.getEstrategia(explicitEstrategiaId);
+        if (e && e.empresaId === empresaId) forcedEstrategiaId = e.id;
       }
 
       // ── Parâmetros de geração (validados pelo schema compartilhado) ────────
@@ -6524,6 +6503,7 @@ ${tarefaIniciativas}${instrucaoAdicionalIni ? `\n\n## INSTRUÇÕES ADICIONAIS DO
       const perspectivasFoco: string[] = (aiParamsObj.data.foco ?? [])
         .filter((p): p is string => typeof p === "string" && todasPerspectivasBSC.includes(p));
       const instrucaoAdicionalObj = (aiParamsObj.data.instrucaoAdicional ?? "").trim();
+      const quantidadePorPerspectivaObj = Math.min(5, Math.max(1, Number(aiParamsObj.data.quantidade ?? 1) || 1));
 
       // Fontes de contexto opcionais (usuário escolhe quais incluir)
       const fontesPermitidasObj = ["estrategias", "oportunidades", "iniciativas", "modeloNegocio"] as const;
@@ -6554,13 +6534,18 @@ ${tarefaIniciativas}${instrucaoAdicionalIni ? `\n\n## INSTRUÇÕES ADICIONAIS DO
         (a, b) => (ordemPotencial[a.potencial?.toLowerCase()] ?? 9) - (ordemPotencial[b.potencial?.toLowerCase()] ?? 9)
       );
 
-      const estrategiasResume = estrategiasLista.map(e => `${e.tipo}: ${e.titulo} - ${e.descricao}`).join("\n");
+      const estrategiasResume = estrategiasLista
+        .map(e => `- id=${e.id} | [${e.tipo}] ${e.titulo} - ${e.descricao}`)
+        .join("\n");
       const oportunidadesResume = oportunidadesOrdenadas
         .map(o => `[${(o.potencial || "?").toUpperCase()}] ${o.tipo}: ${o.titulo} - ${o.descricao}`)
         .join("\n");
       const iniciativasResume = iniciativasOrdenadas
-        .map(i => `[${(i.prioridade || "?").toUpperCase()}/Impacto ${(i.impacto || "?").toUpperCase()}] ${i.titulo}`)
+        .map(i => `- id=${i.id} | [${(i.prioridade || "?").toUpperCase()}/Impacto ${(i.impacto || "?").toUpperCase()}] ${i.titulo}`)
         .join("\n");
+
+      const iniciativasIdsValidos = new Set(iniciativasOrdenadas.map(i => i.id));
+      const estrategiasIdsValidos = new Set(estrategiasLista.map(e => e.id));
 
       const blocosObjetivos = ["proposta_valor", "segmentos_clientes", "atividades_principais"];
       const bmcObjetivosCtx = modeloNegocio
@@ -6608,9 +6593,14 @@ REGRA ABSOLUTA: Todo objetivo que você criar DEVE pertencer exclusivamente à p
 
 REGRA DE DUPLICAÇÃO: Nunca repita objetivos já existentes listados pelo usuário.
 
-REGRA DE QUANTIDADE: Você decide quantos objetivos criar (entre 1 e 3) com base em quão rico o contexto é para esta perspectiva. Se o contexto desta perspectiva for raso ou já estiver bem coberto pelos objetivos existentes, prefira criar menos objetivos (até zero) em vez de inventar repetições.
+REGRA DE QUANTIDADE: Você DEVE retornar EXATAMENTE ${quantidadePorPerspectivaObj} objetivo(s) para esta perspectiva — nem mais, nem menos. Mesmo que o contexto pareça repetitivo, você deve produzir exatamente essa quantidade variando ângulos (escopo geográfico, segmento, horizonte temporal, foco quantitativo vs qualitativo, etc.) sem repetir títulos.
 
-REGRA DE PRIORIZAÇÃO: As iniciativas estão listadas em ordem decrescente de prioridade ([ALTA] vem antes de [MÉDIA] e [BAIXA]) e as oportunidades em ordem decrescente de potencial ([ALTO] antes de [MÉDIO]/[BAIXO]). Foque os objetivos nas iniciativas/oportunidades de maior peso quando elas se encaixarem nesta perspectiva.`
+REGRA DE PRIORIZAÇÃO: As iniciativas estão listadas em ordem decrescente de prioridade ([ALTA] vem antes de [MÉDIA] e [BAIXA]) e as oportunidades em ordem decrescente de potencial ([ALTO] antes de [MÉDIO]/[BAIXO]). Os objetivos que você criar DEVEM, prioritariamente, derivar das iniciativas/oportunidades de maior peso que se encaixem nesta perspectiva.
+
+REGRA DE ORIGEM (cascata estratégica): Para cada objetivo gerado você DEVE escolher automaticamente uma origem entre as iniciativas e estratégias listadas, preenchendo UM dos campos:
+- "iniciativaId": copie EXATAMENTE o id (após "id=") de UMA iniciativa da lista (preferencial — escolha a iniciativa de maior prioridade que melhor justifica o objetivo).
+- "estrategiaId": só use se NENHUMA iniciativa fizer sentido para o objetivo; copie EXATAMENTE o id (após "id=") de UMA estratégia da lista.
+NUNCA invente ids. NUNCA preencha os dois campos. Só deixe ambos vazios se realmente não houver iniciativa nem estratégia listada.`
             },
             {
               role: "user",
@@ -6618,29 +6608,24 @@ REGRA DE PRIORIZAÇÃO: As iniciativas estão listadas em ordem decrescente de p
 ${contextoPerfil}
 
 ## CONTEXTO ESTRATÉGICO (ordenado por importância):
-${estrategiasLista.length > 0 ? `Estratégias:\n${estrategiasResume}` : ""}
+${estrategiasLista.length > 0 ? `Estratégias (use o id após "id=" para preencher estrategiaId):\n${estrategiasResume}` : ""}
 ${oportunidadesOrdenadas.length > 0 ? `\nFrentes de crescimento (ordenadas por POTENCIAL):\n${oportunidadesResume}` : ""}
-${iniciativasOrdenadas.length > 0 ? `\nIniciativas (ordenadas por PRIORIDADE/IMPACTO):\n${iniciativasResume}` : ""}
+${iniciativasOrdenadas.length > 0 ? `\nIniciativas (ordenadas por PRIORIDADE/IMPACTO — use o id após "id=" para preencher iniciativaId):\n${iniciativasResume}` : ""}
 ${bmcObjetivosCtx ? `\nModelo de Negócio (Business Model Canvas):\n${bmcObjetivosCtx}` : ""}
-${origemContextObj ? `\n## ORIGEM PRIMÁRIA (o objetivo deve derivar diretamente desta ${origemContextObj.tipo}):\n${origemContextObj.texto}\n` : ""}
 
 ## OBJETIVOS JÁ EXISTENTES NA PERSPECTIVA "${perspectiva}" (NÃO REPITA):
 ${objetivosDestaPerspectiva.length > 0 ? objetivosResume : "Nenhum ainda"}
 
 ## TAREFA:
-Crie de 1 a 3 objetivos estratégicos para a perspectiva "${perspectiva}" desta empresa.
-
-Você decide quantos:
-- Crie mais objetivos quando há várias iniciativas de ALTA prioridade ou oportunidades de ALTO potencial relevantes para esta perspectiva.
-- Crie menos (ou nenhum) quando o contexto for raso ou os objetivos existentes já cobrirem bem a perspectiva.
-- O resultado deve ajudar a montar um BSC equilibrado entre as 4 perspectivas, sem inflar artificialmente uma delas.
+Crie EXATAMENTE ${quantidadePorPerspectivaObj} objetivo(s) estratégico(s) para a perspectiva "${perspectiva}" desta empresa.
 
 Cada objetivo deve:
 - ser qualitativo e aspiracional (sem números no título)
 - refletir claramente a perspectiva "${perspectiva}"
 - ser relevante para o setor e contexto desta empresa
-- estar ancorado nas iniciativas/oportunidades de maior peso quando aplicável
+- estar ancorado nas iniciativas/oportunidades de maior peso
 - ser diferente dos já existentes e diferente entre si
+- vir acompanhado da origem (iniciativaId OU estrategiaId) escolhida automaticamente por você a partir das listas acima
 
 Responda em JSON:
 {
@@ -6649,7 +6634,9 @@ Responda em JSON:
       "titulo": "...",
       "descricao": "...",
       "prazo": "Anual 2025",
-      "perspectiva": "${perspectiva}"
+      "perspectiva": "${perspectiva}",
+      "iniciativaId": "id-copiado-da-lista-ou-vazio",
+      "estrategiaId": "id-copiado-da-lista-ou-vazio"
     }
   ]
 }${instrucaoAdicionalObj ? `\n\n## INSTRUÇÕES ADICIONAIS DO USUÁRIO:\n${instrucaoAdicionalObj}` : ""}`
@@ -6660,16 +6647,52 @@ Responda em JSON:
         });
 
         const result = JSON.parse(completion.choices[0].message.content || "{}");
+
+        // Fallback de origem: se a IA não escolheu nenhuma, atribui a iniciativa de maior prioridade.
+        const fallbackIniciativaId = iniciativasOrdenadas[0]?.id;
+        const fallbackEstrategiaId = estrategiasLista[0]?.id;
+
+        const sanitize = (o: { titulo: string; descricao?: string; prazo?: string; perspectiva?: string; iniciativaId?: unknown; estrategiaId?: unknown }) => {
+          let iniciativaId: string | null;
+          let estrategiaId: string | null;
+          if (forcedIniciativaId || forcedEstrategiaId) {
+            // Origem fixa pela chamada (ex.: "Gerar objetivos a partir desta iniciativa").
+            iniciativaId = forcedIniciativaId;
+            estrategiaId = forcedEstrategiaId;
+          } else {
+            const iniRaw = typeof o.iniciativaId === "string" ? o.iniciativaId.trim() : "";
+            const estRaw = typeof o.estrategiaId === "string" ? o.estrategiaId.trim() : "";
+            iniciativaId = iniRaw && iniciativasIdsValidos.has(iniRaw) ? iniRaw : null;
+            estrategiaId = estRaw && estrategiasIdsValidos.has(estRaw) ? estRaw : null;
+            // Garante apenas uma origem (iniciativa tem precedência).
+            if (iniciativaId) estrategiaId = null;
+            // Fallback: se a IA não escolheu nada utilizável, anexa a iniciativa de maior
+            // prioridade, ou na ausência delas, a primeira estratégia disponível.
+            if (!iniciativaId && !estrategiaId) {
+              if (fallbackIniciativaId) iniciativaId = fallbackIniciativaId;
+              else if (fallbackEstrategiaId) estrategiaId = fallbackEstrategiaId;
+            }
+          }
+          return {
+            titulo: o.titulo,
+            descricao: o.descricao,
+            prazo: o.prazo,
+            perspectiva: o.perspectiva || perspectiva,
+            iniciativaId,
+            estrategiaId,
+          };
+        };
+
         // Compat: aceita {objetivo:{...}} antigo ou {objetivos:[...]} novo
         if (Array.isArray(result.objetivos)) {
           return result.objetivos
-            .filter((o: unknown): o is { titulo: string; perspectiva?: string } => {
+            .filter((o: unknown): o is { titulo: string } => {
               return !!o && typeof o === "object" && typeof (o as { titulo?: unknown }).titulo === "string";
             })
-            .map((o: { titulo: string; perspectiva?: string }) => ({ ...o, perspectiva: o.perspectiva || perspectiva }));
+            .map(sanitize);
         }
         if (result.objetivo && result.objetivo.titulo) {
-          return [{ ...result.objetivo, perspectiva: result.objetivo.perspectiva || perspectiva }];
+          return [sanitize(result.objetivo)];
         }
         return [];
       };
@@ -6689,7 +6712,7 @@ Responda em JSON:
       const resultadosPorPersp = await Promise.all(
         perspectivasParaGerar.map(p => gerarParaPerspectiva(p))
       );
-      let objetivosGerados = resultadosPorPersp
+      const objetivosGerados = resultadosPorPersp
         .flat()
         .filter(obj => {
           const titulo = obj.titulo?.toLowerCase().trim();
@@ -6697,14 +6720,6 @@ Responda em JSON:
           seenTitles.add(titulo);
           return true;
         });
-
-      if (origemContextObj) {
-        objetivosGerados = objetivosGerados.map(o => ({
-          ...o,
-          ...(origemContextObj!.iniciativaId ? { iniciativaId: origemContextObj!.iniciativaId } : {}),
-          ...(origemContextObj!.estrategiaId ? { estrategiaId: origemContextObj!.estrategiaId } : {}),
-        }));
-      }
 
       res.json({ objetivos: objetivosGerados });
     } catch (error: any) {

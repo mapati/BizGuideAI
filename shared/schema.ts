@@ -825,3 +825,107 @@ export const aiGenerationParamsSchema = z.object({
 });
 export type AIGenerationParams = z.infer<typeof aiGenerationParamsSchema>;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Task #233 — Rituais de gestão (pautas, atas, decisões, revisões agendadas)
+// O assistente passa de reativo a participante ativo dos rituais semanais/
+// mensais/trimestrais. Cada artefato é persistido para consulta posterior.
+// ─────────────────────────────────────────────────────────────────────────────
+export const tipoRitoEnum = z.enum(["semanal", "mensal", "trimestral"]);
+export type TipoRito = z.infer<typeof tipoRitoEnum>;
+
+export const reuniaoPautas = pgTable("reuniao_pautas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  empresaId: varchar("empresa_id").notNull().references(() => empresas.id, { onDelete: "cascade" }),
+  tipo: text("tipo").notNull(),
+  geradaEm: timestamp("gerada_em").defaultNow().notNull(),
+  dataAlvo: text("data_alvo").notNull(),
+  conteudo: jsonb("conteudo").notNull(),
+  ataId: varchar("ata_id"),
+});
+export const insertReuniaoPautaSchema = createInsertSchema(reuniaoPautas).omit({ id: true, geradaEm: true });
+export type InsertReuniaoPauta = z.infer<typeof insertReuniaoPautaSchema>;
+export type ReuniaoPauta = typeof reuniaoPautas.$inferSelect;
+
+export const reuniaoAtas = pgTable("reuniao_atas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  empresaId: varchar("empresa_id").notNull().references(() => empresas.id, { onDelete: "cascade" }),
+  pautaId: varchar("pauta_id").references(() => reuniaoPautas.id, { onDelete: "set null" }),
+  registradaEm: timestamp("registrada_em").defaultNow().notNull(),
+  decisoes: jsonb("decisoes").notNull().default(sql`'[]'::jsonb`),
+  encaminhamentos: jsonb("encaminhamentos").notNull().default(sql`'[]'::jsonb`),
+});
+export const insertReuniaoAtaSchema = createInsertSchema(reuniaoAtas).omit({ id: true, registradaEm: true });
+export type InsertReuniaoAta = z.infer<typeof insertReuniaoAtaSchema>;
+export type ReuniaoAta = typeof reuniaoAtas.$inferSelect;
+
+export const decisoesEstrategicas = pgTable("decisoes_estrategicas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  empresaId: varchar("empresa_id").notNull().references(() => empresas.id, { onDelete: "cascade" }),
+  titulo: text("titulo").notNull(),
+  contexto: text("contexto").notNull().default(""),
+  alternativas: jsonb("alternativas").notNull().default(sql`'[]'::jsonb`),
+  escolha: text("escolha").notNull(),
+  justificativa: text("justificativa").notNull().default(""),
+  registradaEm: timestamp("registrada_em").defaultNow().notNull(),
+  registradaPorUsuarioId: varchar("registrada_por_usuario_id").references(() => usuarios.id, { onDelete: "set null" }),
+  ataId: varchar("ata_id").references(() => reuniaoAtas.id, { onDelete: "set null" }),
+});
+export const insertDecisaoEstrategicaSchema = createInsertSchema(decisoesEstrategicas).omit({ id: true, registradaEm: true });
+export type InsertDecisaoEstrategica = z.infer<typeof insertDecisaoEstrategicaSchema>;
+export type DecisaoEstrategica = typeof decisoesEstrategicas.$inferSelect;
+
+export const revisoesAgendadas = pgTable("revisoes_agendadas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  empresaId: varchar("empresa_id").notNull().references(() => empresas.id, { onDelete: "cascade" }),
+  escopo: text("escopo").notNull(),
+  escopoId: varchar("escopo_id"),
+  dataAlvo: text("data_alvo").notNull(),
+  foco: text("foco").notNull().default(""),
+  status: text("status").notNull().default("pendente"),
+  criadaEm: timestamp("criada_em").defaultNow().notNull(),
+  concluidaEm: timestamp("concluida_em"),
+});
+export const insertRevisaoAgendadaSchema = createInsertSchema(revisoesAgendadas).omit({ id: true, criadaEm: true, concluidaEm: true });
+export type InsertRevisaoAgendada = z.infer<typeof insertRevisaoAgendadaSchema>;
+export type RevisaoAgendada = typeof revisoesAgendadas.$inferSelect;
+
+export const revisaoStatusEnum = z.enum(["pendente", "concluida", "cancelada"]);
+export type RevisaoStatus = z.infer<typeof revisaoStatusEnum>;
+
+// Conteúdo estruturado da pauta (JSONB) — usado pelo helper montarConteudoPauta.
+export const conteudoPautaSchema = z.object({
+  resumo: z.string().default(""),
+  kpisCriticos: z.array(z.object({
+    id: z.string(),
+    nome: z.string(),
+    atual: z.string(),
+    meta: z.string(),
+    status: z.string(),
+  })).default([]),
+  krsProximosPrazo: z.array(z.object({
+    id: z.string(),
+    metrica: z.string(),
+    objetivo: z.string(),
+    pctAtingido: z.number().nullable(),
+    prazo: z.string(),
+  })).default([]),
+  iniciativasARevisar: z.array(z.object({
+    id: z.string(),
+    titulo: z.string(),
+    status: z.string(),
+    prazo: z.string(),
+    diasEmAtraso: z.number().nullable(),
+  })).default([]),
+  decisoesPendentes: z.array(z.object({
+    tipo: z.string(),
+    descricao: z.string(),
+    referenciaId: z.string().optional(),
+  })).default([]),
+  lacunasDoScore: z.array(z.object({
+    titulo: z.string(),
+    severidade: z.string(),
+    rota: z.string(),
+  })).default([]),
+});
+export type ConteudoPauta = z.infer<typeof conteudoPautaSchema>;
+

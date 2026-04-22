@@ -111,6 +111,18 @@ import {
   assistenteMemoria,
   type AssistenteMemoria,
   type InsertAssistenteMemoria,
+  reuniaoPautas,
+  type ReuniaoPauta,
+  type InsertReuniaoPauta,
+  reuniaoAtas,
+  type ReuniaoAta,
+  type InsertReuniaoAta,
+  decisoesEstrategicas,
+  type DecisaoEstrategica,
+  type InsertDecisaoEstrategica,
+  revisoesAgendadas,
+  type RevisaoAgendada,
+  type InsertRevisaoAgendada,
 } from "@shared/schema";
 import { eq, ne, and, or, desc, inArray, sql, lt, isNull } from "drizzle-orm";
 
@@ -337,6 +349,21 @@ export interface IStorage {
   getMemoriaById(id: string, empresaId: string): Promise<AssistenteMemoria | undefined>;
   setMemoriaAtivo(id: string, empresaId: string, ativo: boolean): Promise<AssistenteMemoria | undefined>;
   getMensagemById(id: string): Promise<AssistenteMensagem | undefined>;
+
+  // Task #233 — Rituais de gestão
+  createReuniaoPauta(data: InsertReuniaoPauta): Promise<ReuniaoPauta>;
+  getReuniaoPauta(id: string, empresaId: string): Promise<ReuniaoPauta | undefined>;
+  getReuniaoPautas(empresaId: string, limit?: number): Promise<ReuniaoPauta[]>;
+  setReuniaoPautaAta(pautaId: string, empresaId: string, ataId: string | null): Promise<void>;
+  createReuniaoAta(data: InsertReuniaoAta): Promise<ReuniaoAta>;
+  getReuniaoAta(id: string, empresaId: string): Promise<ReuniaoAta | undefined>;
+  getReuniaoAtas(empresaId: string, limit?: number): Promise<ReuniaoAta[]>;
+  createDecisaoEstrategica(data: InsertDecisaoEstrategica): Promise<DecisaoEstrategica>;
+  getDecisoesEstrategicas(empresaId: string, limit?: number): Promise<DecisaoEstrategica[]>;
+  createRevisaoAgendada(data: InsertRevisaoAgendada): Promise<RevisaoAgendada>;
+  getRevisoesAgendadas(empresaId: string, opts?: { status?: string; limit?: number }): Promise<RevisaoAgendada[]>;
+  getRevisoesPendentesAteData(empresaId: string, dataIso: string): Promise<RevisaoAgendada[]>;
+  updateRevisaoAgendada(id: string, empresaId: string, patch: Partial<InsertRevisaoAgendada> & { status?: string; concluidaEm?: Date | null }): Promise<RevisaoAgendada>;
 }
 
 export type ResetGrupo = "diagnostico" | "mapa" | "plano-acao" | "execucao" | "tudo";
@@ -1788,6 +1815,84 @@ export class DbStorage implements IStorage {
       .set({ ativo })
       .where(and(eq(assistenteMemoria.id, id), eq(assistenteMemoria.empresaId, empresaId)))
       .returning();
+    return row;
+  }
+
+  // ── Task #233 — Rituais de gestão ──────────────────────────────────
+  async createReuniaoPauta(data: InsertReuniaoPauta): Promise<ReuniaoPauta> {
+    const [row] = await db.insert(reuniaoPautas).values(data).returning();
+    return row;
+  }
+  async getReuniaoPauta(id: string, empresaId: string): Promise<ReuniaoPauta | undefined> {
+    const [row] = await db.select().from(reuniaoPautas)
+      .where(and(eq(reuniaoPautas.id, id), eq(reuniaoPautas.empresaId, empresaId))).limit(1);
+    return row;
+  }
+  async getReuniaoPautas(empresaId: string, limit = 50): Promise<ReuniaoPauta[]> {
+    return db.select().from(reuniaoPautas)
+      .where(eq(reuniaoPautas.empresaId, empresaId))
+      .orderBy(desc(reuniaoPautas.geradaEm))
+      .limit(limit);
+  }
+  async setReuniaoPautaAta(pautaId: string, empresaId: string, ataId: string | null): Promise<void> {
+    await db.update(reuniaoPautas).set({ ataId })
+      .where(and(eq(reuniaoPautas.id, pautaId), eq(reuniaoPautas.empresaId, empresaId)));
+  }
+  async createReuniaoAta(data: InsertReuniaoAta): Promise<ReuniaoAta> {
+    const [row] = await db.insert(reuniaoAtas).values(data).returning();
+    return row;
+  }
+  async getReuniaoAta(id: string, empresaId: string): Promise<ReuniaoAta | undefined> {
+    const [row] = await db.select().from(reuniaoAtas)
+      .where(and(eq(reuniaoAtas.id, id), eq(reuniaoAtas.empresaId, empresaId))).limit(1);
+    return row;
+  }
+  async getReuniaoAtas(empresaId: string, limit = 50): Promise<ReuniaoAta[]> {
+    return db.select().from(reuniaoAtas)
+      .where(eq(reuniaoAtas.empresaId, empresaId))
+      .orderBy(desc(reuniaoAtas.registradaEm))
+      .limit(limit);
+  }
+  async createDecisaoEstrategica(data: InsertDecisaoEstrategica): Promise<DecisaoEstrategica> {
+    const [row] = await db.insert(decisoesEstrategicas).values(data).returning();
+    return row;
+  }
+  async getDecisoesEstrategicas(empresaId: string, limit = 100): Promise<DecisaoEstrategica[]> {
+    return db.select().from(decisoesEstrategicas)
+      .where(eq(decisoesEstrategicas.empresaId, empresaId))
+      .orderBy(desc(decisoesEstrategicas.registradaEm))
+      .limit(limit);
+  }
+  async createRevisaoAgendada(data: InsertRevisaoAgendada): Promise<RevisaoAgendada> {
+    const [row] = await db.insert(revisoesAgendadas).values(data).returning();
+    return row;
+  }
+  async getRevisoesAgendadas(empresaId: string, opts: { status?: string; limit?: number } = {}): Promise<RevisaoAgendada[]> {
+    const where = opts.status
+      ? and(eq(revisoesAgendadas.empresaId, empresaId), eq(revisoesAgendadas.status, opts.status))
+      : eq(revisoesAgendadas.empresaId, empresaId);
+    return db.select().from(revisoesAgendadas).where(where)
+      .orderBy(desc(revisoesAgendadas.dataAlvo))
+      .limit(opts.limit ?? 100);
+  }
+  async getRevisoesPendentesAteData(empresaId: string, dataIso: string): Promise<RevisaoAgendada[]> {
+    return db.select().from(revisoesAgendadas)
+      .where(and(
+        eq(revisoesAgendadas.empresaId, empresaId),
+        eq(revisoesAgendadas.status, "pendente"),
+        sql`${revisoesAgendadas.dataAlvo} <= ${dataIso}`,
+      ))
+      .orderBy(revisoesAgendadas.dataAlvo);
+  }
+  async updateRevisaoAgendada(
+    id: string,
+    empresaId: string,
+    patch: Partial<InsertRevisaoAgendada> & { status?: string; concluidaEm?: Date | null },
+  ): Promise<RevisaoAgendada> {
+    const [row] = await db.update(revisoesAgendadas).set(omitTenantFields(patch as Record<string, unknown>) as any)
+      .where(and(eq(revisoesAgendadas.id, id), eq(revisoesAgendadas.empresaId, empresaId)))
+      .returning();
+    if (!row) throw new Error("Revisão não encontrada ou acesso negado");
     return row;
   }
 }

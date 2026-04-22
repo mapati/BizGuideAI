@@ -4206,6 +4206,7 @@ RISCOS:
 FERRAMENTAS DISPONÍVEIS:
 - Executoras: criar_iniciativa, atualizar_iniciativa, encerrar_iniciativa, vincular_iniciativa_a_kpi, dividir_iniciativa, criar_okr, atualizar_okr, adicionar_kr_a_okr, atualizar_kr, atualizar_progresso_kr, vincular_kr_a_indicador, criar_indicador, atualizar_valor_indicador, criar_risco, atualizar_risco, registrar_mitigacao, abrir_entidade, navegar_para.
 - Memória manual: registrar_fato_manualmente (quando o usuário pedir explicitamente para lembrar/anotar algo), esquecer_fato (quando ele pedir para esquecer/desativar um fato listado no bloco de memória).
+- Rituais de gestão (Task #233): gerar_pauta_reuniao (use quando o usuário pedir a pauta da reunião semanal/mensal/trimestral), registrar_ata (use após a reunião — passe decisões e encaminhamentos; cada encaminhamento vira uma proposta HITL separada que o usuário ainda confirmará), registrar_decisao (use quando o usuário ditar uma decisão estratégica isolada com título/contexto/escolha/justificativa), agendar_revisao (use quando o usuário pedir para "revisar X em N semanas/meses" ou marcar um check-in futuro de iniciativa/OKR/KPI/estratégia/plano).
 - Planos agênticos (loop multi-passo): criar_plano_agentico (quando o objetivo do usuário exigir 2+ ações encadeadas), concluir_plano_agentico (quando os passos foram cumpridos), cancelar_plano_agentico (quando o usuário desistir).
 - Análise read-only (executam direto, NÃO viram proposta): use "analisar_indicador" quando o usuário perguntar sobre UM KPI específico ("e o NPS?", "como está o churn?") — você recebe série, tendência, vínculos. Use "projetar_kr" quando ele pedir projeção/se a meta vai bater. Use "simular_impacto" ANTES de recomendar adiar/cancelar uma iniciativa, para mostrar quais KPIs/OKRs ficam órfãos. Use "comparar_periodos" para retrospectivas ("este trimestre vs anterior").
 - Após receber o payload de uma análise read-only, narre os achados em texto (cite IDs/nomes que vieram no payload) — só DEPOIS chame uma tool executora HITL se o usuário aprovar uma ação concreta.
@@ -7774,6 +7775,58 @@ Responda APENAS com JSON: { "respostaEstrategica": "..." }`,
   app.delete("/api/riscos/:id", requireAuth, async (req, res) => {
     await storage.deleteRisco(req.params.id, req.session.empresaId!);
     res.json({ ok: true });
+  });
+
+  // ── Task #233 — Rituais de gestão (pautas, atas, decisões, revisões) ─────
+  app.get("/api/ritos/pautas", requireAuth, async (req, res) => {
+    try {
+      res.json(await storage.getReuniaoPautas(req.session.empresaId!));
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.get("/api/ritos/pautas/:id", requireAuth, async (req, res) => {
+    try {
+      const p = await storage.getReuniaoPauta(req.params.id, req.session.empresaId!);
+      if (!p) return res.status(404).json({ error: "Pauta não encontrada" });
+      res.json(p);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.get("/api/ritos/atas", requireAuth, async (req, res) => {
+    try {
+      res.json(await storage.getReuniaoAtas(req.session.empresaId!));
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.get("/api/ritos/atas/:id", requireAuth, async (req, res) => {
+    try {
+      const a = await storage.getReuniaoAta(req.params.id, req.session.empresaId!);
+      if (!a) return res.status(404).json({ error: "Ata não encontrada" });
+      res.json(a);
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.get("/api/ritos/decisoes", requireAuth, async (req, res) => {
+    try {
+      res.json(await storage.getDecisoesEstrategicas(req.session.empresaId!));
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.get("/api/ritos/revisoes", requireAuth, async (req, res) => {
+    try {
+      const status = typeof req.query.status === "string" ? req.query.status : undefined;
+      res.json(await storage.getRevisoesAgendadas(req.session.empresaId!, { status }));
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+  app.patch("/api/ritos/revisoes/:id", requireAuth, async (req, res) => {
+    try {
+      const patchSchema = z.object({
+        status: z.enum(["pendente", "concluida", "cancelada"]).optional(),
+        foco: z.string().max(500).optional(),
+        dataAlvo: z.string().min(8).max(32).optional(),
+      });
+      const parsed = patchSchema.parse(req.body);
+      const patch: any = { ...parsed };
+      if (parsed.status === "concluida") patch.concluidaEm = new Date();
+      if (parsed.status === "pendente") patch.concluidaEm = null;
+      const row = await storage.updateRevisaoAgendada(req.params.id, req.session.empresaId!, patch);
+      res.json(row);
+    } catch (e: any) { res.status(400).json({ error: e.message }); }
   });
   app.post("/api/ai/gerar-riscos", requireAuth, async (req, res) => {
     try {

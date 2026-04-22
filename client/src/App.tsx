@@ -26,6 +26,7 @@ import BSC from "@/pages/BSC";
 import Indicadores from "@/pages/Indicadores";
 import DiagnosticoAtual from "@/pages/DiagnosticoAtual";
 import Acompanhamento from "@/pages/Acompanhamento";
+import Ritos from "@/pages/Ritos";
 import Rastreabilidade from "@/pages/Rastreabilidade";
 import Alertas from "@/pages/Alertas";
 import Cenarios from "@/pages/Cenarios";
@@ -252,6 +253,7 @@ function AppLayout() {
                 <Route path="/diagnostico" component={DiagnosticoAtual} />
                 <Route path="/indicadores" component={Indicadores} />
                 <Route path="/ritos" component={Acompanhamento} />
+                <Route path="/ritos/gestao" component={Ritos} />
                 <Route path="/rastreabilidade" component={Rastreabilidade} />
                 <Route path="/alertas" component={Alertas} />
                 <Route path="/cenarios" component={Cenarios} />

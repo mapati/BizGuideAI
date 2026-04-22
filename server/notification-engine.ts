@@ -107,6 +107,8 @@ export interface SinaisCriticos {
   iniciativasAtrasadas: IniciativaAtrasadaSinal[];
   okrsParados: Array<{ objetivoId: string; resultadoId: string; metrica: string; objetivo: string; diasParado: number }>;
   riscosAltosSemMitigacao: Array<{ id: string; descricao: string; categoria: string; score: number }>;
+  // Task #233 — revisões agendadas com data_alvo <= hoje (informativo, não conta no `total`).
+  revisoesPendentes?: Array<{ id: string; escopo: string; escopoId: string | null; dataAlvo: string; foco: string; diasAtraso: number }>;
   total: number;
 }
 
@@ -190,12 +192,35 @@ export async function detectarSinaisCriticos(empresaId: string): Promise<SinaisC
     .filter((r) => r.score >= 12 && r.semPlano)
     .map(({ id, descricao, categoria, score }) => ({ id, descricao, categoria, score }));
 
+  // Task #233 — revisões pendentes vencidas (informativo; não soma no `total`).
+  let revisoesPendentes: SinaisCriticos["revisoesPendentes"] = [];
+  try {
+    const hojeIso = new Date().toISOString().slice(0, 10);
+    const pendentes = await storage.getRevisoesPendentesAteData(empresaId, hojeIso);
+    revisoesPendentes = pendentes.map((r) => {
+      const dt = new Date(r.dataAlvo);
+      const ts = !isNaN(dt.getTime()) ? dt.getTime() : Date.now();
+      const diasAtraso = Math.max(0, Math.floor((Date.now() - ts) / DAY_MS));
+      return {
+        id: r.id,
+        escopo: r.escopo,
+        escopoId: r.escopoId ?? null,
+        dataAlvo: r.dataAlvo,
+        foco: r.foco ?? "",
+        diasAtraso,
+      };
+    });
+  } catch {
+    revisoesPendentes = [];
+  }
+
   return {
     kpisVermelhos,
     kpisAmarelos,
     iniciativasAtrasadas,
     okrsParados,
     riscosAltosSemMitigacao,
+    revisoesPendentes,
     // `total` continua contando só Vermelhos para preservar o threshold de
     // disparo do briefing/notificações (Amarelo é enriquecimento, não gatilho).
     total: kpisVermelhos.length + iniciativasAtrasadas.length + okrsParados.length + riscosAltosSemMitigacao.length,

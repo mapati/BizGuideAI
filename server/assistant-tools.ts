@@ -6,13 +6,15 @@
 
 import { z } from "zod/v4";
 import { storage, PlanoAtivoJaExisteError } from "./storage";
-import type { PropostaPreview } from "@shared/schema";
+import type { PropostaPreview, ConteudoPauta } from "@shared/schema";
+import { tipoRitoEnum } from "@shared/schema";
 import {
   getKpiTendencia,
   getRelacoesIndicador,
   projetarValorKr,
   contarAtualizacoesKr,
   comparePeriodos,
+  montarConteudoPauta,
   type EscopoComparacao,
   type PeriodoIso,
 } from "./plan-insights";
@@ -41,7 +43,11 @@ export type ToolName =
   | "concluir_plano_agentico"
   | "cancelar_plano_agentico"
   | "registrar_fato_manualmente"
-  | "esquecer_fato";
+  | "esquecer_fato"
+  | "gerar_pauta_reuniao"
+  | "registrar_ata"
+  | "registrar_decisao"
+  | "agendar_revisao";
 
 export interface ToolApplyContext {
   empresaId: string;
@@ -57,7 +63,11 @@ export type EntidadeTipo =
   | "navegacao"
   | "risco"
   | "oportunidade_crescimento"
-  | "estrategia";
+  | "estrategia"
+  | "reuniao_pauta"
+  | "reuniao_ata"
+  | "decisao_estrategica"
+  | "revisao_agendada";
 
 export interface ToolApplyResult {
   resumo: string;
@@ -83,7 +93,7 @@ export interface ToolDefinition<TParams> {
 const ROTAS_VALIDAS = [
   "/iniciativas", "/okrs", "/estrategias", "/riscos", "/indicadores",
   "/oportunidades-crescimento", "/meu-painel", "/dashboard", "/swot",
-  "/pestel", "/cinco-forcas", "/bmc", "/ritos", "/bsc", "/mapa-bsc",
+  "/pestel", "/cinco-forcas", "/bmc", "/ritos", "/ritos/gestao", "/bsc", "/mapa-bsc",
   "/cenarios", "/alertas", "/diagnostico", "/rastreabilidade",
 ] as const;
 
@@ -2507,6 +2517,307 @@ const registrarMitigacao: ToolDefinition<RegistrarMitigacaoParams> = {
 };
 
 // ---------- Registry ----------
+// ---------- Task #233 — Tools de rituais de gestão ----------
+const gerarPautaSchema = z.object({
+  tipo: tipoRitoEnum,
+  dataAlvo: z.string().min(8).max(32),
+  notaDoUsuario: z.string().max(500).optional(),
+});
+type GerarPautaParams = z.infer<typeof gerarPautaSchema>;
+const gerarPautaReuniao: ToolDefinition<GerarPautaParams> = {
+  name: "gerar_pauta_reuniao",
+  description:
+    "Gera (e persiste) a pauta de uma reunião de gestão (semanal/mensal/trimestral) com KPIs críticos, KRs próximos do prazo, iniciativas a revisar e decisões pendentes — pronta para guiar o ritual.",
+  paramsSchema: gerarPautaSchema,
+  jsonSchema: {
+    type: "object",
+    properties: {
+      tipo: { type: "string", enum: ["semanal", "mensal", "trimestral"], description: "Tipo do rito de gestão." },
+      dataAlvo: { type: "string", description: "Data da reunião no formato YYYY-MM-DD." },
+      notaDoUsuario: { type: "string", description: "Nota livre do usuário sobre o foco da reunião (opcional)." },
+    },
+    required: ["tipo", "dataAlvo"],
+    additionalProperties: false,
+  },
+  preview: (p) => ({
+    titulo: `Gerar pauta da reunião ${p.tipo}`,
+    descricao: `Monta a pauta da reunião ${p.tipo} para ${p.dataAlvo} com KPIs críticos, KRs no prazo e iniciativas a revisar.${p.notaDoUsuario ? ` Foco: ${p.notaDoUsuario}` : ""}`,
+    campos: [
+      { label: "Tipo", valor: p.tipo },
+      { label: "Data alvo", valor: p.dataAlvo },
+      ...(p.notaDoUsuario ? [{ label: "Foco", valor: p.notaDoUsuario }] : []),
+    ],
+    ctaConfirmar: "Gerar pauta",
+    ctaIgnorar: "Agora não",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const conteudoBase = await montarConteudoPauta(ctx.empresaId, p.tipo);
+    const conteudo: ConteudoPauta & { notaDoUsuario?: string } = p.notaDoUsuario
+      ? { ...conteudoBase, notaDoUsuario: p.notaDoUsuario }
+      : conteudoBase;
+    const pauta = await storage.createReuniaoPauta({
+      empresaId: ctx.empresaId,
+      tipo: p.tipo,
+      dataAlvo: p.dataAlvo,
+      conteudo,
+      ataId: null,
+    });
+    return {
+      resumo: `Pauta da reunião ${p.tipo} (${p.dataAlvo}) gerada — ${conteudoBase.kpisCriticos.length} KPI(s) críticos e ${conteudoBase.iniciativasARevisar.length} iniciativa(s) em foco.`,
+      dados: { pautaId: pauta.id, conteudo },
+      rota: `/ritos/gestao?aba=pautas&id=${pauta.id}`,
+      entidadeTipo: "reuniao_pauta",
+      entidadeId: pauta.id,
+    };
+  },
+  formRota: "/ritos/gestao?aba=pautas",
+};
+
+const encaminhamentoSchema = z.object({
+  tipo: z.enum([
+    "criar_iniciativa",
+    "atualizar_iniciativa",
+    "encerrar_iniciativa",
+    "criar_okr",
+    "atualizar_okr",
+    "adicionar_kr_a_okr",
+    "atualizar_kr",
+    "atualizar_progresso_kr",
+    "criar_indicador",
+    "atualizar_valor_indicador",
+    "agendar_revisao",
+  ]),
+  parametros: z.record(z.string(), z.unknown()),
+});
+const registrarAtaSchema = z.object({
+  pautaId: z.string().optional(),
+  resumo: z.string().min(3).max(2000),
+  decisoes: z.array(z.object({
+    titulo: z.string().min(3).max(300),
+    justificativa: z.string().max(1000).default(""),
+  })).default([]),
+  encaminhamentos: z.array(encaminhamentoSchema).default([]),
+});
+type RegistrarAtaParams = z.infer<typeof registrarAtaSchema>;
+const registrarAta: ToolDefinition<RegistrarAtaParams> = {
+  name: "registrar_ata",
+  description:
+    "Registra a ata de uma reunião de gestão: resumo, decisões tomadas e encaminhamentos. Cada encaminhamento vira uma proposta HITL separada (não executa nada às cegas).",
+  paramsSchema: registrarAtaSchema,
+  jsonSchema: {
+    type: "object",
+    properties: {
+      pautaId: { type: "string", description: "ID da pauta vinculada (opcional)." },
+      resumo: { type: "string", description: "Resumo curto da reunião." },
+      decisoes: {
+        type: "array",
+        description: "Decisões tomadas na reunião.",
+        items: {
+          type: "object",
+          properties: {
+            titulo: { type: "string" },
+            justificativa: { type: "string" },
+          },
+          required: ["titulo"],
+        },
+      },
+      encaminhamentos: {
+        type: "array",
+        description: "Encaminhamentos — cada um vira uma proposta HITL separada.",
+        items: {
+          type: "object",
+          properties: {
+            tipo: { type: "string", enum: ["criar_iniciativa", "atualizar_iniciativa", "encerrar_iniciativa", "criar_okr", "atualizar_okr", "adicionar_kr_a_okr", "atualizar_kr", "atualizar_progresso_kr", "criar_indicador", "atualizar_valor_indicador", "agendar_revisao"] },
+            parametros: { type: "object", description: "Parâmetros da tool a ser proposta — devem casar com o paramsSchema dela." },
+          },
+          required: ["tipo", "parametros"],
+        },
+      },
+    },
+    required: ["resumo"],
+    additionalProperties: false,
+  },
+  preview: (p) => ({
+    titulo: "Registrar ata da reunião",
+    descricao: `Persiste o resumo da reunião com ${(p.decisoes ?? []).length} decisão(ões) e ${(p.encaminhamentos ?? []).length} encaminhamento(s) — cada encaminhamento vira uma proposta separada para você confirmar.`,
+    campos: [
+      { label: "Resumo", valor: p.resumo.slice(0, 200) },
+      { label: "Decisões", valor: String((p.decisoes ?? []).length) },
+      { label: "Encaminhamentos", valor: String((p.encaminhamentos ?? []).length) },
+      ...(p.pautaId ? [{ label: "Pauta", valor: p.pautaId }] : []),
+    ],
+    ctaConfirmar: "Registrar ata",
+    ctaIgnorar: "Agora não",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const ata = await storage.createReuniaoAta({
+      empresaId: ctx.empresaId,
+      pautaId: p.pautaId ?? null,
+      decisoes: p.decisoes,
+      encaminhamentos: p.encaminhamentos,
+    });
+    if (p.pautaId) {
+      try { await storage.setReuniaoPautaAta(p.pautaId, ctx.empresaId, ata.id); } catch { /* ignorar */ }
+    }
+    // Cada encaminhamento vira uma proposta HITL separada (não executamos nada às cegas).
+    const propostasGeradas: Array<{ logId: string; tipo: string; ok: boolean; mensagem?: string }> = [];
+    for (const enc of p.encaminhamentos) {
+      try {
+        const r = await registrarProposta({
+          toolName: enc.tipo,
+          rawArgs: enc.parametros,
+          empresaId: ctx.empresaId,
+          usuarioId: ctx.usuarioId ?? null,
+          origem: "chat",
+        });
+        if (r.ok) propostasGeradas.push({ logId: r.logId, tipo: enc.tipo, ok: true });
+        else propostasGeradas.push({ logId: "", tipo: enc.tipo, ok: false, mensagem: r.mensagem });
+      } catch (e: any) {
+        propostasGeradas.push({ logId: "", tipo: enc.tipo, ok: false, mensagem: e?.message ?? String(e) });
+      }
+    }
+    const okCount = propostasGeradas.filter((x) => x.ok).length;
+    return {
+      resumo: `Ata registrada com ${p.decisoes.length} decisão(ões). ${okCount} de ${p.encaminhamentos.length} encaminhamento(s) foram propostos como cards para você confirmar.`,
+      dados: { ataId: ata.id, propostasGeradas },
+      rota: `/ritos/gestao?aba=atas&id=${ata.id}`,
+      entidadeTipo: "reuniao_ata",
+      entidadeId: ata.id,
+    };
+  },
+  formRota: "/ritos/gestao?aba=atas",
+};
+
+const registrarDecisaoSchema = z.object({
+  titulo: z.string().min(3).max(300),
+  contexto: z.string().max(2000).default(""),
+  alternativas: z.array(z.object({
+    descricao: z.string().min(1).max(500),
+    prosContras: z.string().max(500).default(""),
+  })).default([]),
+  escolha: z.string().min(1).max(500),
+  justificativa: z.string().max(2000).default(""),
+  ataId: z.string().optional(),
+});
+type RegistrarDecisaoParams = z.infer<typeof registrarDecisaoSchema>;
+const registrarDecisao: ToolDefinition<RegistrarDecisaoParams> = {
+  name: "registrar_decisao",
+  description:
+    "Registra uma decisão estratégica explícita (título, contexto, alternativas avaliadas, escolha e justificativa) no histórico de decisões da empresa.",
+  paramsSchema: registrarDecisaoSchema,
+  jsonSchema: {
+    type: "object",
+    properties: {
+      titulo: { type: "string" },
+      contexto: { type: "string" },
+      alternativas: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: { descricao: { type: "string" }, prosContras: { type: "string" } },
+          required: ["descricao"],
+        },
+      },
+      escolha: { type: "string" },
+      justificativa: { type: "string" },
+      ataId: { type: "string", description: "ID da ata vinculada (opcional)." },
+    },
+    required: ["titulo", "escolha"],
+    additionalProperties: false,
+  },
+  preview: (p) => ({
+    titulo: `Registrar decisão: ${p.titulo}`,
+    descricao: `Escolha: ${p.escolha}${p.justificativa ? ` — ${p.justificativa.slice(0, 160)}` : ""}`,
+    campos: [
+      { label: "Título", valor: p.titulo },
+      { label: "Escolha", valor: p.escolha },
+      ...((p.alternativas ?? []).length ? [{ label: "Alternativas", valor: String((p.alternativas ?? []).length) }] : []),
+      ...(p.justificativa ? [{ label: "Justificativa", valor: p.justificativa.slice(0, 200) }] : []),
+    ],
+    ctaConfirmar: "Registrar decisão",
+    ctaIgnorar: "Agora não",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const dec = await storage.createDecisaoEstrategica({
+      empresaId: ctx.empresaId,
+      titulo: p.titulo,
+      contexto: p.contexto,
+      alternativas: p.alternativas,
+      escolha: p.escolha,
+      justificativa: p.justificativa,
+      registradaPorUsuarioId: ctx.usuarioId ?? null,
+      ataId: p.ataId ?? null,
+    });
+    return {
+      resumo: `Decisão "${p.titulo}" registrada no histórico.`,
+      dados: { decisaoId: dec.id },
+      rota: `/ritos/gestao?aba=decisoes&id=${dec.id}`,
+      entidadeTipo: "decisao_estrategica",
+      entidadeId: dec.id,
+    };
+  },
+  formRota: "/ritos/gestao?aba=decisoes",
+};
+
+const agendarRevisaoSchema = z.object({
+  escopo: z.enum(["iniciativa", "okr", "kr", "indicador", "estrategia", "plano"]),
+  escopoId: z.string().optional(),
+  dataAlvo: z.string().min(8).max(32),
+  foco: z.string().max(500).default(""),
+});
+type AgendarRevisaoParams = z.infer<typeof agendarRevisaoSchema>;
+const agendarRevisao: ToolDefinition<AgendarRevisaoParams> = {
+  name: "agendar_revisao",
+  description:
+    "Agenda uma revisão futura de uma iniciativa, OKR, KR, indicador, estratégia ou do plano — vira um lembrete que aparece no briefing diário quando vencer.",
+  paramsSchema: agendarRevisaoSchema,
+  jsonSchema: {
+    type: "object",
+    properties: {
+      escopo: { type: "string", enum: ["iniciativa", "okr", "kr", "indicador", "estrategia", "plano"] },
+      escopoId: { type: "string", description: "ID do item a ser revisado (opcional para escopo 'plano')." },
+      dataAlvo: { type: "string", description: "Data da revisão no formato YYYY-MM-DD." },
+      foco: { type: "string", description: "O que precisa ser revisado / pergunta-guia (opcional)." },
+    },
+    required: ["escopo", "dataAlvo"],
+    additionalProperties: false,
+  },
+  preview: (p) => ({
+    titulo: `Agendar revisão de ${p.escopo}`,
+    descricao: `Cria lembrete para revisar ${p.escopo}${p.escopoId ? ` (id ${p.escopoId})` : ""} em ${p.dataAlvo}${p.foco ? ` — foco: ${p.foco}` : ""}.`,
+    campos: [
+      { label: "Escopo", valor: p.escopo },
+      { label: "Data alvo", valor: p.dataAlvo },
+      ...(p.escopoId ? [{ label: "Item", valor: p.escopoId }] : []),
+      ...(p.foco ? [{ label: "Foco", valor: p.foco }] : []),
+    ],
+    ctaConfirmar: "Agendar revisão",
+    ctaIgnorar: "Agora não",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const rev = await storage.createRevisaoAgendada({
+      empresaId: ctx.empresaId,
+      escopo: p.escopo,
+      escopoId: p.escopoId ?? null,
+      dataAlvo: p.dataAlvo,
+      foco: p.foco,
+      status: "pendente",
+    });
+    return {
+      resumo: `Revisão de ${p.escopo} agendada para ${p.dataAlvo}.`,
+      dados: { revisaoId: rev.id },
+      rota: `/ritos/gestao?aba=revisoes&id=${rev.id}`,
+      entidadeTipo: "revisao_agendada",
+      entidadeId: rev.id,
+    };
+  },
+  formRota: "/ritos/gestao?aba=revisoes",
+};
+
 // Cada ToolDefinition tem um TParams concreto; o registry, porém, precisa
 // guardar todos juntos. `wrap` faz o "sealing" para `unknown` em um único
 // ponto tipado, evitando `any` espalhado pelo módulo. A validação de runtime
@@ -2539,6 +2850,10 @@ export const TOOLS: Record<ToolName, ToolDefinition<unknown>> = {
   cancelar_plano_agentico: wrap(cancelarPlanoAgentico),
   registrar_fato_manualmente: wrap(registrarFatoManualmente),
   esquecer_fato: wrap(esquecerFato),
+  gerar_pauta_reuniao: wrap(gerarPautaReuniao),
+  registrar_ata: wrap(registrarAta),
+  registrar_decisao: wrap(registrarDecisao),
+  agendar_revisao: wrap(agendarRevisao),
 };
 
 // Tools que executam ações de negócio (passíveis de vínculo com plano).
@@ -2562,6 +2877,10 @@ const TOOLS_EXECUTORAS: ReadonlySet<ToolName> = new Set<ToolName>([
   "registrar_mitigacao",
   "navegar_para",
   "abrir_entidade",
+  "gerar_pauta_reuniao",
+  "registrar_ata",
+  "registrar_decisao",
+  "agendar_revisao",
 ]);
 
 export function isToolExecutora(name: string): boolean {

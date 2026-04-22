@@ -166,11 +166,23 @@ export function montarBriefingDeterministico(sinais: SinaisCriticos): BriefingCo
   else if (sinais.okrsParados[0]) tituloPrioridade = `OKR parado: ${sinais.okrsParados[0].metrica}`;
   else if (sinais.riscosAltosSemMitigacao[0]) tituloPrioridade = "Risco alto sem mitigação";
 
+  // Task #233 — revisões agendadas vencidas viram observação secundária.
+  const observacoes: string[] = [];
+  const revisoes = sinais.revisoesPendentes ?? [];
+  if (revisoes.length > 0) {
+    const top = revisoes[0];
+    if (revisoes.length === 1) {
+      observacoes.push(`Lembrete: revisão de ${top.escopo} agendada para ${top.dataAlvo}${top.foco ? ` (${top.foco.slice(0, 80)})` : ""}.`);
+    } else {
+      observacoes.push(`Lembrete: ${revisoes.length} revisão(ões) agendadas vencidas — a mais antiga é a de ${top.escopo} para ${top.dataAlvo}.`);
+    }
+  }
+
   return {
     corpo: partes.join("\n"),
     prioridade: { titulo: tituloPrioridade, tom },
     acoes: acoes.slice(0, 3),
-    observacoes: [],
+    observacoes,
   };
 }
 
@@ -358,6 +370,8 @@ REGRAS DE AÇÕES:
     iniciativasAtrasadas: sinais.iniciativasAtrasadas,
     okrsParados: sinais.okrsParados,
     riscosAltosSemMitigacao: sinais.riscosAltosSemMitigacao,
+    // Task #233 — revisões agendadas vencidas (lembretes; o assistente pode citar como observação secundária).
+    revisoesPendentes: sinais.revisoesPendentes ?? [],
     total: sinais.total,
   }, null, 2);
 

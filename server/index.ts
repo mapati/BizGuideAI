@@ -428,6 +428,63 @@ async function runStartupMigrations() {
     `);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_assistente_memoria_empresa_ativo ON assistente_memoria (empresa_id, ativo, criado_em DESC)`);
 
+    // Task #233 — Rituais de gestão (pautas, atas, decisões, revisões)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS reuniao_pautas (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        empresa_id VARCHAR NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+        tipo TEXT NOT NULL,
+        gerada_em TIMESTAMP NOT NULL DEFAULT NOW(),
+        data_alvo TEXT NOT NULL,
+        conteudo JSONB NOT NULL,
+        ata_id VARCHAR
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_reuniao_pautas_empresa_data ON reuniao_pautas (empresa_id, gerada_em DESC)`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS reuniao_atas (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        empresa_id VARCHAR NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+        pauta_id VARCHAR REFERENCES reuniao_pautas(id) ON DELETE SET NULL,
+        registrada_em TIMESTAMP NOT NULL DEFAULT NOW(),
+        decisoes JSONB NOT NULL DEFAULT '[]'::jsonb,
+        encaminhamentos JSONB NOT NULL DEFAULT '[]'::jsonb
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_reuniao_atas_empresa_data ON reuniao_atas (empresa_id, registrada_em DESC)`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS decisoes_estrategicas (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        empresa_id VARCHAR NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+        titulo TEXT NOT NULL,
+        contexto TEXT NOT NULL DEFAULT '',
+        alternativas JSONB NOT NULL DEFAULT '[]'::jsonb,
+        escolha TEXT NOT NULL,
+        justificativa TEXT NOT NULL DEFAULT '',
+        registrada_em TIMESTAMP NOT NULL DEFAULT NOW(),
+        registrada_por_usuario_id VARCHAR REFERENCES usuarios(id) ON DELETE SET NULL,
+        ata_id VARCHAR REFERENCES reuniao_atas(id) ON DELETE SET NULL
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_decisoes_estrategicas_empresa_data ON decisoes_estrategicas (empresa_id, registrada_em DESC)`);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS revisoes_agendadas (
+        id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+        empresa_id VARCHAR NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+        escopo TEXT NOT NULL,
+        escopo_id VARCHAR,
+        data_alvo TEXT NOT NULL,
+        foco TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'pendente',
+        criada_em TIMESTAMP NOT NULL DEFAULT NOW(),
+        concluida_em TIMESTAMP
+      )
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_revisoes_agendadas_empresa_status ON revisoes_agendadas (empresa_id, status, data_alvo)`);
+
     // Seed: ensure the platform admin from env vars exists and has the correct password
     const adminEmail = process.env.ADMIN_EMAIL;
     const adminSenha = process.env.ADMIN_SENHA;

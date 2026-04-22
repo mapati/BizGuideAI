@@ -8,7 +8,8 @@
 // indicador) para que ele consiga conectar os pontos sem inventar relações.
 
 import { storage } from "./storage";
-import type { Indicador, Iniciativa, ResultadoChave, Objetivo } from "@shared/schema";
+import type { Indicador, Iniciativa, ResultadoChave, Objetivo, ConteudoPauta } from "@shared/schema";
+import { computePlanQuality } from "./plan-quality";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -652,4 +653,130 @@ export async function comparePeriodos(
   if (escopo === "iniciativas" || escopo === "tudo") out.iniciativas = await compararIniciativas(empresaId, A, B);
   if (escopo === "okrs" || escopo === "tudo") out.okrs = await compararOkrs(empresaId, A, B);
   return { ok: true, resultado: out };
+}
+/* ------------------------------------------------------------------ */
+/* Task #233 — Conteúdo determinístico para a pauta de uma reunião    */
+/* Reaproveita as relações de KPI/KR/iniciativa para listar focos.    */
+/* ------------------------------------------------------------------ */
+
+export async function montarConteudoPauta(
+  empresaId: string,
+  tipo: "semanal" | "mensal" | "trimestral",
+): Promise<ConteudoPauta> {
+  const [indicadores, iniciativas, krsComObj, qualidade] = await Promise.all([
+    storage.getIndicadores(empresaId),
+    storage.getIniciativas(empresaId),
+    carregarKrsDaEmpresa(empresaId),
+    computePlanQuality(empresaId).catch(() => null),
+  ]);
+
+  const krs = krsComObj.map((x) => x.kr);
+
+  // KPIs críticos: status vermelho ou amarelo (top 5).
+  const kpisCriticos = indicadores
+    .filter((i) => {
+      const s = String(i.status ?? "").toLowerCase();
+      return s.includes("verm") || s.includes("amare") || s === "vermelho" || s === "amarelo";
+    })
+    .slice(0, 5)
+    .map((i) => ({
+      id: i.id,
+      nome: i.nome,
+      atual: i.atual != null ? String(i.atual) : "—",
+      meta: i.meta != null ? String(i.meta) : "—",
+      status: String(i.status ?? "—"),
+    }));
+
+  // KRs próximos do prazo / atrasados / com baixo % atingido.
+  const hoje = Date.now();
+  const krsProximosPrazo = krsComObj
+    .map(({ kr, objetivo }) => {
+      const va = kr.valorAtual != null ? Number(kr.valorAtual) : null;
+      const vt = kr.valorAlvo != null ? Number(kr.valorAlvo) : null;
+      const pct = va != null && vt != null && vt !== 0 ? va / vt : null;
+      return {
+        id: kr.id,
+        metrica: kr.metrica,
+        objetivo: objetivo.titulo,
+        pctAtingido: pct,
+        prazo: (kr as any).prazo ?? "",
+        prazoTs: (() => {
+          const p = (kr as any).prazo;
+          if (!p) return Number.POSITIVE_INFINITY;
+          const t = new Date(p).getTime();
+          return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
+        })(),
+      };
+    })
+    .filter((k) => (k.pctAtingido == null || k.pctAtingido < 0.9) && k.prazoTs < hoje + 90 * DAY_MS)
+    .sort((a, b) => a.prazoTs - b.prazoTs)
+    .slice(0, 5)
+    .map(({ prazoTs, ...rest }) => rest);
+
+  // Iniciativas em atraso ou com prazo curto.
+  const iniciativasARevisar = iniciativas
+    .map((i) => {
+      const dt = i.prazo ? new Date(i.prazo) : null;
+      const ts = dt && !isNaN(dt.getTime()) ? dt.getTime() : Number.POSITIVE_INFINITY;
+      const ativa = i.status !== "concluida" && i.status !== "pausada";
+      const diasEmAtraso = ativa && ts < hoje ? Math.floor((hoje - ts) / DAY_MS) : null;
+      return {
+        id: i.id,
+        titulo: i.titulo,
+        status: i.status,
+        prazo: i.prazo ?? "",
+        diasEmAtraso,
+        _ts: ts,
+        _ativa: ativa,
+      };
+    })
+    .filter((i) => i._ativa && (i.diasEmAtraso != null || i._ts < hoje + 30 * DAY_MS))
+    .sort((a, b) => (b.diasEmAtraso ?? -1) - (a.diasEmAtraso ?? -1))
+    .slice(0, 6)
+    .map(({ _ts, _ativa, ...rest }) => rest);
+
+  // Decisões pendentes: KRs sem indicador, iniciativas sem KPI/estratégia.
+  const decisoesPendentes: ConteudoPauta["decisoesPendentes"] = [];
+  if (tipo !== "semanal") {
+    krs.filter((k) => !k.indicadorFonteId).slice(0, 3).forEach((k) => {
+      decisoesPendentes.push({
+        tipo: "kr_sem_indicador",
+        descricao: `Definir indicador-fonte para a meta "${k.metrica}"`,
+        referenciaId: k.id,
+      });
+    });
+    iniciativas
+      .filter((i) => !i.indicadorFonteId && i.status !== "concluida" && i.status !== "pausada")
+      .slice(0, 3)
+      .forEach((i) => {
+        decisoesPendentes.push({
+          tipo: "iniciativa_sem_kpi",
+          descricao: `Vincular KPI à iniciativa "${i.titulo}"`,
+          referenciaId: i.id,
+        });
+      });
+  }
+
+  // Lacunas do plan-quality (top 3 críticas).
+  const lacunasDoScore = (qualidade?.lacunas ?? [])
+    .filter((l) => l.severidade === "alta")
+    .slice(0, 3)
+    .map((l) => ({ titulo: l.titulo, severidade: l.severidade, rota: l.rota }));
+
+  const horizonte = tipo === "semanal" ? "semana" : tipo === "mensal" ? "mês" : "trimestre";
+  const resumoPartes: string[] = [];
+  if (kpisCriticos.length) resumoPartes.push(`${kpisCriticos.length} KPI(s) críticos`);
+  if (iniciativasARevisar.length) resumoPartes.push(`${iniciativasARevisar.length} iniciativa(s) em revisão`);
+  if (krsProximosPrazo.length) resumoPartes.push(`${krsProximosPrazo.length} meta(s) com prazo curto`);
+  if (qualidade) resumoPartes.push(`score do plano: ${qualidade.score}`);
+  const resumo = `Pauta da ${tipo === "semanal" ? "reunião semanal" : tipo === "mensal" ? "revisão mensal" : "revisão trimestral"} — foco do ${horizonte}: ${resumoPartes.join(", ") || "sem alertas no momento"}.`;
+
+  return {
+    resumo,
+    kpisCriticos,
+    krsProximosPrazo,
+    iniciativasARevisar,
+    decisoesPendentes,
+    lacunasDoScore,
+  };
 }

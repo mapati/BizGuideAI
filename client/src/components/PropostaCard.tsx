@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, XCircle, Loader2, Sparkles, AlertTriangle, Pencil } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, Sparkles, AlertTriangle, Pencil, ArrowRight } from "lucide-react";
 import { ToastAction } from "@/components/ui/toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -11,7 +11,11 @@ import { useToast } from "@/hooks/use-toast";
 export interface PropostaPreview {
   titulo: string;
   descricao: string;
-  campos: Array<{ label: string; valor: string }>;
+  // valorAnterior é opcional e só vem quando a tool é de atualização e a
+  // proposta de fato muda o campo (no-ops já são filtrados no backend —
+  // ver enrichPreview em assistant-tools.ts). Quando presente, o card
+  // renderiza "antes → depois" para o usuário enxergar a mudança.
+  campos: Array<{ label: string; valor: string; valorAnterior?: string }>;
   ctaConfirmar?: string;
   ctaIgnorar?: string;
   ctaAjustar?: string;
@@ -337,12 +341,39 @@ export function PropostaCard({
 
         {preview.campos?.length > 0 && (
           <div className="rounded-md border bg-muted/30 px-2.5 py-2 space-y-1">
-            {preview.campos.map((c, i) => (
-              <div key={i} className="flex gap-2 text-xs">
-                <span className="text-muted-foreground min-w-[88px] shrink-0">{c.label}</span>
-                <span className="font-medium break-words">{c.valor}</span>
-              </div>
-            ))}
+            {preview.campos.map((c, i) => {
+              const temDiff =
+                typeof c.valorAnterior === "string" && c.valorAnterior !== c.valor;
+              return (
+                <div key={i} className="flex gap-2 text-xs">
+                  <span className="text-muted-foreground min-w-[88px] shrink-0">{c.label}</span>
+                  {temDiff ? (
+                    <span
+                      className="font-medium break-words flex flex-wrap items-baseline gap-1.5"
+                      data-testid={`text-proposta-diff-${logId}-${i}`}
+                    >
+                      <span
+                        className="line-through text-muted-foreground decoration-muted-foreground/60"
+                        data-testid={`text-proposta-valor-anterior-${logId}-${i}`}
+                      >
+                        <span className="sr-only">Valor anterior: </span>
+                        {c.valorAnterior}
+                      </span>
+                      <ArrowRight
+                        className="h-3 w-3 text-muted-foreground shrink-0"
+                        aria-hidden="true"
+                      />
+                      <span data-testid={`text-proposta-valor-novo-${logId}-${i}`}>
+                        <span className="sr-only">Novo valor: </span>
+                        {c.valor}
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="font-medium break-words">{c.valor}</span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 

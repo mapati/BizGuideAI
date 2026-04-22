@@ -1,4 +1,5 @@
-import type { AnchorHTMLAttributes } from "react";
+import type { AnchorHTMLAttributes, ReactNode } from "react";
+import { Children, isValidElement } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
@@ -46,8 +47,175 @@ function toInternalPath(href: string): string {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Task #284 (Step 9) — Citações [tipo:id] viram Badges clicáveis
+//
+// O system prompt (server/routes.ts) instrui o LLM a marcar entidades do
+// catálogo como `[tipo:id]` IMEDIATAMENTE depois do nome humano. Aqui
+// transformamos esses marcadores em pequenos Badges que navegam para o item.
+// Tipos suportados (espelham TIPO_ROTA_ABRIR em server/assistant-tools.ts):
+//
+//   indicador → /indicadores?editar=<id>
+//   iniciativa → /iniciativas?editar=<id>
+//   objetivo → /okrs?editar=<id>
+//   kr → /okrs?editar=<id>&tipo=kr
+//   risco → /riscos?editar=<id>
+//   oportunidade → /oportunidades-crescimento?editar=<id>
+//   estrategia → /estrategias?editar=<id>
+//
+// O regex é tolerante: aceita id no formato UUID (a-f0-9 + hifens) com
+// pelo menos 4 caracteres, para suportar tanto UUID completo quanto
+// abreviações que possam aparecer no streaming parcial. Não-matches viram
+// texto cru (não quebramos a saída do LLM se ele errar a sintaxe).
+// ─────────────────────────────────────────────────────────────────────────────
+type CitacaoTipo =
+  | "indicador"
+  | "iniciativa"
+  | "objetivo"
+  | "kr"
+  | "risco"
+  | "oportunidade"
+  | "estrategia";
+
+const CITACAO_LABEL: Record<CitacaoTipo, string> = {
+  indicador: "Indicador",
+  iniciativa: "Iniciativa",
+  objetivo: "Objetivo",
+  kr: "Meta",
+  risco: "Risco",
+  oportunidade: "Oportunidade",
+  estrategia: "Estratégia",
+};
+
+function citacaoToHref(tipo: CitacaoTipo, id: string): string {
+  const usp = new URLSearchParams({ editar: id });
+  switch (tipo) {
+    case "indicador":
+      return `/indicadores?${usp.toString()}`;
+    case "iniciativa":
+      return `/iniciativas?${usp.toString()}`;
+    case "objetivo":
+      return `/okrs?${usp.toString()}`;
+    case "kr":
+      usp.set("tipo", "kr");
+      return `/okrs?${usp.toString()}`;
+    case "risco":
+      return `/riscos?${usp.toString()}`;
+    case "oportunidade":
+      return `/oportunidades-crescimento?${usp.toString()}`;
+    case "estrategia":
+      return `/estrategias?${usp.toString()}`;
+  }
+}
+
+const TIPOS_CIT = "indicador|iniciativa|objetivo|kr|risco|oportunidade|estrategia";
+// Aceita UUID-ish (4+ chars hex/hifen). Não engole o colchete final.
+const CITACAO_REGEX = new RegExp(`\\[(${TIPOS_CIT}):([a-f0-9][a-f0-9-]{3,})\\]`, "gi");
+
+interface CitacaoBadgeProps {
+  tipo: CitacaoTipo;
+  id: string;
+  onNavigate: (href: string) => void;
+}
+
+function CitacaoBadge({ tipo, id, onNavigate }: CitacaoBadgeProps) {
+  const href = citacaoToHref(tipo, id);
+  const label = CITACAO_LABEL[tipo];
+  // Renderizamos como <span> (não <Badge>, que é <div>) porque o walker
+  // injeta este componente dentro de <p>/<strong>/<em> — nesting de div
+  // dentro desses inline elements quebra o HTML e pode disparar warnings
+  // de hidratação. As classes abaixo replicam o visual do Badge secondary
+  // de forma inline-segura.
+  return (
+    <span
+      role="link"
+      tabIndex={0}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("biz-assistant:close"));
+        }
+        setTimeout(() => onNavigate(href), 200);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("biz-assistant:close"));
+          }
+          setTimeout(() => onNavigate(href), 200);
+        }
+      }}
+      className={cn(
+        "mx-0.5 inline-flex items-center align-baseline whitespace-nowrap",
+        "rounded-md border border-transparent bg-secondary text-secondary-foreground",
+        "px-1.5 py-0 text-[10px] font-semibold leading-4",
+        "cursor-pointer hover-elevate active-elevate-2",
+      )}
+      title={`Abrir ${label.toLowerCase()}`}
+      data-testid={`badge-citacao-${tipo}-${id}`}
+    >
+      {label}
+    </span>
+  );
+}
+
+// Quebra uma string em pedaços (texto + Badges) substituindo cada
+// ocorrência de [tipo:id]. Retorna um array de ReactNodes para inserir
+// em qualquer parágrafo/li/strong onde houver texto puro.
+function renderCitacoes(text: string, onNavigate: (href: string) => void): ReactNode[] {
+  const out: ReactNode[] = [];
+  let last = 0;
+  let i = 0;
+  // Reset stateful regex (g flag).
+  CITACAO_REGEX.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = CITACAO_REGEX.exec(text)) !== null) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    const tipo = m[1].toLowerCase() as CitacaoTipo;
+    const id = m[2];
+    out.push(
+      <CitacaoBadge key={`cit-${i}-${id}`} tipo={tipo} id={id} onNavigate={onNavigate} />,
+    );
+    last = m.index + m[0].length;
+    i += 1;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+}
+
+// Walker recursivo: aplica renderCitacoes em strings dentro da árvore React
+// do markdown, preservando quaisquer outros nós (strong/em/code/links).
+function transformChildren(
+  children: ReactNode,
+  onNavigate: (href: string) => void,
+): ReactNode {
+  return Children.map(children, (child) => {
+    if (typeof child === "string") {
+      const parts = renderCitacoes(child, onNavigate);
+      return parts.length === 1 ? parts[0] : parts;
+    }
+    if (isValidElement(child)) {
+      // Não mexer em código (preserva sintaxe literal) nem em links já formatados.
+      const tag = (child.type as { name?: string } | string);
+      const tagName = typeof tag === "string" ? tag : "";
+      if (tagName === "code" || tagName === "a") return child;
+      const childProps = child.props as { children?: ReactNode };
+      if (childProps?.children !== undefined) {
+        return {
+          ...child,
+          props: { ...childProps, children: transformChildren(childProps.children, onNavigate) },
+        };
+      }
+    }
+    return child;
+  });
+}
+
 export function AssistantMarkdown({ content, className }: AssistantMarkdownProps) {
   const [, setLocation] = useLocation();
+  const navigate = (href: string) => setLocation(href);
 
   return (
     <div
@@ -94,6 +262,15 @@ export function AssistantMarkdown({ content, className }: AssistantMarkdownProps
               </a>
             );
           },
+          // Aplicamos transformChildren em parágrafos, list items e
+          // headings — onde tipicamente caem citações. Em <code> e <a>
+          // o walker já preserva os filhos sem tocar.
+          p: ({ children }) => <p>{transformChildren(children, navigate)}</p>,
+          li: ({ children }) => <li>{transformChildren(children, navigate)}</li>,
+          strong: ({ children }) => (
+            <strong>{transformChildren(children, navigate)}</strong>
+          ),
+          em: ({ children }) => <em>{transformChildren(children, navigate)}</em>,
         }}
       >
         {content}

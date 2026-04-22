@@ -344,6 +344,10 @@ export const iniciativas = pgTable("iniciativas", {
   impacto: text("impacto").notNull(),
   estrategiaId: varchar("estrategia_id").references(() => estrategias.id, { onDelete: "set null" }),
   oportunidadeId: varchar("oportunidade_id").references(() => oportunidadesCrescimento.id, { onDelete: "set null" }),
+  // Task #274 — Objetivo (Meta) que originou esta iniciativa na nova
+  // ordem da Jornada (Objetivos → Iniciativas). Opcional/aditivo: o
+  // vínculo via estrategiaId continua existindo para a leitura legada.
+  objetivoOriginadorId: varchar("objetivo_originador_id").references(() => objetivos.id, { onDelete: "set null" }),
   // Task #250 — Plano de ação 5W2H (opcionais, aditivos). titulo+descricao = O quê;
   // prazo = Quando; responsavel = Quem; impacto não faz parte do 5W2H mas
   // permanece. Os 4 campos abaixo completam Por quê, Onde, Como e Quanto.

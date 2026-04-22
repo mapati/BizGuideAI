@@ -193,10 +193,10 @@ function MockupSidebar({ active }: { active: MockupSidebarActive }) {
     { id: "pestel", label: "Cenário Externo" },
     { id: "cinco-forcas", label: "Mercado e Concorrência" },
     { id: "swot", label: "Forças e Fraquezas" },
-    { id: "estrategias", label: "Estratégias", section: "PLANO DE AÇÃO" },
+    { id: "estrategias", label: "Estratégias", section: "APOSTAS (DECISÕES)" },
     { id: "oportunidades", label: "Frentes de Crescimento" },
-    { id: "iniciativas", label: "Iniciativas Prioritárias" },
-    { id: "okrs", label: "Metas e Resultados", section: "EXECUÇÃO" },
+    { id: "okrs", label: "Metas e Resultados" },
+    { id: "iniciativas", label: "Iniciativas Prioritárias", section: "EXECUÇÃO" },
     { id: "bsc", label: "Performance das Metas" },
     { id: "kpis", label: "Indicadores" },
     { id: "ritos", label: "Acompanhamento" },
@@ -612,17 +612,17 @@ function MockupJornada() {
       ],
     },
     {
-      label: "PLANO DE AÇÃO",
+      label: "APOSTAS (DECISÕES)",
       etapas: [
         { nome: "Estratégias", icone: Flag, status: "pendente" as const },
         { nome: "Frentes de Crescimento", icone: TrendingUp, status: "pendente" as const },
-        { nome: "Iniciativas Prioritárias", icone: Briefcase, status: "pendente" as const },
+        { nome: "Metas e Resultados", icone: Rocket, status: "pendente" as const },
       ],
     },
     {
       label: "EXECUÇÃO",
       etapas: [
-        { nome: "Metas e Resultados", icone: Rocket, status: "pendente" as const },
+        { nome: "Iniciativas Prioritárias", icone: Briefcase, status: "pendente" as const },
         { nome: "Indicadores", icone: BarChart3, status: "pendente" as const },
         { nome: "Acompanhamento", icone: Activity, status: "pendente" as const },
       ],
@@ -912,7 +912,7 @@ export default function LandingPage() {
             {[
               { label: "Diagnóstico", num: "01", bg: "bg-blue-600", count: "2 etapas" },
               { label: "Mapa", num: "02", bg: "bg-amber-600", count: "4 etapas" },
-              { label: "Plano de Ação", num: "03", bg: "bg-purple-600", count: "3 etapas" },
+              { label: "Apostas (decisões)", num: "03", bg: "bg-purple-600", count: "3 etapas" },
               { label: "Execução", num: "04", bg: "bg-green-600", count: "3 etapas" },
             ].map((fase, i, arr) => (
               <div key={fase.label} className="flex items-center">
@@ -964,7 +964,7 @@ export default function LandingPage() {
               },
               {
                 faseNum: "03",
-                faseLabel: "Plano de Ação",
+                faseLabel: "Apostas (decisões)",
                 bg: "bg-purple-600",
                 corBorda: "border-purple-100",
                 corFundo: "bg-purple-50/40 dark:bg-purple-950/20",
@@ -973,7 +973,7 @@ export default function LandingPage() {
                 etapas: [
                   { num: 7, nome: "Estratégias", icone: Flag, desc: "A IA cruza seu SWOT e propõe estratégias priorizadas — você só decide quais entram no plano" },
                   { num: 8, nome: "Frentes de Crescimento", icone: TrendingUp, desc: "Matriz de Ansoff aplicada: penetração, novos mercados ou novos produtos. Qual rota faz mais sentido para você agora" },
-                  { num: 9, nome: "Iniciativas Prioritárias", icone: Briefcase, desc: "Estratégia vira execução: cada projeto sai com responsável, prazo e impacto esperado. Plano que de fato roda" },
+                  { num: 9, nome: "Metas e Resultados", icone: Rocket, desc: "OKRs gerados pela IA, conectados às suas Estratégias e Frentes. Cada meta com resultado-chave mensurável e dono claro" },
                 ],
               },
               {
@@ -985,7 +985,7 @@ export default function LandingPage() {
                 corIcone: "text-green-600 bg-green-100",
                 corLinha: "bg-green-200",
                 etapas: [
-                  { num: 10, nome: "Metas e Resultados", icone: Rocket, desc: "OKRs gerados pela IA, conectados às suas estratégias. Cada meta com resultado-chave mensurável e dono claro" },
+                  { num: 10, nome: "Iniciativas Prioritárias", icone: Briefcase, desc: "Cada Objetivo vira projeto concreto: 5W2H com responsável, prazo e impacto esperado. Plano que de fato roda" },
                   { num: 11, nome: "Indicadores de Performance", icone: BarChart3, desc: "Balanced Scorecard nas 4 perspectivas: Finanças, Clientes, Processos e Pessoas. Semáforo automático mostra onde agir primeiro" },
                   { num: 12, nome: "Acompanhamento", icone: Activity, desc: "Rituais semanais, mensais e trimestrais com pauta gerada pela IA. O plano fica vivo — e o Guia vira seu Assistente diário" },
                 ],

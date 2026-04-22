@@ -31,11 +31,11 @@ const mapItems = [
 const apostasItems = [
   { title: "Estratégias", url: "/estrategias", icon: TrendingUp, jornadaId: "estrategias" },
   { title: "Frentes de Crescimento", url: "/oportunidades-crescimento", icon: Map, jornadaId: "oportunidades" },
-  { title: "Iniciativas Prioritárias", url: "/iniciativas", icon: Briefcase, jornadaId: "iniciativas" },
+  { title: "Objetivos e Metas", url: "/okrs", icon: Target, jornadaId: "okrs" },
 ];
 
 const marchaItems = [
-  { title: "Objetivos e Metas", url: "/okrs", icon: Target, jornadaId: "okrs" },
+  { title: "Iniciativas Prioritárias", url: "/iniciativas", icon: Briefcase, jornadaId: "iniciativas" },
   { title: "Indicadores", url: "/indicadores", icon: BarChart3, jornadaId: "indicadores" },
   { title: "Acompanhamento", url: "/ritos", icon: CheckCircle, jornadaId: "acompanhamento" },
 ];
@@ -339,7 +339,7 @@ export function AppSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Plano de Ação</SidebarGroupLabel>
+          <SidebarGroupLabel>Apostas (decisões)</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {apostasItems.map((item) => {

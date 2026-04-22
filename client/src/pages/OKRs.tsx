@@ -1627,7 +1627,7 @@ export default function OKRs() {
             </div>
             <h3 className="text-lg font-semibold">Defina onde você quer chegar</h3>
             <p className="text-sm text-muted-foreground">
-              Metas claras e mensuráveis traduzem a estratégia em ação. Cada objetivo é ambicioso e tem métricas concretas de progresso com prazo definido. A IA cria metas alinhadas às suas iniciativas e estratégias, garantindo execução focada e rastreável.
+              Metas claras e mensuráveis traduzem a estratégia em ação. Cada objetivo é ambicioso e tem métricas concretas de progresso com prazo definido. A IA cria metas alinhadas às suas Estratégias e Frentes de Crescimento, garantindo execução focada e rastreável.
             </p>
             <Button
               onClick={() => handleAbrirModalObjetivos(null)}
@@ -2128,8 +2128,8 @@ export default function OKRs() {
         }
         description={
           aiObjetivosPerspectivaInicial
-            ? "Defina quantos objetivos quer nesta perspectiva. A IA escolhe automaticamente as iniciativas/estratégias de origem com base no contexto."
-            : "Defina quantos objetivos quer por perspectiva. A IA escolhe automaticamente as iniciativas/estratégias de origem com base no contexto e prioriza o que é mais crítico."
+            ? "Defina quantos objetivos quer nesta perspectiva. A IA escolhe automaticamente a Estratégia de origem com base no contexto."
+            : "Defina quantos objetivos quer por perspectiva. A IA escolhe automaticamente a Estratégia de origem e prioriza o que é mais crítico."
         }
         isGenerating={gerarObjetivosMutation.isPending}
         testIdPrefix="ai-objetivos"
@@ -2164,7 +2164,6 @@ export default function OKRs() {
           items: [
             { id: "estrategias", label: "Estratégias TOWS", desc: "Apostas estratégicas já definidas" },
             { id: "oportunidades", label: "Frentes de Crescimento", desc: "Quadrantes da Matriz de Ansoff" },
-            { id: "iniciativas", label: "Iniciativas", desc: "Iniciativas prioritárias" },
             { id: "modeloNegocio", label: "Modelo de Negócio (BMC)", desc: "Proposta de valor, segmentos e atividades" },
           ],
         }}

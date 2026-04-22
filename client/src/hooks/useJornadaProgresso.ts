@@ -276,22 +276,9 @@ export function useJornadaProgresso(): JornadaProgresso {
       status: derivarStatus(oportunidades.length > 0, false),
       icone: TrendingUp,
       descricao:
-        "Para estratégias ofensivas (FO/DO), explore caminhos Ansoff: conquistar mais do mercado atual, entrar em novos mercados, lançar produtos ou diversificar. Estratégias defensivas (FA/DA) seguem direto para Iniciativas.",
+        "Para estratégias ofensivas (FO/DO), explore caminhos Ansoff: conquistar mais do mercado atual, entrar em novos mercados, lançar produtos ou diversificar. Estratégias defensivas (FA/DA) também alimentam os Objetivos da próxima etapa.",
       valorIA:
         "A IA aplica a Matriz de Ansoff sobre as estratégias ofensivas que você definiu, considerando o perfil de risco da sua empresa.",
-      bloqueadaPor: estrategias.length > 0 ? [] : ["estrategias"],
-    },
-    {
-      id: "iniciativas",
-      nome: "Iniciativas Prioritárias",
-      rota: "/iniciativas",
-      concluida: iniciativas.length > 0,
-      status: derivarStatus(iniciativas.length > 0, false),
-      icone: Briefcase,
-      descricao:
-        "Transforme estratégias em projetos concretos com responsáveis, prazos e impacto esperado.",
-      valorIA:
-        "A IA sugere iniciativas práticas derivadas das suas estratégias e as ordena por prioridade.",
       bloqueadaPor: estrategias.length > 0 ? [] : ["estrategias"],
     },
     {
@@ -302,10 +289,23 @@ export function useJornadaProgresso(): JornadaProgresso {
       status: derivarStatus(objetivos.length > 0, false),
       icone: Rocket,
       descricao:
-        "Defina objetivos inspiradores com resultados-chave mensuráveis para guiar a execução da estratégia com foco e clareza.",
+        "Defina objetivos inspiradores com resultados-chave mensuráveis para guiar a execução das estratégias com foco e clareza.",
       valorIA:
-        "A IA cria metas conectadas às suas iniciativas e estratégias, garantindo alinhamento de cima a baixo.",
+        "A IA cria metas conectadas às suas Estratégias e Frentes de Crescimento, garantindo alinhamento de cima para baixo.",
       bloqueadaPor: estrategias.length > 0 ? [] : ["estrategias"],
+    },
+    {
+      id: "iniciativas",
+      nome: "Iniciativas Prioritárias",
+      rota: "/iniciativas",
+      concluida: iniciativas.length > 0,
+      status: derivarStatus(iniciativas.length > 0, false),
+      icone: Briefcase,
+      descricao:
+        "Transforme cada Objetivo em projetos concretos (5W2H) com responsáveis, prazos e impacto esperado.",
+      valorIA:
+        "A IA gera iniciativas práticas para cada Objetivo já cadastrado, alinhadas a prazo, prioridade e KR.",
+      bloqueadaPor: objetivos.length > 0 ? [] : ["okrs"],
     },
     {
       id: "indicadores",

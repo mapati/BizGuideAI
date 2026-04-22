@@ -6152,13 +6152,14 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         return res.status(404).json({ error: "Empresa não encontrada" });
       }
 
-      // Task #250 — modo MATRIZ: quando nenhuma origem específica é informada,
-      // gera iniciativas para cada Estratégia FA/DA existente + cada Frente
-      // de Crescimento existente, mantendo o padrão da Matriz de Ansoff. Cada
-      // iniciativa vem com seu vínculo de cascata (estrategiaId OU oportunidadeId)
-      // já estampado, e inclui o plano 5W2H (porque/onde/como/quanto) além
-      // dos campos básicos. O modo legado (com origem específica) é preservado
-      // para o agente/HITL e botões "Gerar iniciativas" em cards.
+      // Task #274 — modo MATRIZ: agora itera sobre os Objetivos (Metas e
+      // Resultados) já cadastrados. Cada iniciativa gerada sai vinculada ao
+      // Objetivo de origem (e herda o estrategiaId daquele Objetivo, quando
+      // existir) para preservar a cascata Estratégia → Frente → Objetivo →
+      // Iniciativa visível na UI. Inclui o plano 5W2H completo
+      // (porque/onde/como/quanto). O modo legado (com origem específica em
+      // Estratégia/Frente) é preservado para o agente/HITL e botões "Gerar
+      // iniciativas" em cards.
       const modoMatrizIni = !origemEstrategiaId && !origemOportunidadeId;
 
       let origemContext: { tipo: "estrategia" | "oportunidade"; estrategiaId?: string; oportunidadeId?: string; texto: string } | null = null;
@@ -6219,36 +6220,30 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
       const iniciativasExistentes = await storage.getIniciativas(empresaId);
       const estrategiasLista = await storage.getEstrategias(empresaId);
       const oportunidades = await storage.getOportunidadesCrescimento(empresaId);
+      const objetivosLista = modoMatrizIni ? await storage.getObjetivos(empresaId) : [];
       const modeloNegocio = usarBmcIni ? await storage.getModeloNegocio(empresaId) : [];
       const swotIni = modoMatrizIni && usarSwotIni ? await storage.getAnaliseSwot(empresaId) : [];
       const indicadoresIni = modoMatrizIni && usarIndicadoresIni ? await storage.getIndicadores(empresaId) : [];
 
-      // Alvos do modo MATRIZ: cada Estratégia FA/DA + cada Frente de Crescimento.
-      // FO/DO produzem Frentes (já existentes); por isso só consideramos FA/DA aqui.
+      // Task #274 — Alvos do modo MATRIZ: cada Objetivo (Meta) cadastrado.
+      // Cada iniciativa gerada herda o estrategiaId do Objetivo (quando
+      // existir) para manter a cascata visível na UI.
+      const estrategiaPorId = new Map(estrategiasLista.map((e) => [e.id, e]));
       const alvosMatriz = modoMatrizIni
-        ? [
-            ...estrategiasLista
-              .filter((e) => e.tipo === "FA" || e.tipo === "DA")
-              .map((e) => ({
-                kind: "estrategia" as const,
-                id: e.id,
-                tipo: e.tipo,
-                titulo: e.titulo,
-                descricao: e.descricao,
-              })),
-            ...oportunidades.map((o) => ({
-              kind: "oportunidade" as const,
-              id: o.id,
-              tipo: o.tipo,
-              titulo: o.titulo,
-              descricao: o.descricao,
-            })),
-          ]
+        ? objetivosLista.map((o) => ({
+            kind: "objetivo" as const,
+            id: o.id,
+            tipo: o.perspectiva,
+            titulo: o.titulo,
+            descricao: o.descricao || "",
+            estrategiaId: o.estrategiaId || null,
+            estrategiaTitulo: o.estrategiaId ? estrategiaPorId.get(o.estrategiaId)?.titulo || null : null,
+          }))
         : [];
 
       if (modoMatrizIni && alvosMatriz.length === 0) {
         return res.status(400).json({
-          error: "Para gerar iniciativas em matriz é preciso ter ao menos uma Estratégia FA/DA ou uma Frente de Crescimento cadastrada.",
+          error: "Para gerar iniciativas em matriz é preciso ter ao menos um Objetivo (Meta) cadastrado. Vá em 'Metas e Resultados' primeiro.",
         });
       }
 
@@ -6273,19 +6268,19 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         : "";
 
       const alvosMatrizCtx = alvosMatriz
-        .map((a, i) => `Alvo #${i + 1} — kind="${a.kind}", id="${a.id}", classificação="${a.tipo}"\nTítulo: ${a.titulo}\nDescrição: ${a.descricao}`)
+        .map((a, i) => `Alvo #${i + 1} — kind="objetivo", id="${a.id}", perspectiva="${a.tipo}"${a.estrategiaTitulo ? `, estratégia-mãe="${a.estrategiaTitulo}"` : ""}\nObjetivo: ${a.titulo}${a.descricao ? `\nDescrição: ${a.descricao}` : ""}`)
         .join("\n\n");
 
       // Tarefa específica por modo
       const tarefaIniciativas = modoMatrizIni
-        ? `## TAREFA (MODO MATRIZ — alinhado à Matriz de Ansoff):
-Para CADA UM dos ${alvosMatriz.length} alvo(s) listado(s) em "ALVOS DA MATRIZ" abaixo, gere EXATAMENTE ${quantidadePorAlvo} iniciativa(s) prioritária(s) ÚNICA(s) e ACIONÁVEL(is) que operacionalizem aquele alvo. Total esperado: ${alvosMatriz.length * quantidadePorAlvo} iniciativa(s).
+        ? `## TAREFA (MODO MATRIZ — uma camada abaixo dos Objetivos):
+Para CADA UM dos ${alvosMatriz.length} Objetivo(s) listado(s) em "ALVOS DA MATRIZ" abaixo, gere EXATAMENTE ${quantidadePorAlvo} iniciativa(s) prioritária(s) ÚNICA(s) e ACIONÁVEL(is) que operacionalizem aquele Objetivo. Total esperado: ${alvosMatriz.length * quantidadePorAlvo} iniciativa(s).
 
 REGRAS DE VÍNCULO (CASCATA):
-- Cada iniciativa DEVE incluir o campo "alvoId" com o id exato do alvo de origem (copie do bloco "ALVOS DA MATRIZ").
-- Cada iniciativa DEVE incluir o campo "alvoKind" com "estrategia" ou "oportunidade", igual ao kind do alvo.
+- Cada iniciativa DEVE incluir o campo "alvoId" com o id exato do Objetivo de origem (copie do bloco "ALVOS DA MATRIZ").
+- Cada iniciativa DEVE incluir o campo "alvoKind" com o valor literal "objetivo".
 - Não invente alvos novos — use APENAS os ids fornecidos.
-- Se um alvo é uma Estratégia FA/DA, a iniciativa deve ser uma ação defensiva/de proteção. Se é uma Frente (Ansoff), a iniciativa deve operacionalizar aquele caminho de crescimento.
+- Cada iniciativa deve descrever uma ação concreta capaz de mover algum resultado-chave do Objetivo. Considere a perspectiva BSC do Objetivo (Financeira/Clientes/Processos/Aprendizado) ao desenhar o esforço.
 
 Para cada iniciativa, forneça o PLANO 5W2H completo:
 - titulo: O QUÊ (máx 80 caracteres) — título objetivo da iniciativa
@@ -6303,7 +6298,7 @@ Para cada iniciativa, forneça o PLANO 5W2H completo:
 Responda OBRIGATORIAMENTE em JSON com este formato exato:
 {
   "iniciativas": [
-    {"alvoKind": "estrategia", "alvoId": "<id>", "titulo": "...", "descricao": "...", "porque": "...", "onde": "...", "como": "...", "quanto": "...", "responsavel": "...", "prazo": "Q1 2025", "status": "planejada", "prioridade": "alta", "impacto": "alto"}
+    {"alvoKind": "objetivo", "alvoId": "<id>", "titulo": "...", "descricao": "...", "porque": "...", "onde": "...", "como": "...", "quanto": "...", "responsavel": "...", "prazo": "Q1 2025", "status": "planejada", "prioridade": "alta", "impacto": "alto"}
   ]
 }`
         : `## TAREFA:
@@ -6355,7 +6350,7 @@ REGRA CRÍTICA DE DUPLICAÇÃO:
             content: `## PERFIL DA EMPRESA
 ${contextoPerfil}
 
-${modoMatrizIni ? `## ALVOS DA MATRIZ (CONTEXTO PRIMÁRIO — gere iniciativas para CADA UM destes alvos):
+${modoMatrizIni ? `## ALVOS DA MATRIZ — OBJETIVOS (CONTEXTO PRIMÁRIO — gere iniciativas para CADA UM destes Objetivos):
 ${alvosMatrizCtx}
 
 ` : `## CONTEXTO ESTRATÉGICO:
@@ -6391,12 +6386,10 @@ ${tarefaIniciativas}${instrucaoAdicionalIni ? `\n\n## INSTRUÇÕES ADICIONAIS DO
         );
         const prioridadesSet = prioridadesFoco.length > 0 ? new Set<string>(prioridadesFoco) : null;
 
-        // Mapas para resolver alvoId no modo matriz
-        const alvosEstrategiaIds = new Set(
-          alvosMatriz.filter((a) => a.kind === "estrategia").map((a) => a.id)
-        );
-        const alvosOportunidadeIds = new Set(
-          alvosMatriz.filter((a) => a.kind === "oportunidade").map((a) => a.id)
+        // Task #274 — Mapa para resolver alvoId no modo matriz: cada alvo é
+        // um Objetivo. Usamos o id do Objetivo para herdar o estrategiaId.
+        const alvosObjetivoPorId = new Map(
+          alvosMatriz.map((a) => [a.id, a])
         );
 
         const trunc = (s: unknown, max: number): string | undefined => {
@@ -6426,13 +6419,11 @@ ${tarefaIniciativas}${instrucaoAdicionalIni ? `\n\n## INSTRUÇÕES ADICIONAIS DO
             if (prioridadesSet && (typeof ini.prioridade !== "string" || !prioridadesSet.has(ini.prioridade))) {
               return false;
             }
-            // No modo matriz, exigir vínculo válido a um alvo conhecido
+            // No modo matriz, exigir vínculo válido a um Objetivo conhecido
             if (modoMatrizIni) {
               const aId = typeof ini.alvoId === "string" ? ini.alvoId : "";
               const aKind = typeof ini.alvoKind === "string" ? ini.alvoKind : "";
-              const ok =
-                (aKind === "estrategia" && alvosEstrategiaIds.has(aId)) ||
-                (aKind === "oportunidade" && alvosOportunidadeIds.has(aId));
+              const ok = aKind === "objetivo" && alvosObjetivoPorId.has(aId);
               if (!ok) return false;
             }
             // Plano 5W2H: exigir os 4 campos não-vazios em ambos os modos (matriz e legado).
@@ -6447,13 +6438,22 @@ ${tarefaIniciativas}${instrucaoAdicionalIni ? `\n\n## INSTRUÇÕES ADICIONAIS DO
           });
 
         if (modoMatrizIni) {
-          // Estampa a cascata correta + remove campos auxiliares (alvoKind/alvoId)
+          // Task #274 — Estampa a cascata: cada iniciativa herda o
+          // estrategiaId do Objetivo de origem (quando o Objetivo possui
+          // estratégia-mãe). oportunidadeId fica nulo no fluxo novo, pois
+          // Frentes não originam mais Iniciativas diretamente. Os campos
+          // auxiliares alvoKind/alvoId são removidos antes de persistir.
           sugestoes.iniciativas = sugestoes.iniciativas.map((i: any) => {
-            const { alvoKind, alvoId, ...rest } = i;
-            if (alvoKind === "estrategia") {
-              return { ...rest, estrategiaId: alvoId, oportunidadeId: null };
-            }
-            return { ...rest, oportunidadeId: alvoId, estrategiaId: null };
+            const { alvoKind: _alvoKind, alvoId, ...rest } = i;
+            const objetivoAlvo = alvosObjetivoPorId.get(alvoId);
+            return {
+              ...rest,
+              estrategiaId: objetivoAlvo?.estrategiaId ?? null,
+              oportunidadeId: null,
+              // Task #274 — vínculo direto Objetivo → Iniciativa, garantindo
+              // rastreabilidade da nova cascata na persistência e na UI.
+              objetivoOriginadorId: objetivoAlvo?.id ?? null,
+            };
           });
         } else if (origemContext) {
           sugestoes.iniciativas = sugestoes.iniciativas.map((i: any) => ({
@@ -6506,15 +6506,17 @@ ${tarefaIniciativas}${instrucaoAdicionalIni ? `\n\n## INSTRUÇÕES ADICIONAIS DO
       const instrucaoAdicionalObj = (aiParamsObj.data.instrucaoAdicional ?? "").trim();
       const quantidadePorPerspectivaObj = Math.min(5, Math.max(1, Number(aiParamsObj.data.quantidade ?? 1) || 1));
 
-      // Fontes de contexto opcionais (usuário escolhe quais incluir)
-      const fontesPermitidasObj = ["estrategias", "oportunidades", "iniciativas", "modeloNegocio"] as const;
+      // Task #274 — Objetivos derivam de Estratégias/Frentes (NÃO de
+      // Iniciativas). Iniciativas viraram a camada DE EXECUÇÃO, abaixo dos
+      // Objetivos. Fontes válidas: estrategias, oportunidades (Frentes) e
+      // modeloNegocio. "iniciativas" foi removido da lista permitida.
+      const fontesPermitidasObj = ["estrategias", "oportunidades", "modeloNegocio"] as const;
       const fontesSelObj = new Set(
         (aiParamsObj.data.fontesContexto ?? []).filter((f) => fontesPermitidasObj.includes(f as typeof fontesPermitidasObj[number]))
       );
       const todasFontesObj = fontesSelObj.size === 0;
       const usarEstrategiasObj = todasFontesObj || fontesSelObj.has("estrategias");
       const usarOportunidadesObj = todasFontesObj || fontesSelObj.has("oportunidades");
-      const usarIniciativasObj = todasFontesObj || fontesSelObj.has("iniciativas");
       const usarBmcObj = todasFontesObj || fontesSelObj.has("modeloNegocio");
 
       const contextoPerfil = buildEmpresaContextoIA(empresa);
@@ -6522,15 +6524,10 @@ ${tarefaIniciativas}${instrucaoAdicionalIni ? `\n\n## INSTRUÇÕES ADICIONAIS DO
       const objetivosExistentes = await storage.getObjetivos(empresaId);
       const estrategiasLista = usarEstrategiasObj ? await storage.getEstrategias(empresaId) : [];
       const oportunidades = usarOportunidadesObj ? await storage.getOportunidadesCrescimento(empresaId) : [];
-      const iniciativas = usarIniciativasObj ? await storage.getIniciativas(empresaId) : [];
       const modeloNegocio = usarBmcObj ? await storage.getModeloNegocio(empresaId) : [];
 
-      // Ranking: prioridade alta antes de média antes de baixa, idem para potencial.
-      const ordemPrioridade: Record<string, number> = { alta: 0, média: 1, media: 1, baixa: 2 };
+      // Ranking: potencial alto antes de médio antes de baixo nas Frentes.
       const ordemPotencial: Record<string, number> = { alto: 0, médio: 1, medio: 1, baixo: 2 };
-      const iniciativasOrdenadas = [...iniciativas].sort(
-        (a, b) => (ordemPrioridade[a.prioridade?.toLowerCase()] ?? 9) - (ordemPrioridade[b.prioridade?.toLowerCase()] ?? 9)
-      );
       const oportunidadesOrdenadas = [...oportunidades].sort(
         (a, b) => (ordemPotencial[a.potencial?.toLowerCase()] ?? 9) - (ordemPotencial[b.potencial?.toLowerCase()] ?? 9)
       );
@@ -6541,11 +6538,7 @@ ${tarefaIniciativas}${instrucaoAdicionalIni ? `\n\n## INSTRUÇÕES ADICIONAIS DO
       const oportunidadesResume = oportunidadesOrdenadas
         .map(o => `[${(o.potencial || "?").toUpperCase()}] ${o.tipo}: ${o.titulo} - ${o.descricao}`)
         .join("\n");
-      const iniciativasResume = iniciativasOrdenadas
-        .map(i => `- id=${i.id} | [${(i.prioridade || "?").toUpperCase()}/Impacto ${(i.impacto || "?").toUpperCase()}] ${i.titulo}`)
-        .join("\n");
 
-      const iniciativasIdsValidos = new Set(iniciativasOrdenadas.map(i => i.id));
       const estrategiasIdsValidos = new Set(estrategiasLista.map(e => e.id));
 
       const blocosObjetivos = ["proposta_valor", "segmentos_clientes", "atividades_principais"];
@@ -6596,12 +6589,11 @@ REGRA DE DUPLICAÇÃO: Nunca repita objetivos já existentes listados pelo usuá
 
 REGRA DE QUANTIDADE: Você DEVE retornar EXATAMENTE ${quantidadePorPerspectivaObj} objetivo(s) para esta perspectiva — nem mais, nem menos. Mesmo que o contexto pareça repetitivo, você deve produzir exatamente essa quantidade variando ângulos (escopo geográfico, segmento, horizonte temporal, foco quantitativo vs qualitativo, etc.) sem repetir títulos.
 
-REGRA DE PRIORIZAÇÃO: As iniciativas estão listadas em ordem decrescente de prioridade ([ALTA] vem antes de [MÉDIA] e [BAIXA]) e as oportunidades em ordem decrescente de potencial ([ALTO] antes de [MÉDIO]/[BAIXO]). Os objetivos que você criar DEVEM, prioritariamente, derivar das iniciativas/oportunidades de maior peso que se encaixem nesta perspectiva.
+REGRA DE PRIORIZAÇÃO: As Frentes de Crescimento estão listadas em ordem decrescente de potencial ([ALTO] antes de [MÉDIO]/[BAIXO]). Os objetivos que você criar DEVEM, prioritariamente, derivar das Estratégias e Frentes de maior peso que se encaixem nesta perspectiva.
 
-REGRA DE ORIGEM (cascata estratégica): Para cada objetivo gerado você DEVE escolher automaticamente uma origem entre as iniciativas e estratégias listadas, preenchendo UM dos campos:
-- "iniciativaId": copie EXATAMENTE o id (após "id=") de UMA iniciativa da lista (preferencial — escolha a iniciativa de maior prioridade que melhor justifica o objetivo).
-- "estrategiaId": só use se NENHUMA iniciativa fizer sentido para o objetivo; copie EXATAMENTE o id (após "id=") de UMA estratégia da lista.
-NUNCA invente ids. NUNCA preencha os dois campos. Só deixe ambos vazios se realmente não houver iniciativa nem estratégia listada.`
+REGRA DE ORIGEM (cascata estratégica): Para cada objetivo gerado você DEVE escolher automaticamente uma Estratégia de origem entre as listadas, preenchendo o campo:
+- "estrategiaId": copie EXATAMENTE o id (após "id=") de UMA Estratégia da lista (escolha a que melhor justifica o objetivo nesta perspectiva).
+NUNCA invente ids. NUNCA preencha "iniciativaId" — Iniciativas são geradas DEPOIS dos Objetivos, então não podem ser origem deles. Só deixe "estrategiaId" vazio se realmente não houver nenhuma Estratégia listada.`
             },
             {
               role: "user",
@@ -6610,8 +6602,7 @@ ${contextoPerfil}
 
 ## CONTEXTO ESTRATÉGICO (ordenado por importância):
 ${estrategiasLista.length > 0 ? `Estratégias (use o id após "id=" para preencher estrategiaId):\n${estrategiasResume}` : ""}
-${oportunidadesOrdenadas.length > 0 ? `\nFrentes de crescimento (ordenadas por POTENCIAL):\n${oportunidadesResume}` : ""}
-${iniciativasOrdenadas.length > 0 ? `\nIniciativas (ordenadas por PRIORIDADE/IMPACTO — use o id após "id=" para preencher iniciativaId):\n${iniciativasResume}` : ""}
+${oportunidadesOrdenadas.length > 0 ? `\nFrentes de Crescimento (ordenadas por POTENCIAL):\n${oportunidadesResume}` : ""}
 ${bmcObjetivosCtx ? `\nModelo de Negócio (Business Model Canvas):\n${bmcObjetivosCtx}` : ""}
 
 ## OBJETIVOS JÁ EXISTENTES NA PERSPECTIVA "${perspectiva}" (NÃO REPITA):
@@ -6624,9 +6615,9 @@ Cada objetivo deve:
 - ser qualitativo e aspiracional (sem números no título)
 - refletir claramente a perspectiva "${perspectiva}"
 - ser relevante para o setor e contexto desta empresa
-- estar ancorado nas iniciativas/oportunidades de maior peso
+- estar ancorado nas Estratégias e Frentes de maior peso
 - ser diferente dos já existentes e diferente entre si
-- vir acompanhado da origem (iniciativaId OU estrategiaId) escolhida automaticamente por você a partir das listas acima
+- vir acompanhado da Estratégia de origem (estrategiaId) escolhida automaticamente por você a partir da lista acima
 
 Responda em JSON:
 {
@@ -6636,7 +6627,6 @@ Responda em JSON:
       "descricao": "...",
       "prazo": "Anual 2025",
       "perspectiva": "${perspectiva}",
-      "iniciativaId": "id-copiado-da-lista-ou-vazio",
       "estrategiaId": "id-copiado-da-lista-ou-vazio"
     }
   ]
@@ -6649,29 +6639,27 @@ Responda em JSON:
 
         const result = JSON.parse(completion.choices[0].message.content || "{}");
 
-        // Fallback de origem: se a IA não escolheu nenhuma, atribui a iniciativa de maior prioridade.
-        const fallbackIniciativaId = iniciativasOrdenadas[0]?.id;
+        // Fallback de origem: se a IA não escolheu nenhuma Estratégia, atribui a primeira da lista.
         const fallbackEstrategiaId = estrategiasLista[0]?.id;
 
-        const sanitize = (o: { titulo: string; descricao?: string; prazo?: string; perspectiva?: string; iniciativaId?: unknown; estrategiaId?: unknown }) => {
+        const sanitize = (o: { titulo: string; descricao?: string; prazo?: string; perspectiva?: string; estrategiaId?: unknown }) => {
           let iniciativaId: string | null;
           let estrategiaId: string | null;
           if (forcedIniciativaId || forcedEstrategiaId) {
-            // Origem fixa pela chamada (ex.: "Gerar objetivos a partir desta iniciativa").
+            // Origem fixa pela chamada (ex.: chamada legada do agente que
+            // ainda passa iniciativaId/estrategiaId no body). Mantemos a
+            // compatibilidade, embora o fluxo novo não permita Iniciativa
+            // como origem de Objetivo.
             iniciativaId = forcedIniciativaId;
             estrategiaId = forcedEstrategiaId;
           } else {
-            const iniRaw = typeof o.iniciativaId === "string" ? o.iniciativaId.trim() : "";
+            // Task #274 — Objetivo só pode ter Estratégia como origem.
             const estRaw = typeof o.estrategiaId === "string" ? o.estrategiaId.trim() : "";
-            iniciativaId = iniRaw && iniciativasIdsValidos.has(iniRaw) ? iniRaw : null;
+            iniciativaId = null;
             estrategiaId = estRaw && estrategiasIdsValidos.has(estRaw) ? estRaw : null;
-            // Garante apenas uma origem (iniciativa tem precedência).
-            if (iniciativaId) estrategiaId = null;
-            // Fallback: se a IA não escolheu nada utilizável, anexa a iniciativa de maior
-            // prioridade, ou na ausência delas, a primeira estratégia disponível.
-            if (!iniciativaId && !estrategiaId) {
-              if (fallbackIniciativaId) iniciativaId = fallbackIniciativaId;
-              else if (fallbackEstrategiaId) estrategiaId = fallbackEstrategiaId;
+            // Fallback: se a IA não escolheu, anexa a primeira Estratégia disponível.
+            if (!estrategiaId && fallbackEstrategiaId) {
+              estrategiaId = fallbackEstrategiaId;
             }
           }
           return {

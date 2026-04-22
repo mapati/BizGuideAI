@@ -1686,9 +1686,9 @@ export default function Iniciativas() {
       (prioridadeOrder[b.prioridade as keyof typeof prioridadeOrder] ?? 9));
   }, [iniciativas]);
 
-  // Task #250 — alvos da matriz (Estratégias FA/DA + Frentes de Crescimento)
-  const estrategiasFaDa = estrategias.filter((e) => e.tipo === "FA" || e.tipo === "DA");
-  const totalAlvosMatriz = estrategiasFaDa.length + oportunidades.length;
+  // Task #274 — alvos da matriz: agora são os Objetivos (Metas e Resultados)
+  // já cadastrados. A IA gera iniciativas para cada Objetivo existente.
+  const totalObjetivos = objetivos.length;
 
   // ---- Task #253: filtros + view mode --------------------------------------
   const { view, update, toggle, clearGroup, clearFilters } = useIniciativasView(empresa?.id);
@@ -1781,8 +1781,8 @@ export default function Iniciativas() {
   }
 
   const semEstategias = empresa && estrategias.length === 0 && iniciativas.length === 0;
-  // Task #250 — para o modo matriz precisamos de pelo menos 1 alvo (FA/DA ou Frente).
-  const semAlvosMatriz = !!empresa && totalAlvosMatriz === 0;
+  // Task #274 — para o modo matriz precisamos de pelo menos 1 Objetivo cadastrado.
+  const semObjetivos = !!empresa && totalObjetivos === 0;
 
   return (
     <div className="container mx-auto p-6 max-w-7xl">
@@ -1795,23 +1795,14 @@ export default function Iniciativas() {
           variante="info"
         />
       )}
-      {!semEstategias && semAlvosMatriz && (
-        <>
-          <PrerequisiteWarning
-            titulo="Para gerar iniciativas em matriz, crie Estratégias FA/DA"
-            descricao="O gerador de iniciativas funciona como uma matriz: produz iniciativas para cada Estratégia FA/DA (defensivas). Cadastre ao menos uma para habilitar a geração."
-            linkLabel="Ir para Estratégias"
-            linkHref="/estrategias"
-            variante="info"
-          />
-          <PrerequisiteWarning
-            titulo="…ou crie Frentes de Crescimento (Ansoff)"
-            descricao="O gerador também produz iniciativas para cada Frente de Crescimento ofensiva (Ansoff). Cadastre ao menos uma frente para habilitar a geração em matriz."
-            linkLabel="Ir para Frentes"
-            linkHref="/oportunidades-crescimento"
-            variante="info"
-          />
-        </>
+      {!semEstategias && semObjetivos && (
+        <PrerequisiteWarning
+          titulo="Para gerar iniciativas, crie primeiro seus Objetivos"
+          descricao="As Iniciativas são a camada de execução abaixo dos Objetivos: a IA gera projetos concretos (5W2H) para CADA Objetivo já cadastrado. Defina suas Metas e Resultados antes de habilitar a geração em matriz."
+          linkLabel="Ir para Metas e Resultados"
+          linkHref="/okrs"
+          variante="info"
+        />
       )}
       <div className="mb-6">
         <h1 className="text-3xl font-bold mb-2">Iniciativas Prioritárias</h1>
@@ -1836,12 +1827,12 @@ export default function Iniciativas() {
       <div className="flex gap-3 mb-6">
         <Button
           onClick={() => setIsAIModalOpen(true)}
-          disabled={!empresa?.id || isGenerating || totalAlvosMatriz === 0}
+          disabled={!empresa?.id || isGenerating || totalObjetivos === 0}
           className="gap-2"
           data-testid="button-generate-ai"
           title={
-            totalAlvosMatriz === 0
-              ? "Crie ao menos uma Estratégia FA/DA ou Frente de Crescimento para gerar iniciativas em matriz."
+            totalObjetivos === 0
+              ? "Crie ao menos um Objetivo (Meta) em 'Metas e Resultados' para gerar iniciativas em matriz."
               : undefined
           }
         >
@@ -1854,7 +1845,7 @@ export default function Iniciativas() {
           onOpenChange={setIsAIModalOpen}
           onConfirm={handleConfirmAIGeneration}
           title="Gerar iniciativas com IA"
-          description={`A IA gera iniciativas para CADA Estratégia FA/DA e CADA Frente de Crescimento já cadastradas (modo matriz, alinhado ao padrão Ansoff). Total de alvos hoje: ${totalAlvosMatriz}.`}
+          description={`A IA gera iniciativas (5W2H) para CADA Objetivo (Meta) já cadastrado, criando a camada de execução abaixo dos Objetivos. Total de Objetivos hoje: ${totalObjetivos}.`}
           isGenerating={isGenerating}
           testIdPrefix="ai-iniciativas"
           quantidade={{

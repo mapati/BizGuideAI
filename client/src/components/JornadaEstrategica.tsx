@@ -30,8 +30,8 @@ const ETAPA_INDEX: Record<string, number> = {
   swot: 6,
   estrategias: 7,
   oportunidades: 8,
-  iniciativas: 9,
-  okrs: 10,
+  okrs: 9,
+  iniciativas: 10,
   indicadores: 11,
   acompanhamento: 12,
 };

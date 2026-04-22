@@ -70,33 +70,30 @@ function SidebarHeaderContent() {
 
   if (isCollapsed) {
     return (
-      <div className="flex flex-col items-center gap-2">
-        <Link href="/" data-testid="link-home">
-          <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center cursor-pointer">
-            <Target className="h-5 w-5 text-primary-foreground" />
-          </div>
-        </Link>
-        <Button
-          size="icon"
-          variant="ghost"
-          onClick={toggleSidebar}
-          title="Abrir menu"
-          data-testid="button-sidebar-open"
-        >
-          <PanelLeftOpen className="h-4 w-4" />
-        </Button>
-      </div>
+      <button
+        type="button"
+        onClick={toggleSidebar}
+        className="flex flex-col items-center gap-3 py-3 w-full hover-elevate"
+        title="Abrir menu"
+        data-testid="button-sidebar-open"
+      >
+        <PanelLeftOpen className="h-4 w-4 text-muted-foreground" />
+        <Target className="h-4 w-4 text-primary" />
+      </button>
     );
   }
 
   return (
-    <div className="flex items-center justify-between gap-2">
+    <div className="flex items-center justify-between gap-2 px-3 py-2.5">
       <Link href="/" data-testid="link-home" className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 cursor-pointer">
-          <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center flex-shrink-0">
-            <Target className="h-5 w-5 text-primary-foreground" />
+        <div className="flex items-center gap-2 cursor-pointer min-w-0">
+          <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center flex-shrink-0">
+            <Target className="h-3.5 w-3.5 text-primary-foreground" />
           </div>
-          <span className="text-lg font-semibold truncate">BizGuideAI</span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold leading-none truncate">BizGuideAI</p>
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">Estratégia</p>
+          </div>
         </div>
       </Link>
       <Button
@@ -219,7 +216,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="border-b p-4 group-data-[collapsible=icon]:p-2">
+      <SidebarHeader className="border-b p-0 group-data-[collapsible=icon]:p-0">
         <SidebarHeaderContent />
       </SidebarHeader>
       <SidebarContent>

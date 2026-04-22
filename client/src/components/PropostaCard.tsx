@@ -19,6 +19,15 @@ export interface PropostaPreview {
   ctaConfirmar?: string;
   ctaIgnorar?: string;
   ctaAjustar?: string;
+  // Task #288 — Quando a proposta é uma meta-tool de lote
+  // (`proposta_em_lote`), este campo descreve cada sub-mudança para o
+  // card expandir e permitir "Confirmar tudo" ou "Revisar item a item".
+  lote?: Array<{
+    ferramenta: string;
+    titulo: string;
+    descricao: string;
+    campos: Array<{ label: string; valor: string; valorAnterior?: string }>;
+  }>;
 }
 
 export interface Proposta {
@@ -141,6 +150,12 @@ const FERRAMENTAS_LABEL: Record<string, string> = {
   criar_cenario: "Novo cenário",
   atualizar_cenario: "Atualizar cenário",
   arquivar_cenario: "Arquivar cenário",
+  // Task #288 — Ciclo de Aprendizado
+  registrar_retrospectiva: "Registrar retrospectiva",
+  arquivar_objetivo: "Arquivar objetivo",
+  repriorizar_iniciativas: "Repriorizar iniciativas",
+  repriorizar_estrategias: "Repriorizar estratégias",
+  proposta_em_lote: "Lote de mudanças",
 };
 
 // Tools cuja confirmação não cria/atualiza dado: o objetivo é apenas levar o
@@ -258,6 +273,28 @@ export function PropostaCard({
   // formulário tradicional da entidade. Pré-preenchemos via querystring
   // (?novo=1&campo=valor ou ?editar=<id>&campo=valor) — formato consumido pelo
   // hook useDeepLinkDialog em todas as páginas-alvo (Iniciativas, OKRs, Indicadores).
+  // Task #288 — Para lotes, "Revisar item a item" pede ao backend que
+  // marque a proposta de lote como ajustada e crie N propostas individuais.
+  // O AssistantChat recarrega a lista de propostas automaticamente.
+  const handleExpandirLote = async () => {
+    setSubmitting("ajustar");
+    try {
+      await apiRequest("POST", `/api/ai/proposta/${logId}/expandir-lote`, {});
+      setEstado("ajustada");
+      toast({
+        title: "Lote expandido",
+        description: "Cada mudança virou uma sugestão individual para você revisar.",
+      });
+      const queries = ["/api/ai/propostas", "/api/ai/planos", "/api/ai/planos/ativo"];
+      for (const q of queries) queryClient.invalidateQueries({ queryKey: [q] });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast({ title: "Não foi possível expandir o lote", description: msg, variant: "destructive" });
+    } finally {
+      setSubmitting(null);
+    }
+  };
+
   const handleAjustar = async () => {
     setSubmitting("ajustar");
     try {
@@ -377,6 +414,52 @@ export function PropostaCard({
           </div>
         </div>
 
+        {preview.lote && preview.lote.length > 0 && (
+          <div
+            className="rounded-md border bg-muted/30 px-2.5 py-2 space-y-2"
+            data-testid={`lote-proposta-${logId}`}
+          >
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">
+              {preview.lote.length} mudanças neste lote
+            </div>
+            {preview.lote.map((item, idx) => (
+              <details
+                key={idx}
+                className="rounded border bg-background/60"
+                data-testid={`lote-item-${logId}-${idx}`}
+              >
+                <summary className="flex items-center gap-2 px-2 py-1.5 text-xs cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+                  <Badge variant="outline" className="text-[9px] uppercase">
+                    {FERRAMENTAS_LABEL[item.ferramenta] ?? item.ferramenta}
+                  </Badge>
+                  <span className="font-medium truncate flex-1">{item.titulo}</span>
+                </summary>
+                <div className="px-2 pb-2 pt-0.5 space-y-1">
+                  <div className="text-[11px] text-muted-foreground">{item.descricao}</div>
+                  {item.campos.map((c, ci) => {
+                    const temDiff =
+                      typeof c.valorAnterior === "string" && c.valorAnterior !== c.valor;
+                    return (
+                      <div key={ci} className="flex gap-2 text-[11px]">
+                        <span className="text-muted-foreground min-w-[80px] shrink-0">{c.label}</span>
+                        {temDiff ? (
+                          <span className="font-medium break-words flex flex-wrap items-baseline gap-1">
+                            <span className="line-through text-muted-foreground">{c.valorAnterior}</span>
+                            <ArrowRight className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
+                            <span>{c.valor}</span>
+                          </span>
+                        ) : (
+                          <span className="font-medium break-words">{c.valor}</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </details>
+            ))}
+          </div>
+        )}
+
         {preview.campos?.length > 0 && (
           <div className="rounded-md border bg-muted/30 px-2.5 py-2 space-y-1">
             {preview.campos.map((c, i) => {
@@ -441,9 +524,13 @@ export function PropostaCard({
               <Button
                 size="sm"
                 variant="secondary"
-                onClick={handleAjustar}
+                onClick={ferramenta === "proposta_em_lote" ? handleExpandirLote : handleAjustar}
                 disabled={submitting !== null}
-                data-testid={`button-proposta-ajustar-${logId}`}
+                data-testid={
+                  ferramenta === "proposta_em_lote"
+                    ? `button-proposta-expandir-${logId}`
+                    : `button-proposta-ajustar-${logId}`
+                }
                 className="gap-1.5"
               >
                 {submitting === "ajustar" ? (

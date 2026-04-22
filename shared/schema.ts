@@ -299,6 +299,9 @@ export const estrategias = pgTable("estrategias", {
   prioridade: text("prioridade").notNull(),
   status: text("status").notNull().default("planejada"),
   swotOrigemIds: text("swot_origem_ids").array(),
+  // Task #288 — ordem manual de priorização (menor = topo da lista).
+  // Opcional/aditivo; quando NULL, ordena pela `prioridade` textual + criação.
+  ordem: integer("ordem"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -361,6 +364,9 @@ export const iniciativas = pgTable("iniciativas", {
   // (concluída/pausada/cancelada) pelo agente. Aditivo, sem mexer em IDs.
   notaEncerramento: text("nota_encerramento"),
   encerradaEm: timestamp("encerrada_em"),
+  // Task #288 — ordem manual de priorização (menor = topo da lista).
+  // Opcional/aditivo; quando NULL, ordena pela `prioridade` textual + criação.
+  ordem: integer("ordem"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -747,6 +753,19 @@ export const propostaPreviewSchema = z.object({
   ctaConfirmar: z.string().default("Confirmar"),
   ctaIgnorar: z.string().default("Ignorar"),
   ctaAjustar: z.string().default("Ajustar"),
+  // Task #288 — Quando a proposta é uma meta-tool de lote (`proposta_em_lote`),
+  // este campo descreve cada sub-mudança para o card expandir e permitir
+  // "Confirmar tudo" ou "Revisar item a item".
+  lote: z.array(z.object({
+    ferramenta: z.string(),
+    titulo: z.string(),
+    descricao: z.string().default(""),
+    campos: z.array(z.object({
+      label: z.string(),
+      valor: z.string(),
+      valorAnterior: z.string().optional(),
+    })).default([]),
+  })).optional(),
 });
 export type PropostaPreview = z.infer<typeof propostaPreviewSchema>;
 

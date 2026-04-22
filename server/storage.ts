@@ -251,6 +251,10 @@ export interface IStorage {
   createIniciativa(iniciativa: InsertIniciativa): Promise<Iniciativa>;
   updateIniciativa(id: string, empresaId: string, iniciativa: Partial<InsertIniciativa>): Promise<Iniciativa>;
   deleteIniciativa(id: string, empresaId: string): Promise<void>;
+  // Task #288 — Ciclo de Aprendizado: repriorização em lote.
+  repriorizarIniciativas(empresaId: string, idsOrdenados: string[]): Promise<Iniciativa[]>;
+  repriorizarEstrategias(empresaId: string, idsOrdenados: string[]): Promise<Estrategia[]>;
+  arquivarObjetivo(id: string, empresaId: string, motivo: string): Promise<Objetivo>;
   // Task #231 — quebra atômica de iniciativa em filhas; encerra a mãe.
   dividirIniciativa(
     iniciativaId: string,
@@ -1055,6 +1059,86 @@ export class DbStorage implements IStorage {
         .returning();
       if (!maeAtualizada[0]) throw new Error("Falha ao encerrar iniciativa-mãe.");
       return { mae: maeAtualizada[0], filhas: inseridas };
+    });
+  }
+
+  // Task #288 — Repriorização em lote: aplica `ordem` (1-based, na ordem do array)
+  // a cada iniciativa pertencente à empresa. IDs ausentes são ignorados; IDs
+  // duplicados ou de outra empresa lançam erro antes de qualquer escrita.
+  async repriorizarIniciativas(empresaId: string, idsOrdenados: string[]): Promise<Iniciativa[]> {
+    if (!Array.isArray(idsOrdenados) || idsOrdenados.length === 0) return [];
+    const setIds = new Set(idsOrdenados);
+    if (setIds.size !== idsOrdenados.length) {
+      throw new Error("Lista de IDs contém duplicatas — repriorização abortada.");
+    }
+    return await db.transaction(async (tx) => {
+      const linhas = await tx.select({ id: iniciativas.id }).from(iniciativas)
+        .where(and(eq(iniciativas.empresaId, empresaId), inArray(iniciativas.id, idsOrdenados)));
+      const validos = new Set(linhas.map((l) => l.id));
+      const faltantes = idsOrdenados.filter((id) => !validos.has(id));
+      if (faltantes.length > 0) {
+        throw new Error(`Iniciativa(s) não pertencem a esta empresa: ${faltantes.join(", ")}`);
+      }
+      const atualizadas: Iniciativa[] = [];
+      for (let i = 0; i < idsOrdenados.length; i++) {
+        const [row] = await tx.update(iniciativas)
+          .set({ ordem: i + 1 })
+          .where(and(eq(iniciativas.id, idsOrdenados[i]), eq(iniciativas.empresaId, empresaId)))
+          .returning();
+        if (row) atualizadas.push(row);
+      }
+      return atualizadas;
+    });
+  }
+
+  async repriorizarEstrategias(empresaId: string, idsOrdenados: string[]): Promise<Estrategia[]> {
+    if (!Array.isArray(idsOrdenados) || idsOrdenados.length === 0) return [];
+    const setIds = new Set(idsOrdenados);
+    if (setIds.size !== idsOrdenados.length) {
+      throw new Error("Lista de IDs contém duplicatas — repriorização abortada.");
+    }
+    return await db.transaction(async (tx) => {
+      const linhas = await tx.select({ id: estrategias.id }).from(estrategias)
+        .where(and(eq(estrategias.empresaId, empresaId), inArray(estrategias.id, idsOrdenados)));
+      const validos = new Set(linhas.map((l) => l.id));
+      const faltantes = idsOrdenados.filter((id) => !validos.has(id));
+      if (faltantes.length > 0) {
+        throw new Error(`Estratégia(s) não pertencem a esta empresa: ${faltantes.join(", ")}`);
+      }
+      const atualizadas: Estrategia[] = [];
+      for (let i = 0; i < idsOrdenados.length; i++) {
+        const [row] = await tx.update(estrategias)
+          .set({ ordem: i + 1 })
+          .where(and(eq(estrategias.id, idsOrdenados[i]), eq(estrategias.empresaId, empresaId)))
+          .returning();
+        if (row) atualizadas.push(row);
+      }
+      return atualizadas;
+    });
+  }
+
+  // Task #288 — Arquivamento de objetivo: marca `encerrado=true`. O motivo
+  // fica registrado no proposta_log (parametros + resultado) — não há
+  // campo dedicado na tabela. Tools chamadoras podem optar por anexar o
+  // motivo à descrição se o usuário quiser persistência longa.
+  async arquivarObjetivo(id: string, empresaId: string, motivo: string): Promise<Objetivo> {
+    const motivoLimpo = (motivo ?? "").trim();
+    const data = new Date().toISOString().slice(0, 10);
+    return await db.transaction(async (tx) => {
+      const [obj] = await tx.select().from(objetivos)
+        .where(and(eq(objetivos.id, id), eq(objetivos.empresaId, empresaId)))
+        .limit(1);
+      if (!obj) throw new Error("Objetivo não encontrado nesta empresa.");
+      if (obj.encerrado) throw new Error("Objetivo já está arquivado.");
+      const novaDescricao = motivoLimpo
+        ? `${obj.descricao ? obj.descricao + "\n\n" : ""}[Arquivado em ${data}] ${motivoLimpo}`
+        : obj.descricao ?? "";
+      const [updated] = await tx.update(objetivos)
+        .set({ encerrado: true, descricao: novaDescricao })
+        .where(and(eq(objetivos.id, id), eq(objetivos.empresaId, empresaId)))
+        .returning();
+      if (!updated) throw new Error("Falha ao arquivar objetivo.");
+      return updated;
     });
   }
 

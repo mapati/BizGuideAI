@@ -4372,6 +4372,8 @@ FERRAMENTAS DISPONÍVEIS:
 - Modelo & Estratégia (Task #287): use criar_estrategia para registrar uma estratégia-mãe FO/FA/DO/DA aprovada (ex.: "cria uma estratégia FO de fidelização premium"); atualizar_estrategia / arquivar_estrategia quando o usuário pedir reescrita ou descontinuar uma estratégia listada no catálogo. Use criar_bloco_bmc / atualizar_bloco_bmc / arquivar_bloco_bmc para preencher ou ajustar conteúdo dos 9 blocos do Business Model Canvas (parcerias_principais, atividades_principais, recursos_principais, proposta_valor, relacionamento_clientes, canais, segmentos_clientes, estrutura_custos, fontes_receita) — ex.: "adiciona consultoria embarcada na proposta de valor". Use criar_relacao_bsc para amarrar dois objetivos no Mapa Estratégico (passe origemId/destinoId reais do catálogo de OKRs e tipo causa_efeito ou correlacao) e remover_relacao_bsc quando o usuário desfizer uma ligação. Use criar_cenario / atualizar_cenario / arquivar_cenario para registrar cenários otimista, base/realista ou pessimista (ex.: "cria um cenário pessimista de queda de 20% na receita com premissas X, Y").
 - Memória manual: registrar_fato_manualmente (quando o usuário pedir explicitamente para lembrar/anotar algo), esquecer_fato (quando ele pedir para esquecer/desativar um fato listado no bloco de memória).
 - Rituais de gestão (Task #233): gerar_pauta_reuniao (use quando o usuário pedir a pauta da reunião semanal/mensal/trimestral), registrar_ata (use após a reunião — passe decisões e encaminhamentos; cada encaminhamento vira uma proposta HITL separada que o usuário ainda confirmará), registrar_decisao (use quando o usuário ditar uma decisão estratégica isolada com título/contexto/escolha/justificativa), agendar_revisao (use quando o usuário pedir para "revisar X em N semanas/meses" ou marcar um check-in futuro de iniciativa/OKR/KPI/estratégia/plano).
+- Ciclo de aprendizado (Task #288): registrar_retrospectiva (quando o usuário fizer balanço de ciclo — fim de trimestre, fim de OKR — com conquistas/falhas/aprendizados/ajustes; vincule ao objetivoId), arquivar_objetivo (quando o usuário disser que um objetivo terminou, foi concluído, abandonado ou substituído — preserva histórico, só tira do radar ativo), repriorizar_iniciativas / repriorizar_estrategias (quando ele pedir para reordenar/repriorizar a lista — passe os IDs já na nova ordem desejada).
+- Lote (meta-tool): proposta_em_lote — use SEMPRE que houver 3 ou mais mudanças individuais com a MESMA justificativa (ex.: "adia o prazo de A, B e C em 1 mês porque o fornecedor atrasou", "muda o dono de 4 iniciativas para o João", "atualiza o progresso de 5 KRs do quarter"). Empacote N sub-chamadas em uma única proposta_em_lote com a justificativa compartilhada — o usuário aprova tudo de uma vez (ou expande para revisar item a item). NÃO use proposta_em_lote para 1 ou 2 mudanças, e NÃO empacote chamadas com motivos diferentes — nesse caso emita propostas separadas. NÃO aninhe proposta_em_lote dentro de outra, e não inclua tools de navegação/plano/ata.
 - Planos agênticos (loop multi-passo): criar_plano_agentico (quando o objetivo do usuário exigir 2+ ações encadeadas), concluir_plano_agentico (quando os passos foram cumpridos), cancelar_plano_agentico (quando o usuário desistir).
 - Análise read-only (executam direto, NÃO viram proposta): use "analisar_indicador" quando o usuário perguntar sobre UM KPI específico ("e o NPS?", "como está o churn?") — você recebe série, tendência, vínculos. Use "projetar_kr" quando ele pedir projeção/se a meta vai bater. Use "simular_impacto" ANTES de recomendar adiar/cancelar uma iniciativa, para mostrar quais KPIs/OKRs ficam órfãos. Use "comparar_periodos" para retrospectivas ("este trimestre vs anterior").
 - Diagnóstico ativo do plano (Task #285, read-only): use "analisar_gap_meta_vs_realizado" quando o usuário perguntar "por que o NPS/KR/objetivo X não está batendo?" (passe tipo='kpi'|'kr'|'objetivo' + id) — devolve gap, projeção e causas prováveis. Use "detectar_lacunas_cascata" quando ele perguntar "o que está solto/órfão no meu plano?" — devolve iniciativas sem objetivo, objetivos sem KR, KPIs sem iniciativa atacando, estratégias sem iniciativa (lembre: KR sem KPI NÃO é defeito). Use "detectar_objetivos_descarrilados" para "quais objetivos estão em risco?" — lista objetivos com pct médio < 30% ou sem check-in há > 21 dias. Use "analisar_consistencia_estrategica" para "a execução está conectada à estratégia?" — mostra estratégias sem objetivo/iniciativa e iniciativas que não tocam nenhum KPI. Use "sumarizar_ciclo_atual" para "como foi o trimestre?" — % executado, check-ins, decisões, top conquistas/atrasos.
@@ -5259,6 +5261,69 @@ INSTRUÇÕES:
         parametros: log.parametros,
         ferramenta: log.ferramenta,
       });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ error: message });
+    }
+  });
+
+  // Task #288 — Expande uma proposta de lote (`proposta_em_lote`) em N
+  // propostas individuais. UX: usuário clicou "Revisar item a item" no card.
+  // Comportamento: marca a proposta-mãe como `ajustada` (preservando o log)
+  // e cria uma proposta_log nova para cada sub-chamada via registrarProposta
+  // (que aplica a mesma validação/preview que uma chamada normal do agente).
+  app.post("/api/ai/proposta/:logId/expandir-lote", requireAuth, async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const userId = req.session.userId!;
+      const log = await storage.getPropostaLog(req.params.logId);
+      if (!log || !podeAtuarNaProposta(log, { empresaId, userId })) {
+        return res.status(404).json({ error: "Proposta não encontrada." });
+      }
+      if (log.ferramenta !== "proposta_em_lote") {
+        return res.status(400).json({ error: "Apenas propostas de lote podem ser expandidas." });
+      }
+      if (log.status !== "proposta") {
+        return res.status(409).json({ error: `Proposta já está ${log.status}.`, status: log.status });
+      }
+      const params = log.parametros as { chamadas?: Array<{ tool: string; parametros: Record<string, unknown> }> };
+      const chamadas = Array.isArray(params?.chamadas) ? params.chamadas : [];
+      if (chamadas.length === 0) {
+        return res.status(400).json({ error: "Lote sem sub-chamadas." });
+      }
+
+      const novasPropostas: Array<{ logId: string; ferramenta: string; preview: unknown; parametros: Record<string, unknown> }> = [];
+      const erros: Array<{ tool: string; erro: string }> = [];
+      for (const chamada of chamadas) {
+        try {
+          const r = await registrarProposta({
+            toolName: chamada.tool,
+            rawArgs: chamada.parametros,
+            empresaId,
+            usuarioId: userId,
+            origem: "chat",
+          });
+          if (r.ok) {
+            novasPropostas.push({
+              logId: r.logId,
+              ferramenta: r.ferramenta,
+              preview: r.preview,
+              parametros: r.parametros,
+            });
+          } else {
+            erros.push({ tool: chamada.tool, erro: r.mensagem });
+          }
+        } catch (err) {
+          erros.push({ tool: chamada.tool, erro: err instanceof Error ? err.message : String(err) });
+        }
+      }
+
+      await storage.updatePropostaLog(log.id, {
+        status: "ajustada",
+        resolvidoEm: new Date(),
+      });
+
+      res.json({ ok: true, propostas: novasPropostas, erros });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       res.status(500).json({ error: message });

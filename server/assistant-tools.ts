@@ -74,7 +74,13 @@ export type ToolName =
   | "remover_relacao_bsc"
   | "criar_cenario"
   | "atualizar_cenario"
-  | "arquivar_cenario";
+  | "arquivar_cenario"
+  // Task #288 — Ciclo de Aprendizado
+  | "registrar_retrospectiva"
+  | "arquivar_objetivo"
+  | "repriorizar_iniciativas"
+  | "repriorizar_estrategias"
+  | "proposta_em_lote";
 
 export interface ToolApplyContext {
   empresaId: string;
@@ -5343,6 +5349,392 @@ const arquivarCenario: ToolDefinition<ArquivarCenarioParams> = {
   statusLabel: "Arquivando cenário…",
 };
 
+// ─── Task #288 — Ciclo de Aprendizado: 5 novas tools HITL ────────────────
+// Bloco fechado de aprendizado contínuo: o agente registra retrospectivas,
+// arquiva objetivos cumpridos/abandonados, repriorize iniciativas e
+// estratégias e (meta-tool) agrupa N mudanças com a mesma justificativa
+// em uma única proposta de "lote" — UX atômica do usuário, idempotente
+// por item no backend.
+
+// ---------- 2k.1 registrar_retrospectiva ----------
+// Deterministica: registra os 4 campos da retrospectiva (conquistas/falhas/
+// aprendizados/ajustes) vinculada a um objetivo no período informado. NÃO
+// gera opinião, NÃO recomenda ações — esta tool é só de captura.
+const registrarRetrospectivaSchema = z.object({
+  objetivoId: z.string().min(8),
+  periodoInicio: z.string().regex(PRAZO_DATA_REGEX, "periodoInicio deve ser YYYY-MM-DD").optional(),
+  periodoFim: z.string().regex(PRAZO_DATA_REGEX, "periodoFim deve ser YYYY-MM-DD").optional(),
+  conquistas: z.string().max(2000).default(""),
+  falhas: z.string().max(2000).default(""),
+  aprendizados: z.string().max(2000).default(""),
+  ajustes: z.string().max(2000).default(""),
+}).refine((d) => [d.conquistas, d.falhas, d.aprendizados, d.ajustes].some((s) => s.trim().length > 0), {
+  message: "Pelo menos um dos quatro campos (conquistas/falhas/aprendizados/ajustes) deve ser preenchido.",
+});
+type RegistrarRetrospectivaParams = z.infer<typeof registrarRetrospectivaSchema>;
+
+const registrarRetrospectiva: ToolDefinition<RegistrarRetrospectivaParams> = {
+  name: "registrar_retrospectiva",
+  description:
+    "Registra uma retrospectiva (conquistas, falhas, aprendizados, ajustes) vinculada a um objetivo do CATÁLOGO no período informado. Use quando o usuário fizer um balanço de ciclo (ex.: fim de trimestre, fim de OKR). Esta tool só captura DADOS — não opina nem propõe ações.",
+  paramsSchema: registrarRetrospectivaSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["objetivoId"],
+    properties: {
+      objetivoId: { type: "string", description: "ID real do objetivo do CATÁLOGO." },
+      periodoInicio: { type: "string", description: "Início do período avaliado (YYYY-MM-DD)." },
+      periodoFim: { type: "string", description: "Fim do período avaliado (YYYY-MM-DD)." },
+      conquistas: { type: "string", description: "O que foi alcançado/funcionou neste ciclo." },
+      falhas: { type: "string", description: "O que não funcionou ou ficou aquém." },
+      aprendizados: { type: "string", description: "Lições extraídas do ciclo." },
+      ajustes: { type: "string", description: "Ajustes/decisões para o próximo ciclo." },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Registrar retrospectiva",
+    descricao: `Capturar conquistas, falhas, aprendizados e ajustes deste ciclo do objetivo${p.periodoInicio || p.periodoFim ? ` (${p.periodoInicio ?? "?"} → ${p.periodoFim ?? "?"})` : ""}.`,
+    campos: [
+      { label: "Objetivo", valor: p.objetivoId },
+      ...(p.periodoInicio ? [{ label: "Início", valor: p.periodoInicio }] : []),
+      ...(p.periodoFim ? [{ label: "Fim", valor: p.periodoFim }] : []),
+      ...(p.conquistas.trim() ? [{ label: "Conquistas", valor: p.conquistas }] : []),
+      ...(p.falhas.trim() ? [{ label: "Falhas", valor: p.falhas }] : []),
+      ...(p.aprendizados.trim() ? [{ label: "Aprendizados", valor: p.aprendizados }] : []),
+      ...(p.ajustes.trim() ? [{ label: "Ajustes", valor: p.ajustes }] : []),
+    ],
+    ctaConfirmar: "Registrar retrospectiva",
+    ctaIgnorar: "Não registrar",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const objetivos = await storage.getObjetivos(ctx.empresaId);
+    const obj = objetivos.find((o) => o.id === p.objetivoId);
+    if (!obj) throw new Error("Objetivo não encontrado nesta empresa.");
+    const retro = await storage.createRetrospectiva({
+      objetivoId: p.objetivoId,
+      empresaId: ctx.empresaId,
+      conquistas: p.conquistas,
+      falhas: p.falhas,
+      aprendizados: p.aprendizados,
+      ajustes: p.ajustes,
+      periodoInicio: p.periodoInicio ?? null,
+      periodoFim: p.periodoFim ?? null,
+      registradoPor: ctx.usuarioId ?? null,
+    });
+    return {
+      resumo: `Retrospectiva registrada para "${obj.titulo}".`,
+      dados: { retrospectivaId: retro.id, objetivoId: p.objetivoId },
+      rota: `/okrs?objetivo=${p.objetivoId}`,
+      entidadeTipo: "objetivo",
+      entidadeId: p.objetivoId,
+    };
+  },
+  formRota: "/okrs",
+};
+
+// ---------- 2k.2 arquivar_objetivo ----------
+// Marca um objetivo como `encerrado=true`. Não exclui — preserva histórico,
+// retrospectivas e KRs para consulta retroativa. O motivo fica anexado à
+// descrição do objetivo (com data) para rastreabilidade.
+const arquivarObjetivoSchema = z.object({
+  id: z.string().min(8),
+  motivo: z.string().min(3).max(600),
+});
+type ArquivarObjetivoParams = z.infer<typeof arquivarObjetivoSchema>;
+
+const arquivarObjetivoTool: ToolDefinition<ArquivarObjetivoParams> = {
+  name: "arquivar_objetivo",
+  description:
+    "Arquiva (encerra) um objetivo do CATÁLOGO preservando todo o histórico (KRs, retrospectivas, check-ins). Use quando o usuário disser que um OKR/objetivo terminou — concluído, abandonado ou substituído — e quiser tirar do radar ativo. NÃO apaga dados, só marca como encerrado.",
+  paramsSchema: arquivarObjetivoSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["id", "motivo"],
+    properties: {
+      id: { type: "string", description: "ID real do objetivo do CATÁLOGO." },
+      motivo: { type: "string", description: "Justificativa curta do arquivamento (ex.: 'Atingido 110%', 'Abandonado por falta de capacidade', 'Substituído pelo OKR X')." },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Arquivar objetivo",
+    descricao: "Encerrar o objetivo (preserva histórico) e remover da lista ativa.",
+    campos: [
+      { label: "Objetivo", valor: p.id },
+      { label: "Motivo", valor: p.motivo },
+    ],
+    ctaConfirmar: "Arquivar",
+    ctaIgnorar: "Manter ativo",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const obj = await storage.arquivarObjetivo(p.id, ctx.empresaId, p.motivo);
+    return {
+      resumo: `Objetivo "${obj.titulo}" arquivado.`,
+      dados: { id: obj.id },
+      rota: "/okrs",
+      entidadeTipo: "objetivo",
+      entidadeId: obj.id,
+    };
+  },
+  formRota: "/okrs",
+};
+
+// ---------- 2k.3 repriorizar_iniciativas ----------
+// Aplica `ordem` (1-based) na ordem do array. Não muda nenhum outro campo.
+const repriorizarIniciativasSchema = z.object({
+  ids: z.array(z.string().min(8)).min(2).max(50),
+  justificativa: z.string().min(3).max(500),
+});
+type RepriorizarIniciativasParams = z.infer<typeof repriorizarIniciativasSchema>;
+
+const repriorizarIniciativasTool: ToolDefinition<RepriorizarIniciativasParams> = {
+  name: "repriorizar_iniciativas",
+  description:
+    "Reordena iniciativas existentes do CATÁLOGO definindo a coluna `ordem` (1-based, na ordem do array). Use quando o usuário pedir explicitamente para repriorizar/reordenar iniciativas (ex.: 'coloca a iniciativa X no topo', 'reorganiza as iniciativas: A, B, C nessa ordem'). NÃO muda nenhum outro campo (status, prazo, dono).",
+  paramsSchema: repriorizarIniciativasSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["ids", "justificativa"],
+    properties: {
+      ids: {
+        type: "array",
+        items: { type: "string" },
+        minItems: 2,
+        maxItems: 50,
+        description: "IDs reais das iniciativas, na ordem desejada (do topo para a base).",
+      },
+      justificativa: { type: "string", description: "Por que esta ordem? (curto, ex.: 'foco no caixa do trimestre')." },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Repriorizar iniciativas",
+    descricao: `Definir a nova ordem (${p.ids.length} iniciativas) — só muda o ranking, mantém todo o resto.`,
+    campos: [
+      { label: "Justificativa", valor: p.justificativa },
+      ...p.ids.map((id, i) => ({ label: `${i + 1}º`, valor: id })),
+    ],
+    ctaConfirmar: "Aplicar nova ordem",
+    ctaIgnorar: "Manter ordem atual",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const updated = await storage.repriorizarIniciativas(ctx.empresaId, p.ids);
+    return {
+      resumo: `Repriorização aplicada a ${updated.length} iniciativa(s).`,
+      dados: { ids: updated.map((u) => u.id), justificativa: p.justificativa },
+      rota: "/iniciativas",
+      entidadeTipo: "iniciativa",
+      entidadeId: updated[0]?.id,
+    };
+  },
+  formRota: "/iniciativas",
+};
+
+// ---------- 2k.4 repriorizar_estrategias ----------
+const repriorizarEstrategiasSchema = z.object({
+  ids: z.array(z.string().min(8)).min(2).max(50),
+  justificativa: z.string().min(3).max(500),
+});
+type RepriorizarEstrategiasParams = z.infer<typeof repriorizarEstrategiasSchema>;
+
+const repriorizarEstrategiasTool: ToolDefinition<RepriorizarEstrategiasParams> = {
+  name: "repriorizar_estrategias",
+  description:
+    "Reordena estratégias existentes do CATÁLOGO definindo a coluna `ordem` (1-based, na ordem do array). Use quando o usuário pedir explicitamente para repriorizar/reordenar estratégias. NÃO muda nenhum outro campo.",
+  paramsSchema: repriorizarEstrategiasSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["ids", "justificativa"],
+    properties: {
+      ids: {
+        type: "array",
+        items: { type: "string" },
+        minItems: 2,
+        maxItems: 50,
+        description: "IDs reais das estratégias, na ordem desejada (do topo para a base).",
+      },
+      justificativa: { type: "string", description: "Por que esta ordem? (curto)." },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Repriorizar estratégias",
+    descricao: `Definir a nova ordem (${p.ids.length} estratégias) — só muda o ranking, mantém todo o resto.`,
+    campos: [
+      { label: "Justificativa", valor: p.justificativa },
+      ...p.ids.map((id, i) => ({ label: `${i + 1}º`, valor: id })),
+    ],
+    ctaConfirmar: "Aplicar nova ordem",
+    ctaIgnorar: "Manter ordem atual",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const updated = await storage.repriorizarEstrategias(ctx.empresaId, p.ids);
+    return {
+      resumo: `Repriorização aplicada a ${updated.length} estratégia(s).`,
+      dados: { ids: updated.map((u) => u.id), justificativa: p.justificativa },
+      rota: "/estrategias",
+      entidadeTipo: "estrategia",
+      entidadeId: updated[0]?.id,
+    };
+  },
+  formRota: "/estrategias",
+};
+
+// ---------- 2k.5 proposta_em_lote (META-TOOL) ----------
+// Agrupa N (3+) chamadas de tools executoras com a MESMA justificativa em
+// uma única proposta para o usuário. UX atômica (1 card "Confirmar tudo"),
+// idempotente por item no backend (cada apply roda em sequência; falha de
+// um item não rebobina os anteriores — o resultado agregado mostra o que
+// foi e o que não foi aplicado).
+//
+// Restrições anti-loop:
+//  - tools internas devem ser executoras (não nav, não meta, não plano).
+//  - `proposta_em_lote` NÃO pode aninhar outra `proposta_em_lote`.
+//  - mínimo 2 chamadas (faz mais sentido a partir de 3, mas 2 é suficiente
+//    para o caso "bumpa prazo de A e B com a mesma justificativa").
+const TOOLS_PROIBIDAS_EM_LOTE: ReadonlySet<string> = new Set([
+  "proposta_em_lote",
+  "criar_plano_agentico",
+  "concluir_plano_agentico",
+  "cancelar_plano_agentico",
+  "navegar_para",
+  "abrir_entidade",
+  "registrar_ata",
+]);
+
+const propostaEmLoteSchema = z.object({
+  justificativa: z.string().min(10).max(500),
+  chamadas: z.array(z.object({
+    tool: z.string().min(1),
+    parametros: z.record(z.string(), z.unknown()),
+  })).min(2).max(15),
+});
+type PropostaEmLoteParams = z.infer<typeof propostaEmLoteSchema>;
+
+const propostaEmLote: ToolDefinition<PropostaEmLoteParams> = {
+  name: "proposta_em_lote",
+  description:
+    "META-TOOL: agrupa 3+ mudanças que compartilham a MESMA justificativa em uma única proposta de 'lote' para o usuário (ex.: 'adia o prazo de A, B e C em 1 mês porque o fornecedor atrasou'). Cada sub-chamada é validada contra o schema da própria tool antes do card aparecer; ao confirmar, todas são aplicadas em sequência (idempotente por item). NÃO pode aninhar outra proposta_em_lote, nem chamar tools de navegação/plano agêntico/ata.",
+  paramsSchema: propostaEmLoteSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["justificativa", "chamadas"],
+    properties: {
+      justificativa: { type: "string", description: "Motivo único compartilhado por todas as sub-mudanças." },
+      chamadas: {
+        type: "array",
+        minItems: 2,
+        maxItems: 15,
+        description: "Lista de sub-chamadas. Cada item vira uma sub-proposta dentro do mesmo card.",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["tool", "parametros"],
+          properties: {
+            tool: { type: "string", description: "Nome da tool executora (ex.: atualizar_iniciativa, atualizar_kr)." },
+            parametros: { type: "object", description: "Parâmetros que passariam à tool individualmente — devem casar com o paramsSchema dela." },
+          },
+        },
+      },
+    },
+  },
+  preview: (p) => {
+    const lote = p.chamadas.map((c) => {
+      const tool = getTool(c.tool);
+      if (!tool) {
+        return {
+          ferramenta: c.tool,
+          titulo: `Tool desconhecida: ${c.tool}`,
+          descricao: "Esta sub-chamada será ignorada.",
+          campos: [] as Array<{ label: string; valor: string; valorAnterior?: string }>,
+        };
+      }
+      const parsed = tool.paramsSchema.safeParse(c.parametros);
+      if (!parsed.success) {
+        return {
+          ferramenta: c.tool,
+          titulo: `${tool.name} (parâmetros inválidos)`,
+          descricao: parsed.error.message.slice(0, 200),
+          campos: [],
+        };
+      }
+      const sub = tool.preview(parsed.data);
+      return {
+        ferramenta: c.tool,
+        titulo: sub.titulo,
+        descricao: sub.descricao,
+        campos: sub.campos ?? [],
+      };
+    });
+    return {
+      titulo: `Lote de ${p.chamadas.length} mudanças`,
+      descricao: p.justificativa,
+      campos: [{ label: "Justificativa", valor: p.justificativa }],
+      ctaConfirmar: "Confirmar tudo",
+      ctaIgnorar: "Não aplicar",
+      ctaAjustar: "Revisar item a item",
+      lote,
+    };
+  },
+  apply: async (p, ctx) => {
+    const resultados: Array<{
+      tool: string;
+      ok: boolean;
+      resumo?: string;
+      erro?: string;
+      entidadeTipo?: string;
+      entidadeId?: string;
+    }> = [];
+    for (const chamada of p.chamadas) {
+      if (TOOLS_PROIBIDAS_EM_LOTE.has(chamada.tool)) {
+        resultados.push({ tool: chamada.tool, ok: false, erro: "Tool não permitida em lote." });
+        continue;
+      }
+      const tool = getTool(chamada.tool);
+      if (!tool) {
+        resultados.push({ tool: chamada.tool, ok: false, erro: "Tool desconhecida." });
+        continue;
+      }
+      const parsed = tool.paramsSchema.safeParse(chamada.parametros);
+      if (!parsed.success) {
+        resultados.push({ tool: chamada.tool, ok: false, erro: parsed.error.message.slice(0, 200) });
+        continue;
+      }
+      try {
+        const r = await tool.apply(parsed.data, ctx);
+        resultados.push({
+          tool: chamada.tool,
+          ok: true,
+          resumo: r.resumo,
+          entidadeTipo: r.entidadeTipo,
+          entidadeId: r.entidadeId,
+        });
+      } catch (err) {
+        resultados.push({
+          tool: chamada.tool,
+          ok: false,
+          erro: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+    const sucessos = resultados.filter((r) => r.ok).length;
+    const falhas = resultados.length - sucessos;
+    return {
+      resumo: falhas === 0
+        ? `Lote aplicado: ${sucessos} de ${resultados.length} mudanças concluídas.`
+        : `Lote parcial: ${sucessos} aplicada(s), ${falhas} falharam.`,
+      dados: { justificativa: p.justificativa, resultados },
+    };
+  },
+  formRota: "/dashboard",
+};
+
 // Cada ToolDefinition tem um TParams concreto; o registry, porém, precisa
 // guardar todos juntos. `wrap` faz o "sealing" para `unknown` em um único
 // ponto tipado, evitando `any` espalhado pelo módulo. A validação de runtime
@@ -5404,6 +5796,12 @@ export const TOOLS: Record<ToolName, ToolDefinition<unknown>> = {
   criar_cenario: wrap(criarCenario),
   atualizar_cenario: wrap(atualizarCenario),
   arquivar_cenario: wrap(arquivarCenario),
+  // Task #288 — Ciclo de Aprendizado
+  registrar_retrospectiva: wrap(registrarRetrospectiva),
+  arquivar_objetivo: wrap(arquivarObjetivoTool),
+  repriorizar_iniciativas: wrap(repriorizarIniciativasTool),
+  repriorizar_estrategias: wrap(repriorizarEstrategiasTool),
+  proposta_em_lote: wrap(propostaEmLote),
 };
 
 // Tools que executam ações de negócio (passíveis de vínculo com plano).
@@ -5455,6 +5853,12 @@ const TOOLS_EXECUTORAS: ReadonlySet<ToolName> = new Set<ToolName>([
   "criar_cenario",
   "atualizar_cenario",
   "arquivar_cenario",
+  // Task #288 — só as tools que de fato gravam no domínio podem virar
+  // passo de plano agêntico. `proposta_em_lote` é meta (não vira passo).
+  "registrar_retrospectiva",
+  "arquivar_objetivo",
+  "repriorizar_iniciativas",
+  "repriorizar_estrategias",
 ]);
 
 export function isToolExecutora(name: string): boolean {
@@ -5576,6 +5980,8 @@ const ID_RESOLVERS: Record<string, (id: string, empresaId: string) => Promise<st
 const TOOL_ID_RESOLVERS: Record<string, (id: string, empresaId: string) => Promise<string | null>> = {
   atualizar_iniciativa: ID_RESOLVERS.iniciativaId,
   encerrar_iniciativa: ID_RESOLVERS.iniciativaId,
+  // Task #288 — `arquivar_objetivo` recebe o ID do objetivo na chave `id`.
+  arquivar_objetivo: ID_RESOLVERS.objetivoId,
 };
 
 async function enrichPreviewWithFriendlyNames(
@@ -5853,6 +6259,12 @@ export const STATUS_LABELS: Readonly<Record<string, string>> = {
   registrar_ata: "Registrando ata da reunião…",
   registrar_decisao: "Registrando decisão estratégica…",
   agendar_revisao: "Agendando revisão…",
+  // Task #288 — Ciclo de Aprendizado
+  registrar_retrospectiva: "Registrando retrospectiva…",
+  arquivar_objetivo: "Arquivando objetivo…",
+  repriorizar_iniciativas: "Repriorizando iniciativas…",
+  repriorizar_estrategias: "Repriorizando estratégias…",
+  proposta_em_lote: "Preparando lote de mudanças…",
   // Navegação / abertura
   navegar_para: "Preparando navegação…",
   abrir_entidade: "Abrindo item…",

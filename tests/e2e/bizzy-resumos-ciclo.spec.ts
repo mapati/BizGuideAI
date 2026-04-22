@@ -492,6 +492,46 @@ test.describe("Hook de encerramento de objetivo dispara resumo (background)", ()
   });
 });
 
+test.describe("Hook de encerramento de iniciativa dispara resumo (background)", () => {
+  test("updateIniciativa({encerradaEm}) eventualmente cria linha em bizzy_resumos_ciclo", async () => {
+    const empresaId = await novaEmpresa();
+    try {
+      const ini = await storage.createIniciativa({
+        empresaId,
+        titulo: "Hook iniciativa test",
+        descricao: "x",
+        status: "em_andamento",
+        prioridade: "media",
+        prazo: "2026-Q2",
+        responsavel: "Eng",
+        impacto: "medio",
+      } as never);
+
+      await storage.updateIniciativa(ini.id, empresaId, {
+        status: "concluida",
+        notaEncerramento: "Entregue",
+        encerradaEm: new Date(),
+      } as never);
+
+      const row = await esperarCondicao(async () => {
+        const linhas = await storage.listResumosCicloByEmpresa(empresaId, 5);
+        return linhas.find(
+          (r) =>
+            r.tipo === "iniciativa" &&
+            r.referenciaId === ini.id &&
+            r.geradoPor === "hook_iniciativa_encerrada",
+        );
+      });
+
+      expect(row).toBeTruthy();
+      const c = lerConteudoResumo(row);
+      expect(c.iniciativasArquivadas.map((i) => i.id)).toContain(ini.id);
+    } finally {
+      await dropEmpresa(empresaId);
+    }
+  });
+});
+
 test.describe("Tools read-only: isolamento por empresa", () => {
   test("consultar_historico_estrategia e consultar_resumo_ciclo respeitam empresaId", async () => {
     const empresaA = await novaEmpresa();

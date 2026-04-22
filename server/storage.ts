@@ -1051,6 +1051,29 @@ export class DbStorage implements IStorage {
       .where(and(eq(iniciativas.id, id), eq(iniciativas.empresaId, empresaId)))
       .returning();
     if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
+    // Task #308 — quando a iniciativa é encerrada (encerradaEm preenchido
+    // E status final concluida/cancelada/pausada), dispara um resumo de
+    // ciclo (memória de longo prazo do Bizzy) em background. Falhas não
+    // bloqueiam a operação principal — mesmo padrão usado em
+    // updateObjetivo (Task #289).
+    const statusFinal = (result[0].status ?? "").toLowerCase();
+    const encerrouAgora =
+      iniciativa.encerradaEm != null &&
+      ["concluida", "concluída", "cancelada", "pausada"].includes(statusFinal);
+    if (encerrouAgora) {
+      import("./bizzy-resumos")
+        .then(({ gerarResumoCiclo }) =>
+          gerarResumoCiclo({
+            empresaId,
+            tipo: "iniciativa",
+            referenciaId: id,
+            geradoPor: "hook_iniciativa_encerrada",
+          }),
+        )
+        .catch((err) => {
+          console.warn("[RESUMO_CICLO] Hook iniciativa encerrada falhou:", err?.message ?? err);
+        });
+    }
     return result[0];
   }
 

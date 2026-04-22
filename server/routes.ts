@@ -1491,7 +1491,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const [todasIniciativas, todosObjetivos, todosIndicadores] = await Promise.all([
         storage.getIniciativas(empresaId),
         storage.getObjetivos(empresaId),
-        storage.getIndicadores(empresaId),
+        // Task #216 — painel pessoal acompanha BSC, não diagnóstico inicial.
+        storage.getIndicadoresAcompanhamento(empresaId),
       ]);
 
       const objetivosMeus = todosObjetivos.filter(o => o.responsavelId === userId);
@@ -1584,7 +1585,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const [todasIniciativas, todosObjetivos, todosIndicadores] = await Promise.all([
         storage.getIniciativas(empresaId),
         storage.getObjetivos(empresaId),
-        storage.getIndicadores(empresaId),
+        // Task #216 — resumo do painel pessoal usa BSC, não diagnóstico.
+        storage.getIndicadoresAcompanhamento(empresaId),
       ]);
 
       const iniciativasMinhas = todasIniciativas.filter(i => i.responsavelId === userId);
@@ -2959,7 +2961,9 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         usePestel      ? storage.getFatoresPestel(empresaId) : Promise.resolve<FatorPestel[]>([]),
         useCincoForcas ? storage.getCincoForcas(empresaId)   : Promise.resolve<CincoForcas[]>([]),
         useModeloNeg   ? storage.getModeloNegocio(empresaId) : Promise.resolve<ModeloNegocio[]>([]),
-        useIndicadores ? storage.getIndicadores(empresaId)   : Promise.resolve<Indicador[]>([]),
+        // Task #216 — geração de iniciativas deve atacar KPIs do BSC, não
+        // métricas do diagnóstico inicial. Usa helper de acompanhamento.
+        useIndicadores ? storage.getIndicadoresAcompanhamento(empresaId) : Promise.resolve<Indicador[]>([]),
         useObjetivos   ? storage.getObjetivos(empresaId)     : Promise.resolve<Objetivo[]>([]),
         useEstrategias ? storage.getEstrategias(empresaId)   : Promise.resolve<Estrategia[]>([]),
         useEstrategias ? storage.getIniciativas(empresaId)   : Promise.resolve<Iniciativa[]>([]),
@@ -3720,7 +3724,10 @@ Responda OBRIGATORIAMENTE em JSON:
         storage.getModeloNegocio(empresaId),
         storage.getEstrategias(empresaId),
         storage.getObjetivos(empresaId),
-        storage.getIndicadores(empresaId),
+        // Task #216 — Acompanhamento: o assistente cita só KPIs do BSC.
+        // Diagnóstico inicial fica fora tanto da narrativa quanto do
+        // catálogo de IDs (e do contador "X itens atacam este KPI").
+        storage.getIndicadoresAcompanhamento(empresaId),
         storage.getIniciativas(empresaId),
         storage.getRituais(empresaId),
         storage.getRiscos(empresaId),
@@ -6994,8 +7001,9 @@ Responda em JSON:
   app.get("/api/alertas", async (req, res) => {
     try {
       const empresaId = req.session.empresaId!;
-      
-      const indicadores = await storage.getIndicadores(empresaId);
+
+      // Task #216 — alertas de acompanhamento usam só KPIs do BSC.
+      const indicadores = await storage.getIndicadoresAcompanhamento(empresaId);
       const iniciativas = await storage.getIniciativas(empresaId);
       
       const alertas = [];
@@ -7073,7 +7081,9 @@ Responda em JSON:
 
       const [objetivosList, indicadores, eventos, iniciativas, rituais, modeloNegocio] = await Promise.all([
         storage.getObjetivos(empresaId),
-        storage.getIndicadores(empresaId),
+        // Task #216 — relatório/diagnóstico estratégico de acompanhamento usa
+        // KPIs do BSC. Diagnóstico inicial não conta como KPI vermelho aqui.
+        storage.getIndicadoresAcompanhamento(empresaId),
         storage.getEventos(empresaId),
         storage.getIniciativas(empresaId),
         storage.getRituais(empresaId),

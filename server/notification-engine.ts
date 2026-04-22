@@ -138,7 +138,9 @@ export async function detectarSinaisCriticos(empresaId: string): Promise<SinaisC
 
 async function carregarContextoEmpresa(empresaId: string): Promise<AvaliacaoCtx> {
   const [indicadores, iniciativas, objetivos] = await Promise.all([
-    storage.getIndicadores(empresaId),
+    // Task #216 — usar apenas indicadores de acompanhamento (BSC). Diagnóstico
+    // inicial não deve disparar sinais críticos no briefing/resumo semanal.
+    storage.getIndicadoresAcompanhamento(empresaId),
     storage.getIniciativas(empresaId),
     storage.getObjetivos(empresaId),
   ]);

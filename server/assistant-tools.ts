@@ -1440,7 +1440,9 @@ export async function executarBuscaPorNome(
   try {
     switch (tipo) {
       case "indicador": {
-        const lista = await storage.getIndicadores(empresaId);
+        // Task #216 — busca de KPIs no acompanhamento devolve só BSC.
+        // Diagnóstico inicial não aparece para o agente nesse contexto.
+        const lista = await storage.getIndicadoresAcompanhamento(empresaId);
         candidatos = lista.map((i) => ({ id: i.id, nome: i.nome, contexto: i.perspectiva }));
         break;
       }

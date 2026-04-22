@@ -103,7 +103,7 @@ import {
   type PlanoAgenticoPasso,
   type InsertPlanoAgenticoPasso,
 } from "@shared/schema";
-import { eq, and, or, desc, inArray, sql, lt, isNull } from "drizzle-orm";
+import { eq, ne, and, or, desc, inArray, sql, lt, isNull } from "drizzle-orm";
 
 export interface IStorage {
   getEmpresa(id: string): Promise<Empresa | undefined>;
@@ -149,6 +149,7 @@ export interface IStorage {
   deleteResultadoChave(id: string, empresaId: string): Promise<void>;
   
   getIndicadores(empresaId: string): Promise<Indicador[]>;
+  getIndicadoresAcompanhamento(empresaId: string): Promise<Indicador[]>;
   getIndicador(id: string): Promise<Indicador | null>;
   createIndicador(indicador: InsertIndicador): Promise<Indicador>;
   updateIndicador(id: string, empresaId: string, indicador: Partial<InsertIndicador>): Promise<Indicador>;
@@ -553,6 +554,19 @@ export class DbStorage implements IStorage {
 
   async getIndicadores(empresaId: string): Promise<Indicador[]> {
     return db.select().from(indicadores).where(eq(indicadores.empresaId, empresaId));
+  }
+
+  // Task #216 — Apenas indicadores de acompanhamento (BSC), excluindo
+  // perspectiva "diagnostico". Use este helper em qualquer fluxo de
+  // acompanhamento pós-planejamento (assistente, briefing, alertas, resumo
+  // semanal, prompts que pedem para "atacar KPIs"). Para fluxos de
+  // construção do planejamento (gerar diagnóstico, primeira jornada),
+  // continue usando getIndicadores.
+  async getIndicadoresAcompanhamento(empresaId: string): Promise<Indicador[]> {
+    return db
+      .select()
+      .from(indicadores)
+      .where(and(eq(indicadores.empresaId, empresaId), ne(indicadores.perspectiva, "diagnostico")));
   }
 
   async getIndicador(id: string): Promise<Indicador | null> {

@@ -68,7 +68,7 @@ function toInternalPath(href: string): string {
 // abreviações que possam aparecer no streaming parcial. Não-matches viram
 // texto cru (não quebramos a saída do LLM se ele errar a sintaxe).
 // ─────────────────────────────────────────────────────────────────────────────
-type CitacaoTipo =
+export type CitacaoTipo =
   | "indicador"
   | "iniciativa"
   | "objetivo"
@@ -77,7 +77,7 @@ type CitacaoTipo =
   | "oportunidade"
   | "estrategia";
 
-const CITACAO_LABEL: Record<CitacaoTipo, string> = {
+export const CITACAO_LABEL: Record<CitacaoTipo, string> = {
   indicador: "Indicador",
   iniciativa: "Iniciativa",
   objetivo: "Objetivo",
@@ -87,7 +87,7 @@ const CITACAO_LABEL: Record<CitacaoTipo, string> = {
   estrategia: "Estratégia",
 };
 
-function citacaoToHref(tipo: CitacaoTipo, id: string): string {
+export function citacaoToHref(tipo: CitacaoTipo, id: string): string {
   const usp = new URLSearchParams({ editar: id });
   switch (tipo) {
     case "indicador":
@@ -111,6 +111,28 @@ function citacaoToHref(tipo: CitacaoTipo, id: string): string {
 const TIPOS_CIT = "indicador|iniciativa|objetivo|kr|risco|oportunidade|estrategia";
 // Aceita UUID-ish (4+ chars hex/hifen). Não engole o colchete final.
 const CITACAO_REGEX = new RegExp(`\\[(${TIPOS_CIT}):([a-f0-9][a-f0-9-]{3,})\\]`, "gi");
+
+export interface CitacaoParsed {
+  tipo: CitacaoTipo;
+  id: string;
+  href: string;
+  raw: string;
+  index: number;
+}
+
+// Helper exportado para testes unitários — extrai todas as citações de um
+// texto cru (mesma lógica usada pelo walker, mas sem React).
+export function parseCitacoes(text: string): CitacaoParsed[] {
+  const out: CitacaoParsed[] = [];
+  const re = new RegExp(CITACAO_REGEX.source, "gi");
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const tipo = m[1].toLowerCase() as CitacaoTipo;
+    const id = m[2];
+    out.push({ tipo, id, href: citacaoToHref(tipo, id), raw: m[0], index: m.index });
+  }
+  return out;
+}
 
 interface CitacaoBadgeProps {
   tipo: CitacaoTipo;

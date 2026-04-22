@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Home, Map, Target, TrendingUp, CheckCircle, FileText, Compass, Layers, Grid3x3, ListChecks, Briefcase, LogOut, BarChart3, ShieldCheck, Users, CheckCircle2, Circle, ArrowRight, ClipboardList, CloudLightning, ShieldAlert, Network, Share2, GitBranch, Bell, Zap, UserCircle } from "lucide-react";
+import { Home, Map, Target, TrendingUp, CheckCircle, FileText, Compass, Layers, Grid3x3, ListChecks, Briefcase, LogOut, BarChart3, ShieldCheck, Users, CheckCircle2, Circle, ArrowRight, ClipboardList, CloudLightning, ShieldAlert, Network, Share2, GitBranch, Bell, Zap, UserCircle, Calendar } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -389,6 +389,19 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 );
               })}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={location === "/ritos/gestao" || location.startsWith("/ritos/gestao")}
+                  data-testid="link-ritos-gestao"
+                  tooltip="Rituais de Gestão"
+                >
+                  <Link href="/ritos/gestao">
+                    <Calendar />
+                    <span>Rituais de Gestão</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

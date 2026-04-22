@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useDeepLinkDialog } from "@/hooks/useDeepLinkDialog";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -9,9 +9,25 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/EmptyState";
 import { ExampleCard } from "@/components/ExampleCard";
-import { Briefcase, Plus, Sparkles, Trash2, Pencil, Clock, User, TrendingUp, Link2, Wand2, Target, CheckCircle2, PauseCircle, XCircle } from "lucide-react";
+import {
+  Briefcase, Plus, Sparkles, Trash2, Pencil, Clock, User, TrendingUp, Link2, Wand2,
+  Target, CheckCircle2, PauseCircle, XCircle, Search, X, ListFilter, LayoutGrid, List as ListIcon, MoreVertical, ChevronDown,
+} from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { PrerequisiteWarning } from "@/components/PrerequisiteWarning";
@@ -294,6 +310,430 @@ function IniciativaCard({ iniciativa, estrategias, oportunidades, objetivos, ind
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+// =============================================================================
+// Task #253 — Filtros combináveis + visualização Kanban
+// =============================================================================
+
+const STATUS_VALUES = ["planejada", "em_andamento", "concluida", "pausada", "cancelada"] as const;
+type StatusValue = typeof STATUS_VALUES[number];
+const PRIORIDADE_VALUES = ["alta", "média", "baixa"] as const;
+const IMPACTO_VALUES = ["alto", "médio", "baixo"] as const;
+
+const NO_RESPONSAVEL = "__SEM_RESPONSAVEL__";
+const NO_ORIGEM = "__SEM_ORIGEM__";
+
+interface IniciativasView {
+  status: string[];
+  prioridade: string[];
+  impacto: string[];
+  prazo: string[];
+  responsavel: string[];
+  origem: string[]; // ids: estrategia ids, oportunidade ids, ou NO_ORIGEM
+  busca: string;
+  modo: "lista" | "kanban";
+}
+
+const VIEW_DEFAULT: IniciativasView = {
+  status: [], prioridade: [], impacto: [], prazo: [], responsavel: [], origem: [],
+  busca: "", modo: "lista",
+};
+
+function viewStorageKey(empresaId?: string) {
+  return empresaId ? `iniciativas:view:${empresaId}` : null;
+}
+
+function useIniciativasView(empresaId?: string) {
+  const [view, setView] = useState<IniciativasView>(VIEW_DEFAULT);
+
+  // Hidrata do localStorage quando a empresa fica disponível.
+  useEffect(() => {
+    const key = viewStorageKey(empresaId);
+    if (!key) return;
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setView({ ...VIEW_DEFAULT, ...parsed });
+      } else {
+        setView(VIEW_DEFAULT);
+      }
+    } catch {
+      setView(VIEW_DEFAULT);
+    }
+  }, [empresaId]);
+
+  // Persiste mudanças (debounce-less; payload é minúsculo).
+  useEffect(() => {
+    const key = viewStorageKey(empresaId);
+    if (!key) return;
+    try { localStorage.setItem(key, JSON.stringify(view)); } catch { /* ignora quota */ }
+  }, [empresaId, view]);
+
+  const update = useCallback(<K extends keyof IniciativasView>(k: K, v: IniciativasView[K]) => {
+    setView((prev) => ({ ...prev, [k]: v }));
+  }, []);
+
+  const toggle = useCallback((k: keyof IniciativasView, value: string) => {
+    setView((prev) => {
+      const arr = prev[k] as string[];
+      const next = arr.includes(value) ? arr.filter((x) => x !== value) : [...arr, value];
+      return { ...prev, [k]: next } as IniciativasView;
+    });
+  }, []);
+
+  const clearFilters = useCallback(() => {
+    setView((prev) => ({ ...VIEW_DEFAULT, modo: prev.modo }));
+  }, []);
+
+  return { view, setView, update, toggle, clearFilters };
+}
+
+interface FilterOption { value: string; label: string }
+
+function MultiSelectFilter({
+  label, options, selected, onToggle, onClear, testId, withSearch = true,
+}: {
+  label: string;
+  options: FilterOption[];
+  selected: string[];
+  onToggle: (value: string) => void;
+  onClear: () => void;
+  testId: string;
+  withSearch?: boolean;
+}) {
+  const count = selected.length;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          data-testid={`button-filter-${testId}`}
+        >
+          <span>{label}</span>
+          {count > 0 && (
+            <Badge
+              variant="secondary"
+              className="ml-0.5 h-5 px-1.5 text-xs"
+              data-testid={`badge-filter-count-${testId}`}
+            >
+              {count}
+            </Badge>
+          )}
+          <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-0" align="start">
+        <Command>
+          {withSearch && options.length > 3 && (
+            <CommandInput placeholder={`Buscar ${label.toLowerCase()}…`} />
+          )}
+          <CommandList>
+            <CommandEmpty>Nenhum item.</CommandEmpty>
+            <CommandGroup>
+              {options.map((opt) => {
+                const checked = selected.includes(opt.value);
+                return (
+                  <CommandItem
+                    key={opt.value}
+                    onSelect={() => onToggle(opt.value)}
+                    className="gap-2"
+                    data-testid={`option-filter-${testId}-${opt.value}`}
+                  >
+                    <Checkbox checked={checked} className="pointer-events-none" />
+                    <span className="flex-1 truncate">{opt.label}</span>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+            {count > 0 && (
+              <>
+                <DropdownMenuSeparator />
+                <CommandGroup>
+                  <CommandItem
+                    onSelect={onClear}
+                    className="text-muted-foreground"
+                    data-testid={`button-filter-clear-${testId}`}
+                  >
+                    Limpar seleção
+                  </CommandItem>
+                </CommandGroup>
+              </>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+interface FilterBarProps {
+  view: IniciativasView;
+  totalAtivos: number;
+  onToggleFilter: (k: keyof IniciativasView, value: string) => void;
+  onClearGroup: (k: keyof IniciativasView) => void;
+  onSearch: (s: string) => void;
+  onClearAll: () => void;
+  options: {
+    status: FilterOption[]; prioridade: FilterOption[]; impacto: FilterOption[];
+    prazo: FilterOption[]; responsavel: FilterOption[]; origem: FilterOption[];
+  };
+}
+
+function FiltersGrid({ view, options, onToggleFilter, onClearGroup }: Pick<FilterBarProps, "view" | "options" | "onToggleFilter" | "onClearGroup">) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <MultiSelectFilter label="Status" options={options.status} selected={view.status}
+        onToggle={(v) => onToggleFilter("status", v)} onClear={() => onClearGroup("status")} testId="status" withSearch={false} />
+      <MultiSelectFilter label="Prioridade" options={options.prioridade} selected={view.prioridade}
+        onToggle={(v) => onToggleFilter("prioridade", v)} onClear={() => onClearGroup("prioridade")} testId="prioridade" withSearch={false} />
+      <MultiSelectFilter label="Impacto" options={options.impacto} selected={view.impacto}
+        onToggle={(v) => onToggleFilter("impacto", v)} onClear={() => onClearGroup("impacto")} testId="impacto" withSearch={false} />
+      <MultiSelectFilter label="Prazo" options={options.prazo} selected={view.prazo}
+        onToggle={(v) => onToggleFilter("prazo", v)} onClear={() => onClearGroup("prazo")} testId="prazo" />
+      <MultiSelectFilter label="Responsável" options={options.responsavel} selected={view.responsavel}
+        onToggle={(v) => onToggleFilter("responsavel", v)} onClear={() => onClearGroup("responsavel")} testId="responsavel" />
+      <MultiSelectFilter label="Origem" options={options.origem} selected={view.origem}
+        onToggle={(v) => onToggleFilter("origem", v)} onClear={() => onClearGroup("origem")} testId="origem" />
+    </div>
+  );
+}
+
+function IniciativasFilterBar(props: FilterBarProps & {
+  modo: "lista" | "kanban";
+  onChangeModo: (m: "lista" | "kanban") => void;
+}) {
+  const { view, totalAtivos, onSearch, onClearAll, modo, onChangeModo } = props;
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  return (
+    <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-1 flex-wrap items-center gap-2">
+        <div className="relative w-full sm:w-64">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={view.busca}
+            onChange={(e) => onSearch(e.target.value)}
+            placeholder="Buscar título ou descrição…"
+            className="pl-8"
+            data-testid="input-iniciativas-busca"
+          />
+        </div>
+
+        {/* Desktop: filtros inline */}
+        <div className="hidden sm:flex sm:flex-wrap sm:items-center sm:gap-2">
+          <FiltersGrid {...props} />
+          {totalAtivos > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClearAll}
+              className="gap-1 text-muted-foreground"
+              data-testid="button-clear-all-filters"
+            >
+              <X className="h-3.5 w-3.5" />
+              Limpar filtros ({totalAtivos})
+            </Button>
+          )}
+        </div>
+
+        {/* Mobile: tudo num sheet */}
+        <div className="sm:hidden">
+          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+            <SheetTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5" data-testid="button-open-filters-mobile">
+                <ListFilter className="h-4 w-4" />
+                Filtros
+                {totalAtivos > 0 && (
+                  <Badge variant="secondary" className="h-5 px-1.5 text-xs">{totalAtivos}</Badge>
+                )}
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-80">
+              <SheetHeader>
+                <SheetTitle>Filtros</SheetTitle>
+              </SheetHeader>
+              <div className="mt-4 flex flex-col gap-3">
+                <FiltersGrid {...props} />
+                {totalAtivos > 0 && (
+                  <Button variant="ghost" size="sm" onClick={onClearAll} className="gap-1 self-start text-muted-foreground" data-testid="button-clear-all-filters-mobile">
+                    <X className="h-3.5 w-3.5" />
+                    Limpar filtros ({totalAtivos})
+                  </Button>
+                )}
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
+      </div>
+
+      <ToggleGroup
+        type="single"
+        value={modo}
+        onValueChange={(v) => { if (v === "lista" || v === "kanban") onChangeModo(v); }}
+        className="self-start sm:self-auto"
+        aria-label="Modo de visualização"
+      >
+        <ToggleGroupItem value="lista" size="sm" aria-label="Visualização em lista" data-testid="button-view-lista">
+          <ListIcon className="h-4 w-4" />
+          <span className="ml-1 hidden md:inline">Lista</span>
+        </ToggleGroupItem>
+        <ToggleGroupItem value="kanban" size="sm" aria-label="Visualização em kanban" data-testid="button-view-kanban">
+          <LayoutGrid className="h-4 w-4" />
+          <span className="ml-1 hidden md:inline">Kanban</span>
+        </ToggleGroupItem>
+      </ToggleGroup>
+    </div>
+  );
+}
+
+interface KanbanCardProps {
+  iniciativa: Iniciativa;
+  estrategias: Estrategia[];
+  oportunidades: Array<{ id: string; titulo: string }>;
+  onMove: (id: string, status: StatusValue) => void;
+  onEdit: (i: Iniciativa) => void;
+  onDelete: (id: string) => void;
+}
+
+function IniciativaKanbanCard({ iniciativa, estrategias, oportunidades, onMove, onEdit, onDelete }: KanbanCardProps) {
+  const est = estrategias.find((e) => e.id === iniciativa.estrategiaId);
+  const op = oportunidades.find((o) => o.id === iniciativa.oportunidadeId);
+  const origem = est ? `${est.tipo} — ${est.titulo}` : op ? op.titulo : null;
+  const outros = STATUS_VALUES.filter((s) => s !== iniciativa.status);
+
+  return (
+    <Card className="hover-elevate" data-testid={`card-kanban-${iniciativa.id}`}>
+      <CardContent className="space-y-2 p-3">
+        <div className="flex items-start justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => onEdit(iniciativa)}
+            className="flex-1 cursor-pointer text-left text-sm font-medium leading-snug hover:underline"
+            data-testid={`kanban-titulo-${iniciativa.id}`}
+          >
+            {iniciativa.titulo}
+          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon" variant="ghost" className="-mr-1.5 -mt-1 h-7 w-7" data-testid={`button-kanban-menu-${iniciativa.id}`}>
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Mover para…</DropdownMenuLabel>
+              {outros.map((s) => (
+                <DropdownMenuItem
+                  key={s}
+                  onClick={() => onMove(iniciativa.id, s)}
+                  data-testid={`menu-mover-${iniciativa.id}-${s}`}
+                >
+                  {statusLabels[s]}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => onEdit(iniciativa)} data-testid={`menu-edit-${iniciativa.id}`}>
+                <Pencil className="mr-2 h-3.5 w-3.5" /> Editar
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onDelete(iniciativa.id)} className="text-destructive" data-testid={`menu-delete-${iniciativa.id}`}>
+                <Trash2 className="mr-2 h-3.5 w-3.5" /> Excluir
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1">
+          <Badge variant={prioridadeVariants[iniciativa.prioridade]} data-testid={`kanban-prioridade-${iniciativa.id}`}>
+            {prioridadeLabels[iniciativa.prioridade as keyof typeof prioridadeLabels]}
+          </Badge>
+          <Badge variant={impactoVariants[iniciativa.impacto]}>
+            Impacto {impactoLabels[iniciativa.impacto as keyof typeof impactoLabels]}
+          </Badge>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          {iniciativa.prazo && (
+            <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3" />{iniciativa.prazo}</span>
+          )}
+          {iniciativa.responsavel && (
+            <span className="inline-flex items-center gap-1"><User className="h-3 w-3" />{iniciativa.responsavel}</span>
+          )}
+        </div>
+
+        {origem && (
+          <Badge variant="outline" className="max-w-full gap-1 truncate">
+            <Link2 className="h-3 w-3 shrink-0" />
+            <span className="truncate">{origem}</span>
+          </Badge>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function KanbanBoard({
+  iniciativas, estrategias, oportunidades, onMove, onEdit, onDelete,
+}: {
+  iniciativas: Iniciativa[];
+  estrategias: Estrategia[];
+  oportunidades: Array<{ id: string; titulo: string }>;
+  onMove: (id: string, status: StatusValue) => void;
+  onEdit: (i: Iniciativa) => void;
+  onDelete: (id: string) => void;
+}) {
+  const grupos = useMemo(() => {
+    const map: Record<StatusValue, Iniciativa[]> = {
+      planejada: [], em_andamento: [], concluida: [], pausada: [], cancelada: [],
+    };
+    for (const it of iniciativas) {
+      const s = (STATUS_VALUES as readonly string[]).includes(it.status)
+        ? (it.status as StatusValue) : "planejada";
+      map[s].push(it);
+    }
+    return map;
+  }, [iniciativas]);
+
+  return (
+    <div className="flex gap-3 overflow-x-auto pb-2" data-testid="kanban-board">
+      {STATUS_VALUES.map((s) => {
+        const items = grupos[s];
+        return (
+          <div
+            key={s}
+            className="flex w-72 shrink-0 flex-col gap-2 rounded-md border bg-muted/30 p-2"
+            data-testid={`kanban-column-${s}`}
+          >
+            <div className="flex items-center justify-between px-1 py-1">
+              <h3 className="text-sm font-semibold">{statusLabels[s]}</h3>
+              <Badge variant="secondary" className="h-5 px-1.5 text-xs" data-testid={`kanban-count-${s}`}>
+                {items.length}
+              </Badge>
+            </div>
+            <div className="flex flex-col gap-2">
+              {items.length === 0 ? (
+                <div className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
+                  Nenhuma iniciativa
+                </div>
+              ) : items.map((it) => (
+                <IniciativaKanbanCard
+                  key={it.id}
+                  iniciativa={it}
+                  estrategias={estrategias}
+                  oportunidades={oportunidades}
+                  onMove={onMove}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -608,19 +1048,98 @@ export default function Iniciativas() {
     }
   });
 
-  const sortedIniciativas = [...iniciativas].sort((a, b) => {
-    const prioridadeOrder = { alta: 1, média: 2, baixa: 3 };
-    return prioridadeOrder[a.prioridade as keyof typeof prioridadeOrder] - 
-           prioridadeOrder[b.prioridade as keyof typeof prioridadeOrder];
-  });
+  const sortedIniciativas = useMemo(() => {
+    const prioridadeOrder = { alta: 1, média: 2, baixa: 3 } as const;
+    return [...iniciativas].sort((a, b) =>
+      (prioridadeOrder[a.prioridade as keyof typeof prioridadeOrder] ?? 9) -
+      (prioridadeOrder[b.prioridade as keyof typeof prioridadeOrder] ?? 9));
+  }, [iniciativas]);
 
   // Task #250 — alvos da matriz (Estratégias FA/DA + Frentes de Crescimento)
   const estrategiasFaDa = estrategias.filter((e) => e.tipo === "FA" || e.tipo === "DA");
   const totalAlvosMatriz = estrategiasFaDa.length + oportunidades.length;
 
-  const altaPrioridade = sortedIniciativas.filter(i => i.prioridade === "alta");
-  const mediaPrioridade = sortedIniciativas.filter(i => i.prioridade === "média");
-  const baixaPrioridade = sortedIniciativas.filter(i => i.prioridade === "baixa");
+  // ---- Task #253: filtros + view mode --------------------------------------
+  const { view, update, toggle, clearFilters } = useIniciativasView(empresa?.id);
+
+  const filterOptions = useMemo(() => {
+    const prazos = Array.from(new Set(iniciativas.map((i) => i.prazo).filter(Boolean))).sort();
+    const responsaveisDistintos = Array.from(
+      new Set(iniciativas.map((i) => (i.responsavel || "").trim()).filter(Boolean))
+    ).sort((a, b) => a.localeCompare(b, "pt-BR"));
+    const responsaveis: FilterOption[] = responsaveisDistintos.map((r) => ({ value: r, label: r }));
+    const temSemResp = iniciativas.some((i) => !i.responsavel || !i.responsavel.trim());
+    if (temSemResp) responsaveis.push({ value: NO_RESPONSAVEL, label: "Sem responsável" });
+
+    const origem: FilterOption[] = [
+      ...estrategias.map((e) => ({
+        value: e.id,
+        label: `${e.tipo} — ${e.titulo.length > 40 ? e.titulo.slice(0, 40) + "…" : e.titulo}`,
+      })),
+      ...oportunidades.map((o) => ({
+        value: o.id,
+        label: `Frente — ${o.titulo.length > 40 ? o.titulo.slice(0, 40) + "…" : o.titulo}`,
+      })),
+      { value: NO_ORIGEM, label: "Sem origem" },
+    ];
+
+    return {
+      status: STATUS_VALUES.map((s) => ({ value: s, label: statusLabels[s] })),
+      prioridade: PRIORIDADE_VALUES.map((p) => ({ value: p, label: prioridadeLabels[p] })),
+      impacto: IMPACTO_VALUES.map((p) => ({ value: p, label: impactoLabels[p] })),
+      prazo: prazos.map((p) => ({ value: p, label: p })),
+      responsavel: responsaveis,
+      origem,
+    };
+  }, [iniciativas, estrategias, oportunidades]);
+
+  const filteredIniciativas = useMemo(() => {
+    const buscaNorm = view.busca.trim().toLowerCase();
+    return sortedIniciativas.filter((it) => {
+      if (view.status.length && !view.status.includes(it.status)) return false;
+      if (view.prioridade.length && !view.prioridade.includes(it.prioridade)) return false;
+      if (view.impacto.length && !view.impacto.includes(it.impacto)) return false;
+      if (view.prazo.length && !view.prazo.includes(it.prazo)) return false;
+      if (view.responsavel.length) {
+        const r = (it.responsavel || "").trim();
+        const matches = (r && view.responsavel.includes(r)) || (!r && view.responsavel.includes(NO_RESPONSAVEL));
+        if (!matches) return false;
+      }
+      if (view.origem.length) {
+        const semOrigem = !it.estrategiaId && !it.oportunidadeId;
+        const matches =
+          (it.estrategiaId && view.origem.includes(it.estrategiaId)) ||
+          (it.oportunidadeId && view.origem.includes(it.oportunidadeId)) ||
+          (semOrigem && view.origem.includes(NO_ORIGEM));
+        if (!matches) return false;
+      }
+      if (buscaNorm) {
+        const hay = `${it.titulo} ${it.descricao}`.toLowerCase();
+        if (!hay.includes(buscaNorm)) return false;
+      }
+      return true;
+    });
+  }, [sortedIniciativas, view]);
+
+  const totalFiltrosAtivos =
+    view.status.length + view.prioridade.length + view.impacto.length +
+    view.prazo.length + view.responsavel.length + view.origem.length +
+    (view.busca.trim() ? 1 : 0);
+
+  const altaPrioridade = filteredIniciativas.filter((i) => i.prioridade === "alta");
+  const mediaPrioridade = filteredIniciativas.filter((i) => i.prioridade === "média");
+  const baixaPrioridade = filteredIniciativas.filter((i) => i.prioridade === "baixa");
+
+  const moveStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: StatusValue }) =>
+      apiRequest("PATCH", `/api/iniciativas/${id}`, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/iniciativas", empresa?.id] });
+    },
+    onError: () => {
+      toast({ title: "Erro", description: "Não foi possível mover a iniciativa.", variant: "destructive" });
+    },
+  });
 
   if (isLoading) {
     return (
@@ -1117,37 +1636,80 @@ export default function Iniciativas() {
           </div>
         </div>
       ) : (
-        <div className="space-y-6">
-          {([
-            { label: "Prioridade Alta",  items: altaPrioridade,   iconClass: "text-destructive" },
-            { label: "Prioridade Média", items: mediaPrioridade,  iconClass: "text-primary" },
-            { label: "Prioridade Baixa", items: baixaPrioridade,  iconClass: "text-muted-foreground" },
-          ] as const).filter(({ items }) => items.length > 0).map(({ label, items, iconClass }) => (
-            <div key={label}>
-              <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                <TrendingUp className={`h-5 w-5 ${iconClass}`} />
-                {label}
-              </h2>
-              <div className="grid gap-4 md:grid-cols-2">
-                {items.map((iniciativa) => (
-                  <IniciativaCard
-                    key={iniciativa.id}
-                    iniciativa={iniciativa}
-                    estrategias={estrategias}
-                    oportunidades={oportunidades}
-                    objetivos={objetivos}
-                    indicadores={indicadoresLista}
-                    jornadaConcluida={!!jornadaConcluida}
-                    onGerarObjetivos={handleGerarObjetivosFromIniciativa}
-                    isGenerating={isGenerating}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                  />
-                ))}
-              </div>
+        <>
+          <IniciativasFilterBar
+            view={view}
+            options={filterOptions}
+            totalAtivos={totalFiltrosAtivos}
+            onToggleFilter={(k, v) => toggle(k, v)}
+            onClearGroup={(k) => update(k, [] as never)}
+            onSearch={(s) => update("busca", s)}
+            onClearAll={clearFilters}
+            modo={view.modo}
+            onChangeModo={(m) => update("modo", m)}
+          />
+
+          {filteredIniciativas.length === 0 ? (
+            <Card className="p-8 text-center" data-testid="empty-filtered">
+              <p className="text-sm text-muted-foreground">
+                Nenhuma iniciativa corresponde aos filtros aplicados.
+              </p>
+              {totalFiltrosAtivos > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 gap-1"
+                  onClick={clearFilters}
+                  data-testid="button-clear-filters-empty"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Limpar filtros
+                </Button>
+              )}
+            </Card>
+          ) : view.modo === "kanban" ? (
+            <KanbanBoard
+              iniciativas={filteredIniciativas}
+              estrategias={estrategias}
+              oportunidades={oportunidades}
+              onMove={(id, status) => moveStatusMutation.mutate({ id, status })}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+            />
+          ) : (
+            <div className="space-y-6">
+              {([
+                { label: "Prioridade Alta",  items: altaPrioridade,   iconClass: "text-destructive" },
+                { label: "Prioridade Média", items: mediaPrioridade,  iconClass: "text-primary" },
+                { label: "Prioridade Baixa", items: baixaPrioridade,  iconClass: "text-muted-foreground" },
+              ] as const).filter(({ items }) => items.length > 0).map(({ label, items, iconClass }) => (
+                <div key={label}>
+                  <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                    <TrendingUp className={`h-5 w-5 ${iconClass}`} />
+                    {label}
+                  </h2>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {items.map((iniciativa) => (
+                      <IniciativaCard
+                        key={iniciativa.id}
+                        iniciativa={iniciativa}
+                        estrategias={estrategias}
+                        oportunidades={oportunidades}
+                        objetivos={objetivos}
+                        indicadores={indicadoresLista}
+                        jornadaConcluida={!!jornadaConcluida}
+                        onGerarObjetivos={handleGerarObjetivosFromIniciativa}
+                        isGenerating={isGenerating}
+                        onEdit={handleEdit}
+                        onDelete={handleDelete}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
     </div>
   );

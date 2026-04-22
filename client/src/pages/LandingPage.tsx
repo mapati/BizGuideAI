@@ -1,5 +1,6 @@
 import { Link } from "wouter";
 import { HeroDiagramaIA } from "@/components/HeroDiagramaIA";
+import HeroConstellation from "@/components/HeroConstellation";
 import { EnterpriseContactModal } from "@/components/EnterpriseContactModal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -771,16 +772,25 @@ export default function LandingPage() {
       </nav>
       {/* HERO */}
       <section className="relative overflow-hidden bg-[#020817]">
-        {/* Aurora gradients — radial-gradient direto, sem filter:blur (evita clip do overflow-hidden) */}
+        {/* Aurora gradients com drift orgânico */}
         <div
-          className="absolute inset-0 pointer-events-none"
+          className="absolute inset-0 pointer-events-none hero-aurora-anim"
           style={{
             background: `
               radial-gradient(ellipse 75% 70% at 5% 5%, rgba(99,102,241,0.55) 0%, transparent 70%),
               radial-gradient(ellipse 70% 65% at 95% 0%, rgba(56,189,248,0.45) 0%, transparent 70%),
               radial-gradient(ellipse 60% 70% at 50% 100%, rgba(168,85,247,0.38) 0%, transparent 70%)
             `,
-            animation: "hero-orb-pulse 9s ease-in-out infinite",
+          }}
+        />
+        {/* Camada de noise (Perlin) animada — textura orgânica sobre as auroras */}
+        <div
+          className="absolute inset-0 pointer-events-none hero-noise-anim"
+          style={{
+            backgroundImage: `url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+            backgroundSize: "240px 240px",
+            opacity: 0.18,
+            mixBlendMode: "overlay",
           }}
         />
         {/* Dot grid sutil */}
@@ -790,18 +800,8 @@ export default function LandingPage() {
             backgroundImage: `url("data:image/svg+xml,%3Csvg width='28' height='28' viewBox='0 0 28 28' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='14' cy='14' r='1.5' fill='%23ffffff' fill-opacity='0.04'/%3E%3C/svg%3E")`,
           }}
         />
-        {/* Scan line horizontal */}
-        <div
-          className="absolute left-0 right-0 pointer-events-none"
-          style={{
-            height: "1px",
-            background: "linear-gradient(90deg, transparent 0%, rgba(165,180,252,0.45) 30%, rgba(255,255,255,0.6) 50%, rgba(125,211,252,0.45) 70%, transparent 100%)",
-            boxShadow: "0 0 6px 1px rgba(99,102,241,0.25), 0 0 18px 3px rgba(56,189,248,0.15)",
-            filter: "blur(0.3px)",
-            animation: "hero-scan 5s ease-in-out infinite",
-            animationDelay: "1s",
-          }}
-        />
+        {/* Constelação reativa — partículas conectadas que respondem ao mouse */}
+        <HeroConstellation />
 
         <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-24">
           <div className="flex flex-col items-center text-center gap-6">
@@ -816,19 +816,27 @@ export default function LandingPage() {
                 </Badge>
               </div>
 
-              <h1
-                className="text-4xl sm:text-5xl lg:text-5xl font-bold text-white leading-tight"
-                data-testid="heading-hero"
-              >
-                O plano estratégico da sua empresa{" "}
-                <span
-                  className="text-transparent bg-clip-text"
-                  style={{ backgroundImage: "linear-gradient(135deg, hsl(var(--primary)) 0%, #60a5fa 100%)" }}
+              <div className="relative">
+                <h1
+                  className="text-4xl sm:text-5xl lg:text-5xl font-bold text-white leading-tight"
+                  data-testid="heading-hero"
                 >
-                  pronto em horas
+                  O plano estratégico da sua empresa{" "}
+                  <span
+                    className="text-transparent bg-clip-text"
+                    style={{ backgroundImage: "linear-gradient(135deg, hsl(var(--primary)) 0%, #60a5fa 100%)" }}
+                  >
+                    pronto em horas
+                  </span>
+                  , não em meses
+                </h1>
+                <span
+                  aria-hidden="true"
+                  className="hero-title-shimmer absolute inset-0 text-4xl sm:text-5xl lg:text-5xl font-bold leading-tight select-none"
+                >
+                  O plano estratégico da sua empresa pronto em horas, não em meses
                 </span>
-                , não em meses
-              </h1>
+              </div>
 
               <p className="text-lg text-slate-300 leading-relaxed" data-testid="text-hero-subtitle">O Bizzy, seu agente estratégico, conduz você por 12 passos — do diagnóstico ao acompanhamento — e a IA faz o trabalho pesado. Quando termina, ele passa para o modo Assistente de gestão, monitorando o plano todo dia.</p>
 

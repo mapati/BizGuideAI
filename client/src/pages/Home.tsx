@@ -593,128 +593,6 @@ export default function Home() {
           })}
         </div>
       </div>
-      {/* Qualidade do Plano */}
-      {(loadingQualidade || qualidade) && (
-        <Card data-testid="card-qualidade-plano">
-          <CardHeader>
-            <div className="flex items-start justify-between gap-4 flex-wrap">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <Gauge className="h-5 w-5" />
-                  Qualidade do plano
-                </CardTitle>
-                <CardDescription className="mt-1">
-                  Quão bem feito está o plano em operação — densidade e consistência dos dados que você mantém.
-                </CardDescription>
-              </div>
-              {qualidade && (
-                <div className="flex items-center gap-3">
-                  <Badge
-                    className={
-                      qualidade.score >= 80
-                        ? "bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-400"
-                        : qualidade.score >= 60
-                          ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-400"
-                          : "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-400"
-                    }
-                    data-testid="badge-qualidade-score"
-                  >
-                    {qualidade.score}/100
-                  </Badge>
-                </div>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {loadingQualidade && (
-              <p className="text-sm text-muted-foreground" data-testid="text-loading-qualidade">
-                Calculando qualidade do plano...
-              </p>
-            )}
-            {qualidade && (
-              <>
-                <div className="h-2 w-full rounded-full bg-muted overflow-hidden" data-testid="progress-qualidade">
-                  <div
-                    className={
-                      qualidade.score >= 80
-                        ? "h-full bg-green-500"
-                        : qualidade.score >= 60
-                          ? "h-full bg-yellow-500"
-                          : "h-full bg-red-500"
-                    }
-                    style={{ width: `${qualidade.score}%` }}
-                  />
-                </div>
-
-                {qualidade.lacunas.length === 0 ? (
-                  <p className="text-sm text-muted-foreground" data-testid="text-sem-lacunas">
-                    Nenhuma lacuna crítica detectada no momento. Continue mantendo os dados atualizados.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      Lacunas para corrigir
-                    </p>
-                    {qualidade.lacunas.slice(0, 5).map((l, idx) => (
-                      <div
-                        key={`${l.entidadeId ?? "x"}-${idx}`}
-                        className="flex items-center justify-between gap-3 p-3 rounded-md hover-elevate"
-                        data-testid={`row-lacuna-${idx}`}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{l.titulo}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Badge
-                              variant="outline"
-                              className={
-                                l.severidade === "alta"
-                                  ? "text-xs border-red-300 text-red-700 dark:text-red-400"
-                                  : l.severidade === "media"
-                                    ? "text-xs border-yellow-300 text-yellow-700 dark:text-yellow-400"
-                                    : "text-xs"
-                              }
-                              data-testid={`badge-severidade-${idx}`}
-                            >
-                              {l.severidade === "alta" ? "Alta" : l.severidade === "media" ? "Média" : "Baixa"}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">{l.entidade}</span>
-                          </div>
-                        </div>
-                        <Link href={l.rota}>
-                          <Button size="sm" variant="outline" data-testid={`button-corrigir-${idx}`}>
-                            Corrigir
-                          </Button>
-                        </Link>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {qualidade.dimensoes.some((d) => d.score < 70) && (
-                  <details className="text-sm" data-testid="details-dimensoes">
-                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                      Ver dimensões avaliadas
-                    </summary>
-                    <div className="mt-2 space-y-1.5">
-                      {qualidade.dimensoes.map((d) => (
-                        <div
-                          key={d.id}
-                          className="flex items-center justify-between gap-3 text-xs"
-                          data-testid={`dimensao-${d.id}`}
-                        >
-                          <span className="text-muted-foreground flex-1 min-w-0 truncate">{d.titulo}</span>
-                          <span className="font-medium">{d.score}/100</span>
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
       {/* KPIs + Rituais */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
         {/* KPIs */}
@@ -972,6 +850,128 @@ export default function Home() {
           )}
         </Card>
       </div>
+
+      {/* Qualidade do Plano */}
+      {(loadingQualidade || qualidade) && (
+        <Card data-testid="card-qualidade-plano">
+          <CardHeader>
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Gauge className="h-5 w-5" />
+                  Qualidade do plano
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Quão bem feito está o plano em operação — densidade e consistência dos dados que você mantém.
+                </CardDescription>
+              </div>
+              {qualidade && (
+                <div className="flex items-center gap-3">
+                  <Badge
+                    className={
+                      qualidade.score >= 80
+                        ? "bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-400"
+                        : qualidade.score >= 60
+                          ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-400"
+                          : "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-400"
+                    }
+                    data-testid="badge-qualidade-score"
+                  >
+                    {qualidade.score}/100
+                  </Badge>
+                </div>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {loadingQualidade && (
+              <p className="text-sm text-muted-foreground" data-testid="text-loading-qualidade">
+                Calculando qualidade do plano...
+              </p>
+            )}
+            {qualidade && (
+              <>
+                <div className="h-2 w-full rounded-full bg-muted overflow-hidden" data-testid="progress-qualidade">
+                  <div
+                    className={
+                      qualidade.score >= 80
+                        ? "h-full bg-green-500"
+                        : qualidade.score >= 60
+                          ? "h-full bg-yellow-500"
+                          : "h-full bg-red-500"
+                    }
+                    style={{ width: `${qualidade.score}%` }}
+                  />
+                </div>
+
+                {qualidade.lacunas.length === 0 ? (
+                  <p className="text-sm text-muted-foreground" data-testid="text-sem-lacunas">
+                    Nenhuma lacuna crítica detectada no momento. Continue mantendo os dados atualizados.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Lacunas para corrigir
+                    </p>
+                    {qualidade.lacunas.slice(0, 5).map((l, idx) => (
+                      <div
+                        key={`${l.entidadeId ?? "x"}-${idx}`}
+                        className="flex items-center justify-between gap-3 p-3 rounded-md hover-elevate"
+                        data-testid={`row-lacuna-${idx}`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{l.titulo}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge
+                              variant="outline"
+                              className={
+                                l.severidade === "alta"
+                                  ? "text-xs border-red-300 text-red-700 dark:text-red-400"
+                                  : l.severidade === "media"
+                                    ? "text-xs border-yellow-300 text-yellow-700 dark:text-yellow-400"
+                                    : "text-xs"
+                              }
+                              data-testid={`badge-severidade-${idx}`}
+                            >
+                              {l.severidade === "alta" ? "Alta" : l.severidade === "media" ? "Média" : "Baixa"}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">{l.entidade}</span>
+                          </div>
+                        </div>
+                        <Link href={l.rota}>
+                          <Button size="sm" variant="outline" data-testid={`button-corrigir-${idx}`}>
+                            Corrigir
+                          </Button>
+                        </Link>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {qualidade.dimensoes.some((d) => d.score < 70) && (
+                  <details className="text-sm" data-testid="details-dimensoes">
+                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                      Ver dimensões avaliadas
+                    </summary>
+                    <div className="mt-2 space-y-1.5">
+                      {qualidade.dimensoes.map((d) => (
+                        <div
+                          key={d.id}
+                          className="flex items-center justify-between gap-3 text-xs"
+                          data-testid={`dimensao-${d.id}`}
+                        >
+                          <span className="text-muted-foreground flex-1 min-w-0 truncate">{d.titulo}</span>
+                          <span className="font-medium">{d.score}/100</span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -1,50 +1,35 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useLocation } from "wouter";
-import { Sparkles, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { Sparkles, PanelRightClose, PanelRightOpen, Loader2, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { useAssistantStatus } from "@/hooks/useAssistantStatus";
 import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
 import { useAIModalLocked } from "@/contexts/ai-modal-lock";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { apiRequest } from "@/lib/queryClient";
-import { AssistantChat, type AssistantAcao } from "@/components/AssistantChat";
-import type { Proposta } from "@/components/PropostaCard";
+import { AssistantChat } from "@/components/AssistantChat";
+import { PropostaHistorico } from "@/components/PropostaHistorico";
+import {
+  PlanoAgenticoCard,
+  type PlanoAgenticoView,
+  type PlanoAgenticoPassoView,
+} from "@/components/PlanoAgenticoCard";
 
 const OPEN_KEY = "biz-guide-assistant-sidebar-open";
 const UNLOCK_SHOWN_KEY = "biz-guide-assistente-desbloqueado";
 
-interface BriefingResponse {
-  deveAbrir: boolean;
-  mensagem: string | null;
-  acoes?: AssistantAcao[];
-  propostas?: Proposta[];
-}
-
-interface ProactiveMessage {
-  content: string;
-  acoes?: AssistantAcao[];
-  propostas?: Proposta[];
-}
-
 export function AssistantSidebar() {
   const locked = useAIModalLocked();
-  const [location] = useLocation();
   const { jornadaConcluida, isLoading: jornadaLoading } = useJornadaProgresso();
   const { alertas } = useAssistantStatus();
   const isMobile = useIsMobile();
-  const { data: empresa } = useQuery<{ id: string }>({ queryKey: ["/api/empresa"] });
 
   const [open, setOpen] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
-    // Em telas pequenas a sidebar inicia sempre fechada, ignorando a
-    // preferência persistida (que vale apenas para desktop).
     if (window.matchMedia("(max-width: 767px)").matches) return false;
     return window.localStorage.getItem(OPEN_KEY) === "1";
   });
-  const [proactive, setProactive] = useState<ProactiveMessage | null>(null);
-  const proactiveLoadedRef = useRef(false);
 
   useEffect(() => {
     try {
@@ -54,8 +39,7 @@ export function AssistantSidebar() {
     }
   }, [open]);
 
-  // Auto-abre uma única vez quando a Jornada Estratégica é concluída,
-  // preservando o "momento de unlock" da experiência anterior.
+  // Auto-abre uma única vez quando a Jornada Estratégica é concluída.
   useEffect(() => {
     if (jornadaLoading || !jornadaConcluida) return;
     try {
@@ -67,28 +51,6 @@ export function AssistantSidebar() {
     }
   }, [jornadaConcluida, jornadaLoading]);
 
-  // Briefing proativo (mantém comportamento anterior do AIAssistant).
-  useEffect(() => {
-    if (jornadaLoading || !jornadaConcluida || !empresa?.id) return;
-    if (proactiveLoadedRef.current) return;
-    proactiveLoadedRef.current = true;
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = (await apiRequest("GET", "/api/ai/briefing-proativo")) as BriefingResponse;
-        if (cancelled) return;
-        if (data.deveAbrir && data.mensagem) {
-          setProactive({ content: data.mensagem, acoes: data.acoes, propostas: data.propostas });
-        }
-      } catch {
-        // best-effort
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [jornadaLoading, jornadaConcluida, empresa?.id]);
-
   // Permite que componentes filhos peçam para fechar (ex.: PropostaCard ao "Ajustar").
   useEffect(() => {
     const onClose = () => setOpen(false);
@@ -96,15 +58,10 @@ export function AssistantSidebar() {
     return () => window.removeEventListener("biz-assistant:close", onClose);
   }, []);
 
-  const hidden =
-    locked ||
-    jornadaLoading ||
-    !jornadaConcluida ||
-    location === "/assistente";
-
+  const hidden = locked || jornadaLoading || !jornadaConcluida;
   if (hidden) return null;
 
-  const desktopWidth = open ? "w-[22rem]" : "w-12";
+  const desktopWidth = open ? "w-[26rem]" : "w-12";
   const mobileTransform = open ? "translate-x-0" : "translate-x-full";
 
   return (
@@ -116,7 +73,7 @@ export function AssistantSidebar() {
           "bg-background border-l flex flex-col flex-shrink-0",
           isMobile
             ? cn(
-                "fixed inset-y-0 right-0 z-50 w-[20rem] max-w-[90vw] transition-transform duration-200 shadow-xl",
+                "fixed inset-y-0 right-0 z-50 w-[24rem] max-w-[95vw] transition-transform duration-200 shadow-xl",
                 mobileTransform,
               )
             : cn("transition-[width] duration-200 ease-out", desktopWidth),
@@ -145,15 +102,43 @@ export function AssistantSidebar() {
           </div>
         )}
 
-        {/* Chat permanece montado para preservar o estado da conversa
-            durante a navegação e ao colapsar/expandir a sidebar. */}
+        {/* Tabs Chat / Planos / Histórico — todos forceMount para preservar
+            estado da conversa e dos filtros ao trocar de aba. */}
         <div className={cn("flex-1 min-h-0 flex flex-col", !open && "hidden")}>
-          <AssistantChat
-            alertas={alertas}
-            proactiveMessage={proactive}
-            onProactiveConsumed={() => setProactive(null)}
-            onCloseDrawer={() => setOpen(false)}
-          />
+          <Tabs defaultValue="chat" className="flex-1 min-h-0 flex flex-col">
+            <TabsList
+              className="grid grid-cols-3 mx-3 mt-2 mb-1 flex-shrink-0"
+              data-testid="tabs-assistant-sidebar"
+            >
+              <TabsTrigger value="chat" data-testid="tab-chat">Chat</TabsTrigger>
+              <TabsTrigger value="planos" data-testid="tab-planos">Planos</TabsTrigger>
+              <TabsTrigger value="historico" data-testid="tab-historico">Histórico</TabsTrigger>
+            </TabsList>
+            <TabsContent
+              value="chat"
+              forceMount
+              className="flex-1 min-h-0 mt-0 data-[state=inactive]:hidden flex flex-col"
+            >
+              <AssistantChat
+                alertas={alertas}
+                onCloseDrawer={() => setOpen(false)}
+              />
+            </TabsContent>
+            <TabsContent
+              value="planos"
+              forceMount
+              className="flex-1 min-h-0 mt-0 data-[state=inactive]:hidden overflow-y-auto p-3"
+            >
+              <PlanosAgenticosLista />
+            </TabsContent>
+            <TabsContent
+              value="historico"
+              forceMount
+              className="flex-1 min-h-0 mt-0 data-[state=inactive]:hidden flex flex-col"
+            >
+              <PropostaHistorico />
+            </TabsContent>
+          </Tabs>
         </div>
 
         {!open && !isMobile && (
@@ -193,4 +178,51 @@ export function AssistantSidebar() {
       )}
     </>
   );
+}
+
+function PlanosAgenticosLista() {
+  const { data, isLoading } = useQuery<{ planos: Array<PlanoAgenticoView> }>({
+    queryKey: ["/api/ai/planos"],
+    refetchInterval: 30000,
+  });
+  const planos = data?.planos ?? [];
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center">
+        <Loader2 className="h-4 w-4 animate-spin" /> Carregando planos…
+      </div>
+    );
+  }
+  if (planos.length === 0) {
+    return (
+      <div className="text-center py-8 space-y-2">
+        <Target className="h-10 w-10 text-muted-foreground mx-auto" />
+        <p className="text-sm text-muted-foreground" data-testid="text-planos-vazio">
+          Nenhum plano agêntico ainda. Quando você pedir algo amplo no chat, o assistente pode propor um plano de vários passos.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3" data-testid="lista-planos-agenticos">
+      {planos.map((p) => (
+        <PlanoComPassos key={p.id} plano={p} />
+      ))}
+    </div>
+  );
+}
+
+function PlanoComPassos({ plano }: { plano: PlanoAgenticoView }) {
+  const { data } = useQuery<{ plano: PlanoAgenticoView; passos: PlanoAgenticoPassoView[] }>({
+    queryKey: ["/api/ai/planos", plano.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/ai/planos/${plano.id}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Falha ao carregar plano");
+      return res.json();
+    },
+  });
+  const passos = data?.passos ?? [];
+  return <PlanoAgenticoCard plano={data?.plano ?? plano} passos={passos} />;
 }

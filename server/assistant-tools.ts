@@ -1331,12 +1331,12 @@ const criarPlanoAgentico: ToolDefinition<CriarPlanoAgenticoParams> = {
     return {
       resumo: `Plano "${plano.titulo}" iniciado (${passosOrdenados.length} passos).`,
       dados: { planoId: plano.id, totalPassos: passosOrdenados.length },
-      rota: "/assistente",
+      rota: "/dashboard",
       entidadeTipo: "navegacao",
       entidadeId: plano.id,
     };
   },
-  formRota: "/assistente",
+  formRota: "/dashboard",
 };
 
 const concluirPlanoAgenticoSchema = z.object({
@@ -1385,12 +1385,12 @@ const concluirPlanoAgentico: ToolDefinition<ConcluirPlanoAgenticoParams> = {
     return {
       resumo: `Plano "${atualizado.titulo}" concluído.`,
       dados: { planoId: p.planoId },
-      rota: "/assistente",
+      rota: "/dashboard",
       entidadeTipo: "navegacao",
       entidadeId: p.planoId,
     };
   },
-  formRota: "/assistente",
+  formRota: "/dashboard",
 };
 
 const cancelarPlanoAgenticoSchema = z.object({
@@ -1439,12 +1439,12 @@ const cancelarPlanoAgentico: ToolDefinition<CancelarPlanoAgenticoParams> = {
     return {
       resumo: `Plano "${atualizado.titulo}" cancelado.`,
       dados: { planoId: p.planoId },
-      rota: "/assistente",
+      rota: "/dashboard",
       entidadeTipo: "navegacao",
       entidadeId: p.planoId,
     };
   },
-  formRota: "/assistente",
+  formRota: "/dashboard",
 };
 
 // ---------- Task #234 — Tools de memória manual ----------

@@ -44,7 +44,6 @@ import Equipe from "@/pages/Equipe";
 import VerifyEmail from "@/pages/VerifyEmail";
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
-import Assistente from "@/pages/Assistente";
 import Assinar from "@/pages/Assinar";
 import PagamentoSucesso from "@/pages/PagamentoSucesso";
 import PagamentoCancelado from "@/pages/PagamentoCancelado";
@@ -265,7 +264,6 @@ function AppLayout() {
                 <Route path="/admin" component={Admin} />
                 <Route path="/admin/contexto-macro" component={ContextoMacro} />
                 <Route path="/equipe" component={Equipe} />
-                <Route path="/assistente" component={Assistente} />
                 <Route path="/assinar" component={Assinar} />
                 <Route path="/pagamento/sucesso" component={PagamentoSucesso} />
                 <Route path="/pagamento/cancelado" component={PagamentoCancelado} />

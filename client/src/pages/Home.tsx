@@ -189,8 +189,6 @@ function exportarDiagnosticoPDF(
 export default function Home() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [diagnostico, setDiagnostico] = useState<Diagnostico | null>(null);
-  const [geradoEm, setGeradoEm] = useState<Date | null>(null);
   const [showWelcome, setShowWelcome] = useState(false);
   const [showIntroPanel, setShowIntroPanel] = useState(false);
   const [, setLocation] = useLocation();
@@ -258,18 +256,6 @@ export default function Home() {
     queryKey: ["/api/rituais"],
     enabled: !!empresaId,
   });
-
-  const { data: diagnosticoSalvo } = useQuery<{ diagnostico: Diagnostico; geradoEm: string } | null>({
-    queryKey: ["/api/diagnostico-ia"],
-    enabled: !!empresaId,
-  });
-
-  useEffect(() => {
-    if (diagnosticoSalvo && !diagnostico) {
-      setDiagnostico(diagnosticoSalvo.diagnostico);
-      setGeradoEm(new Date(diagnosticoSalvo.geradoEm));
-    }
-  }, [diagnosticoSalvo]);
 
   const krQueries = useQueries({
     queries: objetivos.map((obj) => ({
@@ -363,24 +349,6 @@ export default function Home() {
     },
   });
 
-  const diagnosticoMutation = useMutation({
-    mutationFn: async () => apiRequest("POST", "/api/ai/diagnostico-estrategico"),
-    onSuccess: (data) => {
-      if (data?.diagnostico) {
-        setDiagnostico(data.diagnostico);
-        setGeradoEm(data.geradoEm ? new Date(data.geradoEm) : new Date());
-        toast({ title: "Análise gerada!", description: "Diagnóstico estratégico concluído pela IA." });
-      }
-    },
-    onError: () => {
-      toast({
-        title: "Erro ao gerar diagnóstico",
-        description: "Não foi possível gerar o diagnóstico. Tente novamente.",
-        variant: "destructive",
-      });
-    },
-  });
-
   const isLoading = loadingObjetivos || loadingKRs || loadingIndicadores;
 
   const { etapas, isLoading: jornadaLoading } = useJornadaProgresso();
@@ -396,10 +364,8 @@ export default function Home() {
   const acompanhamentoBloqueado = isEtapaBloqueada("acompanhamento");
 
   const hoje = new Date();
-  const saudeCor = diagnostico ? getSaudeCor(diagnostico.saudePlano) : null;
 
   const totalKRs = allKRs.length;
-  const hasData = objetivos.length > 0 || indicadores.length > 0;
 
   return (
     <div className="space-y-6">
@@ -848,153 +814,6 @@ export default function Home() {
           )}
         </Card>
       </div>
-      {/* Diagnóstico IA */}
-      <Card className="p-6" data-testid="card-diagnostico-ia">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Sparkles className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-lg">Diagnóstico Estratégico com IA</h3>
-              <p className="text-sm text-muted-foreground">
-                {geradoEm
-                  ? `Última análise em ${geradoEm.toLocaleDateString("pt-BR")} às ${geradoEm.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
-                  : "Análise completa de metas, indicadores e eventos"}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {diagnostico && geradoEm && (
-              <Button
-                variant="outline"
-                onClick={() => exportarDiagnosticoPDF(diagnostico, empresa?.nome ?? "Empresa", geradoEm)}
-                data-testid="button-exportar-pdf"
-              >
-                <FileDown className="h-4 w-4 mr-2" />
-                Exportar PDF
-              </Button>
-            )}
-            <Button
-              onClick={() => diagnosticoMutation.mutate()}
-              disabled={diagnosticoMutation.isPending || !hasData}
-              data-testid="button-gerar-diagnostico"
-            >
-              {diagnosticoMutation.isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Analisando...
-                </>
-              ) : diagnostico ? (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Atualizar Análise
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Gerar Análise
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
-
-        {!hasData && !diagnosticoMutation.isPending && (
-          <div className="mt-4 p-4 rounded-md bg-muted/40 text-sm text-muted-foreground text-center">
-            Cadastre objetivos ou indicadores para gerar o diagnóstico estratégico.
-          </div>
-        )}
-
-        {diagnostico && (
-          <div className="mt-6 space-y-6" data-testid="section-diagnostico-resultado">
-            {/* Saúde do Plano */}
-            <div className="flex items-center gap-4 p-4 rounded-md bg-muted/40">
-              <CircularProgress value={diagnostico.saudePlano} size={80} strokeWidth={8} />
-              <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Saúde do Plano
-                </p>
-                <p
-                  className={`text-2xl font-bold ${saudeCor?.className}`}
-                  data-testid="text-saude-plano"
-                >
-                  {diagnostico.saudePlano}% — {saudeCor?.label}
-                </p>
-                <p className="text-sm text-muted-foreground mt-1 max-w-xl leading-relaxed">
-                  {diagnostico.resumoExecutivo}
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Pontos Fortes */}
-              <div className="space-y-2">
-                <p className="text-sm font-semibold text-green-700 dark:text-green-400 flex items-center gap-1">
-                  <CheckCircle2 className="h-4 w-4" />
-                  Pontos Fortes
-                </p>
-                <ul className="space-y-1.5" data-testid="list-pontos-fortes">
-                  {diagnostico.pontosFortes.map((p, i) => (
-                    <li key={i} className="text-sm flex items-start gap-2">
-                      <div className="h-1.5 w-1.5 rounded-full bg-green-500 mt-2 flex-shrink-0" />
-                      <span>{p}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* Pontos de Atenção */}
-              <div className="space-y-2">
-                <p className="text-sm font-semibold text-yellow-700 dark:text-yellow-400 flex items-center gap-1">
-                  <AlertTriangle className="h-4 w-4" />
-                  Pontos de Atenção
-                </p>
-                <ul className="space-y-1.5" data-testid="list-pontos-atencao">
-                  {diagnostico.pontosAtencao.map((p, i) => (
-                    <li key={i} className="text-sm flex items-start gap-2">
-                      <div className="h-1.5 w-1.5 rounded-full bg-yellow-500 mt-2 flex-shrink-0" />
-                      <span>{p}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* Riscos */}
-              <div className="space-y-2">
-                <p className="text-sm font-semibold text-red-700 dark:text-red-400 flex items-center gap-1">
-                  <AlertTriangle className="h-4 w-4" />
-                  Riscos Identificados
-                </p>
-                <ul className="space-y-1.5" data-testid="list-riscos">
-                  {diagnostico.riscos.map((r, i) => (
-                    <li key={i} className="text-sm flex items-start gap-2">
-                      <div className="h-1.5 w-1.5 rounded-full bg-red-500 mt-2 flex-shrink-0" />
-                      <span>{r}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* Recomendações */}
-              <div className="space-y-2">
-                <p className="text-sm font-semibold text-primary flex items-center gap-1">
-                  <Target className="h-4 w-4" />
-                  Recomendações Prioritárias
-                </p>
-                <ul className="space-y-1.5" data-testid="list-recomendacoes">
-                  {diagnostico.recomendacoes.map((r, i) => (
-                    <li key={i} className="text-sm flex items-start gap-2">
-                      <span className="font-bold text-primary flex-shrink-0">{i + 1}.</span>
-                      <span>{r}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </div>
-        )}
-      </Card>
     </div>
   );
 }

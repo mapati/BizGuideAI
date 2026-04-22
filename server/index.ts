@@ -366,6 +366,28 @@ async function runStartupMigrations() {
       ON briefing_diario_logs (empresa_id, executado_em DESC)
     `);
 
+    // Task #207 — Encerramento de iniciativa (status final + nota)
+    await client.query(`
+      ALTER TABLE iniciativas ADD COLUMN IF NOT EXISTS nota_encerramento TEXT
+    `);
+    await client.query(`
+      ALTER TABLE iniciativas ADD COLUMN IF NOT EXISTS encerrada_em TIMESTAMP
+    `);
+
+    // Task #208 — Vincular iniciativa e meta ao indicador (KPI fonte)
+    await client.query(`
+      ALTER TABLE iniciativas
+      ADD COLUMN IF NOT EXISTS indicador_fonte_id VARCHAR
+      REFERENCES indicadores(id) ON DELETE SET NULL
+    `);
+    await client.query(`
+      ALTER TABLE resultados_chave
+      ADD COLUMN IF NOT EXISTS indicador_fonte_id VARCHAR
+      REFERENCES indicadores(id) ON DELETE SET NULL
+    `);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_iniciativas_indicador_fonte_id ON iniciativas(indicador_fonte_id)`);
+    await client.query(`CREATE INDEX IF NOT EXISTS idx_resultados_chave_indicador_fonte_id ON resultados_chave(indicador_fonte_id)`);
+
     // Seed: ensure the platform admin from env vars exists and has the correct password
     const adminEmail = process.env.ADMIN_EMAIL;
     const adminSenha = process.env.ADMIN_SENHA;

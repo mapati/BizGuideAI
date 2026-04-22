@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useDeepLinkDialog } from "@/hooks/useDeepLinkDialog";
 
 interface Empresa {
   id: string;
@@ -143,6 +144,18 @@ export default function ModeloNegocio() {
     setEditValue(formValues[blocoValue] || "");
     setEditDialogOpen(true);
   };
+
+  useDeepLinkDialog(!!empresa?.id && !isLoading, ({ editar }) => {
+    if (!editar) return false;
+    const byId = blocosData.find((b) => b.id === editar);
+    const blocoValue = byId?.bloco
+      ?? (blocosPadrao.find((b) => b.value === editar)?.value);
+    if (!blocoValue) return false;
+    setBlocoSelecionado(blocoValue);
+    setEditValue(byId?.descricao ?? formValues[blocoValue] ?? "");
+    setEditDialogOpen(true);
+    return true;
+  });
 
   const closeEditor = () => {
     setEditDialogOpen(false);

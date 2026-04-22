@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useDeepLinkDialog } from "@/hooks/useDeepLinkDialog";
 import type { Cenario } from "@shared/schema";
 
 // ── types ─────────────────────────────────────────────────────────────────────
@@ -260,6 +261,24 @@ export default function Cenarios() {
     setEditDialog({ open: true, tipo, existing });
     setEditForm(existing ? cenarioToForm(existing) : emptyForm());
   }
+
+  useDeepLinkDialog(!isLoading, ({ editar }) => {
+    if (!editar) return false;
+    const found = cenarios.find((c) => c.id === editar);
+    if (!found) {
+      const tipoMatch = TIPOS.find((t) => t === editar);
+      if (tipoMatch) {
+        const existing = cenarioByTipo[tipoMatch] ?? null;
+        abrirEditar(tipoMatch, existing);
+        return true;
+      }
+      return false;
+    }
+    const tipo = found.tipo as TipoCenario;
+    if (!TIPOS.includes(tipo)) return false;
+    abrirEditar(tipo, found);
+    return true;
+  });
 
   async function salvarEdicao() {
     if (!editDialog.tipo) return;

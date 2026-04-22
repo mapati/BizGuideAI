@@ -307,6 +307,18 @@ export function AssistantChat({
     }
   }, [initialContext]);
 
+  // Permite que outras partes da UI peçam para enviar uma mensagem ao Bizzy
+  // (ex.: botão "Gerar resumo" na página /memoria).
+  useEffect(() => {
+    const onSeed = (e: Event) => {
+      const detail = (e as CustomEvent<{ text?: string }>).detail;
+      const text = detail?.text;
+      if (typeof text === "string" && text.trim()) sendMessage(text);
+    };
+    window.addEventListener("biz-assistant:send", onSeed as EventListener);
+    return () => window.removeEventListener("biz-assistant:send", onSeed as EventListener);
+  }, []);
+
   // Task #284 — botão Parar: aborta o fetch streaming em andamento. O cleanup
   // do balão (marcar interrompido, encerrar loading) é feito no catch do
   // sendMessage quando o AbortError é detectado.

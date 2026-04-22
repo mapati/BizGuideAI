@@ -46,6 +46,7 @@ import LandingPage from "@/pages/LandingPage";
 import TrialExpirado from "@/pages/TrialExpirado";
 import Admin from "@/pages/Admin";
 import ContextoMacro from "@/pages/ContextoMacro";
+import Memoria from "@/pages/Memoria";
 import Equipe from "@/pages/Equipe";
 import VerifyEmail from "@/pages/VerifyEmail";
 import ForgotPassword from "@/pages/ForgotPassword";
@@ -300,6 +301,7 @@ function AppLayout() {
                 <Route path="/trial-expirado" component={TrialExpirado} />
                 <Route path="/admin" component={Admin} />
                 <Route path="/admin/contexto-macro" component={ContextoMacro} />
+                <Route path="/memoria" component={Memoria} />
                 <Route path="/equipe" component={Equipe} />
                 <Route path="/assinar" component={Assinar} />
                 <Route path="/pagamento/sucesso" component={PagamentoSucesso} />

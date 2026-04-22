@@ -4049,6 +4049,37 @@ Responda OBRIGATORIAMENTE em JSON:
     }
   });
 
+  // Task #298 — Página de memória do Bizzy: lista resumos de ciclo persistidos
+  // em `bizzy_resumos_ciclo`. Read-only; geração continua sendo HITL via Bizzy.
+  app.get("/api/resumos-ciclo", requireAuth, async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const tipoRaw = typeof req.query.tipo === "string" ? req.query.tipo : null;
+      const TIPOS = ["trimestre", "objetivo", "estrategia", "iniciativa"] as const;
+      const tipo = tipoRaw && (TIPOS as readonly string[]).includes(tipoRaw) ? tipoRaw : null;
+      const limiteRaw = Number(req.query.limite ?? 50);
+      const limite = Number.isFinite(limiteRaw) ? Math.min(Math.max(Math.trunc(limiteRaw), 1), 200) : 50;
+      let resumos = await storage.listResumosCicloByEmpresa(empresaId, tipo ? Math.max(limite, 100) : limite);
+      if (tipo) resumos = resumos.filter((r) => r.tipo === tipo).slice(0, limite);
+      res.json({ resumos });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ error: message });
+    }
+  });
+
+  app.get("/api/resumos-ciclo/:id", requireAuth, async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const row = await storage.getResumoCicloById(req.params.id, empresaId);
+      if (!row) return res.status(404).json({ error: "Resumo não encontrado." });
+      res.json({ resumo: row });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ error: message });
+    }
+  });
+
   app.post("/api/ai/assistente", requireAuth, async (req, res) => {
     try {
       const { pergunta, historico = [], conversaId: conversaIdInput } = req.body as {

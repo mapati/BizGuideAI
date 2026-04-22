@@ -42,8 +42,13 @@ export function AssistantSidebar() {
   // Permite que componentes filhos peçam para fechar (ex.: PropostaCard ao "Ajustar").
   useEffect(() => {
     const onClose = () => setOpen(false);
+    const onOpen = () => setOpen(true);
     window.addEventListener("biz-assistant:close", onClose);
-    return () => window.removeEventListener("biz-assistant:close", onClose);
+    window.addEventListener("biz-assistant:open", onOpen);
+    return () => {
+      window.removeEventListener("biz-assistant:close", onClose);
+      window.removeEventListener("biz-assistant:open", onOpen);
+    };
   }, []);
 
   if (locked || jornadaLoading) return null;

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Home, Map, Target, TrendingUp, CheckCircle, FileText, Compass, Layers, Grid3x3, ListChecks, Briefcase, LogOut, BarChart3, ShieldCheck, Users, CheckCircle2, Circle, ArrowRight, ClipboardList, CloudLightning, ShieldAlert, Network, Share2, GitBranch, Bell, Zap, UserCircle, Calendar, PanelLeftClose, PanelLeftOpen, Stethoscope, Activity } from "lucide-react";
+import { Home, Map, Target, TrendingUp, CheckCircle, FileText, Compass, Layers, Grid3x3, ListChecks, Briefcase, LogOut, BarChart3, ShieldCheck, Users, CheckCircle2, Circle, ArrowRight, ClipboardList, CloudLightning, ShieldAlert, Network, Share2, GitBranch, Bell, Zap, UserCircle, Calendar, PanelLeftClose, PanelLeftOpen, Stethoscope, Activity, Brain } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -445,6 +445,7 @@ export function AppSidebar() {
                 { title: "Rastreabilidade", url: "/rastreabilidade", icon: GitBranch, testId: "link-rastreabilidade" },
                 { title: "Gestão de Riscos", url: "/riscos", icon: ShieldAlert, testId: "link-riscos" },
                 { title: "Mapa de Performance", url: "/mapa-bsc", icon: Network, testId: "link-mapa-bsc" },
+                { title: "Memória do Bizzy", url: "/memoria", icon: Brain, testId: "link-memoria" },
               ].map((item) => (
                 <SidebarMenuItem key={item.title}>
                   {!jornadaLoading && !jornadaConcluida ? (

@@ -18,6 +18,7 @@ export type ToolName =
   | "criar_indicador"
   | "atualizar_valor_indicador"
   | "navegar_para"
+  | "abrir_entidade"
   | "criar_plano_agentico"
   | "concluir_plano_agentico"
   | "cancelar_plano_agentico";
@@ -33,7 +34,10 @@ export type EntidadeTipo =
   | "resultado_chave"
   | "indicador"
   | "kpi_leitura"
-  | "navegacao";
+  | "navegacao"
+  | "risco"
+  | "oportunidade_crescimento"
+  | "estrategia";
 
 export interface ToolApplyResult {
   resumo: string;
@@ -599,7 +603,162 @@ const navegarPara: ToolDefinition<NavegarParaParams> = {
       entidadeId: p.rota,
     };
   },
-  formRota: "/dashboard",
+  // formRota é usado pelo botão "Ajustar". Para navegar_para não há formulário
+  // a pré-preencher; mandamos o usuário para a própria rota sugerida.
+  formRota: "/",
+};
+
+// ---------- 8. abrir_entidade ----------
+// Task #202 — Permite ao agente abrir DIRETAMENTE o modal de edição de uma
+// entidade existente (indicador, iniciativa, OKR, KR, risco, oportunidade,
+// estratégia) usando deep link `?editar=<id>`. Diferente de navegar_para
+// (que leva à página inteira), esta tool já abre o item específico.
+const TIPOS_ABRIR_ENTIDADE = [
+  "indicador",
+  "iniciativa",
+  "objetivo",
+  "kr",
+  "risco",
+  "oportunidade",
+  "estrategia",
+] as const;
+
+const TIPO_ROTA_ABRIR: Record<typeof TIPOS_ABRIR_ENTIDADE[number], string> = {
+  indicador:    "/indicadores",
+  iniciativa:   "/iniciativas",
+  objetivo:     "/okrs",
+  kr:           "/okrs",
+  risco:        "/riscos",
+  oportunidade: "/oportunidades-crescimento",
+  estrategia:   "/estrategias",
+};
+
+const TIPO_LABEL_ABRIR: Record<typeof TIPOS_ABRIR_ENTIDADE[number], string> = {
+  indicador:    "indicador",
+  iniciativa:   "iniciativa",
+  objetivo:     "objetivo (OKR)",
+  kr:           "resultado-chave",
+  risco:        "risco",
+  oportunidade: "oportunidade de crescimento",
+  estrategia:   "estratégia",
+};
+
+const abrirEntidadeSchema = z.object({
+  tipo: z.enum(TIPOS_ABRIR_ENTIDADE),
+  id: z.string().min(8),
+  nome: z.string().max(200).default(""),
+});
+type AbrirEntidadeParams = z.infer<typeof abrirEntidadeSchema>;
+
+async function resolverNomeEntidade(
+  tipo: typeof TIPOS_ABRIR_ENTIDADE[number],
+  id: string,
+  empresaId: string,
+): Promise<{ ok: boolean; nome: string; objetivoId?: string }> {
+  try {
+    switch (tipo) {
+      case "indicador": {
+        const e = await storage.getIndicador(id);
+        if (!e || e.empresaId !== empresaId) return { ok: false, nome: "" };
+        return { ok: true, nome: e.nome };
+      }
+      case "iniciativa": {
+        const e = await storage.getIniciativa(id);
+        if (!e || e.empresaId !== empresaId) return { ok: false, nome: "" };
+        return { ok: true, nome: e.titulo };
+      }
+      case "objetivo": {
+        const objs = await storage.getObjetivos(empresaId);
+        const e = objs.find((o) => o.id === id);
+        if (!e) return { ok: false, nome: "" };
+        return { ok: true, nome: e.titulo };
+      }
+      case "kr": {
+        const objs = await storage.getObjetivos(empresaId);
+        for (const o of objs) {
+          const krs = await storage.getResultadosChave(o.id, empresaId);
+          const k = krs.find((x) => x.id === id);
+          if (k) return { ok: true, nome: k.metrica, objetivoId: o.id };
+        }
+        return { ok: false, nome: "" };
+      }
+      case "risco": {
+        const lista = await storage.getRiscos(empresaId);
+        const e = lista.find((x) => x.id === id);
+        if (!e) return { ok: false, nome: "" };
+        return { ok: true, nome: e.descricao ?? "Risco" };
+      }
+      case "oportunidade": {
+        const e = await storage.getOportunidadeCrescimento(id);
+        if (!e || e.empresaId !== empresaId) return { ok: false, nome: "" };
+        return { ok: true, nome: e.titulo ?? "Oportunidade" };
+      }
+      case "estrategia": {
+        const e = await storage.getEstrategia(id);
+        if (!e || e.empresaId !== empresaId) return { ok: false, nome: "" };
+        return { ok: true, nome: e.titulo };
+      }
+    }
+  } catch {
+    return { ok: false, nome: "" };
+  }
+}
+
+const abrirEntidade: ToolDefinition<AbrirEntidadeParams> = {
+  name: "abrir_entidade",
+  description:
+    "Abre DIRETAMENTE o cadastro/modal de edição de uma entidade já existente (indicador, iniciativa, OKR, KR, risco, oportunidade, estratégia). Use quando o usuário pedir para 'abrir', 'editar' ou 'ajustar' um item específico que aparece no '## CATÁLOGO'. Prefira esta tool a navegar_para sempre que houver um id conhecido. Se o usuário já forneceu o novo valor, use a tool de atualização específica em vez desta.",
+  paramsSchema: abrirEntidadeSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["tipo", "id"],
+    properties: {
+      tipo: { type: "string", enum: [...TIPOS_ABRIR_ENTIDADE] },
+      id:   { type: "string", description: "ID exato da entidade conforme o ## CATÁLOGO." },
+      nome: { type: "string", description: "Nome legível da entidade (opcional, melhora a preview)." },
+    },
+  },
+  preview: (p) => ({
+    titulo: `Abrir ${TIPO_LABEL_ABRIR[p.tipo]}${p.nome ? `: ${p.nome}` : ""}`,
+    descricao: `Abrir o ${TIPO_LABEL_ABRIR[p.tipo]} para edição.`,
+    campos: [
+      { label: "Tipo", valor: TIPO_LABEL_ABRIR[p.tipo] },
+      ...(p.nome ? [{ label: "Item", valor: p.nome }] : []),
+    ],
+    ctaConfirmar: "Abrir agora",
+    ctaIgnorar: "Mais tarde",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const resolvido = await resolverNomeEntidade(p.tipo, p.id, ctx.empresaId);
+    if (!resolvido.ok) {
+      throw new Error(`${TIPO_LABEL_ABRIR[p.tipo]} não encontrado(a) nesta empresa.`);
+    }
+    const rotaBase = TIPO_ROTA_ABRIR[p.tipo];
+    const usp = new URLSearchParams({ editar: p.id });
+    if (p.tipo === "kr") {
+      usp.set("tipo", "kr");
+      if (resolvido.objetivoId) usp.set("objetivoId", resolvido.objetivoId);
+    }
+    const rota = `${rotaBase}?${usp.toString()}`;
+    const entidadeTipo: EntidadeTipo =
+      p.tipo === "indicador" ? "indicador" :
+      p.tipo === "iniciativa" ? "iniciativa" :
+      p.tipo === "objetivo" ? "objetivo" :
+      p.tipo === "kr" ? "resultado_chave" :
+      p.tipo === "risco" ? "risco" :
+      p.tipo === "oportunidade" ? "oportunidade_crescimento" :
+      "estrategia";
+    return {
+      resumo: `Abrindo ${TIPO_LABEL_ABRIR[p.tipo]}: ${resolvido.nome}.`,
+      dados: { tipo: p.tipo, id: p.id, rota },
+      rota,
+      entidadeTipo,
+      entidadeId: p.id,
+    };
+  },
+  formRota: "/",
 };
 
 // ─── Task #189 — Tools de gerenciamento de plano agêntico ───
@@ -850,6 +1009,7 @@ export const TOOLS: Record<ToolName, ToolDefinition<unknown>> = {
   criar_indicador: wrap(criarIndicador),
   atualizar_valor_indicador: wrap(atualizarValorIndicador),
   navegar_para: wrap(navegarPara),
+  abrir_entidade: wrap(abrirEntidade),
   criar_plano_agentico: wrap(criarPlanoAgentico),
   concluir_plano_agentico: wrap(concluirPlanoAgentico),
   cancelar_plano_agentico: wrap(cancelarPlanoAgentico),
@@ -866,6 +1026,7 @@ const TOOLS_EXECUTORAS: ReadonlySet<ToolName> = new Set<ToolName>([
   "criar_indicador",
   "atualizar_valor_indicador",
   "navegar_para",
+  "abrir_entidade",
 ]);
 
 export function isToolExecutora(name: string): boolean {

@@ -614,10 +614,23 @@ export default function OKRs() {
     const isKR = params.tipo === "kr" || params.tipo === "resultado-chave";
     if (editar) {
       if (isKR) {
-        const kr = resultadosChave.find((r) => r.id === editar);
-        if (!kr) return false;
-        const parent = objetivos.find((o) => o.id === kr.objetivoId);
-        if (!parent) return false;
+        // 1) Tentar localizar o KR já carregado.
+        let kr = resultadosChave.find((r) => r.id === editar);
+        let parent = kr ? objetivos.find((o) => o.id === kr.objetivoId) : null;
+        // 2) Se não está carregado mas o backend nos passou o objetivoId
+        //    (caso da tool abrir_entidade), abrimos o objetivo agora para
+        //    disparar a query de KRs e voltamos depois (return false) para
+        //    completar a abertura do KR no próximo render.
+        if (!kr && params.objetivoId) {
+          parent = objetivos.find((o) => o.id === params.objetivoId) ?? null;
+          if (!parent) return false;
+          if (objetivoSelecionado?.id !== parent.id) {
+            setObjetivoSelecionado(parent);
+          }
+          if (!dialogResultadosOpen) setDialogResultadosOpen(true);
+          return false;
+        }
+        if (!kr || !parent) return false;
         setObjetivoSelecionado(parent);
         setDialogResultadosOpen(true);
         setEditandoResultado({
@@ -641,6 +654,9 @@ export default function OKRs() {
         perspectiva: params.perspectiva || found.perspectiva,
       });
       setEditandoObjetivo(true);
+      // Sem isto, o usuário fica olhando a lista de OKRs sem feedback visual
+      // (o estado de edição existe mas o modal de detalhes nunca abre).
+      setDialogResultadosOpen(true);
       return true;
     }
     if (novo) {

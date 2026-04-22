@@ -3659,6 +3659,8 @@ Responda OBRIGATORIAMENTE em JSON:
         indicadores,
         iniciativas,
         rituais,
+        riscos,
+        oportunidadesCrescimento,
       ] = await Promise.all([
         storage.getEmpresa(empresaId),
         storage.getFatoresPestel(empresaId),
@@ -3670,6 +3672,8 @@ Responda OBRIGATORIAMENTE em JSON:
         storage.getIndicadores(empresaId),
         storage.getIniciativas(empresaId),
         storage.getRituais(empresaId),
+        storage.getRiscos(empresaId),
+        storage.getOportunidadesCrescimento(empresaId),
       ]);
 
       // Fetch key results for each objective
@@ -3756,6 +3760,57 @@ Responda OBRIGATORIAMENTE em JSON:
       const planoAtivoTxt = await buildPlanoAtivoContextoIA(empresaId, req.session.userId ?? null);
       if (planoAtivoTxt) ctx.push(planoAtivoTxt);
 
+      // Task #202 — Catálogo de IDs estáveis das principais entidades, separado
+      // dos resumos narrativos. Permite ao LLM chamar tools específicas
+      // (atualizar_valor_indicador, abrir_entidade, atualizar_iniciativa…)
+      // com IDs reais em vez de cair em navegar_para genérico.
+      const catalogoLinhas: string[] = [];
+      const TOP_N = 30;
+      if (indicadores.length > 0) {
+        catalogoLinhas.push(
+          `### Indicadores (use com tipo="indicador" em abrir_entidade ou indicadorId em atualizar_valor_indicador):`,
+          ...indicadores.slice(0, TOP_N).map((i) => `- id=${i.id} | ${i.nome} [${i.perspectiva}]`),
+        );
+      }
+      if (iniciativas.length > 0) {
+        catalogoLinhas.push(
+          `### Iniciativas (use com tipo="iniciativa" em abrir_entidade ou id em atualizar_iniciativa):`,
+          ...iniciativas.slice(0, TOP_N).map((i) => `- id=${i.id} | ${i.titulo} [${i.status}]`),
+        );
+      }
+      if (resultadosPorObjetivo.length > 0) {
+        catalogoLinhas.push(
+          `### Objetivos / OKRs (use com tipo="objetivo" em abrir_entidade ou objetivoId em atualizar_okr):`,
+        );
+        for (const { objetivo, resultados } of resultadosPorObjetivo.slice(0, TOP_N)) {
+          catalogoLinhas.push(`- id=${objetivo.id} | ${objetivo.titulo} [${objetivo.perspectiva}]`);
+          for (const kr of resultados) {
+            catalogoLinhas.push(`  • KR id=${kr.id} | ${kr.metrica} (use tipo="kr" em abrir_entidade ou resultadoChaveId em atualizar_progresso_kr)`);
+          }
+        }
+      }
+      if (riscos.length > 0) {
+        catalogoLinhas.push(
+          `### Riscos (use com tipo="risco" em abrir_entidade):`,
+          ...riscos.slice(0, TOP_N).map((r) => `- id=${r.id} | ${r.descricao.slice(0, 80)} [${r.status}]`),
+        );
+      }
+      if (oportunidadesCrescimento.length > 0) {
+        catalogoLinhas.push(
+          `### Oportunidades de Crescimento (use com tipo="oportunidade" em abrir_entidade):`,
+          ...oportunidadesCrescimento.slice(0, TOP_N).map((o) => `- id=${o.id} | ${o.titulo} [${o.tipo}]`),
+        );
+      }
+      if (estrategias.length > 0) {
+        catalogoLinhas.push(
+          `### Estratégias (use com tipo="estrategia" em abrir_entidade):`,
+          ...estrategias.slice(0, TOP_N).map((e) => `- id=${e.id} | ${e.titulo} [${e.tipo}]`),
+        );
+      }
+      if (catalogoLinhas.length > 0) {
+        ctx.push(`## CATÁLOGO (IDs para tools)\n${catalogoLinhas.join("\n")}`);
+      }
+
       const systemPrompt = `Você é o Assistente Estratégico do BizGuideAI, um consultor sênior de estratégia empresarial para PMEs brasileiras.
 
 Você tem acesso completo aos dados da empresa abaixo e a um conjunto de ferramentas (function tools) que executam ações reais quando o usuário aprovar.
@@ -3770,9 +3825,15 @@ QUANDO USAR FERRAMENTAS (tool calls):
 - Se o usuário aprovar/sugerir uma ação concreta executável (ex.: "crie a iniciativa X", "registre a leitura do KPI Y como 92"), CHAME a ferramenta apropriada.
 - Cada chamada vira uma proposta que o usuário ainda precisa CONFIRMAR antes de ser executada — explique brevemente no texto o que está propondo.
 - Use no máximo 3 chamadas de ferramenta por resposta.
-- Se a ação envolver um item existente (atualizar iniciativa/KR/indicador), use SOMENTE IDs reais que aparecem nos dados.
-- Se a melhor coisa for apenas abrir uma página, use a ferramenta "navegar_para".
+- Se a ação envolver um item existente (atualizar iniciativa/KR/indicador), use SOMENTE IDs reais que aparecem no bloco "## CATÁLOGO".
 - Se a pergunta for analítica ou aberta (ex.: "como estão meus OKRs?"), responda só em texto, sem chamar ferramenta.
+
+REGRA DE PREFERÊNCIA DE TOOLS (item específico vs área):
+- Quando o usuário pedir ação sobre um item ESPECÍFICO citado por nome (ex.: "abre o indicador de custo de produção", "edita a iniciativa X", "ajusta a meta do KR Y") e o item aparecer no "## CATÁLOGO":
+  • Se ele já forneceu o NOVO VALOR (ex.: "atualiza o custo de produção para 95"), chame a tool de atualização específica (atualizar_valor_indicador, atualizar_progresso_kr, atualizar_iniciativa, atualizar_okr) com o id do catálogo.
+  • Se ele só pediu para "abrir/editar/ajustar" sem dizer o novo valor, chame "abrir_entidade" com {tipo, id, nome} do catálogo — isso já abre o modal de edição certo. NÃO chame navegar_para nesse caso.
+- Use "navegar_para" SOMENTE quando o pedido for explorar uma área inteira sem alvo específico (ex.: "me leva para os indicadores", "abre a tela de riscos") OU quando o item citado NÃO estiver no catálogo (peça antes para o usuário criar).
+- Se houver ambiguidade (dois itens com nome parecido no catálogo), pergunte em texto qual deles antes de chamar a tool.
 
 MEMÓRIA E "DAR BAIXA":
 - ANTES de propor qualquer ação, leia o bloco "AÇÕES RECENTES DO ASSISTENTE" se existir e siga as REGRAS DE MEMÓRIA listadas lá. Não repita propostas já executadas, ajustadas ou ignoradas.
@@ -3784,7 +3845,7 @@ MEMÓRIA E "DAR BAIXA":
 - Reconheça explicitamente no texto o que está sendo "dado baixa" antes de chamar a ferramenta.
 
 FERRAMENTAS DISPONÍVEIS:
-- Executoras: criar_iniciativa, atualizar_iniciativa, criar_okr, atualizar_okr, atualizar_progresso_kr, criar_indicador, atualizar_valor_indicador, navegar_para.
+- Executoras: criar_iniciativa, atualizar_iniciativa, criar_okr, atualizar_okr, atualizar_progresso_kr, criar_indicador, atualizar_valor_indicador, abrir_entidade, navegar_para.
 - Planos agênticos (loop multi-passo): criar_plano_agentico (quando o objetivo do usuário exigir 2+ ações encadeadas), concluir_plano_agentico (quando os passos foram cumpridos), cancelar_plano_agentico (quando o usuário desistir).
 
 LOOP AGÊNTICO (planos multi-passo):

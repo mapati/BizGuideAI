@@ -87,7 +87,16 @@ const FERRAMENTAS_LABEL: Record<string, string> = {
   criar_indicador: "Novo indicador",
   atualizar_valor_indicador: "Registrar leitura",
   navegar_para: "Abrir página",
+  abrir_entidade: "Abrir item",
 };
+
+// Tools cuja confirmação não cria/atualiza dado: o objetivo é apenas levar o
+// usuário a uma página/modal. Para essas, ao confirmar, navegamos direto em vez
+// de exigir um segundo clique no toast/botão "Abrir item".
+const TOOLS_AUTO_NAVEGAR: ReadonlySet<string> = new Set(["abrir_entidade", "navegar_para"]);
+
+// Tools que não têm "campos a ajustar" — o botão Ajustar não faz sentido.
+const TOOLS_SEM_AJUSTE: ReadonlySet<string> = new Set(["abrir_entidade", "navegar_para"]);
 
 export function PropostaCard({
   proposta,
@@ -119,10 +128,11 @@ export function PropostaCard({
       setResolvidoEm(new Date());
       const rotaDestino = r.resultado?.rota ?? null;
       setRotaEntidade(rotaDestino);
+      const autoNavegar = TOOLS_AUTO_NAVEGAR.has(ferramenta) && !!rotaDestino;
       toast({
         title: "Ação aplicada",
         description: r.resultado?.resumo ?? "Concluído.",
-        action: rotaDestino ? (
+        action: rotaDestino && !autoNavegar ? (
           <ToastAction
             altText="Abrir item criado"
             onClick={() => navigate(rotaDestino)}
@@ -132,6 +142,11 @@ export function PropostaCard({
           </ToastAction>
         ) : undefined,
       });
+      if (autoNavegar && rotaDestino) {
+        // Tool de navegação pura (abrir_entidade / navegar_para): leva
+        // o usuário direto, sem exigir um segundo clique.
+        setTimeout(() => navigate(rotaDestino), 250);
+      }
       const queries = ["/api/iniciativas", "/api/objetivos", "/api/indicadores", "/api/meu-painel/resumo", "/api/ai/propostas", "/api/ai/planos", "/api/ai/planos/ativo"];
       for (const q of queries) queryClient.invalidateQueries({ queryKey: [q] });
       if (r.continuacao && onContinuacao) onContinuacao(r.continuacao);
@@ -287,21 +302,23 @@ export function PropostaCard({
               )}
               {preview.ctaConfirmar ?? "Confirmar"}
             </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={handleAjustar}
-              disabled={submitting !== null}
-              data-testid={`button-proposta-ajustar-${logId}`}
-              className="gap-1.5"
-            >
-              {submitting === "ajustar" ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Pencil className="h-3.5 w-3.5" />
-              )}
-              {preview.ctaAjustar ?? "Ajustar"}
-            </Button>
+            {!TOOLS_SEM_AJUSTE.has(ferramenta) && (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={handleAjustar}
+                disabled={submitting !== null}
+                data-testid={`button-proposta-ajustar-${logId}`}
+                className="gap-1.5"
+              >
+                {submitting === "ajustar" ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Pencil className="h-3.5 w-3.5" />
+                )}
+                {preview.ctaAjustar ?? "Ajustar"}
+              </Button>
+            )}
             <Button
               size="sm"
               variant="outline"

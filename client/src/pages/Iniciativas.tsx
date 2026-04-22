@@ -48,6 +48,11 @@ const formSchema = z.object({
   impacto: z.string(),
   estrategiaId: z.string().optional().nullable(),
   oportunidadeId: z.string().optional().nullable(),
+  // Task #250 — 5W2H (opcionais; complementam o quê/quem/quando)
+  porque: z.string().optional().nullable(),
+  onde: z.string().optional().nullable(),
+  como: z.string().optional().nullable(),
+  quanto: z.string().optional().nullable(),
 });
 
 const statusLabels = {
@@ -238,6 +243,38 @@ function IniciativaCard({ iniciativa, estrategias, oportunidades, objetivos, ind
               />
             );
           })()}
+          {(iniciativa.porque || iniciativa.onde || iniciativa.como || iniciativa.quanto) && (
+            <div
+              className="rounded-md border bg-muted/40 p-3 space-y-1.5 text-sm"
+              data-testid={`section-5w2h-${iniciativa.id}`}
+            >
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Plano 5W2H</p>
+              {iniciativa.porque && (
+                <p data-testid={`text-porque-${iniciativa.id}`}>
+                  <span className="font-medium">Por quê:</span>{" "}
+                  <span className="text-muted-foreground">{iniciativa.porque}</span>
+                </p>
+              )}
+              {iniciativa.onde && (
+                <p data-testid={`text-onde-${iniciativa.id}`}>
+                  <span className="font-medium">Onde:</span>{" "}
+                  <span className="text-muted-foreground">{iniciativa.onde}</span>
+                </p>
+              )}
+              {iniciativa.como && (
+                <p data-testid={`text-como-${iniciativa.id}`}>
+                  <span className="font-medium">Como:</span>{" "}
+                  <span className="text-muted-foreground">{iniciativa.como}</span>
+                </p>
+              )}
+              {iniciativa.quanto && (
+                <p data-testid={`text-quanto-${iniciativa.id}`}>
+                  <span className="font-medium">Quanto:</span>{" "}
+                  <span className="text-muted-foreground">{iniciativa.quanto}</span>
+                </p>
+              )}
+            </div>
+          )}
           <EncerramentoBlock iniciativa={iniciativa} />
           <div className="flex justify-end">
             <Button
@@ -316,6 +353,10 @@ export default function Iniciativas() {
       impacto: "médio",
       estrategiaId: null,
       oportunidadeId: null,
+      porque: "",
+      onde: "",
+      como: "",
+      quanto: "",
     },
   });
 
@@ -384,25 +425,21 @@ export default function Iniciativas() {
     },
   });
 
-  const generateMutation = useMutation<{ iniciativas: InsertIniciativa[]; _origemId?: string | null }, Error, AIGenerationParams>({
+  const generateMutation = useMutation<{ iniciativas: InsertIniciativa[] }, Error, AIGenerationParams>({
     mutationFn: async (params: AIGenerationParams) => {
+      // Modo MATRIZ: o backend já estampa estrategiaId/oportunidadeId conforme o alvo.
       const data = await apiRequest("POST", "/api/ai/gerar-iniciativas", {
         empresaId: empresa?.id,
         ...params,
       });
-      return { ...data, _origemId: params.origemId ?? null };
+      return data;
     },
     onSuccess: (data) => {
       if (data.iniciativas && data.iniciativas.length > 0) {
-        // Garante o vínculo da cascata mesmo se a IA não estampou.
-        const origemId = data._origemId || null;
-        const isOportunidade = !!origemId && oportunidades.some((o) => o.id === origemId);
         Promise.all(
           data.iniciativas.map((iniciativa) =>
             apiRequest("POST", "/api/iniciativas", {
               ...iniciativa,
-              oportunidadeId: iniciativa.oportunidadeId || (isOportunidade ? origemId : null),
-              estrategiaId: iniciativa.estrategiaId || (isOportunidade ? null : origemId),
               empresaId: empresa?.id,
             })
           )
@@ -482,6 +519,10 @@ export default function Iniciativas() {
       impacto: iniciativa.impacto,
       estrategiaId: iniciativa.estrategiaId ?? null,
       oportunidadeId: iniciativa.oportunidadeId ?? null,
+      porque: iniciativa.porque ?? "",
+      onde: iniciativa.onde ?? "",
+      como: iniciativa.como ?? "",
+      quanto: iniciativa.quanto ?? "",
     });
     setOpenDialog(true);
   };
@@ -570,6 +611,10 @@ export default function Iniciativas() {
            prioridadeOrder[b.prioridade as keyof typeof prioridadeOrder];
   });
 
+  // Task #250 — alvos da matriz (Estratégias FA/DA + Frentes de Crescimento)
+  const estrategiasFaDa = estrategias.filter((e) => e.tipo === "FA" || e.tipo === "DA");
+  const totalAlvosMatriz = estrategiasFaDa.length + oportunidades.length;
+
   const altaPrioridade = sortedIniciativas.filter(i => i.prioridade === "alta");
   const mediaPrioridade = sortedIniciativas.filter(i => i.prioridade === "média");
   const baixaPrioridade = sortedIniciativas.filter(i => i.prioridade === "baixa");
@@ -583,6 +628,8 @@ export default function Iniciativas() {
   }
 
   const semEstategias = empresa && estrategias.length === 0 && iniciativas.length === 0;
+  // Task #250 — para o modo matriz precisamos de pelo menos 1 alvo (FA/DA ou Frente).
+  const semAlvosMatriz = !!empresa && totalAlvosMatriz === 0;
 
   return (
     <div className="container mx-auto p-6 max-w-7xl">
@@ -590,6 +637,15 @@ export default function Iniciativas() {
         <PrerequisiteWarning
           titulo="Recomendado: crie estratégias antes de definir iniciativas"
           descricao="As iniciativas devem derivar das estratégias definidas na Matriz TOWS. Definir as estratégias primeiro garante que as iniciativas estejam alinhadas com os objetivos estratégicos."
+          linkLabel="Ir para Estratégias"
+          linkHref="/estrategias"
+          variante="info"
+        />
+      )}
+      {!semEstategias && semAlvosMatriz && (
+        <PrerequisiteWarning
+          titulo="Para gerar iniciativas em matriz, crie Estratégias FA/DA ou Frentes de Crescimento"
+          descricao="O gerador de iniciativas funciona como uma matriz: produz iniciativas para cada Estratégia FA/DA (defensivas) e cada Frente de Crescimento (Ansoff). Cadastre ao menos uma destas para habilitar a geração."
           linkLabel="Ir para Estratégias"
           linkHref="/estrategias"
           variante="info"
@@ -618,9 +674,14 @@ export default function Iniciativas() {
       <div className="flex gap-3 mb-6">
         <Button
           onClick={() => setIsAIModalOpen(true)}
-          disabled={!empresa?.id || isGenerating}
+          disabled={!empresa?.id || isGenerating || totalAlvosMatriz === 0}
           className="gap-2"
           data-testid="button-generate-ai"
+          title={
+            totalAlvosMatriz === 0
+              ? "Crie ao menos uma Estratégia FA/DA ou Frente de Crescimento para gerar iniciativas em matriz."
+              : undefined
+          }
         >
           <Sparkles className="h-4 w-4" />
           {isGenerating ? "Gerando..." : "Gerar com IA"}
@@ -631,29 +692,16 @@ export default function Iniciativas() {
           onOpenChange={setIsAIModalOpen}
           onConfirm={handleConfirmAIGeneration}
           title="Gerar iniciativas com IA"
-          description="Configure quantas iniciativas e quais prioridades a IA deve gerar."
+          description={`A IA gera iniciativas para CADA Estratégia FA/DA e CADA Frente de Crescimento já cadastradas (modo matriz, alinhado ao padrão Ansoff). Total de alvos hoje: ${totalAlvosMatriz}.`}
           isGenerating={isGenerating}
           testIdPrefix="ai-iniciativas"
-          origem={{
-            label: "Origem da iniciativa",
-            description: origemObrigatoria
-              ? "Escolha de qual Oportunidade ou Estratégia derivar as iniciativas. Obrigatório durante a primeira jornada."
-              : "Opcional: vincule as iniciativas a uma Oportunidade ou Estratégia para manter a cascata.",
-            placeholder: "Selecione uma origem…",
-            required: origemObrigatoria,
-            items: [
-              ...oportunidades.map((o) => ({ id: o.id, label: o.titulo, group: "Oportunidade" })),
-              ...estrategias.map((e) => ({ id: e.id, label: e.titulo, group: `Estratégia · ${e.tipo}` })),
-            ],
-            emptyMessage: "Nenhuma Oportunidade ou Estratégia cadastrada. Crie uma antes de gerar iniciativas.",
-          }}
           quantidade={{
-            label: "Quantidade",
-            default: 5,
+            label: "Iniciativas por alvo",
+            default: 2,
             min: 1,
-            max: 10,
-            suffixSingular: "iniciativa",
-            suffixPlural: "iniciativas",
+            max: 3,
+            suffixSingular: "por alvo",
+            suffixPlural: "por alvo",
           }}
           foco={{
             label: "Prioridades",
@@ -673,6 +721,15 @@ export default function Iniciativas() {
               { value: "longo", label: "Longo prazo", desc: "4 trimestres ou mais" },
             ],
             defaultSelected: [],
+          }}
+          fontesContexto={{
+            label: "Fontes de contexto",
+            items: [
+              { id: "modeloNegocio", label: "Modelo de Negócio (Canvas)", desc: "Atividades, recursos e parcerias" },
+              { id: "swot", label: "SWOT", desc: "Forças, fraquezas, oportunidades e ameaças" },
+              { id: "indicadores", label: "Indicadores atuais", desc: "KPIs cadastrados na empresa" },
+            ],
+            defaultSelected: ["modeloNegocio"],
           }}
           instrucaoAdicional={{
             placeholder: "Ex: Priorize iniciativas que possam ser executadas pela equipe atual.",
@@ -893,6 +950,91 @@ export default function Iniciativas() {
                   />
                 )}
 
+                {/* Task #250 — Plano 5W2H (campos opcionais) */}
+                <div className="rounded-md border bg-muted/30 p-4 space-y-3">
+                  <div>
+                    <p className="text-sm font-medium">Plano de ação 5W2H (opcional)</p>
+                    <p className="text-xs text-muted-foreground">
+                      Os campos abaixo complementam o "O quê" (título/descrição), "Quem" (responsável)
+                      e "Quando" (prazo). Preencha conforme o nível de detalhe necessário.
+                    </p>
+                  </div>
+                  <FormField
+                    control={form.control}
+                    name="porque"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Por quê</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Ex: Reduzir churn em 15% atacando a fraqueza identificada na pesquisa de NPS."
+                            rows={2}
+                            value={field.value ?? ""}
+                            onChange={field.onChange}
+                            data-testid="input-porque"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="onde"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Onde</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Ex: Time de Sucesso do Cliente; canal de WhatsApp Business"
+                            value={field.value ?? ""}
+                            onChange={field.onChange}
+                            data-testid="input-onde"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="como"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Como</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Ex: 1) Mapear jornada; 2) Implantar playbook de retenção; 3) Treinar equipe."
+                            rows={2}
+                            value={field.value ?? ""}
+                            onChange={field.onChange}
+                            data-testid="input-como"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="quanto"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Quanto</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Ex: R$ 20-50k + 2 meses do PM atual"
+                            value={field.value ?? ""}
+                            onChange={field.onChange}
+                            data-testid="input-quanto"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
                 <div className="flex justify-end gap-2">
                   <Button
                     type="button"
@@ -924,7 +1066,7 @@ export default function Iniciativas() {
               <div>
                 <p className="font-medium">Gerando iniciativas com IA...</p>
                 <p className="text-sm text-muted-foreground">
-                  Já existem {iniciativas.length} iniciativa(s). A IA está criando 5 novas iniciativas únicas.
+                  Já existem {iniciativas.length} iniciativa(s). A IA está criando novas iniciativas para cada Estratégia FA/DA e Frente de Crescimento.
                 </p>
               </div>
             </div>

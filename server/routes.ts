@@ -6019,6 +6019,15 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         return res.status(404).json({ error: "Empresa não encontrada" });
       }
 
+      // Task #250 — modo MATRIZ: quando nenhuma origem específica é informada,
+      // gera iniciativas para cada Estratégia FA/DA existente + cada Frente
+      // de Crescimento existente, mantendo o padrão da Matriz de Ansoff. Cada
+      // iniciativa vem com seu vínculo de cascata (estrategiaId OU oportunidadeId)
+      // já estampado, e inclui o plano 5W2H (porque/onde/como/quanto) além
+      // dos campos básicos. O modo legado (com origem específica) é preservado
+      // para o agente/HITL e botões "Gerar iniciativas" em cards.
+      const modoMatrizIni = !origemEstrategiaId && !origemOportunidadeId;
+
       let origemContext: { tipo: "estrategia" | "oportunidade"; estrategiaId?: string; oportunidadeId?: string; texto: string } | null = null;
       if (origemOportunidadeId) {
         const op = await storage.getOportunidadeCrescimento(origemOportunidadeId);
@@ -6048,7 +6057,11 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         return res.status(400).json({ error: "Parâmetros de IA inválidos", issues: aiParamsIni.error.issues });
       }
       const rawQtdIni = aiParamsIni.data.quantidade;
-      const quantidadeIni = rawQtdIni && rawQtdIni >= 1 && rawQtdIni <= 10 ? rawQtdIni : 5;
+      // No modo MATRIZ a quantidade representa "iniciativas POR alvo" (1 a 3, default 2).
+      // No modo legado, é a quantidade total (1 a 10, default 5).
+      const quantidadePorAlvo = modoMatrizIni
+        ? (rawQtdIni && rawQtdIni >= 1 && rawQtdIni <= 3 ? rawQtdIni : 2)
+        : (rawQtdIni && rawQtdIni >= 1 && rawQtdIni <= 10 ? rawQtdIni : 5);
       const prioridadesPermitidas = ["alta", "média", "baixa"] as const;
       type PrioFoco = typeof prioridadesPermitidas[number];
       const prioridadesFoco: PrioFoco[] = (aiParamsIni.data.foco ?? [])
@@ -6059,12 +6072,52 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         .filter((p): p is PrazoFoco => prazosPermitidos.includes(p as PrazoFoco));
       const instrucaoAdicionalIni = (aiParamsIni.data.instrucaoAdicional ?? "").trim();
 
+      // Fontes de contexto (modo matriz) — usuário escolhe quais incluir.
+      const fontesPermitidasIni = ["swot", "modeloNegocio", "indicadores"] as const;
+      const fontesSelIni = new Set(
+        (aiParamsIni.data.fontesContexto ?? []).filter((f) => fontesPermitidasIni.includes(f as typeof fontesPermitidasIni[number]))
+      );
+      const usarSwotIni = fontesSelIni.has("swot");
+      const usarBmcIni = fontesSelIni.size === 0 || fontesSelIni.has("modeloNegocio");
+      const usarIndicadoresIni = fontesSelIni.has("indicadores");
+
       const contextoPerfil = buildEmpresaContextoIA(empresa);
 
       const iniciativasExistentes = await storage.getIniciativas(empresaId);
       const estrategiasLista = await storage.getEstrategias(empresaId);
       const oportunidades = await storage.getOportunidadesCrescimento(empresaId);
-      const modeloNegocio = await storage.getModeloNegocio(empresaId);
+      const modeloNegocio = usarBmcIni ? await storage.getModeloNegocio(empresaId) : [];
+      const swotIni = modoMatrizIni && usarSwotIni ? await storage.getAnaliseSwot(empresaId) : [];
+      const indicadoresIni = modoMatrizIni && usarIndicadoresIni ? await storage.getIndicadores(empresaId) : [];
+
+      // Alvos do modo MATRIZ: cada Estratégia FA/DA + cada Frente de Crescimento.
+      // FO/DO produzem Frentes (já existentes); por isso só consideramos FA/DA aqui.
+      const alvosMatriz = modoMatrizIni
+        ? [
+            ...estrategiasLista
+              .filter((e) => e.tipo === "FA" || e.tipo === "DA")
+              .map((e) => ({
+                kind: "estrategia" as const,
+                id: e.id,
+                tipo: e.tipo,
+                titulo: e.titulo,
+                descricao: e.descricao,
+              })),
+            ...oportunidades.map((o) => ({
+              kind: "oportunidade" as const,
+              id: o.id,
+              tipo: o.tipo,
+              titulo: o.titulo,
+              descricao: o.descricao,
+            })),
+          ]
+        : [];
+
+      if (modoMatrizIni && alvosMatriz.length === 0) {
+        return res.status(400).json({
+          error: "Para gerar iniciativas em matriz é preciso ter ao menos uma Estratégia FA/DA ou uma Frente de Crescimento cadastrada.",
+        });
+      }
 
       const iniciativasResume = iniciativasExistentes.map(i => 
         `- ${i.titulo}\n  Descrição: ${i.descricao}\n  Status: ${i.status} | Prioridade: ${i.prioridade}`
@@ -6078,6 +6131,78 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         .filter(b => blocosIniciativas.includes(b.bloco) && b.descricao?.trim())
         .map(b => `- ${b.bloco}: ${b.descricao}`)
         .join("\n");
+
+      const swotIniCtx = swotIni.length > 0
+        ? swotIni.map((s) => `- [${s.tipo}] ${s.descricao}`).join("\n")
+        : "";
+      const indicadoresIniCtx = indicadoresIni.length > 0
+        ? indicadoresIni.map((i: any) => `- ${i.nome}${i.metaValor ? ` (meta: ${i.metaValor})` : ""}`).join("\n")
+        : "";
+
+      const alvosMatrizCtx = alvosMatriz
+        .map((a, i) => `Alvo #${i + 1} — kind="${a.kind}", id="${a.id}", classificação="${a.tipo}"\nTítulo: ${a.titulo}\nDescrição: ${a.descricao}`)
+        .join("\n\n");
+
+      // Tarefa específica por modo
+      const tarefaIniciativas = modoMatrizIni
+        ? `## TAREFA (MODO MATRIZ — alinhado à Matriz de Ansoff):
+Para CADA UM dos ${alvosMatriz.length} alvo(s) listado(s) em "ALVOS DA MATRIZ" abaixo, gere EXATAMENTE ${quantidadePorAlvo} iniciativa(s) prioritária(s) ÚNICA(s) e ACIONÁVEL(is) que operacionalizem aquele alvo. Total esperado: ${alvosMatriz.length * quantidadePorAlvo} iniciativa(s).
+
+REGRAS DE VÍNCULO (CASCATA):
+- Cada iniciativa DEVE incluir o campo "alvoId" com o id exato do alvo de origem (copie do bloco "ALVOS DA MATRIZ").
+- Cada iniciativa DEVE incluir o campo "alvoKind" com "estrategia" ou "oportunidade", igual ao kind do alvo.
+- Não invente alvos novos — use APENAS os ids fornecidos.
+- Se um alvo é uma Estratégia FA/DA, a iniciativa deve ser uma ação defensiva/de proteção. Se é uma Frente (Ansoff), a iniciativa deve operacionalizar aquele caminho de crescimento.
+
+Para cada iniciativa, forneça o PLANO 5W2H completo:
+- titulo: O QUÊ (máx 80 caracteres) — título objetivo da iniciativa
+- descricao: O QUÊ (detalhe) — 2-3 frases descrevendo a iniciativa
+- porque: POR QUÊ — 1-2 frases ligando a iniciativa ao alvo de origem (qual problema/oportunidade resolve)
+- onde: ONDE — área, processo, canal ou unidade onde a iniciativa será executada
+- como: COMO — passos principais ou método de execução (1-2 frases práticas)
+- quanto: QUANTO — estimativa de esforço/investimento qualitativa (ex: "baixo investimento, equipe atual" ou "R$ 20-50k + 2 meses de 1 PM")
+- responsavel: QUEM — área ou cargo responsável (ex: "Gerente Comercial", "Time de Marketing")
+- prazo: QUANDO — prazo em formato "Q1 2025", "Q2 2025", etc${prazosFoco.length > 0 ? ` (alinhado ao horizonte ${prazosFoco.map((p) => `"${p}"`).join("/")})` : ""}
+- status: sempre "planejada"
+- prioridade: ${prioridadesFoco.length > 0 ? prioridadesFoco.map((p) => `"${p}"`).join(", ") : '"alta", "média" ou "baixa"'}
+- impacto: "alto", "médio" ou "baixo"
+
+Responda OBRIGATORIAMENTE em JSON com este formato exato:
+{
+  "iniciativas": [
+    {"alvoKind": "estrategia", "alvoId": "<id>", "titulo": "...", "descricao": "...", "porque": "...", "onde": "...", "como": "...", "quanto": "...", "responsavel": "...", "prazo": "Q1 2025", "status": "planejada", "prioridade": "alta", "impacto": "alto"}
+  ]
+}`
+        : `## TAREFA:
+Com base nas estratégias e oportunidades identificadas, crie EXATAMENTE ${quantidadePorAlvo} nova(s) iniciativa(s) prioritária(s) ÚNICA(s) e DIFERENTE(s) para executar a estratégia.
+
+${prioridadesFoco.length > 0
+  ? `## FOCO DE PRIORIDADES:\nGere iniciativas APENAS com as prioridades: ${prioridadesFoco.map((p) => `"${p}"`).join(", ")}.\nDistribua as ${quantidadePorAlvo} iniciativa(s) entre essas prioridades de forma equilibrada.`
+  : "Distribua as prioridades (alta, média, baixa) de forma equilibrada entre as iniciativas."}
+
+${prazosFoco.length > 0
+  ? `## FOCO DE PRAZO:\nConsidere APENAS iniciativas com horizonte: ${prazosFoco.map((p) => `"${p}"`).join(", ")}.\n- "curto": realizável em até 1 trimestre (Q atual)\n- "médio": 2 a 3 trimestres\n- "longo": 4 trimestres ou mais\nUse o campo "prazo" coerente com o horizonte escolhido (ex: "Q1 2025" para curto, "Q3 2025" para médio, "2026" para longo).`
+  : ""}
+
+Para cada iniciativa, forneça o PLANO 5W2H completo:
+- titulo: O QUÊ (máx 80 caracteres)
+- descricao: O QUÊ detalhado (2-3 frases)
+- porque: POR QUÊ — 1-2 frases ligando a iniciativa à origem
+- onde: ONDE — área/processo/canal de execução
+- como: COMO — passos ou método (1-2 frases)
+- quanto: QUANTO — esforço/investimento qualitativo
+- responsavel: QUEM (ex: "Gerente Comercial")
+- prazo: QUANDO em formato "Q1 2025"${prazosFoco.length > 0 ? ` (alinhado ao horizonte ${prazosFoco.map((p) => `"${p}"`).join("/")})` : ""}
+- status: sempre "planejada"
+- prioridade: ${prioridadesFoco.length > 0 ? prioridadesFoco.map((p) => `"${p}"`).join(", ") : '"alta", "média" ou "baixa"'}
+- impacto: "alto", "médio" ou "baixo"
+
+Responda OBRIGATORIAMENTE em JSON com este formato exato:
+{
+  "iniciativas": [
+    {"titulo": "...", "descricao": "...", "porque": "...", "onde": "...", "como": "...", "quanto": "...", "responsavel": "...", "prazo": "Q1 2025", "status": "planejada", "prioridade": "alta", "impacto": "alto"}
+  ]
+}`;
 
       const completion = await openai.chat.completions.create({
         model: getModelForPlan(empresa.planoTipo, "relatorios"),
@@ -6097,14 +6222,17 @@ REGRA CRÍTICA DE DUPLICAÇÃO:
             content: `## PERFIL DA EMPRESA
 ${contextoPerfil}
 
-## CONTEXTO ESTRATÉGICO:
+${modoMatrizIni ? `## ALVOS DA MATRIZ (CONTEXTO PRIMÁRIO — gere iniciativas para CADA UM destes alvos):
+${alvosMatrizCtx}
+
+` : `## CONTEXTO ESTRATÉGICO:
 
 ### ESTRATÉGIAS DEFINIDAS:
 ${estrategiasLista.length > 0 ? estrategiasResume : "Nenhuma estratégia definida"}
 
 ### OPORTUNIDADES DE CRESCIMENTO:
 ${oportunidades.length > 0 ? oportunidadesResume : "Nenhuma oportunidade identificada"}
-${bmcIniciativasCtx ? `\n### MODELO DE NEGÓCIO (Business Model Canvas):\n${bmcIniciativasCtx}\n` : ""}
+`}${bmcIniciativasCtx ? `\n### MODELO DE NEGÓCIO (Business Model Canvas):\n${bmcIniciativasCtx}\n` : ""}${swotIniCtx ? `\n### SWOT (referências):\n${swotIniCtx}\n` : ""}${indicadoresIniCtx ? `\n### INDICADORES ATUAIS:\n${indicadoresIniCtx}\n` : ""}
 ${origemContext ? `\n## ORIGEM PRIMÁRIA (todas as iniciativas devem derivar diretamente desta ${origemContext.tipo}):\n${origemContext.texto}\n` : ""}
 ## INICIATIVAS JÁ EXISTENTES (NÃO REPITA NENHUMA DELAS):
 ${iniciativasExistentes.length > 0 ? iniciativasResume : "Nenhuma iniciativa criada ainda - esta é a primeira geração"}
@@ -6115,32 +6243,7 @@ Suas novas sugestões DEVEM ser completamente diferentes e abordar aspectos não
 Analise cada iniciativa existente antes de sugerir algo novo.
 ` : ''}
 
-## TAREFA:
-Com base nas estratégias e oportunidades identificadas, crie EXATAMENTE ${quantidadeIni} nova(s) iniciativa(s) prioritária(s) ÚNICA(s) e DIFERENTE(s) para executar a estratégia.
-
-${prioridadesFoco.length > 0
-  ? `## FOCO DE PRIORIDADES:\nGere iniciativas APENAS com as prioridades: ${prioridadesFoco.map((p) => `"${p}"`).join(", ")}.\nDistribua as ${quantidadeIni} iniciativa(s) entre essas prioridades de forma equilibrada.`
-  : "Distribua as prioridades (alta, média, baixa) de forma equilibrada entre as iniciativas."}
-
-${prazosFoco.length > 0
-  ? `## FOCO DE PRAZO:\nConsidere APENAS iniciativas com horizonte: ${prazosFoco.map((p) => `"${p}"`).join(", ")}.\n- "curto": realizável em até 1 trimestre (Q atual)\n- "médio": 2 a 3 trimestres\n- "longo": 4 trimestres ou mais\nUse o campo "prazo" coerente com o horizonte escolhido (ex: "Q1 2025" para curto, "Q3 2025" para médio, "2026" para longo).`
-  : ""}
-
-Para cada iniciativa, forneça:
-- titulo: Um título claro e objetivo (máx 80 caracteres)
-- descricao: Descrição detalhada da iniciativa e seus objetivos (2-3 frases)
-- status: sempre "planejada"
-- prioridade: ${prioridadesFoco.length > 0 ? prioridadesFoco.map((p) => `"${p}"`).join(", ") : '"alta", "média" ou "baixa"'}
-- prazo: Prazo em formato "Q1 2025", "Q2 2025", etc${prazosFoco.length > 0 ? ` (alinhado com horizonte ${prazosFoco.map((p) => `"${p}"`).join("/")})` : ""}
-- responsavel: Área ou cargo responsável (ex: "Gerente Comercial", "Time de Marketing")
-- impacto: Impacto esperado - "alto", "médio" ou "baixo"
-
-Responda OBRIGATORIAMENTE em JSON com este formato exato:
-{
-  "iniciativas": [
-    {"titulo": "...", "descricao": "...", "status": "planejada", "prioridade": "alta", "prazo": "Q1 2025", "responsavel": "...", "impacto": "alto"}
-  ]
-}${instrucaoAdicionalIni ? `\n\n## INSTRUÇÕES ADICIONAIS DO USUÁRIO:\n${instrucaoAdicionalIni}` : ""}`
+${tarefaIniciativas}${instrucaoAdicionalIni ? `\n\n## INSTRUÇÕES ADICIONAIS DO USUÁRIO:\n${instrucaoAdicionalIni}` : ""}`
           }
         ],
         response_format: { type: "json_object" },
@@ -6155,21 +6258,71 @@ Responda OBRIGATORIAMENTE em JSON com este formato exato:
         );
         const prioridadesSet = prioridadesFoco.length > 0 ? new Set<string>(prioridadesFoco) : null;
 
-        sugestoes.iniciativas = sugestoes.iniciativas.filter((iniciativa: unknown) => {
-          if (!iniciativa || typeof iniciativa !== "object") return false;
-          const ini = iniciativa as { titulo?: unknown; prioridade?: unknown };
-          const titulo = typeof ini.titulo === "string" ? ini.titulo.toLowerCase().trim() : "";
-          if (!titulo || seenTitles.has(titulo)) {
-            return false;
-          }
-          if (prioridadesSet && (typeof ini.prioridade !== "string" || !prioridadesSet.has(ini.prioridade))) {
-            return false;
-          }
-          seenTitles.add(titulo);
-          return true;
-        });
+        // Mapas para resolver alvoId no modo matriz
+        const alvosEstrategiaIds = new Set(
+          alvosMatriz.filter((a) => a.kind === "estrategia").map((a) => a.id)
+        );
+        const alvosOportunidadeIds = new Set(
+          alvosMatriz.filter((a) => a.kind === "oportunidade").map((a) => a.id)
+        );
 
-        if (origemContext) {
+        const trunc = (s: unknown, max: number): string | undefined => {
+          if (typeof s !== "string") return undefined;
+          const t = s.trim();
+          return t ? t.slice(0, max) : undefined;
+        };
+        sugestoes.iniciativas = sugestoes.iniciativas
+          .map((iniciativa: any) => {
+            if (!iniciativa || typeof iniciativa !== "object") return iniciativa;
+            // Normaliza/trunca campos 5W2H — strings vazias viram undefined.
+            return {
+              ...iniciativa,
+              porque: trunc(iniciativa.porque, 600),
+              onde: trunc(iniciativa.onde, 300),
+              como: trunc(iniciativa.como, 600),
+              quanto: trunc(iniciativa.quanto, 300),
+            };
+          })
+          .filter((iniciativa: unknown) => {
+            if (!iniciativa || typeof iniciativa !== "object") return false;
+            const ini = iniciativa as { titulo?: unknown; prioridade?: unknown; alvoId?: unknown; alvoKind?: unknown; porque?: unknown; onde?: unknown; como?: unknown; quanto?: unknown };
+            const titulo = typeof ini.titulo === "string" ? ini.titulo.toLowerCase().trim() : "";
+            if (!titulo || seenTitles.has(titulo)) {
+              return false;
+            }
+            if (prioridadesSet && (typeof ini.prioridade !== "string" || !prioridadesSet.has(ini.prioridade))) {
+              return false;
+            }
+            // No modo matriz, exigir vínculo válido a um alvo conhecido
+            if (modoMatrizIni) {
+              const aId = typeof ini.alvoId === "string" ? ini.alvoId : "";
+              const aKind = typeof ini.alvoKind === "string" ? ini.alvoKind : "";
+              const ok =
+                (aKind === "estrategia" && alvosEstrategiaIds.has(aId)) ||
+                (aKind === "oportunidade" && alvosOportunidadeIds.has(aId));
+              if (!ok) return false;
+              // Plano 5W2H: exigir pelo menos 3 dos 4 campos preenchidos para garantir
+              // valor real (a IA pode ocasionalmente omitir um). Não rejeitamos se
+              // somente 1 estiver vazio — campos faltantes ficam null no banco.
+              const preenchidos = [ini.porque, ini.onde, ini.como, ini.quanto].filter(
+                (v) => typeof v === "string" && v.length > 0,
+              ).length;
+              if (preenchidos < 3) return false;
+            }
+            seenTitles.add(titulo);
+            return true;
+          });
+
+        if (modoMatrizIni) {
+          // Estampa a cascata correta + remove campos auxiliares (alvoKind/alvoId)
+          sugestoes.iniciativas = sugestoes.iniciativas.map((i: any) => {
+            const { alvoKind, alvoId, ...rest } = i;
+            if (alvoKind === "estrategia") {
+              return { ...rest, estrategiaId: alvoId, oportunidadeId: null };
+            }
+            return { ...rest, oportunidadeId: alvoId, estrategiaId: null };
+          });
+        } else if (origemContext) {
           sugestoes.iniciativas = sugestoes.iniciativas.map((i: any) => ({
             ...i,
             ...(origemContext!.estrategiaId ? { estrategiaId: origemContext!.estrategiaId } : {}),

@@ -298,6 +298,13 @@ export const iniciativas = pgTable("iniciativas", {
   impacto: text("impacto").notNull(),
   estrategiaId: varchar("estrategia_id").references(() => estrategias.id, { onDelete: "set null" }),
   oportunidadeId: varchar("oportunidade_id").references(() => oportunidadesCrescimento.id, { onDelete: "set null" }),
+  // Task #250 — Plano de ação 5W2H (opcionais, aditivos). titulo+descricao = O quê;
+  // prazo = Quando; responsavel = Quem; impacto não faz parte do 5W2H mas
+  // permanece. Os 4 campos abaixo completam Por quê, Onde, Como e Quanto.
+  porque: text("porque"),
+  onde: text("onde"),
+  como: text("como"),
+  quanto: text("quanto"),
   // Task #208 — Indicador (KPI) que esta iniciativa busca melhorar (opcional, aditivo).
   indicadorFonteId: varchar("indicador_fonte_id").references(() => indicadores.id, { onDelete: "set null" }),
   // Task #207 — Nota e timestamp registrados quando a iniciativa é encerrada

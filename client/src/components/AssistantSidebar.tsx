@@ -64,13 +64,13 @@ export function AssistantSidebar() {
         data-testid="component-assistant-sidebar"
         data-state={open ? "expanded" : "collapsed"}
         className={cn(
-          "bg-background border-l flex flex-col flex-shrink-0",
+          "bg-background border-l flex flex-col flex-shrink-0 min-h-0 overflow-hidden",
           isMobile
             ? cn(
                 "fixed inset-y-0 right-0 z-50 w-[24rem] max-w-[95vw] transition-transform duration-200 shadow-xl",
                 mobileTransform,
               )
-            : cn("transition-[width] duration-200 ease-out", desktopWidth),
+            : cn("h-full transition-[width] duration-200 ease-out", desktopWidth),
         )}
       >
         {open && (

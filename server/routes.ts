@@ -2578,13 +2578,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/indicadores/:id/leituras", async (req, res) => {
     try {
       const { id } = req.params;
-      const { valor, nota, registradoPor } = req.body;
+      const { valor, nota, registradoPor, registradoEm } = req.body;
       if (!valor) return res.status(400).json({ error: "valor é obrigatório" });
+      let registradoEmDate: Date | undefined = undefined;
+      if (registradoEm) {
+        const d = new Date(registradoEm);
+        if (isNaN(d.getTime())) {
+          return res.status(400).json({ error: "registradoEm inválido" });
+        }
+        registradoEmDate = d;
+      }
       const leitura = await storage.createLeitura({
         indicadorId: id,
         valor,
         nota: nota || null,
         registradoPor: registradoPor || null,
+        ...(registradoEmDate ? { registradoEm: registradoEmDate } : {}),
       });
       const numVal = parseFloat(String(valor).replace(/[^\d.,\-]/g, "").replace(",", "."));
       const indicador = await storage.getIndicador(id);

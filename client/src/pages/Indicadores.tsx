@@ -420,7 +420,12 @@ function DrilldownSheet({
 }) {
   const { toast } = useToast();
   const [periodFilter, setPeriodFilter] = useState("6m");
-  const [leituraForm, setLeituraForm] = useState({ valor: "", nota: "" });
+  const hojeISO = () => {
+    const d = new Date();
+    const tz = d.getTimezoneOffset();
+    return new Date(d.getTime() - tz * 60000).toISOString().slice(0, 10);
+  };
+  const [leituraForm, setLeituraForm] = useState({ valor: "", nota: "", data: hojeISO() });
 
   const { data: allLeituras = [] } = useQuery<KpiLeitura[]>({
     queryKey: [`/api/indicadores/${ind?.id}/leituras`],
@@ -438,12 +443,22 @@ function DrilldownSheet({
   });
 
   const criarLeituraMutation = useMutation({
-    mutationFn: (data: { valor: string; nota: string }) =>
-      apiRequest("POST", `/api/indicadores/${ind?.id}/leituras`, data),
+    mutationFn: (data: { valor: string; nota: string; data: string }) => {
+      const payload: { valor: string; nota: string; registradoEm?: string } = {
+        valor: data.valor,
+        nota: data.nota,
+      };
+      if (data.data) {
+        // Envia como meio-dia local para evitar deslize de fuso (UTC).
+        const d = new Date(`${data.data}T12:00:00`);
+        if (!isNaN(d.getTime())) payload.registradoEm = d.toISOString();
+      }
+      return apiRequest("POST", `/api/indicadores/${ind?.id}/leituras`, payload);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/indicadores/${ind?.id}/leituras`] });
       queryClient.invalidateQueries({ queryKey: ["/api/indicadores"] });
-      setLeituraForm({ valor: "", nota: "" });
+      setLeituraForm({ valor: "", nota: "", data: hojeISO() });
       toast({ title: "Leitura registrada!" });
     },
     onError: () => toast({ title: "Erro ao registrar leitura", variant: "destructive" }),
@@ -613,6 +628,23 @@ function DrilldownSheet({
                 {criarLeituraMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
                 Registrar
               </Button>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-muted-foreground" htmlFor={`input-leitura-data-${ind.id}`}>
+                Data da leitura
+              </label>
+              <Input
+                id={`input-leitura-data-${ind.id}`}
+                type="date"
+                value={leituraForm.data}
+                max={hojeISO()}
+                onChange={(e) => setLeituraForm({ ...leituraForm, data: e.target.value })}
+                className="w-full"
+                data-testid={`input-leitura-data-${ind.id}`}
+              />
+              <p className="text-xs text-muted-foreground">
+                Padrão é hoje. Ajuste quando a informação chegar atrasada.
+              </p>
             </div>
             <Textarea
               placeholder="Nota / Contexto (opcional)"

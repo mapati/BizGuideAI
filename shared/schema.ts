@@ -515,10 +515,14 @@ export const kpiLeituras = pgTable("kpi_leituras", {
   registradoPor: text("registrado_por"),
 });
 
-export const insertKpiLeituraSchema = createInsertSchema(kpiLeituras).omit({
-  id: true,
-  registradoEm: true,
-});
+export const insertKpiLeituraSchema = createInsertSchema(kpiLeituras)
+  .omit({
+    id: true,
+    registradoEm: true,
+  })
+  .extend({
+    registradoEm: z.coerce.date().optional(),
+  });
 export type InsertKpiLeitura = z.infer<typeof insertKpiLeituraSchema>;
 export type KpiLeitura = typeof kpiLeituras.$inferSelect;
 

@@ -261,7 +261,7 @@ function AppLayout() {
   return (
     <SidebarProvider defaultOpen={false} style={style as React.CSSProperties}>
       <LeftSidebarJornadaSync />
-      <div className="flex h-screen w-full flex-col">
+      <div className="flex h-screen w-full flex-col overflow-hidden">
         {showTrialBanner && trialInfo!.diasRestantes !== null && (
           <TrialStatusBanner diasRestantes={trialInfo!.diasRestantes} />
         )}

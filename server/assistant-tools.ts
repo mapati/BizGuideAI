@@ -41,6 +41,17 @@ export type ToolName =
   | "criar_risco"
   | "atualizar_risco"
   | "registrar_mitigacao"
+  | "criar_item_swot"
+  | "atualizar_item_swot"
+  | "arquivar_item_swot"
+  | "criar_fator_pestel"
+  | "atualizar_fator_pestel"
+  | "arquivar_fator_pestel"
+  | "atualizar_intensidade_forca"
+  | "adicionar_evidencia_forca"
+  | "criar_oportunidade"
+  | "atualizar_oportunidade"
+  | "arquivar_oportunidade"
   | "navegar_para"
   | "abrir_entidade"
   | "criar_plano_agentico"
@@ -80,6 +91,9 @@ export type EntidadeTipo =
   | "risco"
   | "oportunidade_crescimento"
   | "estrategia"
+  | "swot"
+  | "fator_pestel"
+  | "cinco_forcas"
   | "reuniao_pauta"
   | "reuniao_ata"
   | "decisao_estrategica"
@@ -1463,6 +1477,9 @@ const TIPOS_ABRIR_ENTIDADE = [
   "estrategia",
   "bmc",
   "cenario",
+  "swot",
+  "pestel",
+  "forca",
 ] as const;
 
 const TIPO_ROTA_ABRIR: Record<typeof TIPOS_ABRIR_ENTIDADE[number], string> = {
@@ -1475,6 +1492,9 @@ const TIPO_ROTA_ABRIR: Record<typeof TIPOS_ABRIR_ENTIDADE[number], string> = {
   estrategia:   "/estrategias",
   bmc:          "/modelo-negocio",
   cenario:      "/cenarios",
+  swot:         "/swot",
+  pestel:       "/pestel",
+  forca:        "/cinco-forcas",
 };
 
 const TIPO_LABEL_ABRIR: Record<typeof TIPOS_ABRIR_ENTIDADE[number], string> = {
@@ -1487,6 +1507,9 @@ const TIPO_LABEL_ABRIR: Record<typeof TIPOS_ABRIR_ENTIDADE[number], string> = {
   estrategia:   "estratégia",
   bmc:          "bloco do BMC",
   cenario:      "cenário",
+  swot:         "item SWOT",
+  pestel:       "fator PESTEL",
+  forca:        "força de Porter",
 };
 
 const abrirEntidadeSchema = z.object({
@@ -1544,6 +1567,24 @@ async function resolverNomeEntidade(
         if (!e || e.empresaId !== empresaId) return { ok: false, nome: "" };
         return { ok: true, nome: e.titulo };
       }
+      case "swot": {
+        const lista = await storage.getAnaliseSwot(empresaId);
+        const e = lista.find((x) => x.id === id);
+        if (!e) return { ok: false, nome: "" };
+        return { ok: true, nome: `[${e.tipo}] ${e.descricao.slice(0, 80)}` };
+      }
+      case "pestel": {
+        const lista = await storage.getFatoresPestel(empresaId);
+        const e = lista.find((x) => x.id === id);
+        if (!e) return { ok: false, nome: "" };
+        return { ok: true, nome: `[${e.tipo}] ${e.descricao.slice(0, 80)}` };
+      }
+      case "forca": {
+        const lista = await storage.getCincoForcas(empresaId);
+        const e = lista.find((x) => x.id === id);
+        if (!e) return { ok: false, nome: "" };
+        return { ok: true, nome: e.forca };
+      }
       case "bmc": {
         const blocos = await storage.getModeloNegocio(empresaId);
         const e = blocos.find((b) => b.id === id);
@@ -1561,6 +1602,7 @@ async function resolverNomeEntidade(
   } catch {
     return { ok: false, nome: "" };
   }
+  return { ok: false, nome: "" };
 }
 
 const abrirEntidade: ToolDefinition<AbrirEntidadeParams> = {
@@ -1610,6 +1652,9 @@ const abrirEntidade: ToolDefinition<AbrirEntidadeParams> = {
       p.tipo === "oportunidade" ? "oportunidade_crescimento" :
       p.tipo === "bmc" ? "modelo_negocio" :
       p.tipo === "cenario" ? "cenario" :
+      p.tipo === "swot" ? "swot" :
+      p.tipo === "pestel" ? "fator_pestel" :
+      p.tipo === "forca" ? "cinco_forcas" :
       "estrategia";
     return {
       resumo: `Abrindo ${TIPO_LABEL_ABRIR[p.tipo]}: ${resolvido.nome}.`,
@@ -3602,6 +3647,748 @@ const registrarMitigacao: ToolDefinition<RegistrarMitigacaoParams> = {
   formRota: "/riscos",
 };
 
+// ─── Task #286 — Tools de diagnóstico externo (SWOT, PESTEL, 5 Forças, Oportunidades) ───
+const TIPOS_SWOT = ["forca", "fraqueza", "oportunidade", "ameaca"] as const;
+const NIVEIS_IMPACTO = ["alto", "médio", "baixo"] as const;
+const DIMENSOES_PESTEL = ["politico", "economico", "social", "tecnologico", "ambiental", "legal"] as const;
+const FORCAS_PORTER = ["rivalidade_concorrentes", "poder_fornecedores", "poder_clientes", "ameaca_novos_entrantes", "ameaca_substitutos"] as const;
+const NIVEIS_INTENSIDADE = ["alta", "média", "baixa"] as const;
+const TIPOS_OPORTUNIDADE = ["penetracao_mercado", "desenvolvimento_mercado", "desenvolvimento_produto", "diversificacao"] as const;
+
+// ---------- SWOT ----------
+const criarItemSwotSchema = z.object({
+  tipo: z.enum(TIPOS_SWOT),
+  descricao: z.string().min(3).max(600),
+  impacto: z.enum(NIVEIS_IMPACTO).default("médio"),
+});
+type CriarItemSwotParams = z.infer<typeof criarItemSwotSchema>;
+
+const criarItemSwot: ToolDefinition<CriarItemSwotParams> = {
+  name: "criar_item_swot",
+  description: "Cria um item na análise SWOT da empresa (força, fraqueza, oportunidade ou ameaça). Use quando o usuário identificar um novo elemento estratégico interno/externo do diagnóstico.",
+  paramsSchema: criarItemSwotSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["tipo", "descricao"],
+    properties: {
+      tipo: { type: "string", enum: [...TIPOS_SWOT], description: "Quadrante do SWOT." },
+      descricao: { type: "string", description: "Descrição clara do item." },
+      impacto: { type: "string", enum: [...NIVEIS_IMPACTO], description: "Impacto estimado." },
+    },
+  },
+  preview: (p) => ({
+    titulo: `Adicionar ${p.tipo} ao SWOT`,
+    descricao: `Vamos registrar uma nova ${p.tipo} no SWOT com impacto ${p.impacto}.`,
+    campos: [
+      { label: "Quadrante", valor: p.tipo },
+      { label: "Descrição", valor: p.descricao },
+      { label: "Impacto", valor: p.impacto },
+    ],
+    ctaConfirmar: "Adicionar ao SWOT",
+    ctaIgnorar: "Agora não",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const created = await storage.createAnaliseSwot({
+      empresaId: ctx.empresaId,
+      tipo: p.tipo,
+      descricao: p.descricao,
+      impacto: p.impacto,
+    });
+    return {
+      resumo: `Item SWOT (${p.tipo}) "${created.descricao.slice(0, 60)}" registrado.`,
+      dados: { id: created.id },
+      rota: "/swot",
+      entidadeTipo: "swot",
+      entidadeId: created.id,
+    };
+  },
+  formRota: "/swot",
+  statusLabel: "Adicionando item ao SWOT…",
+};
+
+const atualizarItemSwotSchema = z.object({
+  swotId: z.string().min(8),
+  tipo: z.enum(TIPOS_SWOT).optional(),
+  descricao: z.string().min(3).max(600).optional(),
+  impacto: z.enum(NIVEIS_IMPACTO).optional(),
+});
+type AtualizarItemSwotParams = z.infer<typeof atualizarItemSwotSchema>;
+
+const atualizarItemSwot: ToolDefinition<AtualizarItemSwotParams> = {
+  name: "atualizar_item_swot",
+  description: "Atualiza um item existente do SWOT (quadrante, descrição ou impacto). Use o id do CATÁLOGO ou de buscar_entidade_por_nome.",
+  paramsSchema: atualizarItemSwotSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["swotId"],
+    properties: {
+      swotId: { type: "string", description: "ID do item SWOT." },
+      tipo: { type: "string", enum: [...TIPOS_SWOT] },
+      descricao: { type: "string" },
+      impacto: { type: "string", enum: [...NIVEIS_IMPACTO] },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Atualizar item do SWOT",
+    descricao: "Vamos aplicar mudanças neste item do SWOT.",
+    campos: [
+      p.tipo ? { label: "Quadrante", valor: p.tipo } : null,
+      p.descricao ? { label: "Descrição", valor: p.descricao } : null,
+      p.impacto ? { label: "Impacto", valor: p.impacto } : null,
+    ].filter(Boolean) as { label: string; valor: string }[],
+    ctaConfirmar: "Aplicar mudanças",
+    ctaIgnorar: "Manter como está",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const lista = await storage.getAnaliseSwot(ctx.empresaId);
+    const existing = lista.find((x) => x.id === p.swotId);
+    if (!existing) throw new Error("Item SWOT não encontrado nesta empresa.");
+    const patch: Partial<typeof existing> = {};
+    if (p.tipo) patch.tipo = p.tipo;
+    if (p.descricao) patch.descricao = p.descricao;
+    if (p.impacto) patch.impacto = p.impacto;
+    const updated = await storage.updateAnaliseSwot(p.swotId, ctx.empresaId, patch);
+    return {
+      resumo: `Item SWOT (${updated.tipo}) atualizado.`,
+      dados: { id: updated.id },
+      rota: "/swot",
+      entidadeTipo: "swot",
+      entidadeId: updated.id,
+    };
+  },
+  formRota: "/swot",
+  statusLabel: "Atualizando item do SWOT…",
+  enrichPreview: async (preview, p, ctx) => {
+    try {
+      const lista = await storage.getAnaliseSwot(ctx.empresaId);
+      const existing = lista.find((x) => x.id === p.swotId);
+      if (!existing) return preview;
+      const before: Record<string, { raw: string | null | undefined }> = {
+        "Quadrante": { raw: existing.tipo },
+        "Descrição": { raw: existing.descricao },
+        "Impacto": { raw: existing.impacto },
+      };
+      const campos = (preview.campos ?? [])
+        .map((c) => applyDiff(c, before[c.label]))
+        .filter((c): c is { label: string; valor: string; valorAnterior?: string } => c !== null);
+      return { ...preview, campos };
+    } catch { return preview; }
+  },
+};
+
+const arquivarItemSwotSchema = z.object({
+  swotId: z.string().min(8),
+});
+type ArquivarItemSwotParams = z.infer<typeof arquivarItemSwotSchema>;
+
+const arquivarItemSwot: ToolDefinition<ArquivarItemSwotParams> = {
+  name: "arquivar_item_swot",
+  description: "Remove (arquiva) um item obsoleto do SWOT. Use quando o usuário disser que um item não é mais relevante.",
+  paramsSchema: arquivarItemSwotSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["swotId"],
+    properties: {
+      swotId: { type: "string", description: "ID do item SWOT a arquivar." },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Arquivar item do SWOT",
+    descricao: "Este item será removido da análise SWOT atual.",
+    campos: [{ label: "Item", valor: p.swotId }],
+    ctaConfirmar: "Arquivar",
+    ctaIgnorar: "Manter",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const lista = await storage.getAnaliseSwot(ctx.empresaId);
+    const existing = lista.find((x) => x.id === p.swotId);
+    if (!existing) throw new Error("Item SWOT não encontrado nesta empresa.");
+    await storage.deleteAnaliseSwot(p.swotId, ctx.empresaId);
+    return {
+      resumo: `Item SWOT (${existing.tipo}) "${existing.descricao.slice(0, 50)}" arquivado.`,
+      dados: { id: p.swotId },
+      rota: "/swot",
+      entidadeTipo: "swot",
+      entidadeId: p.swotId,
+    };
+  },
+  formRota: "/swot",
+  statusLabel: "Arquivando item do SWOT…",
+  enrichPreview: async (preview, p, ctx) => {
+    try {
+      const lista = await storage.getAnaliseSwot(ctx.empresaId);
+      const existing = lista.find((x) => x.id === p.swotId);
+      if (!existing) return preview;
+      return {
+        ...preview,
+        campos: [
+          { label: "Quadrante", valor: existing.tipo },
+          { label: "Descrição", valor: existing.descricao },
+          { label: "Impacto", valor: existing.impacto },
+        ],
+      };
+    } catch { return preview; }
+  },
+};
+
+// ---------- PESTEL ----------
+const criarFatorPestelSchema = z.object({
+  tipo: z.enum(DIMENSOES_PESTEL),
+  descricao: z.string().min(3).max(600),
+  impacto: z.enum(NIVEIS_IMPACTO).default("médio"),
+  evidencia: z.string().max(600).optional(),
+});
+type CriarFatorPestelParams = z.infer<typeof criarFatorPestelSchema>;
+
+const criarFatorPestel: ToolDefinition<CriarFatorPestelParams> = {
+  name: "criar_fator_pestel",
+  description: "Cria um novo fator PESTEL (político, econômico, social, tecnológico, ambiental ou legal) no diagnóstico externo.",
+  paramsSchema: criarFatorPestelSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["tipo", "descricao"],
+    properties: {
+      tipo: { type: "string", enum: [...DIMENSOES_PESTEL], description: "Dimensão do PESTEL." },
+      descricao: { type: "string", description: "Descrição do fator." },
+      impacto: { type: "string", enum: [...NIVEIS_IMPACTO] },
+      evidencia: { type: "string", description: "Evidência ou fonte (opcional)." },
+    },
+  },
+  preview: (p) => ({
+    titulo: `Adicionar fator PESTEL (${p.tipo})`,
+    descricao: `Vamos registrar um novo fator ${p.tipo} no PESTEL com impacto ${p.impacto}.`,
+    campos: [
+      { label: "Dimensão", valor: p.tipo },
+      { label: "Descrição", valor: p.descricao },
+      { label: "Impacto", valor: p.impacto },
+      ...(p.evidencia ? [{ label: "Evidência", valor: p.evidencia }] : []),
+    ],
+    ctaConfirmar: "Adicionar ao PESTEL",
+    ctaIgnorar: "Agora não",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const created = await storage.createFatorPestel({
+      empresaId: ctx.empresaId,
+      tipo: p.tipo,
+      descricao: p.descricao,
+      impacto: p.impacto,
+      evidencia: p.evidencia ?? "",
+    });
+    return {
+      resumo: `Fator PESTEL (${p.tipo}) "${created.descricao.slice(0, 60)}" registrado.`,
+      dados: { id: created.id },
+      rota: "/pestel",
+      entidadeTipo: "fator_pestel",
+      entidadeId: created.id,
+    };
+  },
+  formRota: "/pestel",
+  statusLabel: "Adicionando fator ao PESTEL…",
+};
+
+const atualizarFatorPestelSchema = z.object({
+  pestelId: z.string().min(8),
+  tipo: z.enum(DIMENSOES_PESTEL).optional(),
+  descricao: z.string().min(3).max(600).optional(),
+  impacto: z.enum(NIVEIS_IMPACTO).optional(),
+  evidencia: z.string().max(600).optional(),
+});
+type AtualizarFatorPestelParams = z.infer<typeof atualizarFatorPestelSchema>;
+
+const atualizarFatorPestel: ToolDefinition<AtualizarFatorPestelParams> = {
+  name: "atualizar_fator_pestel",
+  description: "Atualiza um fator PESTEL existente (dimensão, descrição, impacto ou evidência).",
+  paramsSchema: atualizarFatorPestelSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["pestelId"],
+    properties: {
+      pestelId: { type: "string" },
+      tipo: { type: "string", enum: [...DIMENSOES_PESTEL] },
+      descricao: { type: "string" },
+      impacto: { type: "string", enum: [...NIVEIS_IMPACTO] },
+      evidencia: { type: "string" },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Atualizar fator PESTEL",
+    descricao: "Vamos aplicar mudanças neste fator do PESTEL.",
+    campos: [
+      p.tipo ? { label: "Dimensão", valor: p.tipo } : null,
+      p.descricao ? { label: "Descrição", valor: p.descricao } : null,
+      p.impacto ? { label: "Impacto", valor: p.impacto } : null,
+      p.evidencia !== undefined ? { label: "Evidência", valor: p.evidencia || "(vazio)" } : null,
+    ].filter(Boolean) as { label: string; valor: string }[],
+    ctaConfirmar: "Aplicar mudanças",
+    ctaIgnorar: "Manter como está",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const lista = await storage.getFatoresPestel(ctx.empresaId);
+    const existing = lista.find((x) => x.id === p.pestelId);
+    if (!existing) throw new Error("Fator PESTEL não encontrado nesta empresa.");
+    const patch: Partial<typeof existing> = {};
+    if (p.tipo) patch.tipo = p.tipo;
+    if (p.descricao) patch.descricao = p.descricao;
+    if (p.impacto) patch.impacto = p.impacto;
+    if (p.evidencia !== undefined) patch.evidencia = p.evidencia;
+    const updated = await storage.updateFatorPestel(p.pestelId, ctx.empresaId, patch);
+    return {
+      resumo: `Fator PESTEL (${updated.tipo}) atualizado.`,
+      dados: { id: updated.id },
+      rota: "/pestel",
+      entidadeTipo: "fator_pestel",
+      entidadeId: updated.id,
+    };
+  },
+  formRota: "/pestel",
+  statusLabel: "Atualizando fator PESTEL…",
+  enrichPreview: async (preview, p, ctx) => {
+    try {
+      const lista = await storage.getFatoresPestel(ctx.empresaId);
+      const existing = lista.find((x) => x.id === p.pestelId);
+      if (!existing) return preview;
+      const before: Record<string, { raw: string | null | undefined }> = {
+        "Dimensão": { raw: existing.tipo },
+        "Descrição": { raw: existing.descricao },
+        "Impacto": { raw: existing.impacto },
+        "Evidência": { raw: existing.evidencia ?? null },
+      };
+      const campos = (preview.campos ?? [])
+        .map((c) => applyDiff(c, before[c.label]))
+        .filter((c): c is { label: string; valor: string; valorAnterior?: string } => c !== null);
+      return { ...preview, campos };
+    } catch { return preview; }
+  },
+};
+
+const arquivarFatorPestelSchema = z.object({
+  pestelId: z.string().min(8),
+});
+type ArquivarFatorPestelParams = z.infer<typeof arquivarFatorPestelSchema>;
+
+const arquivarFatorPestel: ToolDefinition<ArquivarFatorPestelParams> = {
+  name: "arquivar_fator_pestel",
+  description: "Remove (arquiva) um fator PESTEL obsoleto.",
+  paramsSchema: arquivarFatorPestelSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["pestelId"],
+    properties: { pestelId: { type: "string" } },
+  },
+  preview: (p) => ({
+    titulo: "Arquivar fator PESTEL",
+    descricao: "Este fator será removido do PESTEL atual.",
+    campos: [{ label: "Item", valor: p.pestelId }],
+    ctaConfirmar: "Arquivar",
+    ctaIgnorar: "Manter",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const lista = await storage.getFatoresPestel(ctx.empresaId);
+    const existing = lista.find((x) => x.id === p.pestelId);
+    if (!existing) throw new Error("Fator PESTEL não encontrado nesta empresa.");
+    await storage.deleteFatorPestel(p.pestelId, ctx.empresaId);
+    return {
+      resumo: `Fator PESTEL (${existing.tipo}) "${existing.descricao.slice(0, 50)}" arquivado.`,
+      dados: { id: p.pestelId },
+      rota: "/pestel",
+      entidadeTipo: "fator_pestel",
+      entidadeId: p.pestelId,
+    };
+  },
+  formRota: "/pestel",
+  statusLabel: "Arquivando fator PESTEL…",
+  enrichPreview: async (preview, p, ctx) => {
+    try {
+      const lista = await storage.getFatoresPestel(ctx.empresaId);
+      const existing = lista.find((x) => x.id === p.pestelId);
+      if (!existing) return preview;
+      return {
+        ...preview,
+        campos: [
+          { label: "Dimensão", valor: existing.tipo },
+          { label: "Descrição", valor: existing.descricao },
+          { label: "Impacto", valor: existing.impacto },
+          ...(existing.evidencia ? [{ label: "Evidência", valor: existing.evidencia }] : []),
+        ],
+      };
+    } catch { return preview; }
+  },
+};
+
+// ---------- 5 Forças ----------
+async function findOrInitForca(empresaId: string, forca: typeof FORCAS_PORTER[number]) {
+  const lista = await storage.getCincoForcas(empresaId);
+  const existing = lista.find((x) => x.forca === forca);
+  if (existing) return existing;
+  return await storage.createCincoForcas({
+    empresaId,
+    forca,
+    descricao: "",
+    intensidade: "média",
+    impacto: "",
+  });
+}
+
+const atualizarIntensidadeForcaSchema = z.object({
+  forca: z.enum(FORCAS_PORTER),
+  intensidade: z.enum(NIVEIS_INTENSIDADE),
+  impacto: z.string().max(400).optional(),
+});
+type AtualizarIntensidadeForcaParams = z.infer<typeof atualizarIntensidadeForcaSchema>;
+
+const atualizarIntensidadeForca: ToolDefinition<AtualizarIntensidadeForcaParams> = {
+  name: "atualizar_intensidade_forca",
+  description: "Atualiza a intensidade (alta/média/baixa) de uma das 5 Forças de Porter (rivalidade, fornecedores, clientes, novos entrantes, substitutos). As 5 forças são fixas — esta tool só atualiza a intensidade e o impacto estratégico, nunca cria uma nova força.",
+  paramsSchema: atualizarIntensidadeForcaSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["forca", "intensidade"],
+    properties: {
+      forca: { type: "string", enum: [...FORCAS_PORTER], description: "Chave canônica da força." },
+      intensidade: { type: "string", enum: [...NIVEIS_INTENSIDADE] },
+      impacto: { type: "string", description: "Resumo do impacto estratégico (opcional)." },
+    },
+  },
+  preview: (p) => ({
+    titulo: `Atualizar intensidade — ${p.forca}`,
+    descricao: `Vamos definir a intensidade da força "${p.forca}" como ${p.intensidade}.`,
+    campos: [
+      { label: "Força", valor: p.forca },
+      { label: "Intensidade", valor: p.intensidade },
+      ...(p.impacto ? [{ label: "Impacto", valor: p.impacto }] : []),
+    ],
+    ctaConfirmar: "Aplicar mudança",
+    ctaIgnorar: "Manter como está",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const existing = await findOrInitForca(ctx.empresaId, p.forca);
+    const patch: Partial<typeof existing> = { intensidade: p.intensidade };
+    if (p.impacto !== undefined) patch.impacto = p.impacto;
+    const updated = await storage.updateCincoForcas(existing.id, ctx.empresaId, patch);
+    return {
+      resumo: `Força "${p.forca}" agora está com intensidade ${p.intensidade}.`,
+      dados: { id: updated.id },
+      rota: "/cinco-forcas",
+      entidadeTipo: "cinco_forcas",
+      entidadeId: updated.id,
+    };
+  },
+  formRota: "/cinco-forcas",
+  statusLabel: "Atualizando intensidade da força…",
+  enrichPreview: async (preview, p, ctx) => {
+    try {
+      const lista = await storage.getCincoForcas(ctx.empresaId);
+      const existing = lista.find((x) => x.forca === p.forca);
+      if (!existing) return preview;
+      const before: Record<string, { raw: string | null | undefined }> = {
+        "Intensidade": { raw: existing.intensidade },
+        "Impacto": { raw: existing.impacto ?? null },
+      };
+      const campos = (preview.campos ?? [])
+        .map((c) => applyDiff(c, before[c.label]))
+        .filter((c): c is { label: string; valor: string; valorAnterior?: string } => c !== null);
+      return { ...preview, campos };
+    } catch { return preview; }
+  },
+};
+
+const adicionarEvidenciaForcaSchema = z.object({
+  forca: z.enum(FORCAS_PORTER),
+  evidencia: z.string().min(3).max(600),
+});
+type AdicionarEvidenciaForcaParams = z.infer<typeof adicionarEvidenciaForcaSchema>;
+
+const adicionarEvidenciaForca: ToolDefinition<AdicionarEvidenciaForcaParams> = {
+  name: "adicionar_evidencia_forca",
+  description: "Anexa uma nova evidência ao histórico da força de Porter (preserva o texto anterior, prependendo uma linha datada [YYYY-MM-DD]). Use quando o usuário trouxer um novo dado, fato ou observação que reforce/justifique a intensidade da força.",
+  paramsSchema: adicionarEvidenciaForcaSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["forca", "evidencia"],
+    properties: {
+      forca: { type: "string", enum: [...FORCAS_PORTER] },
+      evidencia: { type: "string", description: "Texto da evidência a adicionar." },
+    },
+  },
+  preview: (p) => ({
+    titulo: `Adicionar evidência — ${p.forca}`,
+    descricao: "Vamos anexar esta evidência ao histórico da força.",
+    campos: [
+      { label: "Força", valor: p.forca },
+      { label: "Evidência", valor: p.evidencia },
+    ],
+    ctaConfirmar: "Adicionar evidência",
+    ctaIgnorar: "Agora não",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const existing = await findOrInitForca(ctx.empresaId, p.forca);
+    const data = new Date().toISOString().slice(0, 10);
+    const linhaNova = `[${data}] ${p.evidencia.trim()}`;
+    const atual = (existing.descricao ?? "").trim();
+    const novaDesc = atual ? `${linhaNova}\n${atual}` : linhaNova;
+    const updated = await storage.updateCincoForcas(existing.id, ctx.empresaId, { descricao: novaDesc });
+    return {
+      resumo: `Evidência adicionada à força "${p.forca}".`,
+      dados: { id: updated.id },
+      rota: "/cinco-forcas",
+      entidadeTipo: "cinco_forcas",
+      entidadeId: updated.id,
+    };
+  },
+  formRota: "/cinco-forcas",
+  statusLabel: "Registrando evidência da força…",
+  enrichPreview: async (preview, p, ctx) => {
+    try {
+      const lista = await storage.getCincoForcas(ctx.empresaId);
+      const existing = lista.find((x) => x.forca === p.forca);
+      if (!existing) return preview;
+      const historicoAtual = (existing.descricao ?? "").trim();
+      const campos = [
+        ...(preview.campos ?? []),
+        ...(historicoAtual
+          ? [{ label: "Histórico atual", valor: historicoAtual.slice(0, 400) + (historicoAtual.length > 400 ? "…" : "") }]
+          : [{ label: "Histórico atual", valor: "(sem evidências anteriores)" }]),
+      ];
+      return { ...preview, campos };
+    } catch { return preview; }
+  },
+};
+
+// ---------- Oportunidades de Crescimento ----------
+const criarOportunidadeSchema = z.object({
+  tipo: z.enum(TIPOS_OPORTUNIDADE),
+  titulo: z.string().min(3).max(160),
+  descricao: z.string().min(3).max(600),
+  potencial: z.enum(NIVEIS_IMPACTO).default("médio"),
+  risco: z.enum(NIVEIS_IMPACTO).default("médio"),
+  estrategiaId: z.string().optional(),
+});
+type CriarOportunidadeParams = z.infer<typeof criarOportunidadeSchema>;
+
+const criarOportunidade: ToolDefinition<CriarOportunidadeParams> = {
+  name: "criar_oportunidade",
+  description: "Cria uma oportunidade de crescimento usando a matriz de Ansoff (penetração, desenvolvimento de mercado, desenvolvimento de produto ou diversificação).",
+  paramsSchema: criarOportunidadeSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["tipo", "titulo", "descricao"],
+    properties: {
+      tipo: { type: "string", enum: [...TIPOS_OPORTUNIDADE], description: "Quadrante de Ansoff." },
+      titulo: { type: "string" },
+      descricao: { type: "string" },
+      potencial: { type: "string", enum: [...NIVEIS_IMPACTO] },
+      risco: { type: "string", enum: [...NIVEIS_IMPACTO] },
+      estrategiaId: { type: "string", description: "ID de estratégia vinculada (opcional)." },
+    },
+  },
+  preview: (p) => ({
+    titulo: `Nova oportunidade: ${p.titulo}`,
+    descricao: `Vamos registrar uma oportunidade de crescimento (${p.tipo}) com potencial ${p.potencial} e risco ${p.risco}.`,
+    campos: [
+      { label: "Quadrante Ansoff", valor: p.tipo },
+      { label: "Título", valor: p.titulo },
+      { label: "Descrição", valor: p.descricao },
+      { label: "Potencial", valor: p.potencial },
+      { label: "Risco", valor: p.risco },
+      ...(p.estrategiaId ? [{ label: "Estratégia", valor: p.estrategiaId }] : []),
+    ],
+    ctaConfirmar: "Criar oportunidade",
+    ctaIgnorar: "Agora não",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    let estrategiaId: string | null = null;
+    if (p.estrategiaId) {
+      const est = await storage.getEstrategia(p.estrategiaId);
+      if (est && est.empresaId === ctx.empresaId) estrategiaId = est.id;
+    }
+    const created = await storage.createOportunidadeCrescimento({
+      empresaId: ctx.empresaId,
+      tipo: p.tipo,
+      titulo: p.titulo,
+      descricao: p.descricao,
+      potencial: p.potencial,
+      risco: p.risco,
+      estrategiaId,
+    });
+    return {
+      resumo: `Oportunidade "${created.titulo}" criada (${p.tipo}).`,
+      dados: { id: created.id },
+      rota: "/oportunidades-crescimento",
+      entidadeTipo: "oportunidade_crescimento",
+      entidadeId: created.id,
+    };
+  },
+  formRota: "/oportunidades-crescimento",
+  statusLabel: "Criando oportunidade…",
+};
+
+const atualizarOportunidadeSchema = z.object({
+  oportunidadeId: z.string().min(8),
+  tipo: z.enum(TIPOS_OPORTUNIDADE).optional(),
+  titulo: z.string().min(3).max(160).optional(),
+  descricao: z.string().min(3).max(600).optional(),
+  potencial: z.enum(NIVEIS_IMPACTO).optional(),
+  risco: z.enum(NIVEIS_IMPACTO).optional(),
+  estrategiaId: z.string().optional(),
+});
+type AtualizarOportunidadeParams = z.infer<typeof atualizarOportunidadeSchema>;
+
+const atualizarOportunidade: ToolDefinition<AtualizarOportunidadeParams> = {
+  name: "atualizar_oportunidade",
+  description: "Atualiza uma oportunidade de crescimento existente.",
+  paramsSchema: atualizarOportunidadeSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["oportunidadeId"],
+    properties: {
+      oportunidadeId: { type: "string" },
+      tipo: { type: "string", enum: [...TIPOS_OPORTUNIDADE] },
+      titulo: { type: "string" },
+      descricao: { type: "string" },
+      potencial: { type: "string", enum: [...NIVEIS_IMPACTO] },
+      risco: { type: "string", enum: [...NIVEIS_IMPACTO] },
+      estrategiaId: { type: "string" },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Atualizar oportunidade",
+    descricao: "Vamos aplicar mudanças nesta oportunidade.",
+    campos: [
+      p.titulo ? { label: "Título", valor: p.titulo } : null,
+      p.tipo ? { label: "Quadrante Ansoff", valor: p.tipo } : null,
+      p.descricao ? { label: "Descrição", valor: p.descricao } : null,
+      p.potencial ? { label: "Potencial", valor: p.potencial } : null,
+      p.risco ? { label: "Risco", valor: p.risco } : null,
+      p.estrategiaId !== undefined ? { label: "Estratégia", valor: p.estrategiaId || "(sem estratégia)" } : null,
+    ].filter(Boolean) as { label: string; valor: string }[],
+    ctaConfirmar: "Aplicar mudanças",
+    ctaIgnorar: "Manter como está",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const existing = await storage.getOportunidadeCrescimento(p.oportunidadeId);
+    if (!existing || existing.empresaId !== ctx.empresaId) {
+      throw new Error("Oportunidade não encontrada nesta empresa.");
+    }
+    const patch: Partial<typeof existing> = {};
+    if (p.tipo) patch.tipo = p.tipo;
+    if (p.titulo) patch.titulo = p.titulo;
+    if (p.descricao) patch.descricao = p.descricao;
+    if (p.potencial) patch.potencial = p.potencial;
+    if (p.risco) patch.risco = p.risco;
+    if (p.estrategiaId !== undefined) {
+      let estrategiaId: string | null = null;
+      if (p.estrategiaId) {
+        const est = await storage.getEstrategia(p.estrategiaId);
+        if (est && est.empresaId === ctx.empresaId) estrategiaId = est.id;
+      }
+      (patch as Record<string, unknown>).estrategiaId = estrategiaId;
+    }
+    const updated = await storage.updateOportunidadeCrescimento(p.oportunidadeId, ctx.empresaId, patch);
+    return {
+      resumo: `Oportunidade "${updated.titulo}" atualizada.`,
+      dados: { id: updated.id },
+      rota: "/oportunidades-crescimento",
+      entidadeTipo: "oportunidade_crescimento",
+      entidadeId: updated.id,
+    };
+  },
+  formRota: "/oportunidades-crescimento",
+  statusLabel: "Atualizando oportunidade…",
+  enrichPreview: async (preview, p, ctx) => {
+    try {
+      const existing = await storage.getOportunidadeCrescimento(p.oportunidadeId);
+      if (!existing || existing.empresaId !== ctx.empresaId) return preview;
+      const before: Record<string, { raw: string | null | undefined }> = {
+        "Título": { raw: existing.titulo ?? null },
+        "Quadrante Ansoff": { raw: existing.tipo },
+        "Descrição": { raw: existing.descricao ?? null },
+        "Potencial": { raw: existing.potencial ?? null },
+        "Risco": { raw: existing.risco ?? null },
+        "Estratégia": { raw: (existing as { estrategiaId?: string | null }).estrategiaId ?? null },
+      };
+      const campos = (preview.campos ?? [])
+        .map((c) => applyDiff(c, before[c.label]))
+        .filter((c): c is { label: string; valor: string; valorAnterior?: string } => c !== null);
+      return { ...preview, campos };
+    } catch { return preview; }
+  },
+};
+
+const arquivarOportunidadeSchema = z.object({
+  oportunidadeId: z.string().min(8),
+});
+type ArquivarOportunidadeParams = z.infer<typeof arquivarOportunidadeSchema>;
+
+const arquivarOportunidade: ToolDefinition<ArquivarOportunidadeParams> = {
+  name: "arquivar_oportunidade",
+  description: "Remove (arquiva) uma oportunidade de crescimento obsoleta.",
+  paramsSchema: arquivarOportunidadeSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["oportunidadeId"],
+    properties: { oportunidadeId: { type: "string" } },
+  },
+  preview: (p) => ({
+    titulo: "Arquivar oportunidade",
+    descricao: "Esta oportunidade será removida do diagnóstico atual.",
+    campos: [{ label: "Item", valor: p.oportunidadeId }],
+    ctaConfirmar: "Arquivar",
+    ctaIgnorar: "Manter",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const existing = await storage.getOportunidadeCrescimento(p.oportunidadeId);
+    if (!existing || existing.empresaId !== ctx.empresaId) {
+      throw new Error("Oportunidade não encontrada nesta empresa.");
+    }
+    await storage.deleteOportunidadeCrescimento(p.oportunidadeId, ctx.empresaId);
+    return {
+      resumo: `Oportunidade "${existing.titulo}" arquivada.`,
+      dados: { id: p.oportunidadeId },
+      rota: "/oportunidades-crescimento",
+      entidadeTipo: "oportunidade_crescimento",
+      entidadeId: p.oportunidadeId,
+    };
+  },
+  formRota: "/oportunidades-crescimento",
+  statusLabel: "Arquivando oportunidade…",
+  enrichPreview: async (preview, p, ctx) => {
+    try {
+      const existing = await storage.getOportunidadeCrescimento(p.oportunidadeId);
+      if (!existing || existing.empresaId !== ctx.empresaId) return preview;
+      return {
+        ...preview,
+        campos: [
+          { label: "Título", valor: existing.titulo ?? "" },
+          { label: "Quadrante Ansoff", valor: existing.tipo },
+          { label: "Descrição", valor: existing.descricao ?? "" },
+        ],
+      };
+    } catch { return preview; }
+  },
+};
+
 // ---------- Registry ----------
 // ---------- Task #233 — Tools de rituais de gestão ----------
 const gerarPautaSchema = z.object({
@@ -4583,6 +5370,17 @@ export const TOOLS: Record<ToolName, ToolDefinition<unknown>> = {
   criar_risco: wrap(criarRisco),
   atualizar_risco: wrap(atualizarRisco),
   registrar_mitigacao: wrap(registrarMitigacao),
+  criar_item_swot: wrap(criarItemSwot),
+  atualizar_item_swot: wrap(atualizarItemSwot),
+  arquivar_item_swot: wrap(arquivarItemSwot),
+  criar_fator_pestel: wrap(criarFatorPestel),
+  atualizar_fator_pestel: wrap(atualizarFatorPestel),
+  arquivar_fator_pestel: wrap(arquivarFatorPestel),
+  atualizar_intensidade_forca: wrap(atualizarIntensidadeForca),
+  adicionar_evidencia_forca: wrap(adicionarEvidenciaForca),
+  criar_oportunidade: wrap(criarOportunidade),
+  atualizar_oportunidade: wrap(atualizarOportunidade),
+  arquivar_oportunidade: wrap(arquivarOportunidade),
   navegar_para: wrap(navegarPara),
   abrir_entidade: wrap(abrirEntidade),
   criar_plano_agentico: wrap(criarPlanoAgentico),
@@ -4629,6 +5427,17 @@ const TOOLS_EXECUTORAS: ReadonlySet<ToolName> = new Set<ToolName>([
   "criar_risco",
   "atualizar_risco",
   "registrar_mitigacao",
+  "criar_item_swot",
+  "atualizar_item_swot",
+  "arquivar_item_swot",
+  "criar_fator_pestel",
+  "atualizar_fator_pestel",
+  "arquivar_fator_pestel",
+  "atualizar_intensidade_forca",
+  "adicionar_evidencia_forca",
+  "criar_oportunidade",
+  "atualizar_oportunidade",
+  "arquivar_oportunidade",
   "navegar_para",
   "abrir_entidade",
   "gerar_pauta_reuniao",
@@ -5021,6 +5830,17 @@ export const STATUS_LABELS: Readonly<Record<string, string>> = {
   criar_risco: "Registrando risco…",
   atualizar_risco: "Atualizando risco…",
   registrar_mitigacao: "Registrando mitigação…",
+  criar_item_swot: "Adicionando item ao SWOT…",
+  atualizar_item_swot: "Atualizando item do SWOT…",
+  arquivar_item_swot: "Arquivando item do SWOT…",
+  criar_fator_pestel: "Adicionando fator ao PESTEL…",
+  atualizar_fator_pestel: "Atualizando fator PESTEL…",
+  arquivar_fator_pestel: "Arquivando fator PESTEL…",
+  atualizar_intensidade_forca: "Atualizando intensidade da força…",
+  adicionar_evidencia_forca: "Registrando evidência da força…",
+  criar_oportunidade: "Criando oportunidade…",
+  atualizar_oportunidade: "Atualizando oportunidade…",
+  arquivar_oportunidade: "Arquivando oportunidade…",
   // Memória persistente
   registrar_fato_manualmente: "Anotando fato na memória…",
   esquecer_fato: "Removendo fato da memória…",

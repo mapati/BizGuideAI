@@ -78,7 +78,10 @@ export type CitacaoTipo =
   | "estrategia"
   | "bmc"
   | "cenario"
-  | "bsc";
+  | "bsc"
+  | "swot"
+  | "pestel"
+  | "forca";
 
 export const CITACAO_LABEL: Record<CitacaoTipo, string> = {
   indicador: "Indicador",
@@ -91,6 +94,9 @@ export const CITACAO_LABEL: Record<CitacaoTipo, string> = {
   bmc: "BMC",
   cenario: "Cenário",
   bsc: "Mapa BSC",
+  swot: "SWOT",
+  pestel: "PESTEL",
+  forca: "Força",
 };
 
 export function citacaoToHref(tipo: CitacaoTipo, id: string): string {
@@ -118,10 +124,16 @@ export function citacaoToHref(tipo: CitacaoTipo, id: string): string {
     case "bsc":
       // BSC é uma página única (não navega por id de relação).
       return `/mapa-bsc`;
+    case "swot":
+      return `/swot?${usp.toString()}`;
+    case "pestel":
+      return `/pestel?${usp.toString()}`;
+    case "forca":
+      return `/cinco-forcas?${usp.toString()}`;
   }
 }
 
-const TIPOS_CIT = "indicador|iniciativa|objetivo|kr|risco|oportunidade|estrategia|bmc|cenario|bsc";
+const TIPOS_CIT = "indicador|iniciativa|objetivo|kr|risco|oportunidade|estrategia|bmc|cenario|bsc|swot|pestel|forca";
 // Aceita UUID-ish (4+ chars hex/hifen). Não engole o colchete final.
 const CITACAO_REGEX = new RegExp(`\\[(${TIPOS_CIT}):([a-f0-9][a-f0-9-]{3,})\\]`, "gi");
 

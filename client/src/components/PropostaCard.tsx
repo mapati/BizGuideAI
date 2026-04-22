@@ -59,6 +59,13 @@ const ENTIDADE_ID_PARAM: Record<string, { idField: string; extra?: Record<string
   atualizar_cenario: { idField: "cenarioId" },
   arquivar_cenario: { idField: "cenarioId" },
   remover_relacao_bsc: { idField: "relacaoId" },
+  // Task #286
+  atualizar_item_swot: { idField: "swotId" },
+  arquivar_item_swot: { idField: "swotId" },
+  atualizar_fator_pestel: { idField: "pestelId" },
+  arquivar_fator_pestel: { idField: "pestelId" },
+  atualizar_oportunidade: { idField: "oportunidadeId" },
+  arquivar_oportunidade: { idField: "oportunidadeId" },
 };
 
 function construirUrlAjuste(
@@ -109,6 +116,17 @@ const FERRAMENTAS_LABEL: Record<string, string> = {
   criar_risco: "Novo risco",
   atualizar_risco: "Atualizar risco",
   registrar_mitigacao: "Registrar mitigação",
+  criar_item_swot: "Novo item SWOT",
+  atualizar_item_swot: "Atualizar item SWOT",
+  arquivar_item_swot: "Arquivar item SWOT",
+  criar_fator_pestel: "Novo fator PESTEL",
+  atualizar_fator_pestel: "Atualizar fator PESTEL",
+  arquivar_fator_pestel: "Arquivar fator PESTEL",
+  atualizar_intensidade_forca: "Atualizar intensidade",
+  adicionar_evidencia_forca: "Adicionar evidência",
+  criar_oportunidade: "Nova oportunidade",
+  atualizar_oportunidade: "Atualizar oportunidade",
+  arquivar_oportunidade: "Arquivar oportunidade",
   navegar_para: "Abrir página",
   abrir_entidade: "Abrir item",
   // Task #287

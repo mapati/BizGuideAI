@@ -5555,11 +5555,20 @@ ${instrucaoAdicional}` : ""}`
           });
         }
       } else {
+        // Sem vínculo direto a uma estratégia: aceitamos desde que a empresa
+        // já tenha pelo menos uma estratégia ofensiva (FO/DO) cadastrada — o
+        // novo fluxo de "Gerar com IA" sintetiza a Matriz de Ansoff a partir
+        // do conjunto FO/DO, então frentes transversais (sem 1:1) são válidas.
+        // A jornada concluída segue dispensando qualquer checagem.
         const concluida = await isJornadaConcluida(empresaId);
         if (!concluida) {
-          return res.status(400).json({
-            error: "Durante a primeira jornada estratégica, toda Oportunidade precisa estar ligada a uma Estratégia. Crie ou escolha uma Estratégia antes de cadastrar a Oportunidade.",
-          });
+          const todasEstrategias = await storage.getEstrategias(empresaId);
+          const temFoDo = todasEstrategias.some((e) => e.tipo === "FO" || e.tipo === "DO");
+          if (!temFoDo) {
+            return res.status(400).json({
+              error: "Cadastre ao menos uma estratégia ofensiva (FO/DO) antes de criar Frentes de Crescimento.",
+            });
+          }
         }
       }
       const oportunidade = await storage.createOportunidadeCrescimento(data);

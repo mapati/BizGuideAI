@@ -3,7 +3,7 @@ import { useDeepLinkDialog } from "@/hooks/useDeepLinkDialog";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -243,38 +243,41 @@ function IniciativaCard({ iniciativa, estrategias, oportunidades, objetivos, ind
               />
             );
           })()}
-          {(iniciativa.porque || iniciativa.onde || iniciativa.como || iniciativa.quanto) && (
-            <div
-              className="rounded-md border bg-muted/40 p-3 space-y-1.5 text-sm"
-              data-testid={`section-5w2h-${iniciativa.id}`}
-            >
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Plano 5W2H</p>
-              {iniciativa.porque && (
-                <p data-testid={`text-porque-${iniciativa.id}`}>
-                  <span className="font-medium">Por quê:</span>{" "}
-                  <span className="text-muted-foreground">{iniciativa.porque}</span>
-                </p>
-              )}
-              {iniciativa.onde && (
-                <p data-testid={`text-onde-${iniciativa.id}`}>
-                  <span className="font-medium">Onde:</span>{" "}
-                  <span className="text-muted-foreground">{iniciativa.onde}</span>
-                </p>
-              )}
-              {iniciativa.como && (
-                <p data-testid={`text-como-${iniciativa.id}`}>
-                  <span className="font-medium">Como:</span>{" "}
-                  <span className="text-muted-foreground">{iniciativa.como}</span>
-                </p>
-              )}
-              {iniciativa.quanto && (
-                <p data-testid={`text-quanto-${iniciativa.id}`}>
-                  <span className="font-medium">Quanto:</span>{" "}
-                  <span className="text-muted-foreground">{iniciativa.quanto}</span>
-                </p>
-              )}
-            </div>
-          )}
+          {/* Task #250 — Plano 5W2H completo (7 elementos), com fallback "—" para vazios */}
+          <div
+            className="rounded-md border bg-muted/40 p-3 space-y-1.5 text-sm"
+            data-testid={`section-5w2h-${iniciativa.id}`}
+          >
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Plano 5W2H</p>
+            <p data-testid={`text-oque-${iniciativa.id}`}>
+              <span className="font-medium">O quê:</span>{" "}
+              <span className="text-muted-foreground">{iniciativa.titulo || "—"}</span>
+            </p>
+            <p data-testid={`text-porque-${iniciativa.id}`}>
+              <span className="font-medium">Por quê:</span>{" "}
+              <span className="text-muted-foreground">{iniciativa.porque || "—"}</span>
+            </p>
+            <p data-testid={`text-onde-${iniciativa.id}`}>
+              <span className="font-medium">Onde:</span>{" "}
+              <span className="text-muted-foreground">{iniciativa.onde || "—"}</span>
+            </p>
+            <p data-testid={`text-quando-${iniciativa.id}`}>
+              <span className="font-medium">Quando:</span>{" "}
+              <span className="text-muted-foreground">{iniciativa.prazo || "—"}</span>
+            </p>
+            <p data-testid={`text-quem-${iniciativa.id}`}>
+              <span className="font-medium">Quem:</span>{" "}
+              <span className="text-muted-foreground">{iniciativa.responsavel || "—"}</span>
+            </p>
+            <p data-testid={`text-como-${iniciativa.id}`}>
+              <span className="font-medium">Como:</span>{" "}
+              <span className="text-muted-foreground">{iniciativa.como || "—"}</span>
+            </p>
+            <p data-testid={`text-quanto-${iniciativa.id}`}>
+              <span className="font-medium">Quanto:</span>{" "}
+              <span className="text-muted-foreground">{iniciativa.quanto || "—"}</span>
+            </p>
+          </div>
           <EncerramentoBlock iniciativa={iniciativa} />
           <div className="flex justify-end">
             <Button
@@ -643,13 +646,22 @@ export default function Iniciativas() {
         />
       )}
       {!semEstategias && semAlvosMatriz && (
-        <PrerequisiteWarning
-          titulo="Para gerar iniciativas em matriz, crie Estratégias FA/DA ou Frentes de Crescimento"
-          descricao="O gerador de iniciativas funciona como uma matriz: produz iniciativas para cada Estratégia FA/DA (defensivas) e cada Frente de Crescimento (Ansoff). Cadastre ao menos uma destas para habilitar a geração."
-          linkLabel="Ir para Estratégias"
-          linkHref="/estrategias"
-          variante="info"
-        />
+        <>
+          <PrerequisiteWarning
+            titulo="Para gerar iniciativas em matriz, crie Estratégias FA/DA"
+            descricao="O gerador de iniciativas funciona como uma matriz: produz iniciativas para cada Estratégia FA/DA (defensivas). Cadastre ao menos uma para habilitar a geração."
+            linkLabel="Ir para Estratégias"
+            linkHref="/estrategias"
+            variante="info"
+          />
+          <PrerequisiteWarning
+            titulo="…ou crie Frentes de Crescimento (Ansoff)"
+            descricao="O gerador também produz iniciativas para cada Frente de Crescimento ofensiva (Ansoff). Cadastre ao menos uma frente para habilitar a geração em matriz."
+            linkLabel="Ir para Frentes"
+            linkHref="/oportunidades-crescimento"
+            variante="info"
+          />
+        </>
       )}
       <div className="mb-6">
         <h1 className="text-3xl font-bold mb-2">Iniciativas Prioritárias</h1>
@@ -965,6 +977,9 @@ export default function Iniciativas() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Por quê</FormLabel>
+                        <FormDescription>
+                          Justificativa estratégica: qual problema/oportunidade esta iniciativa endereça e o impacto esperado.
+                        </FormDescription>
                         <FormControl>
                           <Textarea
                             placeholder="Ex: Reduzir churn em 15% atacando a fraqueza identificada na pesquisa de NPS."
@@ -984,6 +999,9 @@ export default function Iniciativas() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Onde</FormLabel>
+                        <FormDescription>
+                          Local, área, canal ou processo onde a iniciativa será executada.
+                        </FormDescription>
                         <FormControl>
                           <Input
                             placeholder="Ex: Time de Sucesso do Cliente; canal de WhatsApp Business"
@@ -1002,6 +1020,9 @@ export default function Iniciativas() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Como</FormLabel>
+                        <FormDescription>
+                          Passos práticos de execução. Liste 2 a 5 ações concretas.
+                        </FormDescription>
                         <FormControl>
                           <Textarea
                             placeholder="Ex: 1) Mapear jornada; 2) Implantar playbook de retenção; 3) Treinar equipe."
@@ -1021,6 +1042,9 @@ export default function Iniciativas() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Quanto</FormLabel>
+                        <FormDescription>
+                          Custo estimado e/ou esforço (R$, horas, FTE).
+                        </FormDescription>
                         <FormControl>
                           <Input
                             placeholder="Ex: R$ 20-50k + 2 meses do PM atual"

@@ -6301,14 +6301,14 @@ ${tarefaIniciativas}${instrucaoAdicionalIni ? `\n\n## INSTRUÇÕES ADICIONAIS DO
                 (aKind === "estrategia" && alvosEstrategiaIds.has(aId)) ||
                 (aKind === "oportunidade" && alvosOportunidadeIds.has(aId));
               if (!ok) return false;
-              // Plano 5W2H: exigir pelo menos 3 dos 4 campos preenchidos para garantir
-              // valor real (a IA pode ocasionalmente omitir um). Não rejeitamos se
-              // somente 1 estiver vazio — campos faltantes ficam null no banco.
-              const preenchidos = [ini.porque, ini.onde, ini.como, ini.quanto].filter(
-                (v) => typeof v === "string" && v.length > 0,
-              ).length;
-              if (preenchidos < 3) return false;
             }
+            // Plano 5W2H: exigir os 4 campos não-vazios em ambos os modos (matriz e legado).
+            const todosPreenchidos =
+              typeof ini.porque === "string" && ini.porque.length > 0 &&
+              typeof ini.onde === "string" && ini.onde.length > 0 &&
+              typeof ini.como === "string" && ini.como.length > 0 &&
+              typeof ini.quanto === "string" && ini.quanto.length > 0;
+            if (!todosPreenchidos) return false;
             seenTitles.add(titulo);
             return true;
           });

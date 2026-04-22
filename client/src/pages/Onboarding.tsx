@@ -149,6 +149,7 @@ export default function Onboarding() {
       try {
         localStorage.removeItem("biz-guide-assistente-desbloqueado");
         localStorage.removeItem("biz-guide-briefing-dispensado-em");
+        localStorage.removeItem("biz-guide-jornada-concluida-dismissed");
         window.dispatchEvent(new CustomEvent("biz-guide:briefing-dispensado"));
       } catch {
         // localStorage indisponível — segue o fluxo

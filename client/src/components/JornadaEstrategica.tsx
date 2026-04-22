@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -160,6 +160,21 @@ export function JornadaEstrategica({ progresso, defaultOpen, compact }: JornadaE
   const [celebrationDismissed, setCelebrationDismissed] = useState(
     () => localStorage.getItem(CELEBRACAO_DISMISSED_KEY) === "1"
   );
+
+  // Garante que a dispensa do card de celebração valha apenas para o ciclo
+  // atual de conclusão. Quando a jornada deixa de estar concluída (usuário
+  // apagou dados, por exemplo), invalidamos a dispensa para que o próximo
+  // desbloqueio do Assistente reapareça.
+  useEffect(() => {
+    if (!jornadaConcluida) {
+      try {
+        localStorage.removeItem(CELEBRACAO_DISMISSED_KEY);
+      } catch {
+        // localStorage indisponível — segue o fluxo
+      }
+      if (celebrationDismissed) setCelebrationDismissed(false);
+    }
+  }, [jornadaConcluida, celebrationDismissed]);
 
   function dismissPermanently() {
     localStorage.setItem(CELEBRACAO_DISMISSED_KEY, "1");

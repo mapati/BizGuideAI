@@ -18,6 +18,7 @@ import {
   type EscopoComparacao,
   type PeriodoIso,
 } from "./plan-insights";
+import { openai, getModelForPlan } from "./ai-helpers";
 
 // ---------- Tipos públicos ----------
 export type ToolName =
@@ -31,6 +32,8 @@ export type ToolName =
   | "adicionar_kr_a_okr"
   | "atualizar_kr"
   | "atualizar_progresso_kr"
+  | "registrar_checkin_kr"
+  | "revisar_qualidade_kr"
   | "vincular_kr_a_indicador"
   | "criar_indicador"
   | "atualizar_valor_indicador"
@@ -896,6 +899,165 @@ const vincularKrAIndicador: ToolDefinition<VincularKrAIndicadorParams> = {
       rota: "/okrs",
       entidadeTipo: "resultado_chave",
       entidadeId: updated.id,
+    };
+  },
+  formRota: "/okrs",
+};
+
+// ---------- 4c. registrar_checkin_kr ----------
+// Task #257 — registra um check-in completo de KR (valor + confiança +
+// comentário) e atualiza o cache leve no próprio resultado-chave.
+const registrarCheckinKrSchema = z.object({
+  resultadoChaveId: z.string().min(8),
+  valor: z.number().or(z.string()).transform((v) => Number(v)),
+  confianca: z.enum(["verde", "amarelo", "vermelho"]),
+  comentario: z.string().max(800).default(""),
+});
+type RegistrarCheckinKrParams = z.infer<typeof registrarCheckinKrSchema>;
+
+const registrarCheckinKr: ToolDefinition<RegistrarCheckinKrParams> = {
+  name: "registrar_checkin_kr",
+  description:
+    "Registra um CHECK-IN tático de Resultado-chave (KR): valor atual + nível de confiança em bater a meta (verde/amarelo/vermelho) + comentário curto. Use sempre que o usuário disser 'fizemos check-in', 'meta X está em risco', 'estamos no caminho', ou der atualização periódica de progresso. Diferente de atualizar_progresso_kr, este registra HISTÓRICO + sinal de risco.",
+  paramsSchema: registrarCheckinKrSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["resultadoChaveId", "valor", "confianca"],
+    properties: {
+      resultadoChaveId: { type: "string", description: "ID real do KR (do CATÁLOGO)" },
+      valor: { type: "number", description: "Valor medido agora" },
+      confianca: {
+        type: "string",
+        enum: ["verde", "amarelo", "vermelho"],
+        description: "verde = vai bater a meta, amarelo = atenção, vermelho = em risco",
+      },
+      comentario: { type: "string", description: "Resumo curto do que mudou e próximo passo" },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Registrar check-in do KR",
+    descricao: p.comentario || "Registrar valor atual + nível de confiança no KR indicado.",
+    campos: [
+      { label: "KR", valor: p.resultadoChaveId },
+      { label: "Valor atual", valor: String(p.valor) },
+      { label: "Confiança", valor: p.confianca },
+    ],
+    ctaConfirmar: "Registrar check-in",
+    ctaIgnorar: "Cancelar",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const kr = await storage.getResultadoChaveById(p.resultadoChaveId, ctx.empresaId);
+    if (!kr) throw new Error("KR não encontrado nesta empresa.");
+    const checkin = await storage.createKrCheckin({
+      krId: p.resultadoChaveId,
+      empresaId: ctx.empresaId,
+      valor: String(p.valor),
+      confianca: p.confianca,
+      comentario: p.comentario || null,
+      autorId: ctx.usuarioId ?? null,
+    });
+    const updated = await storage.updateResultadoChave(p.resultadoChaveId, ctx.empresaId, {
+      valorAtual: String(p.valor),
+      confiancaAtual: p.confianca,
+      ultimoCheckinEm: new Date(),
+      ultimoCheckinComentario: p.comentario || null,
+    });
+    return {
+      resumo: `Check-in registrado em "${updated.metrica}" — valor ${updated.valorAtual}, confiança ${p.confianca}.`,
+      dados: { krId: updated.id, checkinId: checkin.id, confianca: p.confianca },
+      rota: "/okrs",
+      entidadeTipo: "resultado_chave",
+      entidadeId: updated.id,
+    };
+  },
+  formRota: "/okrs",
+};
+
+// ---------- 4d. revisar_qualidade_kr ----------
+// Task #257 — revisa um KR (existente ou rascunho) procurando os 4 problemas
+// mais comuns: parece_tarefa, sem_metrica, sem_prazo, vago. Não muda dados;
+// devolve veredito + sugestão.
+const revisarQualidadeKrSchema = z.object({
+  resultadoChaveId: z.string().min(8).optional(),
+  metrica: z.string().max(400).optional(),
+  valorInicial: z.union([z.number(), z.string()]).optional(),
+  valorAlvo: z.union([z.number(), z.string()]).optional(),
+  prazo: z.string().max(80).optional(),
+});
+type RevisarQualidadeKrParams = z.infer<typeof revisarQualidadeKrSchema>;
+
+const revisarQualidadeKr: ToolDefinition<RevisarQualidadeKrParams> = {
+  name: "revisar_qualidade_kr",
+  description:
+    "Revisa a QUALIDADE de um Resultado-chave (KR) — identifica se está mal formulado: parece_tarefa, sem_metrica, sem_prazo ou vago. Use ANTES de criar/editar um KR, ou quando o usuário pedir 'esse KR está bom?'. Aceita id de um KR existente OU os campos brutos do rascunho. Não altera dados — devolve veredito e sugestão de reescrita.",
+  paramsSchema: revisarQualidadeKrSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      resultadoChaveId: { type: "string", description: "ID real do KR existente (opcional)" },
+      metrica: { type: "string" },
+      valorInicial: { type: "number" },
+      valorAlvo: { type: "number" },
+      prazo: { type: "string" },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Revisar qualidade do KR",
+    descricao: "Análise rápida com IA — não altera nada, só sugere.",
+    campos: [
+      { label: "KR", valor: p.resultadoChaveId || p.metrica || "(rascunho)" },
+    ],
+    ctaConfirmar: "Revisar",
+    ctaIgnorar: "Cancelar",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    let metrica = p.metrica || "";
+    let valorInicial: string | number | undefined = p.valorInicial;
+    let valorAlvo: string | number | undefined = p.valorAlvo;
+    let prazo = p.prazo || "";
+    if (p.resultadoChaveId) {
+      const kr = await storage.getResultadoChaveById(p.resultadoChaveId, ctx.empresaId);
+      if (!kr) throw new Error("KR não encontrado nesta empresa.");
+      metrica = metrica || kr.metrica;
+      valorInicial = valorInicial ?? kr.valorInicial;
+      valorAlvo = valorAlvo ?? kr.valorAlvo;
+      prazo = prazo || kr.prazo;
+    }
+    if (!metrica) throw new Error("Informe um KR existente (resultadoChaveId) ou pelo menos a métrica.");
+
+    const empresa = await storage.getEmpresa(ctx.empresaId);
+    const completion = await openai.chat.completions.create({
+      model: getModelForPlan(empresa?.planoTipo, "relatorios"),
+      messages: [
+        {
+          role: "system",
+          content:
+            "Você é um consultor estratégico que revisa Resultados-Chave (KRs) — a camada TÁTICA de execução de uma estratégia BSC. Um bom KR descreve um RESULTADO mensurável (não uma tarefa), tem métrica numérica clara, baseline → alvo, e prazo concreto.",
+        },
+        {
+          role: "user",
+          content:
+            `Revise este KR:\n- Métrica: ${metrica}\n- Valor inicial: ${valorInicial ?? "(não informado)"}\n- Valor-alvo: ${valorAlvo ?? "(não informado)"}\n- Prazo: ${prazo || "(não informado)"}\n\n` +
+            `Responda em JSON: {"veredito":"ok"|"precisa_ajuste","problemas":["parece_tarefa"|"sem_metrica"|"sem_prazo"|"vago"],"explicacao":"...","sugestaoMetrica":"...","sugestaoValorInicial":number|null,"sugestaoValorAlvo":number|null,"sugestaoPrazo":"..."}`,
+        },
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.2,
+    });
+    const parsed = JSON.parse(completion.choices[0].message.content || "{}");
+    const resumo = parsed.veredito === "ok"
+      ? "KR está bem formulado."
+      : `Sugestão: ${parsed.explicacao || "ajustar formulação"}.`;
+    return {
+      resumo,
+      dados: parsed,
+      rota: "/okrs",
+      entidadeTipo: "resultado_chave",
+      entidadeId: p.resultadoChaveId,
     };
   },
   formRota: "/okrs",
@@ -2837,6 +2999,8 @@ export const TOOLS: Record<ToolName, ToolDefinition<unknown>> = {
   adicionar_kr_a_okr: wrap(adicionarKrAOkr),
   atualizar_kr: wrap(atualizarKr),
   atualizar_progresso_kr: wrap(atualizarProgressoKr),
+  registrar_checkin_kr: wrap(registrarCheckinKr),
+  revisar_qualidade_kr: wrap(revisarQualidadeKr),
   vincular_kr_a_indicador: wrap(vincularKrAIndicador),
   criar_indicador: wrap(criarIndicador),
   atualizar_valor_indicador: wrap(atualizarValorIndicador),
@@ -2869,6 +3033,8 @@ const TOOLS_EXECUTORAS: ReadonlySet<ToolName> = new Set<ToolName>([
   "adicionar_kr_a_okr",
   "atualizar_kr",
   "atualizar_progresso_kr",
+  "registrar_checkin_kr",
+  "revisar_qualidade_kr",
   "vincular_kr_a_indicador",
   "criar_indicador",
   "atualizar_valor_indicador",

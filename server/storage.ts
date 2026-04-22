@@ -49,6 +49,9 @@ import {
   type InsertObjetivo,
   type ResultadoChave,
   type InsertResultadoChave,
+  krCheckins,
+  type KrCheckin,
+  type InsertKrCheckin,
   type Indicador,
   type InsertIndicador,
   type KpiLeitura,
@@ -168,6 +171,9 @@ export interface IStorage {
   createResultadoChave(resultado: InsertResultadoChave, empresaId: string): Promise<ResultadoChave>;
   updateResultadoChave(id: string, empresaId: string, resultado: Partial<InsertResultadoChave>): Promise<ResultadoChave>;
   deleteResultadoChave(id: string, empresaId: string): Promise<void>;
+  // Task #257 — Histórico de check-ins de KR (camada tática de execução do BSC).
+  getKrCheckins(krId: string, empresaId: string): Promise<KrCheckin[]>;
+  createKrCheckin(checkin: InsertKrCheckin): Promise<KrCheckin>;
   
   getIndicadores(empresaId: string): Promise<Indicador[]>;
   getIndicadoresAcompanhamento(empresaId: string): Promise<Indicador[]>;
@@ -612,6 +618,20 @@ export class DbStorage implements IStorage {
       .limit(1);
     if (!existing[0]) throw new Error("Recurso não encontrado ou acesso negado");
     await db.delete(resultadosChave).where(eq(resultadosChave.id, id));
+  }
+
+  // Task #257 — Histórico de check-ins de KR
+  async getKrCheckins(krId: string, empresaId: string): Promise<KrCheckin[]> {
+    return db
+      .select()
+      .from(krCheckins)
+      .where(and(eq(krCheckins.krId, krId), eq(krCheckins.empresaId, empresaId)))
+      .orderBy(desc(krCheckins.createdAt));
+  }
+
+  async createKrCheckin(checkin: InsertKrCheckin): Promise<KrCheckin> {
+    const result = await db.insert(krCheckins).values(checkin).returning();
+    return result[0];
   }
 
   async getIndicadores(empresaId: string): Promise<Indicador[]> {

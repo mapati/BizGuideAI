@@ -176,11 +176,20 @@ export const resultadosChave = pgTable("resultados_chave", {
   valorInicial: decimal("valor_inicial", { precision: 10, scale: 2 }).notNull(),
   valorAlvo: decimal("valor_alvo", { precision: 10, scale: 2 }).notNull(),
   valorAtual: decimal("valor_atual", { precision: 10, scale: 2 }).notNull(),
+  // Task #257 — `owner` mantido como campo legado (somente leitura) por
+  // compatibilidade com tools antigas. A verdade do responsável é
+  // `responsavelId` (membro da empresa).
   owner: text("owner").notNull(),
   prazo: text("prazo").notNull(),
   responsavelId: varchar("responsavel_id").references(() => usuarios.id, { onDelete: "set null" }),
   // Task #208 — Indicador (KPI) que esta meta busca melhorar (opcional, aditivo).
   indicadorFonteId: varchar("indicador_fonte_id").references((): any => indicadores.id, { onDelete: "set null" }),
+  // Task #257 — Confiança do último check-in (verde/amarelo/vermelho) e
+  // resumo do registro mais recente. Cache leve para a UI; histórico
+  // completo vive em `krCheckins`.
+  confiancaAtual: text("confianca_atual"),
+  ultimoCheckinEm: timestamp("ultimo_checkin_em"),
+  ultimoCheckinComentario: text("ultimo_checkin_comentario"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   atualizadoEm: timestamp("atualizado_em").defaultNow().notNull(),
 });
@@ -192,6 +201,31 @@ export const insertResultadoChaveSchema = createInsertSchema(resultadosChave).om
 });
 export type InsertResultadoChave = z.infer<typeof insertResultadoChaveSchema>;
 export type ResultadoChave = typeof resultadosChave.$inferSelect;
+
+// Task #257 — Histórico de check-ins de KR. Cada linha = um momento em
+// que o responsável atualizou o valor + a confiança (verde/amarelo/vermelho)
+// + um comentário curto. É a camada tática de execução do BSC sem virar
+// "OKR puro" (sem score 0–1, sem ciclo trimestral hardcoded).
+export const krConfiancaEnum = z.enum(["verde", "amarelo", "vermelho"]);
+export type KrConfianca = z.infer<typeof krConfiancaEnum>;
+
+export const krCheckins = pgTable("kr_checkins", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  krId: varchar("kr_id").notNull().references(() => resultadosChave.id, { onDelete: "cascade" }),
+  empresaId: varchar("empresa_id").notNull().references(() => empresas.id, { onDelete: "cascade" }),
+  valor: decimal("valor", { precision: 10, scale: 2 }).notNull(),
+  confianca: text("confianca").notNull(),
+  comentario: text("comentario"),
+  autorId: varchar("autor_id").references(() => usuarios.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertKrCheckinSchema = createInsertSchema(krCheckins).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertKrCheckin = z.infer<typeof insertKrCheckinSchema>;
+export type KrCheckin = typeof krCheckins.$inferSelect;
 
 export const indicadores = pgTable("indicadores", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

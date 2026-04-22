@@ -10,11 +10,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 
-import { Plus, Sparkles, Target as TargetIcon, Loader2, Trash2, Edit2, TrendingUp, Users, Cog, GraduationCap, DollarSign, BookOpen, UserCheck, Link2 } from "lucide-react";
+import { Plus, Sparkles, Target as TargetIcon, Loader2, Trash2, Edit2, TrendingUp, Users, Cog, GraduationCap, DollarSign, BookOpen, UserCheck, Link2, CheckCircle2, AlertCircle, History, Wand2, Layers } from "lucide-react";
 import { PrerequisiteWarning } from "@/components/PrerequisiteWarning";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { Objetivo, ResultadoChave, AIGenerationParams } from "@shared/schema";
+import type { Objetivo, ResultadoChave, AIGenerationParams, KrCheckin } from "@shared/schema";
 import { OrigemSelector } from "@/components/OrigemSelector";
 import { CascataBlock } from "@/components/CascataBlock";
 import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
@@ -22,6 +22,7 @@ import { AIGenerationModal } from "@/components/AIGenerationModal";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -148,6 +149,272 @@ function ObjetivoCard({ objetivo, membros, estrategias, iniciativas, resultadosC
   );
 }
 
+// Task #257 — Helper para rodar quality-check do KR via API, reutilizável
+// tanto no clique do usuário quanto no fluxo automático (gerar com IA / salvar).
+async function fetchKrQualityCheck(input: {
+  metrica: string;
+  valorInicial?: string | number | null;
+  valorAlvo?: string | number | null;
+  prazo?: string | null;
+}): Promise<QualityCheckResult> {
+  return await apiRequest("POST", "/api/ai/kr-quality-check", {
+    metrica: input.metrica,
+    valorInicial: input.valorInicial ?? null,
+    valorAlvo: input.valorAlvo ?? null,
+    prazo: input.prazo ?? null,
+  }) as unknown as QualityCheckResult;
+}
+
+// Task #257 — utilitários de confiança do check-in.
+type Confianca = "verde" | "amarelo" | "vermelho";
+
+const confiancaConfig: Record<Confianca, { label: string; descricao: string; classes: string; dot: string }> = {
+  verde:    { label: "No caminho", descricao: "Vamos bater a meta no prazo.",                     classes: "border-green-300 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950 dark:text-green-300",   dot: "bg-green-500" },
+  amarelo:  { label: "Atenção",    descricao: "Algum risco — precisa ajuste.",                    classes: "border-yellow-300 bg-yellow-50 text-yellow-800 dark:border-yellow-900 dark:bg-yellow-950 dark:text-yellow-300", dot: "bg-yellow-500" },
+  vermelho: { label: "Em risco",   descricao: "Provavelmente não bate sem mudança importante.",   classes: "border-red-300 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-300",                 dot: "bg-red-500" },
+};
+
+function diasDesde(iso: string | Date | null | undefined): number | null {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  if (isNaN(t)) return null;
+  return Math.floor((Date.now() - t) / (1000 * 60 * 60 * 24));
+}
+
+interface QualityCheckResult {
+  veredito: "ok" | "precisa_ajuste";
+  problemas: Array<"parece_tarefa" | "sem_metrica" | "sem_prazo" | "vago">;
+  explicacao: string;
+  sugestaoMetrica: string;
+  sugestaoValorInicial: number | null;
+  sugestaoValorAlvo: number | null;
+  sugestaoPrazo: string;
+}
+
+interface KrQualityCheckProps {
+  metrica: string;
+  valorInicial: string;
+  valorAlvo: string;
+  prazo: string;
+  testIdPrefix?: string;
+  onAplicarSugestao?: (s: { metrica?: string; valorInicial?: string; valorAlvo?: string; prazo?: string }) => void;
+}
+
+function KrQualityCheck({ metrica, valorInicial, valorAlvo, prazo, testIdPrefix = "kr-quality", onAplicarSugestao }: KrQualityCheckProps) {
+  const [resultado, setResultado] = useState<QualityCheckResult | null>(null);
+  const { toast } = useToast();
+  const checkMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/ai/kr-quality-check", {
+        metrica,
+        valorInicial: valorInicial || null,
+        valorAlvo: valorAlvo || null,
+        prazo: prazo || null,
+      });
+      return res as unknown as QualityCheckResult;
+    },
+    onSuccess: (data) => setResultado(data),
+    onError: () => toast({ title: "Não foi possível revisar", variant: "destructive" }),
+  });
+
+  if (!metrica || metrica.trim().length < 3) return null;
+
+  const problemasLabel: Record<string, string> = {
+    parece_tarefa: "Parece tarefa, não resultado",
+    sem_metrica:   "Sem métrica numérica",
+    sem_prazo:     "Sem prazo concreto",
+    vago:          "Linguagem vaga",
+  };
+
+  return (
+    <div className="rounded-md border border-dashed border-muted-foreground/30 p-3 space-y-2" data-testid={`${testIdPrefix}-block`}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Wand2 className="h-3.5 w-3.5" />
+          <span>Revisar qualidade deste KR antes de salvar</span>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => checkMutation.mutate()}
+          disabled={checkMutation.isPending}
+          data-testid={`${testIdPrefix}-button-revisar`}
+        >
+          {checkMutation.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5 mr-1.5" />}
+          Revisar com IA
+        </Button>
+      </div>
+      {resultado && (
+        resultado.veredito === "ok" ? (
+          <div className="flex items-center gap-2 text-xs text-green-700 dark:text-green-400" data-testid={`${testIdPrefix}-veredito-ok`}>
+            <CheckCircle2 className="h-4 w-4" />
+            KR está bem formulado.
+          </div>
+        ) : (
+          <div className="space-y-2" data-testid={`${testIdPrefix}-veredito-ajuste`}>
+            <div className="flex items-start gap-2 text-xs">
+              <AlertCircle className="h-4 w-4 mt-0.5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+              <div className="space-y-1">
+                <div className="font-medium">Sugestão de melhoria</div>
+                <p className="text-muted-foreground">{resultado.explicacao}</p>
+                {resultado.problemas.length > 0 && (
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {resultado.problemas.map((p) => (
+                      <Badge key={p} variant="outline" className="text-xs">{problemasLabel[p] ?? p}</Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            {(resultado.sugestaoMetrica || resultado.sugestaoPrazo || resultado.sugestaoValorAlvo != null) && (
+              <div className="rounded bg-muted/40 p-2 text-xs space-y-1">
+                {resultado.sugestaoMetrica && (
+                  <div><span className="font-medium">Métrica:</span> {resultado.sugestaoMetrica}</div>
+                )}
+                {(resultado.sugestaoValorInicial != null || resultado.sugestaoValorAlvo != null) && (
+                  <div>
+                    <span className="font-medium">Baseline → Alvo:</span>{" "}
+                    {resultado.sugestaoValorInicial ?? (valorInicial || "?")} → {resultado.sugestaoValorAlvo ?? (valorAlvo || "?")}
+                  </div>
+                )}
+                {resultado.sugestaoPrazo && (
+                  <div><span className="font-medium">Prazo:</span> {resultado.sugestaoPrazo}</div>
+                )}
+                {onAplicarSugestao && (
+                  <div className="pt-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="default"
+                      onClick={() => {
+                        onAplicarSugestao({
+                          metrica: resultado.sugestaoMetrica || undefined,
+                          valorInicial: resultado.sugestaoValorInicial != null ? String(resultado.sugestaoValorInicial) : undefined,
+                          valorAlvo: resultado.sugestaoValorAlvo != null ? String(resultado.sugestaoValorAlvo) : undefined,
+                          prazo: resultado.sugestaoPrazo || undefined,
+                        });
+                        setResultado(null);
+                      }}
+                      data-testid={`${testIdPrefix}-button-aplicar`}
+                    >
+                      <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                      Aplicar sugestão
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
+interface CheckinDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  resultado: ResultadoChave;
+}
+
+function CheckinDialog({ open, onOpenChange, resultado }: CheckinDialogProps) {
+  const { toast } = useToast();
+  const [valor, setValor] = useState<string>(resultado.valorAtual);
+  const [confianca, setConfianca] = useState<Confianca>((resultado.confiancaAtual as Confianca) || "verde");
+  const [comentario, setComentario] = useState<string>("");
+
+  const checkinMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("POST", `/api/resultados-chave/${resultado.id}/checkin`, {
+        valor,
+        confianca,
+        comentario: comentario || null,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/resultados-chave/${resultado.objetivoId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/resultados-chave/${resultado.id}/checkins`] });
+      toast({ title: "Check-in registrado", description: "Progresso, confiança e comentário salvos." });
+      setComentario("");
+      onOpenChange(false);
+    },
+    onError: () => toast({ title: "Não foi possível registrar o check-in", variant: "destructive" }),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Check-in do KR</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="rounded-md bg-muted/40 p-3 text-sm">
+            <div className="font-medium">{resultado.metrica}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">
+              Inicial {resultado.valorInicial} → Alvo {resultado.valorAlvo}
+            </div>
+          </div>
+          <div>
+            <Label>Valor atual</Label>
+            <Input
+              type="number"
+              value={valor}
+              onChange={(e) => setValor(e.target.value)}
+              data-testid={`input-checkin-valor-${resultado.id}`}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Confiança em bater a meta</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {(Object.keys(confiancaConfig) as Confianca[]).map((c) => {
+                const cfg = confiancaConfig[c];
+                const ativo = confianca === c;
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setConfianca(c)}
+                    className={`rounded-md border p-2 text-xs text-left hover-elevate active-elevate-2 ${ativo ? cfg.classes : "border-border bg-background text-foreground"}`}
+                    data-testid={`button-checkin-confianca-${c}-${resultado.id}`}
+                  >
+                    <div className="flex items-center gap-1.5 font-medium">
+                      <span className={`inline-block h-2 w-2 rounded-full ${cfg.dot}`} />
+                      {cfg.label}
+                    </div>
+                    <div className="mt-0.5 text-[11px] opacity-80">{cfg.descricao}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div>
+            <Label>Comentário (opcional)</Label>
+            <Textarea
+              value={comentario}
+              onChange={(e) => setComentario(e.target.value)}
+              placeholder="O que mudou desde o último check-in? Bloqueios? Próximo passo?"
+              rows={3}
+              data-testid={`textarea-checkin-comentario-${resultado.id}`}
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+            <Button
+              onClick={() => checkinMutation.mutate()}
+              disabled={checkinMutation.isPending || valor === ""}
+              data-testid={`button-checkin-submit-${resultado.id}`}
+            >
+              {checkinMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+              Registrar check-in
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 interface ResultadoChaveCardProps {
   resultado: ResultadoChave;
   isEditing: boolean;
@@ -160,25 +427,39 @@ interface ResultadoChaveCardProps {
   isSaving: boolean;
   // Task #208 — usado para exibir o badge "Atacando: KPI X" no KR.
   indicadores?: Array<{ id: string; nome: string }>;
+  membros?: Membro[];
 }
 
-function ResultadoChaveCard({ resultado, isEditing, editingData, onStartEdit, onChangeEdit, onSave, onCancelEdit, onDelete, isSaving, indicadores = [] }: ResultadoChaveCardProps) {
+function ResultadoChaveCard({ resultado, isEditing, editingData, onStartEdit, onChangeEdit, onSave, onCancelEdit, onDelete, isSaving, indicadores = [], membros = [] }: ResultadoChaveCardProps) {
   const progresso = calcularProgresso(resultado.valorInicial, resultado.valorAtual, resultado.valorAlvo);
+  const [checkinOpen, setCheckinOpen] = useState(false);
+  const [historicoOpen, setHistoricoOpen] = useState(false);
+  const { data: checkins = [] } = useQuery<KrCheckin[]>({
+    queryKey: [`/api/resultados-chave/${resultado.id}/checkins`],
+    enabled: historicoOpen,
+  });
+  const responsavel = resultado.responsavelId
+    ? membros.find((m) => m.id === resultado.responsavelId)
+    : undefined;
+  const responsavelLabel = (responsavel?.nome ?? resultado.owner) || "—";
+  const confianca = (resultado.confiancaAtual as Confianca) || null;
+  const dias = diasDesde(resultado.ultimoCheckinEm);
+
   return (
     <Card className="p-4" data-testid={`card-resultado-${resultado.id}`}>
       {isEditing && editingData ? (
         <div className="space-y-3">
           <div>
-            <Label>Métrica</Label>
+            <Label>Métrica (resultado mensurável)</Label>
             <Input
               value={editingData.metrica}
               onChange={(e) => onChangeEdit({ ...editingData, metrica: e.target.value })}
               data-testid={`input-edit-metrica-${resultado.id}`}
             />
           </div>
-          {/* Calibragem: edita só baseline e meta. O valor atual (progresso) tem
-              fluxo próprio (ResultadoChaveCard / atualizar_progresso_kr) e não
-              deve ser confundido com a meta-alvo. */}
+          {/* Calibragem: edita só baseline e meta. O valor atual (progresso) é
+              registrado via Check-in (botão dedicado) e não deve ser
+              confundido com a meta-alvo. */}
           <div className="grid grid-cols-2 gap-2">
             <div>
               <Label className="text-xs">Valor inicial</Label>
@@ -192,13 +473,40 @@ function ResultadoChaveCard({ resultado, isEditing, editingData, onStartEdit, on
           <div className="grid grid-cols-2 gap-2">
             <div>
               <Label className="text-xs">Responsável</Label>
-              <Input value={editingData.owner} onChange={(e) => onChangeEdit({ ...editingData, owner: e.target.value })} data-testid={`input-edit-owner-${resultado.id}`} />
+              <Select
+                value={editingData.responsavelId || "__none__"}
+                onValueChange={(v) => onChangeEdit({ ...editingData, responsavelId: v === "__none__" ? null : v })}
+              >
+                <SelectTrigger data-testid={`select-edit-responsavel-${resultado.id}`}>
+                  <SelectValue placeholder="Selecione um membro" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sem responsável</SelectItem>
+                  {membros.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label className="text-xs">Prazo</Label>
               <Input value={editingData.prazo} onChange={(e) => onChangeEdit({ ...editingData, prazo: e.target.value })} data-testid={`input-edit-prazo-${resultado.id}`} />
             </div>
           </div>
+          <KrQualityCheck
+            metrica={editingData.metrica}
+            valorInicial={editingData.valorInicial}
+            valorAlvo={editingData.valorAlvo}
+            prazo={editingData.prazo}
+            testIdPrefix={`kr-quality-edit-${resultado.id}`}
+            onAplicarSugestao={(s) => onChangeEdit({
+              ...editingData,
+              metrica: s.metrica ?? editingData.metrica,
+              valorInicial: s.valorInicial ?? editingData.valorInicial,
+              valorAlvo: s.valorAlvo ?? editingData.valorAlvo,
+              prazo: s.prazo ?? editingData.prazo,
+            })}
+          />
           <div className="flex gap-2">
             <Button onClick={onSave} disabled={isSaving} size="sm" data-testid={`button-save-resultado-${resultado.id}`}>
               Salvar
@@ -210,16 +518,16 @@ function ResultadoChaveCard({ resultado, isEditing, editingData, onStartEdit, on
         </div>
       ) : (
         <div>
-          <div className="flex items-start justify-between mb-3">
-            <div className="flex-1">
-              <h5 className="font-semibold text-sm mb-1">{resultado.metrica}</h5>
-              <div className="flex gap-4 text-xs text-muted-foreground">
+          <div className="flex items-start justify-between gap-2 mb-3">
+            <div className="flex-1 min-w-0">
+              <h5 className="font-semibold text-sm mb-1 break-words">{resultado.metrica}</h5>
+              <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
                 <span>Inicial: {resultado.valorInicial}</span>
                 <span>Atual: {resultado.valorAtual}</span>
                 <span>Alvo: {resultado.valorAlvo}</span>
               </div>
             </div>
-            <div className="flex gap-1">
+            <div className="flex gap-1 flex-shrink-0">
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onStartEdit(resultado)} data-testid={`button-edit-resultado-${resultado.id}`}>
                 <Edit2 className="h-3 w-3" />
               </Button>
@@ -235,8 +543,72 @@ function ResultadoChaveCard({ resultado, isEditing, editingData, onStartEdit, on
             </div>
             <Progress value={progresso} className="h-2" data-testid={`progress-resultado-${resultado.id}`} />
           </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              onClick={() => setCheckinOpen(true)}
+              data-testid={`button-checkin-${resultado.id}`}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+              Check-in
+            </Button>
+            {confianca && (
+              <Badge variant="outline" className={`gap-1.5 ${confiancaConfig[confianca].classes}`} data-testid={`badge-confianca-${resultado.id}`}>
+                <span className={`inline-block h-2 w-2 rounded-full ${confiancaConfig[confianca].dot}`} />
+                {confiancaConfig[confianca].label}
+              </Badge>
+            )}
+            {dias != null ? (
+              <span className={`text-xs ${dias > 14 ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`} data-testid={`text-ultimo-checkin-${resultado.id}`}>
+                Último check-in {dias === 0 ? "hoje" : `há ${dias} dia(s)`}
+              </span>
+            ) : (
+              <span className="text-xs text-muted-foreground" data-testid={`text-ultimo-checkin-${resultado.id}`}>
+                Sem check-in registrado
+              </span>
+            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              className="ml-auto"
+              onClick={() => setHistoricoOpen((v) => !v)}
+              data-testid={`button-toggle-historico-${resultado.id}`}
+            >
+              <History className="h-3.5 w-3.5 mr-1.5" />
+              {historicoOpen ? "Ocultar" : "Histórico"}
+            </Button>
+          </div>
+          {resultado.ultimoCheckinComentario && (
+            <p className="mt-2 text-xs text-muted-foreground italic" data-testid={`text-ultimo-comentario-${resultado.id}`}>
+              "{resultado.ultimoCheckinComentario}"
+            </p>
+          )}
+          {historicoOpen && (
+            <div className="mt-3 rounded-md border bg-muted/30 p-2 space-y-1.5" data-testid={`historico-${resultado.id}`}>
+              {checkins.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Sem registros ainda.</p>
+              ) : (
+                checkins.map((c) => {
+                  const cfg = confiancaConfig[(c.confianca as Confianca)] ?? confiancaConfig.verde;
+                  return (
+                    <div key={c.id} className="text-xs flex items-start gap-2" data-testid={`historico-item-${c.id}`}>
+                      <span className={`inline-block h-2 w-2 rounded-full mt-1.5 flex-shrink-0 ${cfg.dot}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap gap-x-2 gap-y-0">
+                          <span className="font-medium">{c.valor}</span>
+                          <span className="text-muted-foreground">— {cfg.label}</span>
+                          <span className="text-muted-foreground">· {new Date(c.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        {c.comentario && <p className="text-muted-foreground mt-0.5 break-words">{c.comentario}</p>}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
           <div className="flex justify-between mt-2 text-xs text-muted-foreground">
-            <span>Responsável: {resultado.owner}</span>
+            <span data-testid={`text-responsavel-${resultado.id}`}>Responsável: {responsavelLabel}</span>
             <span>Prazo: {resultado.prazo}</span>
           </div>
           {/* Task #208 — Badge "Atacando: KPI X" quando o KR está vinculado
@@ -254,6 +626,7 @@ function ResultadoChaveCard({ resultado, isEditing, editingData, onStartEdit, on
           })()}
         </div>
       )}
+      <CheckinDialog open={checkinOpen} onOpenChange={setCheckinOpen} resultado={resultado} />
     </Card>
   );
 }
@@ -280,6 +653,7 @@ export default function OKRs() {
     valorAtual: "",
     owner: "",
     prazo: "",
+    responsavelId: "" as string,
   });
   const [dialogNovoResultadoOpen, setDialogNovoResultadoOpen] = useState(false);
   const [editandoObjetivo, setEditandoObjetivo] = useState(false);
@@ -422,20 +796,50 @@ export default function OKRs() {
       const objetivoId = vars.objetivoId;
       if (data.resultados && data.resultados.length > 0) {
         toast({
-          title: "Métricas Geradas!",
-          description: `${data.resultados.length} métrica(s) de progresso sugerida(s) pela IA.`,
+          title: "Resultados-chave gerados",
+          description: `${data.resultados.length} KR(s) salvo(s). Rodando revisão de qualidade...`,
         });
+        // Task #257 — `responsavelId` é a fonte de verdade. Tenta casar
+        // o `owner` textual sugerido pela IA com um membro real e
+        // persiste já com o id do responsável.
+        const novosKrs: ResultadoChave[] = [];
         for (const res of data.resultados) {
-          await criarResultadoMutation.mutateAsync({
+          const membroAi = membros.find(m =>
+            m.nome.toLowerCase() === (res.owner || "").toLowerCase()
+            || m.email?.toLowerCase() === (res.owner || "").toLowerCase()
+          );
+          const created = await criarResultadoMutation.mutateAsync({
             objetivoId,
             metrica: res.metrica,
             valorInicial: res.valorInicial.toString(),
             valorAlvo: res.valorAlvo.toString(),
             valorAtual: res.valorAtual.toString(),
-            owner: res.owner,
+            owner: membroAi?.nome || res.owner || "—",
+            responsavelId: membroAi?.id ?? null,
             prazo: res.prazo,
-          });
+          }) as unknown as ResultadoChave;
+          if (created?.id) novosKrs.push(created);
         }
+        // Task #257 — Quality-check inline (não-bloqueante) sobre cada KR
+        // recém-salvo. Os achados aparecem no banner com botão 1-clique
+        // "Aplicar sugestão" que dispara o update do KR persistido.
+        const avisos: Array<{ krId: string; metrica: string; verdict: QualityCheckResult }> = [];
+        for (const kr of novosKrs) {
+          try {
+            const verdict = await fetchKrQualityCheck({
+              metrica: kr.metrica,
+              valorInicial: kr.valorInicial,
+              valorAlvo: kr.valorAlvo,
+              prazo: kr.prazo,
+            });
+            if (verdict.veredito === "precisa_ajuste") {
+              avisos.push({ krId: kr.id, metrica: kr.metrica, verdict });
+            }
+          } catch {
+            // ignora falhas do quality-check; é orientativo.
+          }
+        }
+        if (avisos.length > 0) setAiKrAvisos(avisos);
       } else {
         toast({
           title: "Nenhum resultado novo",
@@ -576,26 +980,41 @@ export default function OKRs() {
     });
   };
 
+  // Task #257 — Quality-check é APENAS orientativo: nunca gateia o save.
+  // O componente <KrQualityCheck/> roda inline no formulário (manual via
+  // botão "Revisar com IA"). Após o save de KRs gerados pela IA, rodamos
+  // a revisão em background e exibimos um banner advisor com aplicação
+  // 1-clique — o KR já está persistido nesse momento.
+  const [aiKrAvisos, setAiKrAvisos] = useState<Array<{ krId: string; metrica: string; verdict: QualityCheckResult }>>([]);
+
   const handleCriarResultado = async () => {
     if (!objetivoSelecionado) return;
 
-    if (!novoResultado.metrica || !novoResultado.valorInicial || !novoResultado.valorAlvo || !novoResultado.owner || !novoResultado.prazo) {
+    // Task #257 — `responsavelId` passa a ser a fonte de verdade do dono do KR.
+    // O campo legado `owner` (NOT NULL no banco) é sintetizado a partir do nome
+    // do membro selecionado para manter compatibilidade até a migração final.
+    const membro = membros.find(m => m.id === novoResultado.responsavelId);
+    const ownerSint = membro?.nome || novoResultado.owner || "—";
+
+    if (!novoResultado.metrica || !novoResultado.valorInicial || !novoResultado.valorAlvo || !novoResultado.responsavelId || !novoResultado.prazo) {
       toast({
         title: "Campos obrigatórios",
-        description: "Preencha todos os campos da métrica.",
+        description: "Métrica, valores, responsável e prazo são obrigatórios.",
         variant: "destructive",
       });
       return;
     }
 
-    await criarResultadoMutation.mutateAsync({
+    const created = await criarResultadoMutation.mutateAsync({
       objetivoId: objetivoSelecionado.id,
       ...novoResultado,
+      owner: ownerSint,
+      responsavelId: novoResultado.responsavelId,
       // valor_atual é NOT NULL no banco; quando o usuário (ou o Assistente
       // via "ajustar") não informa, assume o valor inicial — o KR começa
       // com 0% de progresso, o que é o comportamento esperado.
       valorAtual: novoResultado.valorAtual?.trim() ? novoResultado.valorAtual : novoResultado.valorInicial,
-    });
+    }) as unknown as ResultadoChave;
 
     setNovoResultado({
       metrica: "",
@@ -604,12 +1023,40 @@ export default function OKRs() {
       valorAtual: "",
       owner: "",
       prazo: "",
+      responsavelId: "",
     });
     setDialogNovoResultadoOpen(false);
     toast({
       title: "Resultado-chave criado!",
       description: "Novo resultado adicionado ao objetivo.",
     });
+    // Task #257 — Quality-check automático e não-bloqueante após salvar.
+    // Se a IA detectar problemas, surfaceia inline no banner advisor com
+    // botão 1-clique para aplicar a sugestão sobre o KR já persistido.
+    if (created?.id) {
+      void runQualityCheckPosSave(created);
+    }
+  };
+
+  // Helper: dispara quality-check sobre um KR persistido e empurra o
+  // resultado para o banner de avisos (não-bloqueante).
+  const runQualityCheckPosSave = async (kr: ResultadoChave) => {
+    try {
+      const verdict = await fetchKrQualityCheck({
+        metrica: kr.metrica,
+        valorInicial: kr.valorInicial,
+        valorAlvo: kr.valorAlvo,
+        prazo: kr.prazo,
+      });
+      if (verdict.veredito === "precisa_ajuste") {
+        setAiKrAvisos((prev) => {
+          const semDup = prev.filter((a) => a.krId !== kr.id);
+          return [...semDup, { krId: kr.id, metrica: kr.metrica, verdict }];
+        });
+      }
+    } catch {
+      // ignora — orientativo
+    }
   };
 
   const handleEditarResultado = async () => {
@@ -618,18 +1065,27 @@ export default function OKRs() {
     // Calibragem da meta: não enviamos valorAtual. O progresso só muda pelo
     // fluxo dedicado (atualizar_progresso_kr), evitando ambiguidade entre
     // ajustar a meta-alvo e registrar o avanço atual.
+    // Task #257 — sincroniza `owner` (legado, NOT NULL) com o nome do membro
+    // selecionado em `responsavelId` (fonte de verdade).
+    const membroEd = membros.find(m => m.id === editandoResultado.responsavelId);
+    const ownerSintEd = membroEd?.nome || editandoResultado.owner || "—";
+
+    const krAtualizado = editandoResultado;
     await editarResultadoMutation.mutateAsync({
       id: editandoResultado.id,
       data: {
         metrica: editandoResultado.metrica,
         valorInicial: editandoResultado.valorInicial,
         valorAlvo: editandoResultado.valorAlvo,
-        owner: editandoResultado.owner,
+        owner: ownerSintEd,
+        responsavelId: editandoResultado.responsavelId,
         prazo: editandoResultado.prazo,
       },
     });
 
     setEditandoResultado(null);
+    // Task #257 — Quality-check automático e não-bloqueante após editar.
+    void runQualityCheckPosSave(krAtualizado);
   };
 
   const objetivosPorPerspectiva = (perspectiva: string) => {
@@ -668,6 +1124,7 @@ export default function OKRs() {
           valorAlvo: params.valorAlvo || "",
           owner: params.owner || "",
           prazo: params.prazo || "",
+          responsavelId: params.responsavelId || "",
         });
         setDialogNovoResultadoOpen(true);
         return true;
@@ -741,6 +1198,7 @@ export default function OKRs() {
           valorAlvo: params.valorAlvo || "",
           owner: params.owner || "",
           prazo: params.prazo || "",
+          responsavelId: params.responsavelId || "",
         });
         setDialogResultadosOpen(true);
         return true;
@@ -802,6 +1260,22 @@ export default function OKRs() {
           variante="info"
         />
       )}
+      {/* Task #257 — Reposiciona OKRs como camada TÁTICA do BSC. Cabeçalho
+          explicativo com o microcopy oficial: BSC define o "para onde",
+          os Objetivos táticos quebram em Resultados-Chave mensuráveis,
+          que por sua vez ATACAM os KPIs do dashboard. */}
+      <Card className="mb-4 p-4 border-l-4 border-l-primary" data-testid="banner-bsc-okr">
+        <div className="flex items-start gap-3">
+          <Layers className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+          <div className="space-y-1">
+            <div className="text-sm font-semibold">Camada tática da sua estratégia BSC</div>
+            <p className="text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">Objetivo BSC</span> → <span className="font-medium text-foreground">Objetivos táticos</span> → <span className="font-medium text-foreground">Resultados-chave mensuráveis</span> → <span className="font-medium text-foreground">KPI atacado</span>.
+              Esta página executa o BSC: a cada quinzena, registre um <em>check-in</em> em cada Resultado-chave (valor + nível de confiança).
+            </p>
+          </div>
+        </div>
+      </Card>
       <PageHeader
         title="Objetivos e Metas"
         description="Defina onde quer chegar e como vai medir o progresso. Cada objetivo tem métricas de acompanhamento com prazo definido."
@@ -830,7 +1304,10 @@ export default function OKRs() {
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Criar Novo Objetivo</DialogTitle>
+                  <DialogTitle>Criar Objetivo tático</DialogTitle>
+                  <DialogDescription>
+                    Etapa de execução do Objetivo BSC. Resultados-chave abaixo dele medirão o progresso e atacarão os KPIs.
+                  </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div>
@@ -1267,7 +1744,10 @@ export default function OKRs() {
                     </DialogTrigger>
                     <DialogContent>
                       <DialogHeader>
-                        <DialogTitle>Nova Métrica de Progresso</DialogTitle>
+                        <DialogTitle>Novo Resultado-chave</DialogTitle>
+                        <DialogDescription>
+                          Métrica mensurável que evidencia o avanço do Objetivo tático e ataca um KPI do BSC.
+                        </DialogDescription>
                       </DialogHeader>
                       <div className="space-y-4 py-4">
                         <div>
@@ -1314,12 +1794,19 @@ export default function OKRs() {
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <Label>Responsável</Label>
-                            <Input
-                              placeholder="Nome do responsável"
-                              value={novoResultado.owner}
-                              onChange={(e) => setNovoResultado({ ...novoResultado, owner: e.target.value })}
-                              data-testid="input-resultado-owner"
-                            />
+                            <Select
+                              value={novoResultado.responsavelId || ""}
+                              onValueChange={(v) => setNovoResultado({ ...novoResultado, responsavelId: v })}
+                            >
+                              <SelectTrigger data-testid="select-resultado-responsavel">
+                                <SelectValue placeholder="Selecione um membro" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {membros.map(m => (
+                                  <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
                           <div>
                             <Label>Prazo</Label>
@@ -1331,6 +1818,20 @@ export default function OKRs() {
                             />
                           </div>
                         </div>
+                        <KrQualityCheck
+                          metrica={novoResultado.metrica}
+                          valorInicial={novoResultado.valorInicial}
+                          valorAlvo={novoResultado.valorAlvo}
+                          prazo={novoResultado.prazo}
+                          testIdPrefix="kr-quality-novo"
+                          onAplicarSugestao={(s) => setNovoResultado({
+                            ...novoResultado,
+                            metrica: s.metrica ?? novoResultado.metrica,
+                            valorInicial: s.valorInicial ?? novoResultado.valorInicial,
+                            valorAlvo: s.valorAlvo ?? novoResultado.valorAlvo,
+                            prazo: s.prazo ?? novoResultado.prazo,
+                          })}
+                        />
                         <Button
                           onClick={handleCriarResultado}
                           className="w-full"
@@ -1340,7 +1841,7 @@ export default function OKRs() {
                           {criarResultadoMutation.isPending ? (
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                           ) : null}
-                          Criar Métrica
+                          Criar Resultado-chave
                         </Button>
                       </div>
                     </DialogContent>
@@ -1348,6 +1849,69 @@ export default function OKRs() {
                 </div>
               </div>
 
+              {aiKrAvisos.length > 0 ? (
+                <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950 space-y-3" data-testid="banner-ai-quality-avisos">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="font-medium text-amber-900 dark:text-amber-200">
+                        Revisão de qualidade dos KRs gerados pela IA
+                      </div>
+                      <div className="text-amber-900/80 dark:text-amber-200/80">
+                        {aiKrAvisos.length} resultado-chave precisa(m) de atenção. Aplicar a sugestão atualiza o KR salvo.
+                      </div>
+                    </div>
+                    <Button size="sm" variant="ghost" onClick={() => setAiKrAvisos([])} data-testid="button-fechar-avisos-ai">
+                      Dispensar
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {aiKrAvisos.map(({ krId, metrica, verdict }) => (
+                      <div key={krId} className="rounded border border-amber-200 bg-white p-2 dark:border-amber-800 dark:bg-amber-900/40" data-testid={`aviso-ai-${krId}`}>
+                        <div className="text-xs text-muted-foreground">KR salvo</div>
+                        <div className="font-medium">{metrica}</div>
+                        {verdict.problemas.length > 0 && (
+                          <ul className="mt-1 ml-4 list-disc text-xs text-amber-900 dark:text-amber-200">
+                            {verdict.problemas.map((p, i) => (
+                              <li key={i}>{p}</li>
+                            ))}
+                          </ul>
+                        )}
+                        {verdict.sugestaoMetrica && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={async () => {
+                                await editarResultadoMutation.mutateAsync({
+                                  id: krId,
+                                  data: {
+                                    metrica: verdict.sugestaoMetrica ?? undefined,
+                                    valorInicial: verdict.sugestaoValorInicial != null ? String(verdict.sugestaoValorInicial) : undefined,
+                                    valorAlvo: verdict.sugestaoValorAlvo != null ? String(verdict.sugestaoValorAlvo) : undefined,
+                                    prazo: verdict.sugestaoPrazo ?? undefined,
+                                  },
+                                });
+                                setAiKrAvisos((prev) => prev.filter((a) => a.krId !== krId));
+                              }}
+                              data-testid={`button-aplicar-sugestao-ai-${krId}`}
+                            >
+                              Aplicar sugestão
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setAiKrAvisos((prev) => prev.filter((a) => a.krId !== krId))}
+                              data-testid={`button-ignorar-aviso-ai-${krId}`}
+                            >
+                              Ignorar
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               {resultadosChave.length === 0 ? (
                 <div className="text-center py-8 text-sm text-muted-foreground">
                   Nenhuma métrica de progresso definida ainda
@@ -1367,6 +1931,7 @@ export default function OKRs() {
                       onDelete={(id) => deletarResultadoMutation.mutate(id)}
                       isSaving={editarResultadoMutation.isPending}
                       indicadores={indicadoresLista}
+                      membros={membros}
                     />
                   ))}
                 </div>

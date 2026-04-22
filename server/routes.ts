@@ -2348,6 +2348,118 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Task #257 — Check-in de KR (camada tática de execução do BSC):
+  // grava valor + nível de confiança (verde/amarelo/vermelho) + comentário
+  // e atualiza o cache leve no próprio KR.
+  const checkinKrSchema = z.object({
+    valor: z.union([z.number(), z.string()]).transform((v) => Number(v)),
+    confianca: z.enum(["verde", "amarelo", "vermelho"]),
+    comentario: z.string().max(800).optional().nullable(),
+  });
+
+  app.get("/api/resultados-chave/:id/checkins", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const empresaId = req.session.empresaId!;
+      const kr = await storage.getResultadoChaveById(id, empresaId);
+      if (!kr) return res.status(404).json({ error: "KR não encontrado" });
+      const checkins = await storage.getKrCheckins(id, empresaId);
+      res.json(checkins);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/resultados-chave/:id/checkin", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const empresaId = req.session.empresaId!;
+      const data = checkinKrSchema.parse(req.body);
+      const kr = await storage.getResultadoChaveById(id, empresaId);
+      if (!kr) return res.status(404).json({ error: "KR não encontrado" });
+      if (Number.isNaN(data.valor)) {
+        return res.status(400).json({ error: "Valor inválido" });
+      }
+      const checkin = await storage.createKrCheckin({
+        krId: id,
+        empresaId,
+        valor: String(data.valor),
+        confianca: data.confianca,
+        comentario: data.comentario || null,
+        autorId: req.session.userId ?? null,
+      });
+      const krAtualizado = await storage.updateResultadoChave(id, empresaId, {
+        valorAtual: String(data.valor),
+        confiancaAtual: data.confianca,
+        ultimoCheckinEm: new Date(),
+        ultimoCheckinComentario: data.comentario || null,
+      });
+      res.json({ kr: krAtualizado, checkin });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // Task #257 — Quality-check inline para KR (parece_tarefa, sem_metrica,
+  // sem_prazo, vago) usando IA. Retorna veredito + sugestão de reescrita.
+  const qualityCheckSchema = z.object({
+    metrica: z.string().min(1).max(400),
+    valorInicial: z.union([z.number(), z.string()]).optional().nullable(),
+    valorAlvo: z.union([z.number(), z.string()]).optional().nullable(),
+    prazo: z.string().optional().nullable(),
+  });
+
+  app.post("/api/ai/kr-quality-check", async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const data = qualityCheckSchema.parse(req.body);
+      const empresa = await storage.getEmpresa(empresaId);
+      const ctx = empresa ? buildEmpresaContextoIA(empresa) : "";
+
+      const completion = await openai.chat.completions.create({
+        model: getModelForPlan(empresa?.planoTipo, "relatorios"),
+        messages: [
+          {
+            role: "system",
+            content:
+              "Você é um consultor estratégico que revisa Resultados-Chave (KRs) — a camada TÁTICA de execução de uma estratégia BSC. Um bom KR descreve um RESULTADO mensurável (não uma tarefa), tem métrica numérica clara, baseline → alvo, e prazo concreto. Seja rigoroso e objetivo. Use linguagem simples em português.",
+          },
+          {
+            role: "user",
+            content:
+              `${ctx}\n\nRevise este KR:\n` +
+              `- Métrica: ${data.metrica}\n` +
+              `- Valor inicial: ${data.valorInicial ?? "(não informado)"}\n` +
+              `- Valor-alvo: ${data.valorAlvo ?? "(não informado)"}\n` +
+              `- Prazo: ${data.prazo || "(não informado)"}\n\n` +
+              `Identifique problemas entre estes códigos:\n` +
+              `- "parece_tarefa": descreve uma ação/projeto e não um resultado mensurável (ex: "Implantar CRM").\n` +
+              `- "sem_metrica": não há métrica numérica clara ou unidade.\n` +
+              `- "sem_prazo": prazo ausente ou genérico demais.\n` +
+              `- "vago": linguagem subjetiva sem critério objetivo de sucesso (ex: "melhorar atendimento").\n\n` +
+              `Responda em JSON com este formato exato:\n` +
+              `{\n` +
+              `  "veredito": "ok" | "precisa_ajuste",\n` +
+              `  "problemas": ["parece_tarefa" | "sem_metrica" | "sem_prazo" | "vago"],\n` +
+              `  "explicacao": "frase curta (1-2 linhas) explicando ao usuário o que está errado",\n` +
+              `  "sugestaoMetrica": "reescrita da métrica em 1 frase, focada em RESULTADO mensurável (ou string vazia se já estiver ok)",\n` +
+              `  "sugestaoValorInicial": número ou null,\n` +
+              `  "sugestaoValorAlvo": número ou null,\n` +
+              `  "sugestaoPrazo": "prazo concreto ou string vazia"\n` +
+              `}\n` +
+              `Se o KR estiver bom, retorne veredito "ok", problemas: [] e sugestões vazias.`,
+          },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.2,
+      });
+      const parsed = JSON.parse(completion.choices[0].message.content || "{}");
+      res.json(parsed);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // ==================== INDICADORES ====================
 
   app.get("/api/indicadores", async (req, res) => {

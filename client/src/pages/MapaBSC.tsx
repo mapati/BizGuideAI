@@ -197,6 +197,22 @@ export default function MapaBSC() {
                     return (
                       <div key={obj.id} className="bg-background rounded-md p-3 border border-border/50" data-testid={`obj-card-${obj.id}`}>
                         <p className="text-sm font-medium leading-snug">{obj.titulo}</p>
+                        {/* Task #319 — Mostrar a justificativa de causa-e-efeito do
+                            modo BSC (frase "Habilita: ...") quando o Objetivo foi
+                            criado pelo wizard e não é da perspectiva Financeira. */}
+                        {obj.origemModoBSC &&
+                          obj.perspectiva !== "Financeira" &&
+                          obj.justificativaCausaEfeito && (
+                            <div
+                              className="mt-2 rounded-md bg-muted/40 p-2 text-xs"
+                              data-testid={`text-mapa-justificativa-${obj.id}`}
+                            >
+                              <span className="font-medium">Habilita: </span>
+                              <span className="text-muted-foreground">
+                                {obj.justificativaCausaEfeito}
+                              </span>
+                            </div>
+                          )}
                         {destinos.length > 0 && (
                           <div className="mt-2 space-y-1">
                             {destinos.map(d => {

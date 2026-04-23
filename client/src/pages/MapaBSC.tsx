@@ -4,10 +4,11 @@ import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, Trash2, DollarSign, Users, Cog, GraduationCap, ArrowDown, ArrowRight, ArrowLeftRight } from "lucide-react";
+import { Loader2, Plus, Trash2, Pencil, DollarSign, Users, Cog, GraduationCap, ArrowDown, ArrowRight, ArrowLeftRight } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Objetivo, BscRelacao } from "@shared/schema";
@@ -27,6 +28,8 @@ export default function MapaBSC() {
   const [origemId, setOrigemId] = useState("");
   const [destinoId, setDestinoId] = useState("");
   const [tipo, setTipo] = useState<TipoRelacao>("causa_efeito");
+  const [editingRelacao, setEditingRelacao] = useState<BscRelacao | null>(null);
+  const [editJustificativa, setEditJustificativa] = useState("");
 
   const { data: objetivos = [] } = useQuery<Objetivo[]>({ queryKey: ["/api/objetivos"] });
   const { data: relacoes = [], isLoading } = useQuery<BscRelacao[]>({ queryKey: ["/api/bsc-relacoes"] });
@@ -50,6 +53,23 @@ export default function MapaBSC() {
     mutationFn: (id: string) => apiRequest("DELETE", `/api/bsc-relacoes/${id}`),
     onSuccess: () => { inv(); toast({ title: "Relação removida" }); },
   });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, justificativa }: { id: string; justificativa: string }) =>
+      apiRequest("PATCH", `/api/bsc-relacoes/${id}`, { justificativa }),
+    onSuccess: () => {
+      inv();
+      setEditingRelacao(null);
+      setEditJustificativa("");
+      toast({ title: "Justificativa atualizada" });
+    },
+    onError: () => toast({ title: "Erro ao salvar justificativa", variant: "destructive" }),
+  });
+
+  const openEdit = (rel: BscRelacao) => {
+    setEditingRelacao(rel);
+    setEditJustificativa(rel.justificativa ?? "");
+  };
 
   const objetivosByPerspectiva = perspectivas.map(p => ({
     ...p,
@@ -111,7 +131,15 @@ export default function MapaBSC() {
                         <Badge variant={isCausa ? "default" : "secondary"} className="ml-2" data-testid={`badge-tipo-${rel.id}`}>
                           {isCausa ? "Causa-efeito" : "Correlação"}
                         </Badge>
-                        <Button size="icon" variant="ghost" className="ml-auto flex-shrink-0" onClick={() => deleteMut.mutate(rel.id)} data-testid={`button-delete-relacao-${rel.id}`}>
+                        {rel.justificativa && (
+                          <span className="text-xs text-muted-foreground italic truncate max-w-[260px]" data-testid={`text-justificativa-${rel.id}`} title={rel.justificativa}>
+                            "{rel.justificativa}"
+                          </span>
+                        )}
+                        <Button size="icon" variant="ghost" className="ml-auto flex-shrink-0" onClick={() => openEdit(rel)} data-testid={`button-edit-relacao-${rel.id}`}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="flex-shrink-0" onClick={() => deleteMut.mutate(rel.id)} data-testid={`button-delete-relacao-${rel.id}`}>
                           <Trash2 className="h-3.5 w-3.5 text-destructive" />
                         </Button>
                       </div>
@@ -220,6 +248,50 @@ export default function MapaBSC() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingRelacao} onOpenChange={(o) => { if (!o) { setEditingRelacao(null); setEditJustificativa(""); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar justificativa</DialogTitle>
+          </DialogHeader>
+          {editingRelacao && (
+            <div className="space-y-4 pt-2">
+              <div className="text-sm flex items-center gap-2 flex-wrap">
+                <span className="font-medium">{getObj(editingRelacao.origemId)?.titulo || "?"}</span>
+                {(editingRelacao.tipo as TipoRelacao) === "correlacao" ? (
+                  <ArrowLeftRight className="h-3.5 w-3.5 text-muted-foreground" />
+                ) : (
+                  <ArrowRight className="h-3.5 w-3.5 text-foreground" />
+                )}
+                <span>{getObj(editingRelacao.destinoId)?.titulo || "?"}</span>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-justificativa">Justificativa</Label>
+                <Textarea
+                  id="edit-justificativa"
+                  value={editJustificativa}
+                  onChange={(e) => setEditJustificativa(e.target.value)}
+                  placeholder="Explique por que essa relação existe..."
+                  rows={5}
+                  data-testid="textarea-justificativa"
+                />
+                <p className="text-xs text-muted-foreground">Esse texto aparece como tooltip nos badges de causa e efeito da página de OKRs.</p>
+              </div>
+              <div className="flex gap-2 justify-end pt-2">
+                <Button variant="outline" onClick={() => { setEditingRelacao(null); setEditJustificativa(""); }}>Cancelar</Button>
+                <Button
+                  onClick={() => updateMut.mutate({ id: editingRelacao.id, justificativa: editJustificativa.trim() })}
+                  disabled={updateMut.isPending}
+                  data-testid="button-salvar-justificativa"
+                >
+                  {updateMut.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  Salvar
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

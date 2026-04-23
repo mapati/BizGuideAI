@@ -8898,6 +8898,13 @@ Seja específico para o setor ${empresa.setor}.`,
       res.status(201).json(await storage.createBscRelacao(data));
     } catch (e: any) { res.status(400).json({ error: e.message }); }
   });
+  app.patch("/api/bsc-relacoes/:id", requireAuth, async (req, res) => {
+    try {
+      const { justificativa } = z.object({ justificativa: z.string().nullable().optional() }).parse(req.body);
+      const updated = await storage.updateBscRelacao(req.params.id, req.session.empresaId!, { justificativa: justificativa ?? null });
+      res.json(updated);
+    } catch (e: any) { res.status(400).json({ error: e.message }); }
+  });
   app.delete("/api/bsc-relacoes/:id", requireAuth, async (req, res) => {
     await storage.deleteBscRelacao(req.params.id, req.session.empresaId!);
     res.json({ ok: true });

@@ -208,6 +208,7 @@ export interface IStorage {
 
   getBscRelacoes(empresaId: string): Promise<BscRelacao[]>;
   createBscRelacao(relacao: InsertBscRelacao): Promise<BscRelacao>;
+  updateBscRelacao(id: string, empresaId: string, data: { justificativa?: string | null }): Promise<BscRelacao>;
   deleteBscRelacao(id: string, empresaId: string): Promise<void>;
 
   getCompartilhamentos(empresaId: string): Promise<Compartilhamento[]>;
@@ -809,6 +810,11 @@ export class DbStorage implements IStorage {
   }
   async createBscRelacao(relacao: InsertBscRelacao): Promise<BscRelacao> {
     const result = await db.insert(bscRelacoes).values(relacao).returning();
+    return result[0];
+  }
+  async updateBscRelacao(id: string, empresaId: string, data: { justificativa?: string | null }): Promise<BscRelacao> {
+    const result = await db.update(bscRelacoes).set(data).where(and(eq(bscRelacoes.id, id), eq(bscRelacoes.empresaId, empresaId))).returning();
+    if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
     return result[0];
   }
   async deleteBscRelacao(id: string, empresaId: string): Promise<void> {

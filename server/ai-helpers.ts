@@ -153,6 +153,16 @@ REGRAS DO LOOP:
 - Continue o plano um passo por vez. Não proponha vários passos juntos.
 - Sempre vincule a proposta ao plano via planoId/passoOrdem.
 - Se o usuário desistir, use cancelar_plano_agentico. Se já cumpriu o objetivo, use concluir_plano_agentico.`);
+    } else {
+      // Estado explícito: NÃO há plano ativo. Sem este bloco, o LLM pode
+      // alucinar que ainda existe um plano ativo com base no histórico da
+      // conversa (ex.: plano que foi concluído/cancelado nesta mesma sessão).
+      blocos.push(`## PLANO AGÊNTICO ATIVO
+Não há plano agêntico ativo no momento para este usuário nesta empresa.
+
+REGRAS:
+- Se o usuário perguntar "qual plano está ativo?" ou similar, responda explicitamente que NÃO há plano ativo agora — não invente um plano com base em conversas anteriores.
+- Se o usuário pedir para retomar/continuar/concluir/cancelar "o plano", esclareça que nenhum plano está em andamento e ofereça criar um novo se fizer sentido.`);
     }
 
     // Task #199 — também sinaliza plano ativo de OUTRO membro do time

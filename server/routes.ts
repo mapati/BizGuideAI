@@ -4613,6 +4613,11 @@ REGRA DE PREFERÊNCIA DE TOOLS (item específico vs área):
 - Use "navegar_para" SOMENTE quando o pedido for explorar uma área inteira sem alvo específico (ex.: "me leva para os indicadores", "abre a tela de riscos").
 - Se houver ambiguidade (dois itens com nome parecido no catálogo), pergunte em texto qual deles antes de chamar a tool.
 
+EVITAR DUPLICATAS E LOOPS (Task #333):
+- ANTES de chamar criar_iniciativa, escaneie o "## CATÁLOGO" (seção Iniciativas) procurando títulos parecidos com o que o usuário descreveu — mesmo que ele use palavras um pouco diferentes (ex.: "reuniões periódicas de alinhamento de OKRs" ≈ "alinhamento periódico das OKRs"). Se encontrar candidato razoavelmente próximo, NÃO crie um item novo: ou (a) chame atualizar_iniciativa / encerrar_iniciativa no item existente, ou (b) pergunte em texto qual deles ele quis dizer. O sistema também bloqueia criar_iniciativa duplicada — se você receber um erro citando candidatos similares, NÃO repita a criação; proponha atualizar/encerrar um dos candidatos ou peça desambiguação.
+- atualizar_iniciativa exige ao menos UM campo de mudança real além do id (titulo, descricao, prioridade, prazo, prazoData, status ou responsavel). Nunca chame atualizar_iniciativa só com {id}, e nunca repita os mesmos valores que já estão no catálogo — isso é tratado como no-op e gera erro. Se o usuário pediu "atualizar" sem dizer o que mudar, pergunte em texto o que ele quer alterar antes de propor.
+- Se já existe uma proposta aberta (card pendente) para o passo do plano em andamento, NÃO emita uma nova tool_call para a mesma ação. Espere o usuário confirmar/ajustar/ignorar o card atual antes de propor outra coisa. Em caso de dúvida, responda só em texto reconhecendo o card pendente.
+
 QUALIDADE DO PLANO:
 - O bloco "## QUALIDADE DO PLANO" traz um score determinístico (0-100), as dimensões abaixo de 70% e as lacunas mais críticas com IDs reais. Quando o usuário pedir avaliação do plano ou perguntar coisas como "estou no caminho?", "como está meu plano?" ou "o que posso melhorar?", cite o score, as 1-2 dimensões mais fracas e ataque PRIMEIRO as lacunas com severidade "alta" — propondo correções via tools com os IDs listados no próprio bloco. Não invente lacunas que não estão lá.
 - Para lacunas do tipo "iniciativa sem KPI vinculado" prefira a tool vincular_iniciativa_a_kpi (não atualizar_iniciativa). Para "iniciativa parada/atrasada há muito tempo" (>60 dias sem evolução) considere dividir_iniciativa em 2-5 entregas executáveis em vez de só atualizar a data.
@@ -4889,9 +4894,46 @@ ${ctx.join("\n\n")}`;
 
         const rawText = (choice.message.content ?? "").trim();
         // Após o loop, descarta eventuais lookup/readonly calls residuais — só HITL viram propostas.
-        const toolCalls = (choice.message.tool_calls ?? [])
+        let toolCalls = (choice.message.tool_calls ?? [])
           .filter((c) => !isLookupName(c.function.name))
           .slice(0, 3);
+
+        // Task #333 — Trava anti-repetição no turno conversacional.
+        // Se já existe um passo `em_andamento` com proposta pendente
+        // vinculada, descartamos novas tool_calls para evitar o loop em
+        // que o LLM re-emite a mesma ação a cada "Continue" do usuário.
+        // Em vez de gerar mais um card vazio, o Bizzy avisa em texto que
+        // existe uma proposta aberta a resolver primeiro.
+        let avisoPropostaPendente: string | null = null;
+        if (toolCalls.length > 0) {
+          try {
+            const planoAtivoCheck = await storage.getPlanoAtivoEmpresaUsuario(
+              empresaId,
+              req.session.userId ?? null,
+            );
+            if (planoAtivoCheck && planoAtivoCheck.status === "ativo") {
+              const passosCheck = await storage.listPassosByPlano(planoAtivoCheck.id);
+              const emAndamento = passosCheck.find(
+                (p) => p.status === "em_andamento" && p.propostaId,
+              );
+              if (emAndamento && emAndamento.propostaId) {
+                const logPend = await storage.getPropostaLog(emAndamento.propostaId);
+                if (logPend && logPend.status === "proposta") {
+                  avisoPropostaPendente = `Ainda existe uma proposta aberta para o passo ${emAndamento.ordem} ("${emAndamento.titulo}"). Confirme, ajuste ou ignore o card antes de eu seguir.`;
+                  console.info("[ASSISTENTE] Tool calls suprimidos por proposta pendente:", {
+                    planoId: planoAtivoCheck.id,
+                    passoOrdem: emAndamento.ordem,
+                    propostaId: emAndamento.propostaId,
+                    toolsDescartadas: toolCalls.map((c) => c.function.name),
+                  });
+                  toolCalls = [];
+                }
+              }
+            }
+          } catch (err) {
+            console.warn("[ASSISTENTE] Falha na trava anti-repetição:", err);
+          }
+        }
 
         const propostas: Array<{
           logId: string;
@@ -4899,6 +4941,10 @@ ${ctx.join("\n\n")}`;
           preview: unknown;
           parametros: Record<string, unknown>;
         }> = [];
+        // Task #333 — Coleta erros de registrarProposta (ex.: duplicata
+        // de iniciativa, atualizar_iniciativa só com {id}) para anexar
+        // ao texto final do assistente, dando feedback útil ao usuário.
+        const errosPropostas: string[] = [];
 
         for (const call of toolCalls) {
           if (clientGone) break;
@@ -4925,6 +4971,7 @@ ${ctx.join("\n\n")}`;
             });
           } else {
             console.warn(`[ASSISTENTE] Tool call rejeitada (${call.function.name}): ${result.mensagem}`);
+            errosPropostas.push(result.mensagem);
           }
         }
 
@@ -4942,12 +4989,22 @@ ${ctx.join("\n\n")}`;
             })()
           : null;
 
-        // Fallback: se modelo não chamou tool e não retornou texto, devolve mensagem padrão
-        const respostaFinal =
+        // Fallback: se modelo não chamou tool e não retornou texto, devolve mensagem padrão.
+        // Task #333 — quando a trava anti-repetição cortou tool_calls ou
+        // quando registrarProposta rejeitou propostas (ex.: duplicata,
+        // no-op), surfa o aviso/erro no texto para o usuário entender.
+        const partesAviso: string[] = [];
+        if (avisoPropostaPendente) partesAviso.push(avisoPropostaPendente);
+        if (errosPropostas.length > 0) partesAviso.push(...errosPropostas);
+        const baseTexto =
           rawText ||
           (propostas.length > 0
             ? "Preparei algumas ações para você revisar abaixo."
             : "Não consegui formular uma resposta agora. Tente reformular a pergunta.");
+        const respostaFinal =
+          partesAviso.length > 0
+            ? [baseTexto, ...partesAviso].filter(Boolean).join("\n\n")
+            : baseTexto;
 
         // Task #221 — persiste a mensagem do assistente e dispara extração
         // de memória em background a cada ~6 mensagens do usuário.
@@ -5144,7 +5201,9 @@ ${ctxAcoes}
 INSTRUÇÕES:
 - Proponha O PRÓXIMO PASSO (passo ${proxPendente.ordem}: "${proxPendente.titulo}") chamando a tool executora apropriada com planoId="${planoRow.id}" e passoOrdem=${proxPendente.ordem}.
 - Apenas UMA proposta. Texto curto (1-2 frases) explicando o que está sendo proposto e por quê.
-- Se o resultado anterior já invalidou o passo seguinte, prefira pular: chame cancelar_plano_agentico explicando o motivo.`;
+- Se o resultado anterior já invalidou o passo seguinte, prefira pular: chame cancelar_plano_agentico explicando o motivo.
+- Antes de chamar criar_iniciativa, escaneie o catálogo procurando títulos parecidos — se já houver iniciativa ativa equivalente, prefira atualizar_iniciativa/encerrar_iniciativa nela em vez de duplicar.
+- Para atualizar_iniciativa, envie no mínimo um campo de mudança real (titulo, descricao, prioridade, prazo, prazoData, status ou responsavel) com valor DIFERENTE do atual. Nunca envie só {id, planoId, passoOrdem} — o sistema rejeita como no-op.`;
 
     const completion = await openai.chat.completions.create({
       model: modelo,

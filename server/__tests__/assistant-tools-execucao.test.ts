@@ -78,6 +78,9 @@ vi.mock("../storage", () => {
 
     // Iniciativas
     getIniciativa: vi.fn(async (id: string) => fake.iniciativas.get(id)),
+    getIniciativas: vi.fn(async (empresaId: string) =>
+      Array.from(fake.iniciativas.values()).filter((i) => i.empresaId === empresaId),
+    ),
     createIniciativa: vi.fn(async (data: Partial<Iniciativa>) => {
       const row = {
         id: randomUUID(),
@@ -456,6 +459,24 @@ describe("criar_iniciativa", () => {
     expect(created?.estrategiaId).toBeFalsy();
     expect(created?.prazoData).toBe("2026-12-31");
   });
+
+  // Task #333 — Defesa em profundidade contra duplicatas no apply.
+  it("apply bloqueia título duplicado (similaridade ≥ 0.6) listando candidatos", async () => {
+    seedIniciativa(EMPRESA_A, {
+      titulo: "Promover reuniões periódicas de alinhamento e revisão dos OKRs",
+      status: "em_andamento",
+    });
+    const p = parse("criar_iniciativa", {
+      titulo:
+        "Criar iniciativa para definir responsáveis e metas nas reuniões periódicas de alinhamento dos OKRs",
+      descricao: "Estruturar cadência das reuniões de OKRs",
+      prazo: "Q4 2026",
+      prazoData: "2026-12-31",
+    });
+    await expect(tool("criar_iniciativa").apply(p, ctxA)).rejects.toThrow(
+      /iniciativa parecida/i,
+    );
+  });
 });
 
 // ─── 2. atualizar_iniciativa ────────────────────────────────────────────
@@ -504,6 +525,32 @@ describe("atualizar_iniciativa", () => {
     expect(updated.status).toBe("em_andamento");
     expect(updated.prazoData).toBeNull();
     expect(updated.titulo).toBe("Iniciativa base");
+  });
+
+  // Task #333 — schema rejeita atualizar_iniciativa só com {id} (sem campos a alterar).
+  it("schema rejeita params sem nenhum campo de mudança além do id", () => {
+    expect(() =>
+      parse("atualizar_iniciativa", { id: "12345678-aaaa" }),
+    ).toThrow(/ao menos um campo/i);
+  });
+
+  // Task #333 — apply detecta no-op (todos os campos enviados batem com o estado atual).
+  it("apply rejeita no-op quando todos os campos enviados batem com o estado atual", async () => {
+    const i = seedIniciativa(EMPRESA_A, {
+      titulo: "Iniciativa estável",
+      status: "em_andamento",
+      prioridade: "média",
+      responsavel: "Ana",
+    });
+    const p = parse("atualizar_iniciativa", {
+      id: i.id,
+      status: "em_andamento", // mesmo valor
+      prioridade: "média",     // mesmo valor
+      responsavel: "Ana",       // mesmo valor
+    });
+    await expect(tool("atualizar_iniciativa").apply(p, ctxA)).rejects.toThrow(
+      /nada a alterar/i,
+    );
   });
 
   it("enrichPreview anexa valorAnterior somente em campos alterados", async () => {

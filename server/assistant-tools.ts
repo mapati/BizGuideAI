@@ -213,6 +213,111 @@ const prazoDataOptNullable = z
   .nullable()
   .optional();
 
+// ── Task #333 — Detecção determinística de iniciativas duplicadas ─────
+// Usado no `apply` de criar_iniciativa e na pré-validação de
+// registrarProposta. Normaliza acentos/case/pontuação, tokeniza, remove
+// stopwords PT-BR e calcula max(jaccard, containment). Limiar 0.6 prefere
+// "alarme falso" (que vira pedido de desambiguação ao usuário) a perder
+// duplicata real. Sem libs externas — implementação local intencional.
+const STOPWORDS_PT = new Set([
+  "a","o","as","os","de","da","do","das","dos","e","em","no","na","nos","nas",
+  "para","por","com","sem","ao","aos","à","às","um","uma","uns","umas","que",
+  "se","ou","como","já","ja","mais","menos","muito","muita","muitos","muitas",
+  "essa","esse","essas","esses","esta","este","estas","estes","isso","isto",
+  "mas","então","entao","sobre","quando","onde","qual","quais","sua","seu",
+  "suas","seus","nosso","nossa","nossos","nossas","ser","ter","fazer",
+]);
+
+function normalizarTexto(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokenizarTitulo(s: string): string[] {
+  return normalizarTexto(s)
+    .split(" ")
+    .filter((t) => t.length >= 3 && !STOPWORDS_PT.has(t));
+}
+
+function similaridadeTitulos(a: string, b: string): number {
+  const na = normalizarTexto(a);
+  const nb = normalizarTexto(b);
+  if (!na || !nb) return 0;
+  if (na === nb) return 1;
+  const ta = tokenizarTitulo(a);
+  const tb = tokenizarTitulo(b);
+  if (ta.length === 0 || tb.length === 0) return 0;
+  const sa = new Set(ta);
+  const sb = new Set(tb);
+  let inter = 0;
+  sa.forEach((t) => { if (sb.has(t)) inter++; });
+  const uniSet = new Set<string>();
+  sa.forEach((t) => uniSet.add(t));
+  sb.forEach((t) => uniSet.add(t));
+  const jaccard = inter / uniSet.size;
+  const containment = inter / Math.min(sa.size, sb.size);
+  return Math.max(jaccard, containment);
+}
+
+const SIMILARIDADE_LIMITE_INICIATIVA = 0.6;
+
+export interface IniciativaSimilarMatch {
+  id: string;
+  titulo: string;
+  status: string;
+  similaridade: number;
+}
+
+/**
+ * Retorna até 3 iniciativas ATIVAS (não concluida/cancelada) da mesma
+ * empresa cujo título tem similaridade ≥ limite com o novo título.
+ * Ordenado por similaridade descendente.
+ */
+export async function buscarIniciativasSimilares(
+  empresaId: string,
+  novoTitulo: string,
+  opts: { limite?: number } = {},
+): Promise<IniciativaSimilarMatch[]> {
+  const limite = opts.limite ?? 3;
+  // Status terminais a ignorar: cobre formas canônicas + variantes legadas
+  // com acento ("concluída") e formas históricas ("encerrada", "arquivada").
+  const STATUS_TERMINAIS = new Set([
+    "concluida", "concluída", "cancelada", "encerrada", "arquivada",
+  ]);
+  try {
+    const todas = await storage.getIniciativas(empresaId);
+    const ativas = todas.filter((i) => !STATUS_TERMINAIS.has(i.status));
+    const matches: IniciativaSimilarMatch[] = [];
+    for (const i of ativas) {
+      const sim = similaridadeTitulos(novoTitulo, i.titulo);
+      if (sim >= SIMILARIDADE_LIMITE_INICIATIVA) {
+        matches.push({ id: i.id, titulo: i.titulo, status: i.status, similaridade: sim });
+      }
+    }
+    matches.sort((x, y) => y.similaridade - x.similaridade);
+    return matches.slice(0, limite);
+  } catch {
+    return [];
+  }
+}
+
+export class IniciativaDuplicadaError extends Error {
+  constructor(public candidatos: IniciativaSimilarMatch[]) {
+    const lista = candidatos
+      .map((c) => `• "${c.titulo}" (id=${c.id}, status=${c.status})`)
+      .join("\n");
+    super(
+      `Já existe iniciativa parecida nesta empresa. Em vez de criar uma nova, atualize/encerre uma das existentes ou pergunte ao usuário qual ele quis dizer:\n${lista}`,
+    );
+    this.name = "IniciativaDuplicadaError";
+  }
+}
+
 // ---------- 1. criar_iniciativa ----------
 const criarIniciativaSchema = z.object({
   titulo: z.string().min(3).max(200),
@@ -267,6 +372,13 @@ const criarIniciativa: ToolDefinition<CriarIniciativaParams> = {
     ctaAjustar: "Ajustar",
   }),
   apply: async (p, ctx) => {
+    // Task #333 — Defesa em profundidade: bloqueia duplicata também no apply
+    // caso a pré-validação em registrarProposta não tenha sido executada
+    // (ex.: lote, briefing, retrocompatibilidade futura).
+    const candidatos = await buscarIniciativasSimilares(ctx.empresaId, p.titulo);
+    if (candidatos.length > 0) {
+      throw new IniciativaDuplicadaError(candidatos);
+    }
     // Validação de tenant para FK opcional: se estrategiaId vier, precisa
     // pertencer à mesma empresa — caso contrário, ignora o vínculo para
     // não criar referência cruzada entre tenants.
@@ -306,18 +418,36 @@ const criarIniciativa: ToolDefinition<CriarIniciativaParams> = {
 };
 
 // ---------- 2. atualizar_iniciativa ----------
-const atualizarIniciativaSchema = z.object({
-  id: z.string().min(8),
-  titulo: z.string().min(3).max(200).optional(),
-  descricao: z.string().max(1000).optional(),
-  prioridade: z.enum(PRIORIDADES).optional(),
-  prazo: z.string().max(32).optional(),
-  // Task #268 — passe `prazoData` (YYYY-MM-DD) para calendarizar o prazo
-  // da iniciativa, ou `null` para limpar a data normalizada.
-  prazoData: prazoDataOptNullable,
-  status: z.enum(STATUS_INICIATIVA).optional(),
-  responsavel: z.string().max(120).optional(),
-});
+// Task #333 — `.refine` exige ao menos um campo de mudança além do `id`.
+// Bloqueia o caso em que o LLM emite `atualizar_iniciativa` só com o `id`
+// (que entrava em loop, gerando proposta vazia a cada turno).
+const ATUALIZAR_INICIATIVA_CAMPOS_MUTAVEIS = [
+  "titulo", "descricao", "prioridade", "prazo", "prazoData", "status", "responsavel",
+] as const;
+
+const atualizarIniciativaSchema = z
+  .object({
+    id: z.string().min(8),
+    titulo: z.string().min(3).max(200).optional(),
+    descricao: z.string().max(1000).optional(),
+    prioridade: z.enum(PRIORIDADES).optional(),
+    prazo: z.string().max(32).optional(),
+    // Task #268 — passe `prazoData` (YYYY-MM-DD) para calendarizar o prazo
+    // da iniciativa, ou `null` para limpar a data normalizada.
+    prazoData: prazoDataOptNullable,
+    status: z.enum(STATUS_INICIATIVA).optional(),
+    responsavel: z.string().max(120).optional(),
+  })
+  .refine(
+    (data) =>
+      ATUALIZAR_INICIATIVA_CAMPOS_MUTAVEIS.some(
+        (k) => (data as Record<string, unknown>)[k] !== undefined,
+      ),
+    {
+      message:
+        "atualizar_iniciativa precisa de ao menos um campo a alterar além do id (titulo, descricao, prioridade, prazo, prazoData, status ou responsavel).",
+    },
+  );
 type AtualizarIniciativaParams = z.infer<typeof atualizarIniciativaSchema>;
 
 const atualizarIniciativa: ToolDefinition<AtualizarIniciativaParams> = {
@@ -371,6 +501,25 @@ const atualizarIniciativa: ToolDefinition<AtualizarIniciativaParams> = {
     if (p.prazoData !== undefined) patch.prazoData = p.prazoData;
     if (p.status) patch.status = p.status;
     if (p.responsavel !== undefined) patch.responsavel = p.responsavel;
+
+    // Task #333 — Detecta no-op: todos os campos enviados batem com o
+    // estado atual. Bloqueia o card "Atualizar iniciativa" sem mudança
+    // alguma (que entrava em loop a cada Continue do usuário).
+    const mudancas: string[] = [];
+    for (const [k, v] of Object.entries(patch) as Array<[keyof typeof existing, unknown]>) {
+      const atual = existing[k] as unknown;
+      const igual =
+        atual === v ||
+        (atual == null && v == null) ||
+        (typeof atual === "string" && typeof v === "string" && atual === v);
+      if (!igual) mudancas.push(String(k));
+    }
+    if (mudancas.length === 0) {
+      throw new Error(
+        `Nada a alterar nesta iniciativa: todos os campos enviados já batem com o estado atual de "${existing.titulo}". Confirme com o usuário o que ele quer mudar antes de propor de novo.`,
+      );
+    }
+
     const updated = await storage.updateIniciativa(p.id, ctx.empresaId, patch);
     return {
       resumo: `Iniciativa "${updated.titulo}" atualizada.`,
@@ -6384,6 +6533,26 @@ export async function registrarProposta(opts: {
       ok: false,
       mensagem: `Parâmetros inválidos para ${opts.toolName}: ${parsed.error.message.slice(0, 200)}`,
     };
+  }
+
+  // Task #333 — Pré-validação determinística de duplicidade para
+  // criar_iniciativa: evita gerar card de proposta quando já existe item
+  // muito parecido na mesma empresa. O LLM, ao ver o erro estruturado,
+  // deve propor atualizar/encerrar/abrir um dos candidatos.
+  if (tool.name === "criar_iniciativa") {
+    const tituloNovo = (parsed.data as { titulo?: string }).titulo;
+    if (typeof tituloNovo === "string" && tituloNovo.length > 0) {
+      const candidatos = await buscarIniciativasSimilares(opts.empresaId, tituloNovo);
+      if (candidatos.length > 0) {
+        const lista = candidatos
+          .map((c) => `• "${c.titulo}" (id=${c.id}, status=${c.status})`)
+          .join("\n");
+        return {
+          ok: false,
+          mensagem: `Já existe iniciativa parecida nesta empresa — não criei "${tituloNovo}" para evitar duplicidade. Candidatos:\n${lista}\nProponha atualizar/encerrar um deles ou pergunte ao usuário qual ele quis dizer.`,
+        };
+      }
+    }
   }
 
   let preview = tool.preview(parsed.data);

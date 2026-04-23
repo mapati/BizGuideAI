@@ -783,7 +783,7 @@ export const propostaPreviewSchema = z.object({
   })).default([]),
   ctaConfirmar: z.string().default("Confirmar"),
   ctaIgnorar: z.string().default("Ignorar"),
-  ctaAjustar: z.string().default("Ajustar"),
+  ctaAjustar: z.string().optional(),
   // Task #288 — Quando a proposta é uma meta-tool de lote (`proposta_em_lote`),
   // este campo descreve cada sub-mudança para o card expandir e permitir
   // "Confirmar tudo" ou "Revisar item a item".

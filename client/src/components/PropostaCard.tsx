@@ -170,11 +170,29 @@ const FERRAMENTAS_LABEL: Record<string, string> = {
 const TOOLS_AUTO_NAVEGAR: ReadonlySet<string> = new Set(["abrir_entidade", "navegar_para"]);
 
 // Tools que não têm "campos a ajustar" — o botão Ajustar não faz sentido.
+// Inclui ações que apenas mudam status, removem vínculos, acionam processos
+// ou são gerenciadas exclusivamente pelo Bizzy (planos agênticos).
 const TOOLS_SEM_AJUSTE: ReadonlySet<string> = new Set([
   "abrir_entidade",
   "navegar_para",
-  "cancelar_plano_agentico",
+  // Planos agênticos — só o Bizzy decide o conteúdo
+  "criar_plano_agentico",
   "concluir_plano_agentico",
+  "cancelar_plano_agentico",
+  // Arquivar / encerrar — só muda status
+  "arquivar_objetivo",
+  "arquivar_item_swot",
+  "arquivar_fator_pestel",
+  "arquivar_oportunidade",
+  "arquivar_estrategia",
+  "arquivar_bloco_bmc",
+  "arquivar_cenario",
+  "encerrar_iniciativa",
+  // Remoções / esquecimento
+  "esquecer_fato",
+  "remover_relacao_bsc",
+  // Acionamento de processos sem campos a editar
+  "gerar_resumo_ciclo_manual",
 ]);
 
 export function PropostaCard({

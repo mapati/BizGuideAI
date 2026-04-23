@@ -280,7 +280,7 @@ vi.mock("../storage", () => {
 });
 
 // Importes pós-mock
-import { getTool } from "../assistant-tools";
+import { getTool, IniciativaDuplicadaError } from "../assistant-tools";
 
 const EMPRESA_A = "empresa-a";
 const EMPRESA_B = "empresa-b";
@@ -461,8 +461,11 @@ describe("criar_iniciativa", () => {
   });
 
   // Task #333 — Defesa em profundidade contra duplicatas no apply.
+  // Verifica que o erro lançado é IniciativaDuplicadaError, expõe os
+  // candidatos com id/titulo/status e que a mensagem cita o título existente
+  // — esses dados são o que o Bizzy precisa para propor recovery.
   it("apply bloqueia título duplicado (similaridade ≥ 0.6) listando candidatos", async () => {
-    seedIniciativa(EMPRESA_A, {
+    const existente = seedIniciativa(EMPRESA_A, {
       titulo: "Promover reuniões periódicas de alinhamento e revisão dos OKRs",
       status: "em_andamento",
     });
@@ -473,9 +476,46 @@ describe("criar_iniciativa", () => {
       prazo: "Q4 2026",
       prazoData: "2026-12-31",
     });
-    await expect(tool("criar_iniciativa").apply(p, ctxA)).rejects.toThrow(
-      /iniciativa parecida/i,
-    );
+    let lancado: unknown = null;
+    try {
+      await tool("criar_iniciativa").apply(p, ctxA);
+    } catch (err) {
+      lancado = err;
+    }
+    expect(lancado).toBeInstanceOf(IniciativaDuplicadaError);
+    const erro = lancado as IniciativaDuplicadaError;
+    expect(erro.candidatos.length).toBeGreaterThanOrEqual(1);
+    const match = erro.candidatos.find((c) => c.id === existente.id);
+    expect(match).toBeDefined();
+    expect(match!.titulo).toBe(existente.titulo);
+    expect(match!.status).toBe("em_andamento");
+    expect(match!.similaridade).toBeGreaterThanOrEqual(0.6);
+    expect(erro.message).toContain(existente.titulo);
+    expect(erro.message).toContain(existente.id);
+  });
+
+  // Task #333 — Status terminais (incluindo variantes legadas com acento)
+  // não devem disparar o bloqueio de duplicata: iniciativas concluídas/
+  // canceladas/encerradas/arquivadas estão fora do radar.
+  it("apply NÃO bloqueia quando o item parecido já está em status terminal", async () => {
+    seedIniciativa(EMPRESA_A, {
+      titulo: "Promover reuniões periódicas de alinhamento e revisão dos OKRs",
+      status: "concluida",
+    });
+    seedIniciativa(EMPRESA_A, {
+      titulo: "Promover reuniões periódicas de alinhamento e revisão dos OKRs (v2)",
+      status: "cancelada",
+    });
+    const p = parse("criar_iniciativa", {
+      titulo: "Reuniões periódicas de alinhamento dos OKRs — nova rodada",
+      descricao: "Recomeçar a cadência das reuniões de OKRs",
+      prazo: "Q4 2026",
+      prazoData: "2026-12-31",
+    });
+    const res = await tool("criar_iniciativa").apply(p, ctxA);
+    expect(res.entidadeId).toBeTruthy();
+    const created = fake.iniciativas.get(res.entidadeId!);
+    expect(created?.empresaId).toBe(EMPRESA_A);
   });
 });
 

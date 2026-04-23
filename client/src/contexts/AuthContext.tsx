@@ -131,6 +131,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setTrialInfo(null);
     setPlanoInfo(null);
     queryClient.clear();
+    // Task #313 — Garante que o próximo login comece em conversa nova,
+    // mesmo que a aba do navegador continue aberta.
+    try {
+      sessionStorage.removeItem("bizzy:conversaId");
+    } catch {}
     navigate("/login");
   };
 

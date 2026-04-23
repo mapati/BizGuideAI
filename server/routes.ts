@@ -3976,6 +3976,89 @@ Responda OBRIGATORIAMENTE em JSON:
 
   // Hidratar conversa ativa (<12h sem encerrar). Retorna { conversa, mensagens }
   // ou { conversa: null } se não houver — frontend mostra estado limpo.
+  // Task #313 — Lista de conversas anteriores (para a aba Histórico estilo ChatGPT).
+  app.get("/api/ai/conversas", requireAuth, async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const usuarioId = req.session.userId ?? null;
+      const limitRaw = Number(req.query.limit ?? 50);
+      const offsetRaw = Number(req.query.offset ?? 0);
+      const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.trunc(limitRaw), 1), 200) : 50;
+      const offset = Number.isFinite(offsetRaw) ? Math.max(Math.trunc(offsetRaw), 0) : 0;
+      const conversas = await storage.listConversasByUsuario(empresaId, usuarioId, { limit, offset });
+      res.json({ conversas });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ error: message });
+    }
+  });
+
+  // Task #313 — Helper de autorização: usuário só pode acessar conversa da
+  // própria empresa E que seja sua (ou compartilhada com usuarioId=null).
+  // Evita IDOR intra-tenant entre membros da mesma empresa.
+  async function carregarConversaAutorizada(req: Request, conversaId: string) {
+    const empresaId = req.session.empresaId!;
+    const usuarioId = req.session.userId ?? null;
+    const conversa = await storage.getConversa(conversaId);
+    if (!conversa) return null;
+    if (conversa.empresaId !== empresaId) return null;
+    if (conversa.usuarioId !== null && conversa.usuarioId !== usuarioId) return null;
+    return conversa;
+  }
+
+  // Task #313 — Carregar uma conversa específica (mensagens) para retomar.
+  app.get("/api/ai/conversas/:id/mensagens", requireAuth, async (req, res) => {
+    try {
+      const conversa = await carregarConversaAutorizada(req, req.params.id);
+      if (!conversa) {
+        return res.status(404).json({ error: "Conversa não encontrada." });
+      }
+      const limitRaw = Number(req.query.limit ?? 200);
+      const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.trunc(limitRaw), 1), 500) : 200;
+      const mensagens = await storage.getMensagens(conversa.id, limit);
+      res.json({ conversa, mensagens });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ error: message });
+    }
+  });
+
+  // Task #313 — Renomear conversa.
+  app.patch("/api/ai/conversas/:id", requireAuth, async (req, res) => {
+    try {
+      const { titulo } = (req.body ?? {}) as { titulo?: string };
+      if (typeof titulo !== "string" || !titulo.trim()) {
+        return res.status(400).json({ error: "Campo 'titulo' é obrigatório." });
+      }
+      const conversa = await carregarConversaAutorizada(req, req.params.id);
+      if (!conversa) {
+        return res.status(404).json({ error: "Conversa não encontrada." });
+      }
+      const atualizada = await storage.renameConversa(conversa.id, titulo.trim());
+      res.json({ conversa: atualizada });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ error: message });
+    }
+  });
+
+  // Task #313 — Excluir conversa (cascade via FK em mensagens).
+  app.delete("/api/ai/conversas/:id", requireAuth, async (req, res) => {
+    try {
+      const conversa = await carregarConversaAutorizada(req, req.params.id);
+      if (!conversa) {
+        return res.status(404).json({ error: "Conversa não encontrada." });
+      }
+      await storage.deleteConversa(conversa.id);
+      res.json({ ok: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ error: message });
+    }
+  });
+
+  // DEPRECATED (Task #313) — mantida por retrocompatibilidade; o frontend
+  // novo usa sessionStorage + GET /api/ai/conversas/:id/mensagens.
   app.get("/api/ai/conversas/ativa", requireAuth, async (req, res) => {
     try {
       const empresaId = req.session.empresaId!;

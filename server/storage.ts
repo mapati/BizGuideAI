@@ -355,6 +355,14 @@ export interface IStorage {
   encerrarConversa(id: string): Promise<void>;
   appendMensagem(input: InsertAssistenteMensagem): Promise<AssistenteMensagem>;
   getMensagens(conversaId: string, limit?: number): Promise<AssistenteMensagem[]>;
+  // Task #313 — Lista de conversas anteriores do usuário (estilo ChatGPT).
+  listConversasByUsuario(
+    empresaId: string,
+    usuarioId: string | null,
+    opts?: { limit?: number; offset?: number },
+  ): Promise<Array<AssistenteConversa & { previaUltimaMensagem: string | null; totalMensagens: number }>>;
+  renameConversa(id: string, titulo: string): Promise<AssistenteConversa | undefined>;
+  deleteConversa(id: string): Promise<void>;
   countMensagensUsuario(conversaId: string): Promise<number>;
   upsertMemoria(empresaId: string, fato: string, categoria: string, fonteMensagemId: string | null): Promise<AssistenteMemoria>;
   getMemoriaAtiva(empresaId: string, limit?: number): Promise<AssistenteMemoria[]>;
@@ -1927,6 +1935,75 @@ export class DbStorage implements IStorage {
       .orderBy(desc(assistenteMensagens.criadaEm))
       .limit(limit);
     return rows.reverse();
+  }
+
+  async listConversasByUsuario(
+    empresaId: string,
+    usuarioId: string | null,
+    opts: { limit?: number; offset?: number } = {},
+  ): Promise<Array<AssistenteConversa & { previaUltimaMensagem: string | null; totalMensagens: number }>> {
+    const limit = Math.min(Math.max(opts.limit ?? 50, 1), 200);
+    const offset = Math.max(opts.offset ?? 0, 0);
+    const cond = and(
+      eq(assistenteConversas.empresaId, empresaId),
+      usuarioId
+        ? or(isNull(assistenteConversas.usuarioId), eq(assistenteConversas.usuarioId, usuarioId))
+        : isNull(assistenteConversas.usuarioId),
+    );
+    const conversas = await db
+      .select()
+      .from(assistenteConversas)
+      .where(cond)
+      .orderBy(desc(assistenteConversas.ultimaInteracaoEm))
+      .limit(limit)
+      .offset(offset);
+    if (conversas.length === 0) return [];
+    const ids = conversas.map((c) => c.id);
+    // Busca prévias da última mensagem do assistente e totais por conversa.
+    const msgs = await db
+      .select({
+        conversaId: assistenteMensagens.conversaId,
+        role: assistenteMensagens.role,
+        content: assistenteMensagens.content,
+        criadaEm: assistenteMensagens.criadaEm,
+      })
+      .from(assistenteMensagens)
+      .where(inArray(assistenteMensagens.conversaId, ids));
+    const totals = new Map<string, number>();
+    const previas = new Map<string, { content: string; criadaEm: Date; role: string }>();
+    for (const m of msgs) {
+      totals.set(m.conversaId, (totals.get(m.conversaId) ?? 0) + 1);
+      const cur = previas.get(m.conversaId);
+      if (m.role === "assistant") {
+        if (!cur || cur.role !== "assistant" || (m.criadaEm > cur.criadaEm)) {
+          previas.set(m.conversaId, { content: m.content, criadaEm: m.criadaEm, role: m.role });
+        }
+      } else if (!cur) {
+        previas.set(m.conversaId, { content: m.content, criadaEm: m.criadaEm, role: m.role });
+      }
+    }
+    return conversas.map((c) => {
+      const p = previas.get(c.id);
+      const previa = p?.content ? p.content.replace(/\s+/g, " ").trim().slice(0, 80) : null;
+      return {
+        ...c,
+        previaUltimaMensagem: previa,
+        totalMensagens: totals.get(c.id) ?? 0,
+      };
+    });
+  }
+
+  async renameConversa(id: string, titulo: string): Promise<AssistenteConversa | undefined> {
+    const [row] = await db
+      .update(assistenteConversas)
+      .set({ titulo: titulo.slice(0, 200) })
+      .where(eq(assistenteConversas.id, id))
+      .returning();
+    return row;
+  }
+
+  async deleteConversa(id: string): Promise<void> {
+    await db.delete(assistenteConversas).where(eq(assistenteConversas.id, id));
   }
 
   async countMensagensUsuario(conversaId: string): Promise<number> {

@@ -9,6 +9,7 @@ import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
 import { useAIModalLocked } from "@/contexts/ai-modal-lock";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AssistantChat } from "@/components/AssistantChat";
+import { ConversasHistorico } from "@/components/ConversasHistorico";
 import { PropostaHistorico } from "@/components/PropostaHistorico";
 import { GuiaContent } from "@/components/GuiaContent";
 import { BizzyAvatar } from "@/components/BizzyAvatar";
@@ -26,20 +27,18 @@ export function AssistantSidebar() {
   const isMobile = useIsMobile();
 
   const [open, setOpen] = useState<boolean>(false);
+  const [tab, setTab] = useState<string>("chat");
+  // Task #313 — id de conversa solicitado a partir da aba Histórico.
+  const [conversaParaCarregar, setConversaParaCarregar] = useState<string | null>(null);
 
-  // Define o estado inicial uma única vez por carregamento de página, baseado
-  // no modo: Guia Estratégico (jornada incompleta) abre por padrão para
-  // apresentar a ferramenta; Assistente (jornada concluída) inicia fechado
-  // para um visual mais limpo no dia a dia.
   const initialAppliedRef = useRef(false);
   useEffect(() => {
     if (jornadaLoading || initialAppliedRef.current) return;
     initialAppliedRef.current = true;
-    if (isMobile) return; // mobile sempre inicia fechado para não cobrir o conteúdo
+    if (isMobile) return;
     setOpen(!jornadaConcluida);
   }, [jornadaLoading, jornadaConcluida, isMobile]);
 
-  // Permite que componentes filhos peçam para fechar (ex.: PropostaCard ao "Ajustar").
   useEffect(() => {
     const onClose = () => setOpen(false);
     const onOpen = () => setOpen(true);
@@ -102,45 +101,69 @@ export function AssistantSidebar() {
           </div>
         )}
 
-        {/* Tabs Chat / Planos / Histórico — todos forceMount para preservar
-            estado da conversa e dos filtros ao trocar de aba. */}
         {!showGuia && (
-        <div className={cn("flex-1 min-h-0 flex flex-col", !open && "hidden")}>
-          <Tabs defaultValue="chat" className="flex-1 min-h-0 flex flex-col">
-            <TabsList
-              className="grid grid-cols-3 mx-3 mt-2 mb-1 flex-shrink-0"
-              data-testid="tabs-assistant-sidebar"
-            >
-              <TabsTrigger value="chat" data-testid="tab-chat">Chat</TabsTrigger>
-              <TabsTrigger value="planos" data-testid="tab-planos">Planos</TabsTrigger>
-              <TabsTrigger value="historico" data-testid="tab-historico">Histórico</TabsTrigger>
-            </TabsList>
-            <TabsContent
-              value="chat"
-              forceMount
-              className="flex-1 min-h-0 mt-0 data-[state=inactive]:hidden flex flex-col"
-            >
-              <AssistantChat
-                alertas={alertas}
-                onCloseDrawer={() => setOpen(false)}
-              />
-            </TabsContent>
-            <TabsContent
-              value="planos"
-              forceMount
-              className="flex-1 min-h-0 mt-0 data-[state=inactive]:hidden overflow-y-auto p-3"
-            >
-              <PlanosAgenticosLista />
-            </TabsContent>
-            <TabsContent
-              value="historico"
-              forceMount
-              className="flex-1 min-h-0 mt-0 data-[state=inactive]:hidden flex flex-col"
-            >
-              <PropostaHistorico />
-            </TabsContent>
-          </Tabs>
-        </div>
+          <div className={cn("flex-1 min-h-0 flex flex-col", !open && "hidden")}>
+            <Tabs value={tab} onValueChange={setTab} className="flex-1 min-h-0 flex flex-col">
+              <TabsList
+                className="grid grid-cols-3 mx-3 mt-2 mb-1 flex-shrink-0"
+                data-testid="tabs-assistant-sidebar"
+              >
+                <TabsTrigger value="chat" data-testid="tab-chat">Chat</TabsTrigger>
+                <TabsTrigger value="planos" data-testid="tab-planos">Planos</TabsTrigger>
+                <TabsTrigger value="historico" data-testid="tab-historico">Histórico</TabsTrigger>
+              </TabsList>
+              <TabsContent
+                value="chat"
+                forceMount
+                className="flex-1 min-h-0 mt-0 data-[state=inactive]:hidden flex flex-col"
+              >
+                <AssistantChat
+                  alertas={alertas}
+                  onCloseDrawer={() => setOpen(false)}
+                  loadConversaId={conversaParaCarregar}
+                  onConversaLoaded={() => setConversaParaCarregar(null)}
+                />
+              </TabsContent>
+              <TabsContent
+                value="planos"
+                forceMount
+                className="flex-1 min-h-0 mt-0 data-[state=inactive]:hidden overflow-y-auto"
+              >
+                <div className="p-3">
+                  <PlanosAgenticosLista />
+                </div>
+                {/* Task #313 — Sub-seção "Ações recentes" (antiga aba Histórico
+                    de propostas) movida para dentro de Planos para dar lugar à
+                    aba Histórico de conversas. */}
+                <div className="border-t mt-2">
+                  <div className="px-3 pt-3 pb-1">
+                    <h3
+                      className="text-sm font-semibold"
+                      data-testid="heading-acoes-recentes"
+                    >
+                      Ações recentes
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Propostas e ações geradas pelo Bizzy.
+                    </p>
+                  </div>
+                  <PropostaHistorico />
+                </div>
+              </TabsContent>
+              <TabsContent
+                value="historico"
+                forceMount
+                className="flex-1 min-h-0 mt-0 data-[state=inactive]:hidden flex flex-col"
+              >
+                <ConversasHistorico
+                  onAbrir={(id) => {
+                    setConversaParaCarregar(id);
+                    setTab("chat");
+                  }}
+                />
+              </TabsContent>
+            </Tabs>
+          </div>
         )}
 
         {!open && !isMobile && (

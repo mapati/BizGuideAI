@@ -9,6 +9,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
   Activity,
   AlertTriangle,
   CheckCircle2,
@@ -22,7 +29,9 @@ import {
   ListChecks,
   Wrench,
   Gauge,
-  X,
+  TrendingUp,
+  Clock,
+  LineChart,
 } from "lucide-react";
 
 type LacunasResponse = {
@@ -92,6 +101,14 @@ type GapResponse = {
   iniciativasVinculadas?: number;
   iniciativasParadas?: number;
   totalKrs?: number;
+  valorAlvo?: number;
+  projecao?: {
+    valorProjetadoNoPrazo?: number | null;
+    pctProjetadoVsAlvo?: number | null;
+    confianca?: string | null;
+  } | null;
+  projecaoMediaPctVsAlvo?: number | null;
+  krMaisAtrasado?: { id: string; metrica: string; pct: number | null } | null;
   causasProvaveis?: string[];
   erro?: string;
 };
@@ -560,6 +577,7 @@ export default function Diagnostico() {
                   href={(o) => `/okrs?destacar=${o.id}`}
                   rotulo={(o) => o.titulo}
                   testIdPrefix="lacuna-obj-sem-kr"
+                  onAnalisar={(o) => setGapAlvo({ tipo: "objetivo", id: o.id, label: o.titulo })}
                 />
                 <LacunaSecao
                   titulo="KPIs sem KR atacando"
@@ -567,6 +585,7 @@ export default function Diagnostico() {
                   href={(k) => `/indicadores?destacar=${k.id}`}
                   rotulo={(k) => k.nome}
                   testIdPrefix="lacuna-kpi-sem-kr"
+                  onAnalisar={(k) => setGapAlvo({ tipo: "kpi", id: k.id, label: k.nome })}
                 />
                 <LacunaSecao
                   titulo="KPIs sem iniciativa atacando"
@@ -574,6 +593,7 @@ export default function Diagnostico() {
                   href={(k) => `/indicadores?destacar=${k.id}`}
                   rotulo={(k) => k.nome}
                   testIdPrefix="lacuna-kpi-sem-ini"
+                  onAnalisar={(k) => setGapAlvo({ tipo: "kpi", id: k.id, label: k.nome })}
                 />
                 <LacunaSecao
                   titulo="Estratégias sem iniciativa"
@@ -664,12 +684,23 @@ export default function Diagnostico() {
                           data-testid={`row-obj-sem-ini-${o.id}`}
                         >
                           <div className="text-sm truncate">{o.titulo}</div>
-                          <Button asChild size="sm" variant="outline" data-testid={`button-corrigir-objetivo-sem-ini-${o.id}`}>
-                            <Link href={`/okrs?destacar=${o.id}`}>
-                              <Wrench className="h-3.5 w-3.5" />
-                              Corrigir
-                            </Link>
-                          </Button>
+                          <div className="flex flex-row items-center gap-2 flex-wrap">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setGapAlvo({ tipo: "objetivo", id: o.id, label: o.titulo })}
+                              data-testid={`button-analisar-objetivo-sem-ini-${o.id}`}
+                            >
+                              <Gauge className="h-3.5 w-3.5" />
+                              Ver análise
+                            </Button>
+                            <Button asChild size="sm" variant="outline" data-testid={`button-corrigir-objetivo-sem-ini-${o.id}`}>
+                              <Link href={`/okrs?destacar=${o.id}`}>
+                                <Wrench className="h-3.5 w-3.5" />
+                                Corrigir
+                              </Link>
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -683,159 +714,184 @@ export default function Diagnostico() {
         </Card>
       </div>
 
-      {/* Gap meta × realizado */}
-      <Card data-testid="card-gap">
-        <CardHeader>
-          <div className="flex flex-row items-center justify-between flex-wrap gap-2">
-            <div>
-              <CardTitle className="flex flex-row items-center gap-2">
-                <Gauge className="h-5 w-5" />
-                Gap meta × realizado
-              </CardTitle>
-              <CardDescription>
-                {gapAlvo
-                  ? `Análise detalhada de "${gapAlvo.label}".`
-                  : "Selecione um item para ver causas prováveis, tendência e projeção."}
-              </CardDescription>
-            </div>
-            {gapAlvo && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setGapAlvo(null)}
-                data-testid="button-fechar-gap"
-              >
-                <X className="h-3.5 w-3.5" />
-                Limpar
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {!gapAlvo ? (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Use o botão "Ver análise" nos cards de objetivos descarrilados ou escolha um KPI sem KR atacando abaixo:
-              </p>
-              <div className="flex flex-row flex-wrap gap-2">
-                {(lacunasQ.data?.kpisSemKrAtacando ?? []).slice(0, 8).map((k) => (
-                  <Button
-                    key={k.id}
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setGapAlvo({ tipo: "kpi", id: k.id, label: k.nome })}
-                    data-testid={`button-analisar-gap-kpi-${k.id}`}
-                  >
-                    <Gauge className="h-3.5 w-3.5" />
-                    {k.nome}
-                  </Button>
-                ))}
-                {(lacunasQ.data?.kpisSemKrAtacando ?? []).length === 0 && (
-                  <span className="text-xs text-muted-foreground">Nenhum KPI com lacuna evidente — escolha pelo card de descarrilados.</span>
-                )}
-              </div>
-            </div>
-          ) : gapQ.isLoading ? (
-            <Skeleton className="h-32 w-full" />
-          ) : gapQ.data?.erro ? (
-            <p className="text-sm text-destructive" data-testid="text-gap-erro">{gapQ.data.erro}</p>
-          ) : gapQ.data ? (
-            <div className="space-y-3">
-              <div className="flex flex-row flex-wrap gap-2 items-center">
-                <Badge variant="outline" data-testid="badge-gap-tipo">{gapQ.data.tipo}</Badge>
-                <span className="text-sm font-medium" data-testid="text-gap-titulo">
-                  {gapQ.data.nome ?? gapQ.data.titulo ?? gapQ.data.metrica ?? "—"}
-                </span>
-                {gapQ.data.status && (
-                  <Badge
-                    variant={
-                      gapQ.data.status === "verde"
-                        ? "default"
-                        : gapQ.data.status === "amarelo"
-                        ? "secondary"
-                        : gapQ.data.status === "vermelho"
-                        ? "destructive"
-                        : "outline"
-                    }
-                    data-testid="badge-gap-status"
-                  >
-                    {gapQ.data.status}
-                  </Badge>
-                )}
-                {gapQ.data.tendencia && (
-                  <Badge variant="outline" data-testid="badge-gap-tendencia">
-                    Tendência: {gapQ.data.tendencia}
-                  </Badge>
-                )}
-              </div>
+      <Sheet open={gapAlvo != null} onOpenChange={(open) => { if (!open) setGapAlvo(null); }}>
+        <SheetContent
+          side="right"
+          className="w-full sm:max-w-lg overflow-y-auto"
+          data-testid="drawer-analise-gap"
+        >
+          <SheetHeader className="text-left">
+            <SheetTitle className="flex flex-row items-center gap-2">
+              <Gauge className="h-5 w-5" />
+              Análise aprofundada
+            </SheetTitle>
+            <SheetDescription data-testid="text-drawer-titulo">
+              {gapAlvo ? `"${gapAlvo.label}"` : ""}
+            </SheetDescription>
+          </SheetHeader>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {gapQ.data.valorAtual != null && (
-                  <div className="rounded-md border p-3" data-testid="stat-gap-atual">
-                    <div className="text-xs text-muted-foreground">Valor atual</div>
-                    <div className="text-lg font-semibold">{gapQ.data.valorAtual}</div>
+          <div className="mt-4 space-y-4">
+            {gapQ.isLoading ? (
+              <Skeleton className="h-40 w-full" />
+            ) : gapQ.data?.erro ? (
+              <p className="text-sm text-destructive" data-testid="text-gap-erro">{gapQ.data.erro}</p>
+            ) : gapQ.data ? (
+              <>
+                <div className="flex flex-row flex-wrap gap-2 items-center">
+                  <Badge variant="outline" data-testid="badge-gap-tipo">{gapQ.data.tipo}</Badge>
+                  {gapQ.data.status && (
+                    <Badge
+                      variant={
+                        gapQ.data.status === "verde"
+                          ? "default"
+                          : gapQ.data.status === "amarelo"
+                          ? "secondary"
+                          : gapQ.data.status === "vermelho"
+                          ? "destructive"
+                          : "outline"
+                      }
+                      data-testid="badge-gap-status"
+                    >
+                      {gapQ.data.status}
+                    </Badge>
+                  )}
+                  {gapQ.data.tendencia && (
+                    <Badge variant="outline" className="gap-1" data-testid="badge-gap-tendencia">
+                      <TrendingUp className="h-3 w-3" />
+                      Tendência: {gapQ.data.tendencia}
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {gapQ.data.valorAtual != null && (
+                    <div className="rounded-md border p-3" data-testid="stat-gap-atual">
+                      <div className="text-xs text-muted-foreground">Valor atual</div>
+                      <div className="text-lg font-semibold">{gapQ.data.valorAtual}</div>
+                    </div>
+                  )}
+                  {(gapQ.data.meta != null || gapQ.data.valorAlvo != null) && (
+                    <div className="rounded-md border p-3" data-testid="stat-gap-meta">
+                      <div className="text-xs text-muted-foreground">Meta</div>
+                      <div className="text-lg font-semibold">{gapQ.data.meta ?? gapQ.data.valorAlvo}</div>
+                    </div>
+                  )}
+                  {gapQ.data.gapPct != null && (
+                    <div className="rounded-md border p-3" data-testid="stat-gap-pct">
+                      <div className="text-xs text-muted-foreground">Gap (%)</div>
+                      <div className="text-lg font-semibold">{gapQ.data.gapPct}%</div>
+                    </div>
+                  )}
+                  {gapQ.data.pctAtingido != null && (
+                    <div className="rounded-md border p-3" data-testid="stat-gap-pct-atingido">
+                      <div className="text-xs text-muted-foreground">% atingido</div>
+                      <div className="text-lg font-semibold">{gapQ.data.pctAtingido}%</div>
+                    </div>
+                  )}
+                  {gapQ.data.pctMedio != null && (
+                    <div className="rounded-md border p-3" data-testid="stat-gap-pct-medio">
+                      <div className="text-xs text-muted-foreground">% médio dos KRs</div>
+                      <div className="text-lg font-semibold">{gapQ.data.pctMedio}%</div>
+                    </div>
+                  )}
+                </div>
+
+                {(gapQ.data.projecao?.pctProjetadoVsAlvo != null ||
+                  gapQ.data.projecao?.valorProjetadoNoPrazo != null ||
+                  gapQ.data.projecaoMediaPctVsAlvo != null) && (
+                  <div className="rounded-md border p-3 space-y-1" data-testid="block-gap-projecao">
+                    <div className="text-sm font-medium flex flex-row items-center gap-2">
+                      <LineChart className="h-4 w-4 text-primary" />
+                      Projeção no prazo
+                    </div>
+                    {gapQ.data.projecao?.pctProjetadoVsAlvo != null && (
+                      <div className="text-sm text-muted-foreground" data-testid="text-projecao-kr">
+                        Linear: chega a {Math.round((gapQ.data.projecao.pctProjetadoVsAlvo ?? 0) * 100)}% do alvo
+                        {gapQ.data.projecao.valorProjetadoNoPrazo != null && ` (≈ ${gapQ.data.projecao.valorProjetadoNoPrazo})`}
+                        {gapQ.data.projecao.confianca && ` · confiança ${gapQ.data.projecao.confianca}`}
+                      </div>
+                    )}
+                    {gapQ.data.projecaoMediaPctVsAlvo != null && (
+                      <div className="text-sm text-muted-foreground" data-testid="text-projecao-objetivo">
+                        Projeção média dos KRs: {gapQ.data.projecaoMediaPctVsAlvo}% do alvo
+                      </div>
+                    )}
                   </div>
                 )}
-                {gapQ.data.meta != null && (
-                  <div className="rounded-md border p-3" data-testid="stat-gap-meta">
-                    <div className="text-xs text-muted-foreground">Meta</div>
-                    <div className="text-lg font-semibold">{gapQ.data.meta}</div>
+
+                <div className="rounded-md border p-3 space-y-1" data-testid="block-gap-checkin">
+                  <div className="text-sm font-medium flex flex-row items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    Última atualização
                   </div>
-                )}
-                {gapQ.data.gapPct != null && (
-                  <div className="rounded-md border p-3" data-testid="stat-gap-pct">
-                    <div className="text-xs text-muted-foreground">Gap (%)</div>
-                    <div className="text-lg font-semibold">{gapQ.data.gapPct}%</div>
+                  <div className="text-sm text-muted-foreground" data-testid="text-ultimo-checkin">
+                    {gapQ.data.tipo === "kpi"
+                      ? `Última leitura: ${formatDateTime(gapQ.data.ultimaLeituraEm)}`
+                      : `Último check-in: ${formatDateTime(gapQ.data.ultimoCheckinEm)}`}
                   </div>
-                )}
-                {gapQ.data.pctAtingido != null && (
-                  <div className="rounded-md border p-3" data-testid="stat-gap-pct-atingido">
-                    <div className="text-xs text-muted-foreground">% atingido</div>
-                    <div className="text-lg font-semibold">{gapQ.data.pctAtingido}%</div>
-                  </div>
-                )}
-                {gapQ.data.pctMedio != null && (
-                  <div className="rounded-md border p-3" data-testid="stat-gap-pct-medio">
-                    <div className="text-xs text-muted-foreground">% médio dos KRs</div>
-                    <div className="text-lg font-semibold">{gapQ.data.pctMedio}%</div>
-                  </div>
-                )}
-                {(gapQ.data.diasSemLeitura != null || gapQ.data.diasSemCheckin != null) && (
-                  <div className="rounded-md border p-3" data-testid="stat-gap-dias-sem-update">
-                    <div className="text-xs text-muted-foreground">Dias sem atualização</div>
-                    <div className="text-lg font-semibold">
-                      {gapQ.data.diasSemLeitura ?? gapQ.data.diasSemCheckin ?? "—"}
+                  {(gapQ.data.diasSemLeitura != null || gapQ.data.diasSemCheckin != null) && (
+                    <div className="text-xs text-muted-foreground">
+                      {gapQ.data.diasSemLeitura ?? gapQ.data.diasSemCheckin} dia(s) sem atualização
+                    </div>
+                  )}
+                  {gapQ.data.diasAtePrazoMaisProximo != null && (
+                    <div className="text-xs text-muted-foreground">
+                      Prazo mais próximo em {gapQ.data.diasAtePrazoMaisProximo} dia(s)
+                    </div>
+                  )}
+                  {gapQ.data.diasAtePrazo != null && (
+                    <div className="text-xs text-muted-foreground">
+                      Prazo em {gapQ.data.diasAtePrazo} dia(s)
+                    </div>
+                  )}
+                </div>
+
+                {gapQ.data.krMaisAtrasado && (
+                  <div className="rounded-md border p-3 space-y-1" data-testid="block-gap-kr-atrasado">
+                    <div className="text-sm font-medium flex flex-row items-center gap-2">
+                      <TrendingDown className="h-4 w-4 text-destructive" />
+                      KR mais atrasado
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {gapQ.data.krMaisAtrasado.metrica}
+                      {gapQ.data.krMaisAtrasado.pct != null && ` · ${gapQ.data.krMaisAtrasado.pct}%`}
                     </div>
                   </div>
                 )}
-              </div>
 
-              {gapQ.data.causasProvaveis && gapQ.data.causasProvaveis.length > 0 && (
-                <div className="space-y-1">
-                  <div className="text-sm font-medium flex flex-row items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-amber-600" />
-                    Causas prováveis
+                {gapQ.data.causasProvaveis && gapQ.data.causasProvaveis.length > 0 ? (
+                  <div className="space-y-1">
+                    <div className="text-sm font-medium flex flex-row items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      Causas prováveis
+                    </div>
+                    <ul className="space-y-1 text-sm list-disc list-inside text-muted-foreground">
+                      {gapQ.data.causasProvaveis.map((c, idx) => (
+                        <li key={idx} data-testid={`text-causa-${idx}`}>{c}</li>
+                      ))}
+                    </ul>
                   </div>
-                  <ul className="space-y-1 text-sm list-disc list-inside text-muted-foreground">
-                    {gapQ.data.causasProvaveis.map((c, idx) => (
-                      <li key={idx} data-testid={`text-causa-${idx}`}>{c}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+                ) : (
+                  <p className="text-sm text-muted-foreground" data-testid="text-causas-vazio">
+                    Sem causas prováveis evidentes neste momento.
+                  </p>
+                )}
 
-              <div>
-                <Button asChild size="sm" variant="default" data-testid="button-corrigir-gap">
-                  <Link href={corrigirHrefGap(gapAlvo)}>
-                    <Wrench className="h-3.5 w-3.5" />
-                    Corrigir agora
-                  </Link>
-                </Button>
-              </div>
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
+                {gapAlvo && (
+                  <div className="flex flex-row gap-2 flex-wrap pt-2">
+                    <Button asChild size="sm" variant="default" data-testid="button-corrigir-gap">
+                      <Link href={corrigirHrefGap(gapAlvo)}>
+                        <Wrench className="h-3.5 w-3.5" />
+                        Corrigir agora
+                      </Link>
+                    </Button>
+                  </div>
+                )}
+              </>
+            ) : null}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {isLoading && (
         <p className="text-sm text-muted-foreground text-center" data-testid="text-loading">
@@ -852,12 +908,14 @@ function LacunaSecao<T extends { id: string }>({
   href,
   rotulo,
   testIdPrefix,
+  onAnalisar,
 }: {
   titulo: string;
   itens: T[];
   href: (item: T) => string;
   rotulo: (item: T) => string;
   testIdPrefix: string;
+  onAnalisar?: (item: T) => void;
 }) {
   return (
     <div className="space-y-1">
@@ -879,12 +937,25 @@ function LacunaSecao<T extends { id: string }>({
               data-testid={`row-${testIdPrefix}-${it.id}`}
             >
               <span className="text-sm truncate">{rotulo(it)}</span>
-              <Button asChild size="sm" variant="outline" data-testid={`button-${testIdPrefix}-${it.id}`}>
-                <Link href={href(it)}>
-                  <Wrench className="h-3.5 w-3.5" />
-                  Corrigir
-                </Link>
-              </Button>
+              <div className="flex flex-row items-center gap-2 flex-wrap">
+                {onAnalisar && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onAnalisar(it)}
+                    data-testid={`button-analisar-${testIdPrefix}-${it.id}`}
+                  >
+                    <Gauge className="h-3.5 w-3.5" />
+                    Ver análise
+                  </Button>
+                )}
+                <Button asChild size="sm" variant="outline" data-testid={`button-${testIdPrefix}-${it.id}`}>
+                  <Link href={href(it)}>
+                    <Wrench className="h-3.5 w-3.5" />
+                    Corrigir
+                  </Link>
+                </Button>
+              </div>
             </li>
           ))}
         </ul>

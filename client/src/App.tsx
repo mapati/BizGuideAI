@@ -133,14 +133,8 @@ function AppLayout() {
   });
 
   useEffect(() => {
-    // Trava o scroll do navegador inteiro quando o usuário está logado dentro
-    // do app. Sem isso, qualquer conteúdo interno mais alto que a janela acaba
-    // criando scroll de página + área branca (especialmente quando o painel
-    // do Bizzy está aberto). O conteúdo da rota continua rolando dentro de
-    // <main className="overflow-auto"> normalmente.
-    // OBS: a rota "/" também é pública (landing), mas quando há usuário logado
-    // ela renderiza Home — então a trava deve valer aqui também.
-    if (!user) return;
+    const isPublic = PUBLIC_ROUTES.includes(location) || PUBLIC_PREFIXES.some((p) => location.startsWith(p));
+    if (!user || isPublic) return;
     const prevHtml = document.documentElement.style.overflow;
     const prevBody = document.body.style.overflow;
     document.documentElement.style.overflow = "hidden";
@@ -149,7 +143,7 @@ function AppLayout() {
       document.documentElement.style.overflow = prevHtml;
       document.body.style.overflow = prevBody;
     };
-  }, [user]);
+  }, [user, location]);
 
   if (isLoading || (!!user && loadingEmpresa)) {
     return (

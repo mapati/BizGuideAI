@@ -1858,6 +1858,7 @@ const concluirPlanoAgentico: ToolDefinition<ConcluirPlanoAgenticoParams> = {
     campos: [{ label: "Plano", valor: p.planoId }],
     ctaConfirmar: "Concluir plano",
     ctaIgnorar: "Manter aberto",
+    ctaAjustar: "Ajustar",
   }),
   apply: async (p, ctx) => {
     const plano = await storage.getPlanoAgentico(p.planoId);
@@ -1911,6 +1912,7 @@ const cancelarPlanoAgentico: ToolDefinition<CancelarPlanoAgenticoParams> = {
     campos: [{ label: "Plano", valor: p.planoId }],
     ctaConfirmar: "Cancelar plano",
     ctaIgnorar: "Manter aberto",
+    ctaAjustar: "Ajustar",
   }),
   apply: async (p, ctx) => {
     const plano = await storage.getPlanoAgentico(p.planoId);

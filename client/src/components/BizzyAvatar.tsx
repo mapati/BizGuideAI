@@ -74,23 +74,18 @@ export function BizzyAvatar({
           fill={`url(#${gradientId})`}
         />
 
-        {/* Chess knight silhouette */}
-        <g
-          fill="hsl(var(--primary-foreground))"
-          stroke="hsl(var(--primary-foreground))"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-          strokeWidth="0.6"
-        >
-          {/* Horse head + neck */}
-          <path d="M22 9 C 25 10 27.5 12.5 28 16 C 28.4 19 28.6 22 28.8 25 L 29.4 28 L 13 28 C 12.6 25.5 13.4 23 15.4 21.4 C 14 21 13 19.6 13.2 18 C 13.4 16.2 14.6 15 16.2 14.6 L 15.4 12.6 L 17 13 L 18 11 L 19.4 13 C 20.4 12.4 21.2 11.4 21.6 10.2 Z" />
-          {/* Base plate */}
-          <rect x="11.5" y="28" width="17" height="2.2" rx="0.4" />
-          <rect x="10.5" y="30.2" width="19" height="2.4" rx="0.5" />
-          {/* Eye */}
-          <circle cx="22" cy="15.6" r="0.95" fill="hsl(var(--primary))" stroke="none" />
-          {/* Mouth/nostril notch */}
-          <path d="M27.4 17.2 L 28.4 16.2" stroke="hsl(var(--primary))" strokeOpacity="0.6" strokeWidth="0.9" />
+        {/* Chess rook silhouette */}
+        <g fill="hsl(var(--primary-foreground))">
+          {/* Crenellated crown (3 battlements with 2 notches) */}
+          <path d="M12.5 8 H 16 V 11 H 18.5 V 8 H 21.5 V 11 H 24 V 8 H 27.5 V 14 H 12.5 Z" />
+          {/* Collar/ring under the crown */}
+          <rect x="11.5" y="14.6" width="17" height="2.4" rx="0.6" />
+          {/* Tapered body */}
+          <path d="M14 17.6 H 26 L 27 26.4 H 13 Z" />
+          {/* Round base disc */}
+          <path d="M12 26.6 H 28 A 1.6 1.6 0 0 1 28 29.6 H 12 A 1.6 1.6 0 0 1 12 26.6 Z" />
+          {/* Rectangular base plate */}
+          <rect x="10.5" y="29.8" width="19" height="2.6" rx="0.5" />
         </g>
       </svg>
 

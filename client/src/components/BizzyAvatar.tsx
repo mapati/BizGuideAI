@@ -61,13 +61,9 @@ export function BizzyAvatar({
               </>
             )}
           </linearGradient>
-          <radialGradient id={eyeShineId} cx="0.35" cy="0.35" r="0.6">
-            <stop offset="0%" stopColor="white" stopOpacity="1" />
-            <stop offset="100%" stopColor="white" stopOpacity="0.85" />
-          </radialGradient>
         </defs>
 
-        {/* Squircle body */}
+        {/* Squircle background */}
         <rect
           x="2"
           y="2"
@@ -78,34 +74,24 @@ export function BizzyAvatar({
           fill={`url(#${gradientId})`}
         />
 
-        {/* Antenna dot — gives it a friendly "agent" feel */}
-        <circle cx="20" cy="5.5" r="1.6" fill="hsl(var(--primary))" opacity="0.55" />
-        <line
-          x1="20"
-          y1="6.8"
-          x2="20"
-          y2="9"
+        {/* Chess knight silhouette */}
+        <g
+          fill="hsl(var(--primary-foreground))"
           stroke="hsl(var(--primary-foreground))"
-          strokeOpacity="0.55"
-          strokeWidth="1.2"
+          strokeLinejoin="round"
           strokeLinecap="round"
-        />
-
-        {/* Eyes — friendly face */}
-        <circle cx="14.5" cy="20" r="3" fill={`url(#${eyeShineId})`} />
-        <circle cx="25.5" cy="20" r="3" fill={`url(#${eyeShineId})`} />
-        <circle cx="14.8" cy="20.3" r="1.3" fill="hsl(var(--primary))" />
-        <circle cx="25.8" cy="20.3" r="1.3" fill="hsl(var(--primary))" />
-
-        {/* Smile */}
-        <path
-          d="M14 27 Q20 31 26 27"
-          stroke="hsl(var(--primary-foreground))"
-          strokeOpacity="0.85"
-          strokeWidth="1.6"
-          strokeLinecap="round"
-          fill="none"
-        />
+          strokeWidth="0.6"
+        >
+          {/* Horse head + neck */}
+          <path d="M22 9 C 25 10 27.5 12.5 28 16 C 28.4 19 28.6 22 28.8 25 L 29.4 28 L 13 28 C 12.6 25.5 13.4 23 15.4 21.4 C 14 21 13 19.6 13.2 18 C 13.4 16.2 14.6 15 16.2 14.6 L 15.4 12.6 L 17 13 L 18 11 L 19.4 13 C 20.4 12.4 21.2 11.4 21.6 10.2 Z" />
+          {/* Base plate */}
+          <rect x="11.5" y="28" width="17" height="2.2" rx="0.4" />
+          <rect x="10.5" y="30.2" width="19" height="2.4" rx="0.5" />
+          {/* Eye */}
+          <circle cx="22" cy="15.6" r="0.95" fill="hsl(var(--primary))" stroke="none" />
+          {/* Mouth/nostril notch */}
+          <path d="M27.4 17.2 L 28.4 16.2" stroke="hsl(var(--primary))" strokeOpacity="0.6" strokeWidth="0.9" />
+        </g>
       </svg>
 
       {showModeBadge && (

@@ -266,7 +266,7 @@ function AppLayout() {
           <TrialStatusBanner diasRestantes={trialInfo!.diasRestantes} />
         )}
         {showUpgradeBanner && <UpgradeBanner />}
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 overflow-hidden min-h-0">
           <AppSidebar />
           <MobileSidebarOpenButton />
           <div className="flex flex-col flex-1 overflow-hidden min-w-0">

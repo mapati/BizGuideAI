@@ -70,7 +70,7 @@ export function AssistantSidebar() {
                 "fixed inset-y-0 right-0 z-50 w-[24rem] max-w-[95vw] transition-transform duration-200 shadow-xl",
                 mobileTransform,
               )
-            : cn("h-full transition-[width] duration-200 ease-out", desktopWidth),
+            : cn("transition-[width] duration-200 ease-out", desktopWidth),
         )}
       >
         {open && (

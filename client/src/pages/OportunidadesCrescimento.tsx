@@ -492,11 +492,11 @@ export default function OportunidadesCrescimento() {
           fontesContexto={{
             label: "Fontes de contexto",
             items: [
+              { id: "estrategias", label: "Estratégias TOWS", desc: "Apostas estratégicas já definidas", alwaysIncluded: true },
               { id: "swot", label: "SWOT", desc: "Forças e oportunidades identificadas" },
-              { id: "estrategias", label: "Estratégias TOWS", desc: "Apostas estratégicas já definidas" },
               { id: "modeloNegocio", label: "Modelo de Negócio (BMC)", desc: "Proposta de valor, segmentos e canais" },
             ],
-            defaultSelected: ["swot"],
+            defaultSelected: ["estrategias"],
           }}
           instrucaoAdicional={{
             placeholder: "Ex: Foque em ações com baixo investimento e que possam ser executadas no próximo trimestre.",

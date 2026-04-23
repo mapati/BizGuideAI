@@ -1878,7 +1878,7 @@ export default function Iniciativas() {
           fontesContexto={{
             label: "Fontes de contexto",
             items: [
-              { id: "modeloNegocio", label: "Modelo de Negócio (Canvas)", desc: "Atividades, recursos e parcerias" },
+              { id: "modeloNegocio", label: "Modelo de Negócio (Canvas)", desc: "Atividades, recursos e parcerias", alwaysIncluded: true },
               { id: "swot", label: "SWOT", desc: "Forças, fraquezas, oportunidades e ameaças" },
               { id: "indicadores", label: "Indicadores atuais", desc: "KPIs cadastrados na empresa" },
             ],

@@ -1333,11 +1333,12 @@ export default function Indicadores() {
         fontesContexto={{
           label: "Fontes de contexto",
           items: [
-            { id: "objetivos", label: "Objetivos estratégicos", desc: "Objetivos e KRs já definidos", count: objetivosCtx.length },
+            { id: "objetivos", label: "Objetivos estratégicos", desc: "Objetivos e KRs já definidos", count: objetivosCtx.length, alwaysIncluded: true },
             { id: "estrategias", label: "Estratégias TOWS", desc: "Apostas estratégicas já definidas", count: estrategiasCtx.length },
             { id: "oportunidades", label: "Frentes de Crescimento", desc: "Quadrantes da Matriz de Ansoff", count: oportunidadesCtx.length },
             { id: "iniciativas", label: "Iniciativas", desc: "Iniciativas prioritárias", count: iniciativasCtx.length },
           ],
+          defaultSelected: ["objetivos"],
         }}
         instrucaoAdicional={{
           placeholder: "Ex: Priorize indicadores de eficiência operacional e satisfação do cliente.",

@@ -2292,10 +2292,11 @@ export default function OKRs() {
         fontesContexto={{
           label: "Fontes de contexto",
           items: [
-            { id: "estrategias", label: "Estratégias TOWS", desc: "Apostas estratégicas já definidas" },
+            { id: "estrategias", label: "Estratégias TOWS", desc: "Apostas estratégicas já definidas", alwaysIncluded: true },
             { id: "oportunidades", label: "Frentes de Crescimento", desc: "Quadrantes da Matriz de Ansoff" },
             { id: "modeloNegocio", label: "Modelo de Negócio (BMC)", desc: "Proposta de valor, segmentos e atividades" },
           ],
+          defaultSelected: ["estrategias"],
         }}
         instrucaoAdicional={{
           placeholder: "Ex: Foque em objetivos relacionados à expansão digital e fidelização.",

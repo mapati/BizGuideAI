@@ -956,6 +956,7 @@ export default function Estrategias() {
               count: estrategiasContextSummary?.counts?.modeloNegocio ?? 0,
             },
           ],
+          defaultSelected: ["swot"],
         }}
         instrucaoAdicional={{
           placeholder: "Ex: Priorize estratégias que não exijam investimento imediato e que possam ser executadas pela equipe atual.",

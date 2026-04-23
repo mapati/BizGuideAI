@@ -425,6 +425,14 @@ export function PropostaCard({
                   <XCircle className="h-2.5 w-2.5" /> ignorada
                 </Badge>
               )}
+              {estado === "ignorada" && ferramenta === "criar_plano_agentico" && (
+                <span
+                  className="text-[11px] text-muted-foreground"
+                  data-testid={`text-proposta-dica-ajuste-${logId}`}
+                >
+                  Se quiser ajustar algo (objetivo, escopo, passos), é só me dizer o que mudar e eu refaço o plano.
+                </span>
+              )}
               {estado === "ajustada" && (
                 <Badge variant="outline" className="gap-1 text-[10px]">
                   <Pencil className="h-2.5 w-2.5" /> ajustada

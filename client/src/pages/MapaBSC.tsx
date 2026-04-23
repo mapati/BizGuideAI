@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Objetivo, BscRelacao } from "@shared/schema";
@@ -78,12 +79,27 @@ export default function MapaBSC() {
 
   const getObj = (id: string) => objetivos.find(o => o.id === id);
 
-  const relacoesPorOrigem = new Map<string, { destinoId: string; tipo: TipoRelacao }[]>();
+  const relacoesPorOrigem = new Map<string, { id: string; destinoId: string; tipo: TipoRelacao; justificativa: string | null }[]>();
   for (const rel of relacoes) {
     const list = relacoesPorOrigem.get(rel.origemId) || [];
-    list.push({ destinoId: rel.destinoId, tipo: (rel.tipo as TipoRelacao) ?? "causa_efeito" });
+    list.push({ id: rel.id, destinoId: rel.destinoId, tipo: (rel.tipo as TipoRelacao) ?? "causa_efeito", justificativa: rel.justificativa ?? null });
     relacoesPorOrigem.set(rel.origemId, list);
   }
+
+  const renderJustificativaContent = (justificativa: string | null, isCausa: boolean) => (
+    <div className="space-y-1.5">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+        {isCausa ? "Por que esta causa leva ao efeito" : "Por que estes objetivos se correlacionam"}
+      </p>
+      {justificativa && justificativa.trim() ? (
+        <p className="text-sm leading-relaxed" data-testid="text-justificativa">{justificativa}</p>
+      ) : (
+        <p className="text-sm text-muted-foreground italic" data-testid="text-justificativa-vazia">
+          Nenhuma justificativa cadastrada para esta relação ainda.
+        </p>
+      )}
+    </div>
+  );
 
   return (
     <div className="p-6 space-y-6 max-w-6xl mx-auto">
@@ -122,11 +138,25 @@ export default function MapaBSC() {
                     return (
                       <div key={rel.id} className="flex items-center gap-2 text-sm" data-testid={`relacao-${rel.id}`}>
                         <span className="font-medium truncate max-w-[200px]">{origem?.titulo || "?"}</span>
-                        {isCausa ? (
-                          <ArrowRight className="h-3.5 w-3.5 text-foreground flex-shrink-0" />
-                        ) : (
-                          <ArrowLeftRight className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                        )}
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button
+                              type="button"
+                              className="inline-flex items-center justify-center rounded-sm p-0.5 hover-elevate focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              aria-label="Ver justificativa da relação"
+                              data-testid={`button-justificativa-${rel.id}`}
+                            >
+                              {isCausa ? (
+                                <ArrowRight className="h-3.5 w-3.5 text-foreground flex-shrink-0" />
+                              ) : (
+                                <ArrowLeftRight className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                              )}
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-80" data-testid={`popover-justificativa-${rel.id}`}>
+                            {renderJustificativaContent(rel.justificativa ?? null, isCausa)}
+                          </PopoverContent>
+                        </Popover>
                         <span className="truncate max-w-[200px]">{destino?.titulo || "?"}</span>
                         <Badge variant={isCausa ? "default" : "secondary"} className="ml-2" data-testid={`badge-tipo-${rel.id}`}>
                           {isCausa ? "Causa-efeito" : "Correlação"}
@@ -174,12 +204,26 @@ export default function MapaBSC() {
                               if (!dest) return null;
                               const isCausa = d.tipo === "causa_efeito";
                               return (
-                                <div key={d.destinoId} className="flex items-center gap-1 text-xs text-muted-foreground">
-                                  {isCausa ? (
-                                    <ArrowRight className="h-3 w-3 flex-shrink-0" />
-                                  ) : (
-                                    <ArrowLeftRight className="h-3 w-3 flex-shrink-0 opacity-70" />
-                                  )}
+                                <div key={d.id} className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <Popover>
+                                    <PopoverTrigger asChild>
+                                      <button
+                                        type="button"
+                                        className="inline-flex items-center justify-center rounded-sm p-0.5 hover-elevate focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                        aria-label="Ver justificativa da relação"
+                                        data-testid={`button-justificativa-map-${d.id}`}
+                                      >
+                                        {isCausa ? (
+                                          <ArrowRight className="h-3 w-3 flex-shrink-0" />
+                                        ) : (
+                                          <ArrowLeftRight className="h-3 w-3 flex-shrink-0 opacity-70" />
+                                        )}
+                                      </button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-80" data-testid={`popover-justificativa-map-${d.id}`}>
+                                      {renderJustificativaContent(d.justificativa, isCausa)}
+                                    </PopoverContent>
+                                  </Popover>
                                   <span className={`truncate ${isCausa ? "" : "italic"}`}>{dest.titulo}</span>
                                 </div>
                               );

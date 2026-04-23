@@ -43,6 +43,9 @@ The Bizzy assistant has persistent cycle memory via the `bizzy_resumos_ciclo` ta
 - **Timeline of Events:** A unified feed combining completed rituals and custom strategic events, with full CRUD for event management.
 - **Admin Panel:** A restricted interface for platform administrators to manage users, invoices, and system configurations, bypassing trial limitations.
 
+### Automated tests
+The Vitest suite is part of the validation flow (alongside `lint` and `typecheck`) via `bash scripts/test-unit.sh`, which executes `npx vitest run` and picks up every file matched by `vitest.config.ts` (`server/__tests__/**/*.test.ts` and `tests/unit/**/*.test.ts`). To run locally use `bash scripts/test-unit.sh` (or `bash scripts/test-unit.sh --watch` for watch mode). To extend coverage, drop a new `*.test.ts` file under either directory and it will run automatically in validation.
+
 ## External Dependencies
 
 -   **AI Integration:** OpenAI API for generating strategic insights, suggestions, and contextual assistance. AI model names are configurable per plan via the Admin panel.

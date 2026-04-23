@@ -8,7 +8,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 if [[ "${1:-}" == "--watch" ]]; then
-  exec npx vitest tests/unit
+  exec npx vitest
 fi
 
-exec npx vitest run tests/unit
+exec npx vitest run

@@ -7,7 +7,7 @@ import { useEffect, useRef } from "react";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
-import { Target } from "lucide-react";
+import { Menu } from "lucide-react";
 import { AppSidebar } from "@/components/AppSidebar";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { AssistantSidebar } from "@/components/AssistantSidebar";
@@ -259,11 +259,12 @@ function AppLayout() {
         size="icon"
         variant="default"
         onClick={() => setOpenMobile(true)}
-        className="fixed bottom-4 left-4 rounded-full shadow-lg z-40"
+        className="fixed bottom-4 left-4 h-14 w-14 rounded-full shadow-xl z-40"
         title="Abrir menu"
+        aria-label="Abrir menu de navegação"
         data-testid="button-sidebar-toggle"
       >
-        <Target className="h-4 w-4" />
+        <Menu className="h-6 w-6" />
       </Button>
     );
   };

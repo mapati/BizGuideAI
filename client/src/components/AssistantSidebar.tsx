@@ -184,7 +184,7 @@ export function AssistantSidebar() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="fixed bottom-4 right-4 rounded-full shadow-lg z-40 p-1 bg-background border hover-elevate active-elevate-2"
+          className="fixed bottom-4 right-4 h-14 w-14 inline-flex items-center justify-center rounded-full shadow-xl z-40 bg-background border hover-elevate active-elevate-2"
           data-testid="button-assistant-sidebar-toggle"
           title={showGuia ? "Abrir Bizzy (modo Guia)" : "Abrir Bizzy"}
           aria-label={showGuia ? "Abrir Bizzy (modo Guia)" : "Abrir Bizzy"}

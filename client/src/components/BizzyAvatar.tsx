@@ -74,18 +74,22 @@ export function BizzyAvatar({
           fill={`url(#${gradientId})`}
         />
 
-        {/* Chess rook silhouette */}
+        {/* Chess king silhouette */}
         <g fill="hsl(var(--primary-foreground))">
-          {/* Crenellated crown (3 battlements with 2 notches) */}
-          <path d="M12.5 8 H 16 V 11 H 18.5 V 8 H 21.5 V 11 H 24 V 8 H 27.5 V 14 H 12.5 Z" />
-          {/* Collar/ring under the crown */}
-          <rect x="11.5" y="14.6" width="17" height="2.4" rx="0.6" />
+          {/* Cross on top */}
+          <rect x="19.2" y="4" width="1.6" height="5.2" rx="0.3" />
+          <rect x="17.4" y="5.6" width="5.2" height="1.6" rx="0.3" />
+          {/* Crown bowl */}
+          <path d="M14.5 11.2 C 14.5 9.8 16 9 20 9 C 24 9 25.5 9.8 25.5 11.2 L 25.5 16 C 25.5 17.4 23.6 18 20 18 C 16.4 18 14.5 17.4 14.5 16 Z" />
+          {/* Collar (two rings) */}
+          <rect x="13.4" y="18.2" width="13.2" height="1.6" rx="0.3" />
+          <rect x="12.6" y="20.2" width="14.8" height="1.8" rx="0.4" />
           {/* Tapered body */}
-          <path d="M14 17.6 H 26 L 27 26.4 H 13 Z" />
-          {/* Round base disc */}
-          <path d="M12 26.6 H 28 A 1.6 1.6 0 0 1 28 29.6 H 12 A 1.6 1.6 0 0 1 12 26.6 Z" />
+          <path d="M14.6 22.4 H 25.4 L 26.6 28.2 H 13.4 Z" />
+          {/* Round base bowl */}
+          <path d="M11.8 28.4 H 28.2 A 2 2 0 0 1 28.2 31.6 H 11.8 A 2 2 0 0 1 11.8 28.4 Z" />
           {/* Rectangular base plate */}
-          <rect x="10.5" y="29.8" width="19" height="2.6" rx="0.5" />
+          <rect x="10.5" y="31.8" width="19" height="2" rx="0.4" />
         </g>
       </svg>
 

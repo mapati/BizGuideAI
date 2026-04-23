@@ -170,7 +170,12 @@ const FERRAMENTAS_LABEL: Record<string, string> = {
 const TOOLS_AUTO_NAVEGAR: ReadonlySet<string> = new Set(["abrir_entidade", "navegar_para"]);
 
 // Tools que não têm "campos a ajustar" — o botão Ajustar não faz sentido.
-const TOOLS_SEM_AJUSTE: ReadonlySet<string> = new Set(["abrir_entidade", "navegar_para"]);
+const TOOLS_SEM_AJUSTE: ReadonlySet<string> = new Set([
+  "abrir_entidade",
+  "navegar_para",
+  "cancelar_plano_agentico",
+  "concluir_plano_agentico",
+]);
 
 export function PropostaCard({
   proposta,

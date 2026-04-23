@@ -5602,6 +5602,39 @@ INSTRUÇÕES:
     }
   }
 
+  // ─── Task #339 — Detectar quando uma proposta resolvida era fora do plano ativo ───
+  // Se o usuário tem um plano agêntico em andamento mas confirma/ignora/ajusta
+  // uma proposta que não estava vinculada a esse plano (ex.: briefing diário,
+  // chat antigo), o backend não consegue avançar o plano e devolve
+  // `continuacao: null`. Para que o frontend possa explicar o que aconteceu,
+  // anexamos `foraDoPlano: { planoId, planoTitulo, passoAtualTitulo }` na
+  // resposta nesses casos.
+  async function detectarPropostaForaDoPlanoAtivo(
+    propostaId: string,
+    empresaId: string,
+    userId: string,
+  ): Promise<{ planoId: string; planoTitulo: string; passoAtualTitulo: string | null } | null> {
+    try {
+      const ativo = await storage.getPlanoAtivoEmpresaUsuario(empresaId, userId);
+      if (!ativo) return null;
+      const passo = await storage.getPassoByPropostaId(propostaId);
+      if (passo && passo.planoId === ativo.id) return null; // estava no plano
+      const passos = await storage.listPassosByPlano(ativo.id);
+      const atual =
+        passos.find((p) => p.status === "em_andamento") ??
+        passos.find((p) => p.status === "pendente") ??
+        null;
+      return {
+        planoId: ativo.id,
+        planoTitulo: ativo.titulo,
+        passoAtualTitulo: atual?.titulo ?? null,
+      };
+    } catch (err) {
+      console.warn("[PLANO-AGENTICO] detectarPropostaForaDoPlanoAtivo falhou:", err);
+      return null;
+    }
+  }
+
   // ─── Task #188 — Endpoints HITL (confirmar/ignorar/ajustar proposta) ───
   // Helper: garante que o usuário da sessão pode atuar sobre a proposta.
   // Regras: a proposta deve ser da mesma empresa; se foi gerada com usuarioId
@@ -5676,7 +5709,14 @@ INSTRUÇÕES:
           { ferramenta: log.ferramenta, parametros: log.parametros, resultado: result },
         );
 
-        res.json({ ok: true, log: updated, resultado: result, continuacao });
+        // Task #339 — Se não houve continuação mas existe plano ativo do
+        // usuário, sinaliza que essa proposta era de fora do plano para o
+        // frontend explicar por que o plano não avançou.
+        const foraDoPlano = continuacao
+          ? null
+          : await detectarPropostaForaDoPlanoAtivo(log.id, empresaId, userId);
+
+        res.json({ ok: true, log: updated, resultado: result, continuacao, foraDoPlano });
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         await storage.updatePropostaLog(log.id, {
@@ -5710,7 +5750,12 @@ INSTRUÇÕES:
       });
       // Task #189: ignorar passo vinculado também avança o plano (passo → pulado).
       const continuacao = await pularPassoEContinuar(log.id, empresaId, userId);
-      res.json({ ok: true, log: updated, continuacao });
+      // Task #339 — Mesma lógica do /confirmar: avisa o frontend quando a
+      // proposta ignorada estava fora do plano agêntico ativo.
+      const foraDoPlano = continuacao
+        ? null
+        : await detectarPropostaForaDoPlanoAtivo(log.id, empresaId, userId);
+      res.json({ ok: true, log: updated, continuacao, foraDoPlano });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       res.status(500).json({ error: message });
@@ -5747,12 +5792,18 @@ INSTRUÇÕES:
         })) ?? log;
         await rollbackPassoIfVinculado(log.id);
       }
+      // Task #339 — Quando o usuário ajusta uma proposta avulsa enquanto há
+      // plano ativo, sinaliza para o frontend explicar por que o plano não
+      // avançou. Propostas vinculadas ao plano ativo já fizeram rollback do
+      // passo para `pendente` acima — nesses casos não emitimos o aviso.
+      const foraDoPlano = await detectarPropostaForaDoPlanoAtivo(log.id, empresaId, userId);
       res.json({
         ok: true,
         log: updated,
         formRota: tool.formRota,
         parametros: log.parametros,
         ferramenta: log.ferramenta,
+        foraDoPlano,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

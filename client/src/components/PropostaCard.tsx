@@ -52,6 +52,15 @@ export interface ContinuacaoPlano {
   tipoPasso?: "mensagem" | "link" | "acao";
 }
 
+// Task #339 — Anexado pelo backend quando a proposta resolvida não avançou o
+// plano agêntico ativo (ex.: era de um briefing/conversa antiga). O frontend
+// usa esses dados para exibir um toast curto explicando o que aconteceu.
+export interface ForaDoPlanoAviso {
+  planoId: string;
+  planoTitulo: string;
+  passoAtualTitulo: string | null;
+}
+
 type Estado = "proposta" | "confirmada" | "ignorada" | "ajustada" | "falhou";
 
 // Mapa tool → campo de identificação da entidade existente (para `?editar=<id>`).
@@ -212,6 +221,23 @@ export function PropostaCard({
 
   const { logId, ferramenta, preview, parametros } = proposta;
 
+  // Task #339 — Mostra um toast curto explicando que a ação resolvida não
+  // fazia parte do plano agêntico em andamento, então o plano continua aberto
+  // exatamente onde estava. Acionado quando o backend devolve `foraDoPlano`.
+  const avisarForaDoPlano = (foraDoPlano: ForaDoPlanoAviso | null | undefined) => {
+    if (!foraDoPlano) return;
+    const partes = [`Essa ação não fazia parte do plano "${foraDoPlano.planoTitulo}".`];
+    if (foraDoPlano.passoAtualTitulo) {
+      partes.push(`O passo atual ("${foraDoPlano.passoAtualTitulo}") continua aberto.`);
+    } else {
+      partes.push("O passo atual continua aberto.");
+    }
+    toast({
+      title: "Plano em andamento não avançou",
+      description: partes.join(" "),
+    });
+  };
+
   const handleConfirmar = async () => {
     setSubmitting("confirmar");
     setErro(null);
@@ -220,6 +246,7 @@ export function PropostaCard({
         ok: true;
         resultado: { resumo: string; rota?: string; entidadeTipo?: string; entidadeId?: string };
         continuacao?: ContinuacaoPlano | null;
+        foraDoPlano?: ForaDoPlanoAviso | null;
       };
       setEstado("confirmada");
       setResolvidoEm(new Date());
@@ -247,6 +274,7 @@ export function PropostaCard({
       const queries = ["/api/iniciativas", "/api/objetivos", "/api/indicadores", "/api/meu-painel/resumo", "/api/ai/propostas", "/api/ai/planos", "/api/ai/planos/ativo"];
       for (const q of queries) queryClient.invalidateQueries({ queryKey: [q] });
       if (r.continuacao && onContinuacao) onContinuacao(r.continuacao);
+      else avisarForaDoPlano(r.foraDoPlano);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       // Mesma lógica do Ajustar: a proposta pode já ter sido resolvida em
@@ -275,11 +303,13 @@ export function PropostaCard({
       const r = (await apiRequest("POST", `/api/ai/proposta/${logId}/ignorar`, {})) as {
         ok: true;
         continuacao?: ContinuacaoPlano | null;
+        foraDoPlano?: ForaDoPlanoAviso | null;
       };
       setEstado("ignorada");
       const queries = ["/api/ai/propostas", "/api/ai/planos", "/api/ai/planos/ativo"];
       for (const q of queries) queryClient.invalidateQueries({ queryKey: [q] });
       if (r.continuacao && onContinuacao) onContinuacao(r.continuacao);
+      else avisarForaDoPlano(r.foraDoPlano);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (/já está (confirmada|ajustada|ignorada)/i.test(msg)) {
@@ -332,6 +362,7 @@ export function PropostaCard({
         formRota: string;
         parametros: Record<string, unknown>;
         ferramenta: string;
+        foraDoPlano?: ForaDoPlanoAviso | null;
       };
       setEstado("ajustada");
       queryClient.invalidateQueries({ queryKey: ["/api/ai/propostas"] });
@@ -339,6 +370,7 @@ export function PropostaCard({
         title: "Vamos ajustar",
         description: "Abrindo o formulário com os campos sugeridos.",
       });
+      avisarForaDoPlano(r.foraDoPlano);
       const url = construirUrlAjuste(r.formRota, r.ferramenta, r.parametros);
       // Fecha o assistente para que o formulário de ajuste apareça sem
       // sobreposição. AIAssistant escuta este evento e baixa o drawer.

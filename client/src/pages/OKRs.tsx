@@ -854,7 +854,8 @@ export default function OKRs() {
     prazo: string;
     prazoData: string | null;
     perspectiva: string;
-  }>({ titulo: "", descricao: "", prazo: "", prazoData: null, perspectiva: "Financeira" });
+    justificativaCausaEfeito: string;
+  }>({ titulo: "", descricao: "", prazo: "", prazoData: null, perspectiva: "Financeira", justificativaCausaEfeito: "" });
 
   const [retroDialogOpen, setRetroDialogOpen] = useState(false);
   const [retroObjetivo, setRetroObjetivo] = useState<Objetivo | null>(null);
@@ -1420,6 +1421,7 @@ export default function OKRs() {
         prazo: params.prazo || found.prazo,
         prazoData: found.prazoData ?? null,
         perspectiva: params.perspectiva || found.perspectiva,
+        justificativaCausaEfeito: found.justificativaCausaEfeito ?? "",
       });
       setEditandoObjetivo(true);
       // Sem isto, o usuário fica olhando a lista de OKRs sem feedback visual
@@ -1470,6 +1472,7 @@ export default function OKRs() {
         prazo: objetivoSelecionado.prazo,
         prazoData: objetivoSelecionado.prazoData ?? null,
         perspectiva: objetivoSelecionado.perspectiva,
+        justificativaCausaEfeito: objetivoSelecionado.justificativaCausaEfeito ?? "",
       });
       setEditandoObjetivo(true);
     }
@@ -1478,9 +1481,13 @@ export default function OKRs() {
   const salvarEdicaoObjetivo = async () => {
     if (!objetivoSelecionado) return;
     
+    const justificativaTrimmed = objetivoEditado.justificativaCausaEfeito.trim();
     await editarObjetivoMutation.mutateAsync({
       id: objetivoSelecionado.id,
-      data: objetivoEditado,
+      data: {
+        ...objetivoEditado,
+        justificativaCausaEfeito: justificativaTrimmed === "" ? null : justificativaTrimmed,
+      },
     });
   };
 
@@ -1850,7 +1857,7 @@ export default function OKRs() {
         setDialogResultadosOpen(open);
         if (!open) {
           setEditandoObjetivo(false);
-          setObjetivoEditado({ titulo: "", descricao: "", prazo: "", prazoData: null, perspectiva: "Financeira" });
+          setObjetivoEditado({ titulo: "", descricao: "", prazo: "", prazoData: null, perspectiva: "Financeira", justificativaCausaEfeito: "" });
         }
       }}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -1949,6 +1956,24 @@ export default function OKRs() {
                         </Select>
                       </div>
                     </div>
+                    {objetivoSelecionado?.origemModoBSC &&
+                      objetivoEditado.perspectiva !== "Financeira" && (
+                        <div>
+                          <Label>Habilita (causa-e-efeito)</Label>
+                          <Textarea
+                            value={objetivoEditado.justificativaCausaEfeito}
+                            onChange={(e) =>
+                              setObjetivoEditado({
+                                ...objetivoEditado,
+                                justificativaCausaEfeito: e.target.value,
+                              })
+                            }
+                            placeholder="Como este objetivo habilita o próximo nível da cadeia (deixe em branco para remover)"
+                            rows={3}
+                            data-testid="input-editar-justificativa-causa-efeito"
+                          />
+                        </div>
+                      )}
                   </div>
                 ) : (
                   <div className="space-y-2">

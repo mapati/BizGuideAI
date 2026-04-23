@@ -13,6 +13,8 @@ import { ConversasHistorico } from "@/components/ConversasHistorico";
 import { PropostaHistorico } from "@/components/PropostaHistorico";
 import { GuiaContent } from "@/components/GuiaContent";
 import { BizzyAvatar } from "@/components/BizzyAvatar";
+import { TrilhaJornadaVertical } from "@/components/TrilhaJornadaVertical";
+import { TermometroQualidadeVertical } from "@/components/TermometroQualidadeVertical";
 import {
   PlanoAgenticoCard,
   type PlanoAgenticoView,
@@ -70,7 +72,30 @@ export function AssistantSidebar() {
     };
   }, []);
 
-  if (locked || jornadaLoading) return null;
+  if (locked) return null;
+
+  // Enquanto a jornada carrega, em desktop mantemos a coluna recolhida
+  // (mesma largura `w-12`) com um placeholder discreto para não causar
+  // pulo visual quando os dados chegam. Em mobile o Bizzy é apenas um
+  // botão flutuante que só aparece após o load.
+  if (jornadaLoading) {
+    if (isMobile) return null;
+    return (
+      <aside
+        data-testid="component-assistant-sidebar"
+        data-state="collapsed"
+        data-loading="true"
+        className="bg-sidebar text-sidebar-foreground flex flex-col flex-shrink-0 min-h-0 overflow-hidden border-l w-12"
+      >
+        <div className="flex flex-col items-center w-full pt-3 gap-3">
+          <div className="h-4 w-4 rounded bg-muted/50 animate-pulse" />
+          <div className="h-7 w-7 rounded-full bg-muted/50 animate-pulse" />
+          <div className="w-full border-t border-border/60 mt-1" />
+          <div className="my-2 h-32 w-2 rounded-full bg-muted/50 animate-pulse" />
+        </div>
+      </aside>
+    );
+  }
 
   const showGuia = !jornadaConcluida;
 
@@ -210,16 +235,27 @@ export function AssistantSidebar() {
         )}
 
         {!open && !isMobile && (
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="flex flex-col items-center gap-3 py-3 w-full hover-elevate"
-            title={showGuia ? "Abrir Bizzy (modo Guia)" : "Abrir Bizzy"}
-            data-testid="button-assistant-sidebar-toggle"
-          >
-            <PanelRightOpen className="h-4 w-4 text-muted-foreground" />
-            <BizzyAvatar size="sm" mode={showGuia ? "guia" : "assistente"} />
-          </button>
+          <div className="flex flex-col items-center w-full">
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="flex flex-col items-center gap-3 py-3 w-full hover-elevate"
+              title={showGuia ? "Abrir Bizzy (modo Guia)" : "Abrir Bizzy"}
+              data-testid="button-assistant-sidebar-toggle"
+            >
+              <PanelRightOpen className="h-4 w-4 text-muted-foreground" />
+              <BizzyAvatar size="sm" mode={showGuia ? "guia" : "assistente"} />
+            </button>
+            <div className="w-full border-t border-border/60 mt-1" />
+            {showGuia ? (
+              <TrilhaJornadaVertical
+                progresso={progresso}
+                onNavigate={() => setOpen(false)}
+              />
+            ) : (
+              <TermometroQualidadeVertical />
+            )}
+          </div>
         )}
       </aside>
 

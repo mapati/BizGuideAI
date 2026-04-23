@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 
-import { Plus, Sparkles, Target as TargetIcon, Loader2, Trash2, Edit2, TrendingUp, Users, Cog, GraduationCap, DollarSign, BookOpen, UserCheck, Link2, CheckCircle2, AlertCircle, History, Wand2, Layers, CalendarIcon } from "lucide-react";
+import { Plus, Sparkles, Target as TargetIcon, Loader2, Trash2, Edit2, TrendingUp, Users, Cog, GraduationCap, DollarSign, BookOpen, UserCheck, Link2, CheckCircle2, AlertCircle, History, Wand2, Layers, CalendarIcon, GitBranch } from "lucide-react";
+import { BSCCausaEfeitoWizard } from "@/components/BSCCausaEfeitoWizard";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { format, parse as parseDateFn } from "date-fns";
@@ -834,6 +835,8 @@ export default function OKRs() {
   const [gerandoPerspectiva, setGerandoPerspectiva] = useState<string | null>(null);
   const [aiObjetivosOpen, setAiObjetivosOpen] = useState(false);
   const [aiObjetivosPerspectivaInicial, setAiObjetivosPerspectivaInicial] = useState<string | null>(null);
+  // Task #301 — Wizard BSC Causa e Efeito
+  const [bscWizardOpen, setBscWizardOpen] = useState(false);
   const [aiResultadosOpen, setAiResultadosOpen] = useState(false);
   const [aiResultadosObjetivoId, setAiResultadosObjetivoId] = useState<string | null>(null);
 
@@ -1454,7 +1457,7 @@ export default function OKRs() {
         description="Defina onde quer chegar e como vai medir o progresso. Cada objetivo tem métricas de acompanhamento com prazo definido."
         tooltip="Metas ambiciosas com prazo e progresso mensurável (0–100%). Diferente dos Indicadores, que monitoram a saúde contínua do negócio com status verde/amarelo/vermelho."
         action={
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button
               onClick={() => handleAbrirModalObjetivos(null)}
               disabled={gerarObjetivosMutation.isPending}
@@ -1467,6 +1470,14 @@ export default function OKRs() {
                 <Sparkles className="h-4 w-4 mr-2" />
               )}
               Gerar para todas as áreas
+            </Button>
+            <Button
+              onClick={() => setBscWizardOpen(true)}
+              variant="outline"
+              data-testid="button-bsc-causa-efeito"
+            >
+              <GitBranch className="h-4 w-4 mr-2" />
+              BSC Causa e Efeito
             </Button>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
@@ -2116,6 +2127,18 @@ export default function OKRs() {
           )}
         </DialogContent>
       </Dialog>
+
+      {empresaId && (
+        <BSCCausaEfeitoWizard
+          open={bscWizardOpen}
+          onOpenChange={setBscWizardOpen}
+          empresaId={empresaId}
+          perspectivas={perspectivas.map((p) => ({ valor: p.valor, label: p.label }))}
+          onComplete={() => {
+            queryClient.invalidateQueries({ queryKey: ["/api/objetivos"] });
+          }}
+        />
+      )}
 
       <AIGenerationModal
         open={aiObjetivosOpen}

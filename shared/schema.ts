@@ -164,6 +164,11 @@ export const objetivos = pgTable("objetivos", {
   estrategiaId: varchar("estrategia_id").references(() => estrategias.id, { onDelete: "set null" }),
   iniciativaId: varchar("iniciativa_id").references((): AnyPgColumn => iniciativas.id, { onDelete: "set null" }),
   encerrado: boolean("encerrado").default(false),
+  // Task #301 — marcador de rastreabilidade: indica que este Objetivo foi
+  // gerado pelo modo "BSC Causa e Efeito" (wizard sequencial em 4 etapas
+  // que ancora a perspectiva Financeira no diagnóstico atual e gera
+  // Clientes/Processos/Aprendizado como pré-requisitos da camada acima).
+  origemModoBSC: boolean("origem_modo_bsc").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -909,6 +914,16 @@ export const aiGenerationParamsSchema = z.object({
   instrucaoAdicional: z.string().max(2000).optional(),
   fontesContexto: z.array(z.string()).optional(),
   origemId: z.string().optional(),
+  // Task #301 — modo BSC Causa e Efeito (apenas para /api/ai/gerar-objetivos).
+  // Quando true, a perspectiva Financeira recebe os indicadores de
+  // diagnóstico como âncora, e Clientes/Processos/Aprendizado recebem
+  // `objetivosAnteriores` como contexto da camada acima a ser habilitada.
+  modoBSC: z.boolean().optional(),
+  objetivosAnteriores: z.array(z.object({
+    perspectiva: z.string(),
+    titulo: z.string(),
+    descricao: z.string().optional().nullable(),
+  })).optional(),
 });
 export type AIGenerationParams = z.infer<typeof aiGenerationParamsSchema>;
 

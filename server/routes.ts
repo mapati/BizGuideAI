@@ -6950,6 +6950,11 @@ ${tarefaIniciativas}${instrucaoAdicionalIni ? `\n\n## INSTRUÇÕES ADICIONAIS DO
         .filter((p): p is string => typeof p === "string" && todasPerspectivasBSC.includes(p));
       const instrucaoAdicionalObj = (aiParamsObj.data.instrucaoAdicional ?? "").trim();
       const quantidadePorPerspectivaObj = Math.min(5, Math.max(1, Number(aiParamsObj.data.quantidade ?? 1) || 1));
+      // Task #301 — Modo BSC Causa e Efeito.
+      const modoBSC = aiParamsObj.data.modoBSC === true;
+      const objetivosAnterioresInput = (aiParamsObj.data.objetivosAnteriores ?? []).filter(
+        (o) => o && typeof o.titulo === "string" && o.titulo.trim().length > 0
+      );
 
       // Task #274 — Objetivos derivam de Estratégias/Frentes (NÃO de
       // Iniciativas). Iniciativas viraram a camada DE EXECUÇÃO, abaixo dos
@@ -6967,6 +6972,11 @@ ${tarefaIniciativas}${instrucaoAdicionalIni ? `\n\n## INSTRUÇÕES ADICIONAIS DO
       const contextoPerfil = buildEmpresaContextoIA(empresa);
 
       const objetivosExistentes = await storage.getObjetivos(empresaId);
+      // Task #301 — Indicadores de diagnóstico (perspectiva === "diagnostico")
+      // ancoram a perspectiva Financeira no modo BSC Causa e Efeito.
+      const indicadoresDiagnosticoBSC = modoBSC
+        ? (await storage.getIndicadores(empresaId)).filter((i) => i.perspectiva === "diagnostico")
+        : [];
       const estrategiasLista = usarEstrategiasObj ? await storage.getEstrategias(empresaId) : [];
       const oportunidades = usarOportunidadesObj ? await storage.getOportunidadesCrescimento(empresaId) : [];
       const modeloNegocio = usarBmcObj ? await storage.getModeloNegocio(empresaId) : [];
@@ -7011,10 +7021,54 @@ ${tarefaIniciativas}${instrucaoAdicionalIni ? `\n\n## INSTRUÇÕES ADICIONAIS DO
         }
       };
 
-      const gerarParaPerspectiva = async (perspectiva: string) => {
+      const gerarParaPerspectiva = async (
+        perspectiva: string,
+        bscContext?: { anteriores: { perspectiva: string; titulo: string; descricao?: string | null }[] }
+      ) => {
         const def = definicoesPerspectivasBSC[perspectiva];
         const objetivosDestaPerspectiva = objetivosExistentes.filter(o => o.perspectiva === perspectiva);
         const objetivosResume = objetivosDestaPerspectiva.map(o => `- ${o.titulo}`).join("\n");
+
+        // Task #301 — Bloco BSC Causa e Efeito.
+        const isBSC = !!bscContext;
+        const isFinanceiraBSC = isBSC && perspectiva === "Financeira";
+        const diagnosticoResume = indicadoresDiagnosticoBSC
+          .map((i) => `- ${i.nome}${i.meta ? ` (referência: ${i.meta})` : ""}${i.atual ? ` — atual: ${i.atual}` : ""}`)
+          .join("\n");
+        const anterioresAgrupados = (bscContext?.anteriores ?? []).reduce<Record<string, string[]>>((acc, o) => {
+          const linha = `- ${o.titulo}${o.descricao ? ` — ${o.descricao}` : ""}`;
+          (acc[o.perspectiva] ||= []).push(linha);
+          return acc;
+        }, {});
+        const anterioresTexto = Object.entries(anterioresAgrupados)
+          .map(([persp, linhas]) => `### Perspectiva ${persp}\n${linhas.join("\n")}`)
+          .join("\n\n");
+
+        const bscSystemExtra = !isBSC ? "" : isFinanceiraBSC ? `
+
+MODO BSC CAUSA E EFEITO — PERSPECTIVA FINANCEIRA (1ª etapa do mapa):
+Esta perspectiva é o TOPO do mapa estratégico de Causa e Efeito. Os objetivos financeiros que você criar agora são os "fins" — os resultados de negócio que TODAS as outras perspectivas vão habilitar nas próximas etapas.
+- Ancore CADA objetivo financeiro em UM ou MAIS indicadores de DIAGNÓSTICO listados na seção "INDICADORES DE DIAGNÓSTICO ATUAIS". Esses indicadores representam a saúde financeira/operacional REAL da empresa hoje.
+- Cada objetivo deve representar uma melhoria mensurável sobre esses indicadores (ex.: elevar margem que hoje está baixa, reduzir custo que hoje está alto, melhorar fluxo de caixa, etc.).
+- Não inclua o campo "justificativaCausaEfeito" para a perspectiva Financeira (ela é a origem da cadeia, não habilita ninguém acima).` : `
+
+MODO BSC CAUSA E EFEITO — PERSPECTIVA "${perspectiva}":
+Esta perspectiva está ABAIXO no mapa estratégico e funciona como PRÉ-REQUISITO para HABILITAR os objetivos da(s) perspectiva(s) gerada(s) acima (listados em "OBJETIVOS DAS CAMADAS ACIMA"). Cada objetivo que você criar agora deve responder: "o que precisamos fazer nesta camada para tornar possíveis os objetivos da camada de cima?".
+- CADA objetivo gerado DEVE estar conectado a pelo menos UM objetivo das camadas acima.
+- Para CADA objetivo gerado você DEVE incluir um campo adicional "justificativaCausaEfeito": uma frase curta (até 25 palavras) que explica QUAL(IS) objetivo(s) da camada acima esse objetivo habilita e POR QUÊ. Ex.: "Habilita 'Aumentar margem líquida' ao reduzir o tempo de ciclo produtivo, baixando custo unitário."
+- Não invente conexões: só conecte com objetivos REALMENTE listados em "OBJETIVOS DAS CAMADAS ACIMA".`;
+
+        const bscUserExtra = !isBSC ? "" : isFinanceiraBSC ? `
+
+## INDICADORES DE DIAGNÓSTICO ATUAIS (âncora obrigatória para esta etapa):
+${indicadoresDiagnosticoBSC.length > 0 ? diagnosticoResume : "Nenhum indicador de diagnóstico cadastrado — ancore nas dores financeiras descritas no perfil da empresa."}` : `
+
+## OBJETIVOS DAS CAMADAS ACIMA (que esta perspectiva precisa habilitar):
+${anterioresTexto || "(vazio)"}`;
+
+        const justificativaJsonHint = isBSC && !isFinanceiraBSC
+          ? `,\n      "justificativaCausaEfeito": "frase curta explicando qual objetivo acima este habilita"`
+          : "";
 
         const completion = await openai.chat.completions.create({
           model: getModelForPlan(empresa.planoTipo, "relatorios"),
@@ -7038,7 +7092,7 @@ REGRA DE PRIORIZAÇÃO: As Frentes de Crescimento estão listadas em ordem decre
 
 REGRA DE ORIGEM (cascata estratégica): Para cada objetivo gerado você DEVE escolher automaticamente uma Estratégia de origem entre as listadas, preenchendo o campo:
 - "estrategiaId": copie EXATAMENTE o id (após "id=") de UMA Estratégia da lista (escolha a que melhor justifica o objetivo nesta perspectiva).
-NUNCA invente ids. NUNCA preencha "iniciativaId" — Iniciativas são geradas DEPOIS dos Objetivos, então não podem ser origem deles. Só deixe "estrategiaId" vazio se realmente não houver nenhuma Estratégia listada.`
+NUNCA invente ids. NUNCA preencha "iniciativaId" — Iniciativas são geradas DEPOIS dos Objetivos, então não podem ser origem deles. Só deixe "estrategiaId" vazio se realmente não houver nenhuma Estratégia listada.${bscSystemExtra}`
             },
             {
               role: "user",
@@ -7051,7 +7105,7 @@ ${oportunidadesOrdenadas.length > 0 ? `\nFrentes de Crescimento (ordenadas por P
 ${bmcObjetivosCtx ? `\nModelo de Negócio (Business Model Canvas):\n${bmcObjetivosCtx}` : ""}
 
 ## OBJETIVOS JÁ EXISTENTES NA PERSPECTIVA "${perspectiva}" (NÃO REPITA):
-${objetivosDestaPerspectiva.length > 0 ? objetivosResume : "Nenhum ainda"}
+${objetivosDestaPerspectiva.length > 0 ? objetivosResume : "Nenhum ainda"}${bscUserExtra}
 
 ## TAREFA:
 Crie EXATAMENTE ${quantidadePorPerspectivaObj} objetivo(s) estratégico(s) para a perspectiva "${perspectiva}" desta empresa.
@@ -7072,7 +7126,7 @@ Responda em JSON:
       "descricao": "...",
       "prazo": "Anual 2025",
       "perspectiva": "${perspectiva}",
-      "estrategiaId": "id-copiado-da-lista-ou-vazio"
+      "estrategiaId": "id-copiado-da-lista-ou-vazio"${justificativaJsonHint}
     }
   ]
 }${instrucaoAdicionalObj ? `\n\n## INSTRUÇÕES ADICIONAIS DO USUÁRIO:\n${instrucaoAdicionalObj}` : ""}`
@@ -7087,7 +7141,7 @@ Responda em JSON:
         // Fallback de origem: se a IA não escolheu nenhuma Estratégia, atribui a primeira da lista.
         const fallbackEstrategiaId = estrategiasLista[0]?.id;
 
-        const sanitize = (o: { titulo: string; descricao?: string; prazo?: string; perspectiva?: string; estrategiaId?: unknown }) => {
+        const sanitize = (o: { titulo: string; descricao?: string; prazo?: string; perspectiva?: string; estrategiaId?: unknown; justificativaCausaEfeito?: unknown }) => {
           let iniciativaId: string | null;
           let estrategiaId: string | null;
           if (forcedIniciativaId || forcedEstrategiaId) {
@@ -7107,6 +7161,9 @@ Responda em JSON:
               estrategiaId = fallbackEstrategiaId;
             }
           }
+          const justificativaRaw = typeof o.justificativaCausaEfeito === "string"
+            ? o.justificativaCausaEfeito.trim()
+            : "";
           return {
             titulo: o.titulo,
             descricao: o.descricao,
@@ -7114,6 +7171,12 @@ Responda em JSON:
             perspectiva: o.perspectiva || perspectiva,
             iniciativaId,
             estrategiaId,
+            // Task #301 — só preserva justificativa quando estiver no modo BSC
+            // e não for a perspectiva Financeira (raiz do mapa).
+            ...(isBSC && !isFinanceiraBSC && justificativaRaw
+              ? { justificativaCausaEfeito: justificativaRaw }
+              : {}),
+            ...(isBSC ? { origemModoBSC: true } : {}),
           };
         };
 
@@ -7143,17 +7206,62 @@ Responda em JSON:
         perspectivasParaGerar = [...todasPerspectivasBSC];
       }
 
-      const resultadosPorPersp = await Promise.all(
-        perspectivasParaGerar.map(p => gerarParaPerspectiva(p))
-      );
-      const objetivosGerados = resultadosPorPersp
-        .flat()
-        .filter(obj => {
-          const titulo = obj.titulo?.toLowerCase().trim();
-          if (!titulo || seenTitles.has(titulo)) return false;
-          seenTitles.add(titulo);
-          return true;
-        });
+      type ObjetivoGeradoDTO = {
+        titulo: string;
+        descricao?: string;
+        prazo?: string;
+        perspectiva: string;
+        iniciativaId: string | null;
+        estrategiaId: string | null;
+        justificativaCausaEfeito?: string;
+        origemModoBSC?: boolean;
+      };
+      let objetivosGerados: ObjetivoGeradoDTO[];
+      if (modoBSC) {
+        // Task #301 — Modo BSC: roda SEQUENCIALMENTE (uma perspectiva por
+        // vez) na ordem canônica do mapa estratégico (Financeira → Clientes
+        // → Processos Internos → Aprendizado e Crescimento), pois cada
+        // camada precisa receber, como contexto, os objetivos das camadas
+        // geradas anteriormente. A camada Financeira recebe os indicadores
+        // de diagnóstico como âncora.
+        //
+        // O acumulador `anterioresAcumulados` começa com o que o cliente
+        // mandou em `objetivosAnteriores` (caso o wizard envie uma camada
+        // por requisição) e vai sendo enriquecido com o que esta requisição
+        // gera, garantindo que múltiplas camadas pedidas no mesmo POST
+        // também recebam o contexto cruzado correto.
+        objetivosGerados = [];
+        const ordemCanonica = todasPerspectivasBSC.filter((p) => perspectivasParaGerar.includes(p));
+        const anterioresAcumulados: { perspectiva: string; titulo: string; descricao?: string | null }[] = [
+          ...objetivosAnterioresInput,
+        ];
+        for (const persp of ordemCanonica) {
+          const gerados = await gerarParaPerspectiva(persp, { anteriores: anterioresAcumulados });
+          for (const obj of gerados) {
+            const titulo = obj.titulo?.toLowerCase().trim();
+            if (!titulo || seenTitles.has(titulo)) continue;
+            seenTitles.add(titulo);
+            objetivosGerados.push(obj);
+            anterioresAcumulados.push({
+              perspectiva: persp,
+              titulo: obj.titulo,
+              descricao: obj.descricao ?? null,
+            });
+          }
+        }
+      } else {
+        const resultadosPorPersp = await Promise.all(
+          perspectivasParaGerar.map((p) => gerarParaPerspectiva(p))
+        );
+        objetivosGerados = resultadosPorPersp
+          .flat()
+          .filter((obj) => {
+            const titulo = obj.titulo?.toLowerCase().trim();
+            if (!titulo || seenTitles.has(titulo)) return false;
+            seenTitles.add(titulo);
+            return true;
+          });
+      }
 
       res.json({ objetivos: objetivosGerados });
     } catch (error: any) {

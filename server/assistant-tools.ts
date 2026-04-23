@@ -603,6 +603,202 @@ function mensagemDuplicidade(info: DuplicidadeInfo): string {
   return `Já existe ${info.entidadeRotulo} parecido(a) nesta empresa — não criei "${String(info.tituloNovo).slice(0, 80)}" para evitar duplicidade. Candidatos:\n${lista}\nProponha atualizar/arquivar um deles ou pergunte ao usuário qual ele quis dizer.`;
 }
 
+// ── Pré-validação de FKs (Task #342) ───────────────────────────────────
+// Bloqueia a emissão do PropostaCard quando o LLM passa um id de FK que
+// não existe na empresa (ex.: inventou um slug "kpi_..." em vez do UUID
+// do CATÁLOGO). Sem isto, o erro só aparece no `apply` — depois que o
+// usuário já clicou "Confirmar" — e a proposta falha com 500.
+//
+// Estratégia: para cada tool de update coberta, faz um lookup do id na
+// empresa atual; se falhar, devolve mensagem com candidatos por nome
+// (mesma similaridade usada para duplicatas) para o LLM se autocorrigir
+// no próximo turno.
+type FkSpec = {
+  campo: string;
+  rotulo: string;
+  // Valida o id; retorna { ok: true } se existe na empresa, { ok: false }
+  // caso contrário. Best-effort — qualquer exceção do storage deixa
+  // passar e cai no apply (defesa em profundidade).
+  validar: (id: string, empresaId: string) => Promise<boolean>;
+  // Procura candidatos por nome para sugerir ao LLM. Recebe o valor que
+  // o LLM passou (que pode ser slug, nome parcial, etc.). Retorna até 5.
+  candidatosPorNome: (
+    valor: string,
+    empresaId: string,
+  ) => Promise<EntidadeSimilarMatch[]>;
+};
+
+const FK_SPECS_POR_TOOL: Partial<Record<ToolName, FkSpec[]>> = {
+  atualizar_valor_indicador: [{
+    campo: "indicadorId",
+    rotulo: "indicador (KPI)",
+    validar: async (id, empresaId) => {
+      try {
+        const ind = await storage.getIndicador(id);
+        return !!ind && ind.empresaId === empresaId;
+      } catch { return false; }
+    },
+    candidatosPorNome: (valor, empresaId) =>
+      buscarIndicadoresSimilares(empresaId, normalizarValorFkParaBusca(valor)),
+  }],
+  atualizar_iniciativa: [{
+    campo: "id",
+    rotulo: "iniciativa",
+    validar: async (id, empresaId) => {
+      try {
+        const ini = await storage.getIniciativa(id);
+        return !!ini && ini.empresaId === empresaId;
+      } catch { return false; }
+    },
+    candidatosPorNome: (valor, empresaId) =>
+      buscarIniciativasSimilares(empresaId, normalizarValorFkParaBusca(valor))
+        .then((ms) => ms.map((m) => ({
+          id: m.id, titulo: m.titulo, contexto: `status=${m.status}`, similaridade: m.similaridade,
+        }))),
+  }],
+  encerrar_iniciativa: [{
+    campo: "id",
+    rotulo: "iniciativa",
+    validar: async (id, empresaId) => {
+      try {
+        const ini = await storage.getIniciativa(id);
+        return !!ini && ini.empresaId === empresaId;
+      } catch { return false; }
+    },
+    candidatosPorNome: (valor, empresaId) =>
+      buscarIniciativasSimilares(empresaId, normalizarValorFkParaBusca(valor))
+        .then((ms) => ms.map((m) => ({
+          id: m.id, titulo: m.titulo, contexto: `status=${m.status}`, similaridade: m.similaridade,
+        }))),
+  }],
+  atualizar_okr: [{
+    campo: "objetivoId",
+    rotulo: "OKR (objetivo)",
+    validar: async (id, empresaId) => {
+      try {
+        const objetivos = await storage.getObjetivos(empresaId);
+        return objetivos.some((o) => o.id === id);
+      } catch { return false; }
+    },
+    candidatosPorNome: (valor, empresaId) =>
+      buscarObjetivosSimilares(empresaId, normalizarValorFkParaBusca(valor)),
+  }],
+  adicionar_kr_a_okr: [{
+    campo: "objetivoId",
+    rotulo: "OKR (objetivo)",
+    validar: async (id, empresaId) => {
+      try {
+        const objetivos = await storage.getObjetivos(empresaId);
+        return objetivos.some((o) => o.id === id);
+      } catch { return false; }
+    },
+    candidatosPorNome: (valor, empresaId) =>
+      buscarObjetivosSimilares(empresaId, normalizarValorFkParaBusca(valor)),
+  }],
+  atualizar_kr: [{
+    campo: "resultadoChaveId",
+    rotulo: "meta (KR)",
+    validar: async (id, empresaId) => {
+      try {
+        const kr = await storage.getResultadoChaveById(id, empresaId);
+        return !!kr;
+      } catch { return false; }
+    },
+    candidatosPorNome: async () => [], // KR está aninhado em OKR; sem objetivoId não dá pra sugerir bem
+  }],
+  atualizar_progresso_kr: [{
+    campo: "resultadoChaveId",
+    rotulo: "meta (KR)",
+    validar: async (id, empresaId) => {
+      try {
+        const kr = await storage.getResultadoChaveById(id, empresaId);
+        return !!kr;
+      } catch { return false; }
+    },
+    candidatosPorNome: async () => [],
+  }],
+  registrar_checkin_kr: [{
+    campo: "resultadoChaveId",
+    rotulo: "meta (KR)",
+    validar: async (id, empresaId) => {
+      try {
+        const kr = await storage.getResultadoChaveById(id, empresaId);
+        return !!kr;
+      } catch { return false; }
+    },
+    candidatosPorNome: async () => [],
+  }],
+  vincular_iniciativa_a_kpi: [
+    {
+      campo: "iniciativaId",
+      rotulo: "iniciativa",
+      validar: async (id, empresaId) => {
+        try {
+          const ini = await storage.getIniciativa(id);
+          return !!ini && ini.empresaId === empresaId;
+        } catch { return false; }
+      },
+      candidatosPorNome: (valor, empresaId) =>
+        buscarIniciativasSimilares(empresaId, normalizarValorFkParaBusca(valor))
+          .then((ms) => ms.map((m) => ({
+            id: m.id, titulo: m.titulo, contexto: `status=${m.status}`, similaridade: m.similaridade,
+          }))),
+    },
+    {
+      campo: "indicadorId",
+      rotulo: "indicador (KPI)",
+      validar: async (id, empresaId) => {
+        try {
+          const ind = await storage.getIndicador(id);
+          return !!ind && ind.empresaId === empresaId;
+        } catch { return false; }
+      },
+      candidatosPorNome: (valor, empresaId) =>
+        buscarIndicadoresSimilares(empresaId, normalizarValorFkParaBusca(valor)),
+    },
+  ],
+};
+
+// Normaliza valor que veio como id para usar como query de busca por
+// nome. Slugs no formato "kpi_uso_sistemas_digitais_integrados" viram
+// "uso sistemas digitais integrados".
+function normalizarValorFkParaBusca(valor: string): string {
+  return valor
+    .replace(/^(kpi|okr|kr|iniciativa|risco|oportunidade)[_-]/i, "")
+    .replace(/[_-]+/g, " ")
+    .trim();
+}
+
+export async function validarFkExistentes(
+  toolName: string,
+  data: unknown,
+  empresaId: string,
+): Promise<{ mensagem: string } | null> {
+  const specs = FK_SPECS_POR_TOOL[toolName as ToolName];
+  if (!specs || !data || typeof data !== "object") return null;
+  const d = data as Record<string, unknown>;
+
+  for (const spec of specs) {
+    const raw = d[spec.campo];
+    if (typeof raw !== "string" || raw.length === 0) continue;
+    const ok = await spec.validar(raw, empresaId);
+    if (ok) continue;
+    const candidatos = await spec.candidatosPorNome(raw, empresaId);
+    const lista = candidatos.length > 0
+      ? candidatos
+        .map((c) => `• "${c.titulo}" (id=${c.id}${c.contexto ? `, ${c.contexto}` : ""})`)
+        .join("\n")
+      : "(nenhum candidato parecido encontrado nesta empresa)";
+    const mensagem =
+      `O ${spec.rotulo} com ${spec.campo}="${String(raw).slice(0, 80)}" não existe nesta empresa. ` +
+      `Use sempre o id REAL do CATÁLOGO (formato UUID, ex.: "12345678-..."), nunca um slug ou nome. ` +
+      `Candidatos parecidos:\n${lista}\n` +
+      `Reemita a tool com o id correto ou pergunte ao usuário qual ele quis dizer.`;
+    return { mensagem };
+  }
+  return null;
+}
+
 // ---------- 1. criar_iniciativa ----------
 const criarIniciativaSchema = z.object({
   titulo: z.string().min(3).max(200),
@@ -6867,6 +7063,17 @@ export async function registrarProposta(opts: {
   const dup = await detectarDuplicidade(tool.name, parsed.data, opts.empresaId);
   if (dup) {
     return { ok: false, mensagem: mensagemDuplicidade(dup) };
+  }
+
+  // Task #342 — Pré-validação determinística de FKs em tools de update
+  // (atualizar_valor_indicador, atualizar_iniciativa, encerrar_iniciativa,
+  // atualizar_okr, adicionar_kr_a_okr, atualizar_kr, atualizar_progresso_kr).
+  // Bloqueia o card quando o LLM passa um id inventado (ex.: slug
+  // "kpi_uso_sistemas_..." em vez do UUID do CATÁLOGO) — antes só falhava
+  // no apply, depois do usuário já ter confirmado.
+  const fkErr = await validarFkExistentes(tool.name, parsed.data, opts.empresaId);
+  if (fkErr) {
+    return { ok: false, mensagem: fkErr.mensagem };
   }
 
   let preview = tool.preview(parsed.data);

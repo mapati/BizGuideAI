@@ -280,7 +280,7 @@ vi.mock("../storage", () => {
 });
 
 // Importes pós-mock
-import { getTool, IniciativaDuplicadaError } from "../assistant-tools";
+import { getTool, IniciativaDuplicadaError, registrarProposta } from "../assistant-tools";
 
 const EMPRESA_A = "empresa-a";
 const EMPRESA_B = "empresa-b";
@@ -1209,5 +1209,68 @@ describe("atualizar_valor_indicador", () => {
     const enriched = await t.enrichPreview!(t.preview(p), p, ctxA);
     const valor = enriched.campos!.find((c) => c.label === "Valor");
     expect((valor as { valorAnterior?: string }).valorAnterior).toBe("80000");
+  });
+});
+
+// ─── Task #342 — Pré-validação de FKs em registrarProposta ─────────────
+// Reproduz o bug em produção: o LLM passou um slug ("kpi_uso_sistemas_
+// digitais_integrados_por_clientes") como indicadorId em vez do UUID do
+// CATÁLOGO. Antes do fix, registrarProposta gerava o card e a falha só
+// aparecia no apply (com 500 "Indicador não encontrado nesta empresa")
+// depois que o usuário já tinha confirmado.
+describe("registrarProposta — pré-validação de FKs (Task #342)", () => {
+  it("bloqueia atualizar_valor_indicador quando indicadorId é slug inventado (bug em produção)", async () => {
+    seedIndicador(EMPRESA_A, {
+      nome: "Uso de Sistemas Digitais Integrados por Clientes",
+      perspectiva: "Cliente",
+    });
+    const res = await registrarProposta({
+      toolName: "atualizar_valor_indicador",
+      rawArgs: {
+        indicadorId: "kpi_uso_sistemas_digitais_integrados_por_clientes",
+        valor: "75%",
+      },
+      empresaId: EMPRESA_A,
+    });
+    // Card NÃO é gerado: erro estruturado para o LLM se autocorrigir.
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.mensagem).toMatch(/não existe nesta empresa/i);
+    expect(res.mensagem).toMatch(/UUID/);
+    expect(res.mensagem).toContain("indicadorId");
+  });
+
+  it("bloqueia atualizar_valor_indicador quando indicadorId é de outra empresa", async () => {
+    const ind = seedIndicador(EMPRESA_B);
+    const res = await registrarProposta({
+      toolName: "atualizar_valor_indicador",
+      rawArgs: { indicadorId: ind.id, valor: "10" },
+      empresaId: EMPRESA_A,
+    });
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.mensagem).toMatch(/não existe nesta empresa/i);
+  });
+
+  it("bloqueia atualizar_iniciativa quando id não existe na empresa", async () => {
+    const res = await registrarProposta({
+      toolName: "atualizar_iniciativa",
+      rawArgs: { id: "iniciativa-inexistente-xyz", status: "concluida" },
+      empresaId: EMPRESA_A,
+    });
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.mensagem).toMatch(/não existe nesta empresa/i);
+  });
+
+  it("bloqueia atualizar_progresso_kr quando resultadoChaveId é inventado", async () => {
+    const res = await registrarProposta({
+      toolName: "atualizar_progresso_kr",
+      rawArgs: { resultadoChaveId: "kr-fake-12345678", valorAtual: 50 },
+      empresaId: EMPRESA_A,
+    });
+    expect(res.ok).toBe(false);
+    if (res.ok) return;
+    expect(res.mensagem).toMatch(/não existe nesta empresa/i);
   });
 });

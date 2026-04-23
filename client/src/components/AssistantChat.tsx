@@ -748,7 +748,7 @@ export function AssistantChat({
             container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
           }}
           disabled={isLoading || messages.filter((m) => m.role === "assistant").length === 0}
-          className="gap-1.5 text-xs text-muted-foreground"
+          className="gap-1.5 text-xs"
           data-testid="button-ultima-mensagem"
         >
           <ArrowDownToLine className="h-3.5 w-3.5" />
@@ -756,10 +756,10 @@ export function AssistantChat({
         </Button>
         <Button
           size="sm"
-          variant="ghost"
+          variant="outline"
           onClick={iniciarNovaConversa}
           disabled={encerrando || isLoading}
-          className="gap-1.5 text-xs text-muted-foreground"
+          className="gap-1.5 text-xs"
           data-testid="button-nova-conversa"
           title="Nova conversa (Ctrl/⌘+Shift+O)"
         >

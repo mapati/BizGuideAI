@@ -15,6 +15,7 @@ import { GuiaContent } from "@/components/GuiaContent";
 import { BizzyAvatar } from "@/components/BizzyAvatar";
 import { TrilhaJornadaVertical } from "@/components/TrilhaJornadaVertical";
 import { TermometroQualidadeVertical } from "@/components/TermometroQualidadeVertical";
+import { TermometroPerformanceVertical } from "@/components/TermometroPerformanceVertical";
 import {
   PlanoAgenticoCard,
   type PlanoAgenticoView,
@@ -253,7 +254,10 @@ export function AssistantSidebar() {
                 onNavigate={() => setOpen(false)}
               />
             ) : (
-              <TermometroQualidadeVertical />
+              <>
+                <TermometroQualidadeVertical />
+                <TermometroPerformanceVertical />
+              </>
             )}
           </div>
         )}

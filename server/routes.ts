@@ -1622,6 +1622,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Performance Geral das Metas — média do progresso dos KRs por objetivo,
+  // depois média entre objetivos com KRs (mesma lógica do card do Home).
+  app.get("/api/plano/performance-metas", requireAuth, async (req, res) => {
+    try {
+      const empresaId = req.session.empresaId!;
+      const objetivos = await storage.getObjetivos(empresaId);
+      const krsPorObj = await Promise.all(
+        objetivos.map((o) => storage.getResultadosChave(o.id, empresaId)),
+      );
+      const progressoKR = (kr: { valorInicial: string; valorAtual: string; valorAlvo: string }) => {
+        const ini = parseFloat(kr.valorInicial);
+        const atual = parseFloat(kr.valorAtual);
+        const alvo = parseFloat(kr.valorAlvo);
+        if (isNaN(ini) || isNaN(atual) || isNaN(alvo)) return 0;
+        if (ini === alvo) return 100;
+        return Math.max(0, Math.min(100, ((atual - ini) / (alvo - ini)) * 100));
+      };
+      let totalKRs = 0;
+      let comKRs = 0;
+      let somaMediasObj = 0;
+      for (const krs of krsPorObj) {
+        if (krs.length === 0) continue;
+        comKRs += 1;
+        totalKRs += krs.length;
+        const mediaObj = krs.reduce((acc, kr) => acc + progressoKR(kr), 0) / krs.length;
+        somaMediasObj += mediaObj;
+      }
+      const score = comKRs === 0 ? 0 : Math.round(somaMediasObj / comKRs);
+      res.json({
+        score,
+        totalObjetivos: objetivos.length,
+        objetivosComKRs: comKRs,
+        totalKRs,
+      });
+    } catch (error: any) {
+      console.error("[PLAN_PERFORMANCE_METAS] erro:", error?.message ?? error);
+      res.status(500).json({ error: error?.message ?? "Erro ao calcular performance das metas" });
+    }
+  });
+
   // ─── Task #290 — Painel de Diagnóstico (Bizzy) ───
   app.get("/api/diagnostico/lacunas-cascata", requireAuth, async (req, res) => {
     try {

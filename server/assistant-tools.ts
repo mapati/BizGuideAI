@@ -1682,10 +1682,22 @@ const abrirEntidade: ToolDefinition<AbrirEntidadeParams> = {
 // O agente usa estas tools para abrir / encerrar planos multi-passo.
 // Continuam HITL: a "criação" do plano também precisa de aprovação humana.
 
+// Task #317 — Cada passo do plano agora tem um `tipo` que controla como o
+// chat o renderiza:
+//   - 'mensagem': fala curta do Bizzy (auto-avança ~1.5s, sem proposta).
+//   - 'link': botão que leva o usuário para uma rota (também auto-avança).
+//   - 'acao': proposta HITL gerada pela tool executora correspondente.
+// `linkAlvo` é obrigatório quando `tipo === 'link'` e ignorado nos demais.
 const passoPlanoSchema = z.object({
   ordem: z.number().int().min(1).max(20),
   titulo: z.string().min(2).max(160),
   descricao: z.string().max(400).default(""),
+  tipo: z.enum(["mensagem", "link", "acao"]).default("acao"),
+  linkAlvo: z.string().max(200).nullable().optional(),
+}).superRefine((p, ctx) => {
+  if (p.tipo === "link" && (!p.linkAlvo || !p.linkAlvo.trim())) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: "linkAlvo é obrigatório quando tipo='link'", path: ["linkAlvo"] });
+  }
 });
 
 const criarPlanoAgenticoSchema = z.object({
@@ -1714,11 +1726,23 @@ const criarPlanoAgentico: ToolDefinition<CriarPlanoAgenticoParams> = {
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["ordem", "titulo"],
+          required: ["ordem", "titulo", "tipo"],
           properties: {
             ordem: { type: "integer", minimum: 1, maximum: 20 },
             titulo: { type: "string" },
             descricao: { type: "string" },
+            // Task #317 — controla como o chat humaniza o passo.
+            tipo: {
+              type: "string",
+              enum: ["mensagem", "link", "acao"],
+              description:
+                "'mensagem' = só uma fala curta do Bizzy (sem CTA); 'link' = botão que abre uma rota do app; 'acao' = proposta HITL com tool executora.",
+            },
+            linkAlvo: {
+              type: "string",
+              description:
+                "Rota interna a abrir (ex.: '/iniciativas', '/okrs'). Obrigatório quando tipo='link', ignorado caso contrário.",
+            },
           },
         },
       },
@@ -1730,7 +1754,12 @@ const criarPlanoAgentico: ToolDefinition<CriarPlanoAgenticoParams> = {
     campos: p.passos
       .slice()
       .sort((a, b) => a.ordem - b.ordem)
-      .map((s) => ({ label: `Passo ${s.ordem}`, valor: s.titulo })),
+      .map((s) => {
+        // Task #317 — sinaliza visualmente o tipo do passo no preview.
+        const tag = s.tipo === "mensagem" ? "[mensagem] " : s.tipo === "link" ? "[link] " : "[ação] ";
+        const sufixo = s.tipo === "link" && s.linkAlvo ? ` → ${s.linkAlvo}` : "";
+        return { label: `Passo ${s.ordem}`, valor: `${tag}${s.titulo}${sufixo}` };
+      }),
     ctaConfirmar: "Iniciar plano",
     ctaIgnorar: "Não agora",
     ctaAjustar: "Ajustar",
@@ -1763,6 +1792,9 @@ const criarPlanoAgentico: ToolDefinition<CriarPlanoAgenticoParams> = {
         titulo: s.titulo,
         descricao: s.descricao ?? "",
         status: "pendente" as const,
+        // Task #317 — persiste tipo + linkAlvo para o chat humanizar a execução.
+        tipo: s.tipo ?? "acao",
+        linkAlvo: s.tipo === "link" ? (s.linkAlvo ?? null) : null,
       }));
     let plano;
     try {

@@ -17,6 +17,7 @@ import {
   Copy,
   Check,
   Sparkles,
+  ExternalLink,
 } from "lucide-react";
 import { BizzyAvatar } from "@/components/BizzyAvatar";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -44,6 +45,9 @@ interface Message {
   acoes?: AssistantAcao[];
   propostas?: Proposta[];
   interrompido?: boolean;
+  // Task #317 — quando o passo do plano é tipo='link', renderizamos um
+  // botão de navegação abaixo da mensagem (auto-avanço acontece em paralelo).
+  linkSugerido?: { rota: string; rotulo: string };
 }
 
 interface AssistantChatProps {
@@ -94,6 +98,25 @@ function buildHrefFromAcao(acao: AssistantAcao): string {
   }
   const qs = params.toString();
   return qs ? `${acao.rota}?${qs}` : acao.rota;
+}
+
+// Task #317 — Botão renderizado abaixo de uma mensagem do Bizzy quando o
+// passo é tipo='link'. Apenas navega para a rota interna; o auto-avanço do
+// plano é disparado em paralelo por handleContinuacao (não depende do clique).
+function LinkSugeridoButton({ rota, rotulo }: { rota: string; rotulo: string }) {
+  const [, navigate] = useLocation();
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      onClick={() => navigate(rota)}
+      className="gap-1.5 text-xs"
+      data-testid={`button-link-sugerido-${rota.replace(/\W+/g, "-")}`}
+    >
+      <ExternalLink className="h-3.5 w-3.5" />
+      {rotulo}
+    </Button>
+  );
 }
 
 function ActionIcon({ tipo }: { tipo: AssistantAcao["tipo"] }) {
@@ -208,6 +231,12 @@ function MessageBubble({
             ))}
           </div>
         )}
+        {/* Task #317 — botão de navegação para passos tipo='link'. */}
+        {!isUser && msg.linkSugerido && (
+          <div className="pl-1">
+            <LinkSugeridoButton rota={msg.linkSugerido.rota} rotulo={msg.linkSugerido.rotulo} />
+          </div>
+        )}
         {!isUser && msg.acoes && msg.acoes.filter((a) => a.tipo !== "dispensar").length > 0 && (
           <div className="flex flex-wrap gap-1.5 pl-1">
             {msg.acoes.filter((a) => a.tipo !== "dispensar").slice(0, 3).map((acao, idx) => (
@@ -284,6 +313,10 @@ export function AssistantChat({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const initializedRef = useRef(false);
   const proactiveAppliedRef = useRef(false);
+  // Task #317 — timers de auto-avanço de passos não-acionáveis. Cancelados
+  // ao desmontar e ao iniciar nova conversa para não disparar fora do
+  // contexto que originou o passo.
+  const autoAdvanceTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const [autoScroll, setAutoScroll] = useState(true);
 
   const planoAtivoQuery = useQuery<{ plano: (PlanoAgenticoView & { passos: PlanoAgenticoPassoView[] }) | null }>({
@@ -364,6 +397,14 @@ export function AssistantChat({
       cancelado = true;
     };
   }, [carregarConversa]);
+
+  // Task #317 — limpa timers de auto-avanço ao desmontar o componente.
+  useEffect(() => {
+    return () => {
+      autoAdvanceTimersRef.current.forEach((t) => clearTimeout(t));
+      autoAdvanceTimersRef.current = [];
+    };
+  }, []);
 
   // Reage a pedidos da aba Histórico para abrir uma conversa específica.
   useEffect(() => {
@@ -609,9 +650,27 @@ export function AssistantChat({
         role: "assistant",
         content: cont.mensagem || (cont.finalizado ? "Plano concluído." : "Próximo passo proposto."),
         propostas: cont.proximasPropostas,
+        linkSugerido: cont.linkSugerido,
       },
     ]);
     planoAtivoQuery.refetch();
+    // Task #317 — Quando o passo é não-acionável (mensagem/link) e o plano
+    // ainda não terminou, auto-avançamos ~1.5s depois para humanizar a
+    // conversa: o Bizzy fala/manda link e segue sozinho ao próximo passo.
+    const planoId = cont.plano?.plano?.id;
+    const ehNaoAcionavel = cont.tipoPasso === "mensagem" || cont.tipoPasso === "link";
+    const semProposta = !cont.proximasPropostas || cont.proximasPropostas.length === 0;
+    if (ehNaoAcionavel && semProposta && !cont.finalizado && planoId) {
+      const timer = setTimeout(async () => {
+        try {
+          const json = await apiRequest("POST", `/api/ai/planos/${planoId}/avancar`, {});
+          if (json?.continuacao) handleContinuacao(json.continuacao);
+        } catch {
+          /* silencioso: o usuário pode clicar em "Sugerir próximo passo" no card. */
+        }
+      }, 1500);
+      autoAdvanceTimersRef.current.push(timer);
+    }
   };
 
   const handleAcaoClick = (acao: AssistantAcao) => {
@@ -641,6 +700,9 @@ export function AssistantChat({
       setConversaId(null);
       setConversaTitulo("");
       setMessages([]);
+      // Task #317 — cancela auto-avanços em voo de planos da conversa anterior.
+      autoAdvanceTimersRef.current.forEach((t) => clearTimeout(t));
+      autoAdvanceTimersRef.current = [];
       queryClient.invalidateQueries({ queryKey: ["/api/ai/conversas"] });
       // Foco no textarea para começar a digitar imediatamente.
       setTimeout(() => textareaRef.current?.focus(), 50);

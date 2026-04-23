@@ -522,7 +522,8 @@ export class DbStorage implements IStorage {
   }
 
   async getFatoresPestel(empresaId: string): Promise<FatorPestel[]> {
-    return db.select().from(fatoresPestel).where(eq(fatoresPestel.empresaId, empresaId));
+    // Task #317 — filtra arquivados (archive-em-vez-de-delete via tools).
+    return db.select().from(fatoresPestel).where(and(eq(fatoresPestel.empresaId, empresaId), ne(fatoresPestel.status, "arquivado")));
   }
 
   async createFatorPestel(fator: InsertFatorPestel): Promise<FatorPestel> {
@@ -539,14 +540,17 @@ export class DbStorage implements IStorage {
   }
 
   async deleteFatorPestel(id: string, empresaId: string): Promise<void> {
-    const result = await db.delete(fatoresPestel)
+    // Task #317 — arquivamento lógico (sem DELETE). Mantém o nome do método
+    // para compatibilidade com chamadas existentes em routes/tools.
+    const result = await db.update(fatoresPestel).set({ status: "arquivado" })
       .where(and(eq(fatoresPestel.id, id), eq(fatoresPestel.empresaId, empresaId)))
       .returning();
     if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
   }
 
   async getAnaliseSwot(empresaId: string): Promise<AnaliseSwot[]> {
-    return db.select().from(analiseSwot).where(eq(analiseSwot.empresaId, empresaId));
+    // Task #317 — filtra arquivados.
+    return db.select().from(analiseSwot).where(and(eq(analiseSwot.empresaId, empresaId), ne(analiseSwot.status, "arquivado")));
   }
 
   async createAnaliseSwot(analise: InsertAnaliseSwot): Promise<AnaliseSwot> {
@@ -563,7 +567,8 @@ export class DbStorage implements IStorage {
   }
 
   async deleteAnaliseSwot(id: string, empresaId: string): Promise<void> {
-    const result = await db.delete(analiseSwot)
+    // Task #317 — arquivamento lógico.
+    const result = await db.update(analiseSwot).set({ status: "arquivado" })
       .where(and(eq(analiseSwot.id, id), eq(analiseSwot.empresaId, empresaId)))
       .returning();
     if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
@@ -768,7 +773,8 @@ export class DbStorage implements IStorage {
   }
 
   async getCenarios(empresaId: string): Promise<Cenario[]> {
-    return db.select().from(cenarios).where(eq(cenarios.empresaId, empresaId)).orderBy(cenarios.tipo);
+    // Task #317 — filtra arquivados.
+    return db.select().from(cenarios).where(and(eq(cenarios.empresaId, empresaId), ne(cenarios.status, "arquivado"))).orderBy(cenarios.tipo);
   }
   async createCenario(cenario: InsertCenario): Promise<Cenario> {
     const result = await db.insert(cenarios).values(cenario).returning();
@@ -781,7 +787,10 @@ export class DbStorage implements IStorage {
     return result[0];
   }
   async deleteCenario(id: string, empresaId: string): Promise<void> {
-    await db.delete(cenarios).where(and(eq(cenarios.id, id), eq(cenarios.empresaId, empresaId)));
+    // Task #317 — arquivamento lógico.
+    const result = await db.update(cenarios).set({ status: "arquivado" })
+      .where(and(eq(cenarios.id, id), eq(cenarios.empresaId, empresaId))).returning();
+    if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
   }
 
   async getRiscos(empresaId: string): Promise<Risco[]> {
@@ -806,7 +815,8 @@ export class DbStorage implements IStorage {
   }
 
   async getBscRelacoes(empresaId: string): Promise<BscRelacao[]> {
-    return db.select().from(bscRelacoes).where(eq(bscRelacoes.empresaId, empresaId));
+    // Task #317 — filtra arquivados.
+    return db.select().from(bscRelacoes).where(and(eq(bscRelacoes.empresaId, empresaId), ne(bscRelacoes.status, "arquivado")));
   }
   async createBscRelacao(relacao: InsertBscRelacao): Promise<BscRelacao> {
     const result = await db.insert(bscRelacoes).values(relacao).returning();
@@ -818,7 +828,10 @@ export class DbStorage implements IStorage {
     return result[0];
   }
   async deleteBscRelacao(id: string, empresaId: string): Promise<void> {
-    await db.delete(bscRelacoes).where(and(eq(bscRelacoes.id, id), eq(bscRelacoes.empresaId, empresaId)));
+    // Task #317 — arquivamento lógico.
+    const result = await db.update(bscRelacoes).set({ status: "arquivado" })
+      .where(and(eq(bscRelacoes.id, id), eq(bscRelacoes.empresaId, empresaId))).returning();
+    if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
   }
 
   async getCompartilhamentos(empresaId: string): Promise<Compartilhamento[]> {
@@ -893,7 +906,8 @@ export class DbStorage implements IStorage {
   }
 
   async getModeloNegocio(empresaId: string): Promise<ModeloNegocio[]> {
-    return db.select().from(modeloNegocio).where(eq(modeloNegocio.empresaId, empresaId));
+    // Task #317 — filtra arquivados.
+    return db.select().from(modeloNegocio).where(and(eq(modeloNegocio.empresaId, empresaId), ne(modeloNegocio.status, "arquivado")));
   }
 
   async createModeloNegocio(bloco: InsertModeloNegocio): Promise<ModeloNegocio> {
@@ -910,7 +924,8 @@ export class DbStorage implements IStorage {
   }
 
   async deleteModeloNegocio(id: string, empresaId: string): Promise<void> {
-    const result = await db.delete(modeloNegocio)
+    // Task #317 — arquivamento lógico.
+    const result = await db.update(modeloNegocio).set({ status: "arquivado" })
       .where(and(eq(modeloNegocio.id, id), eq(modeloNegocio.empresaId, empresaId)))
       .returning();
     if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
@@ -1018,7 +1033,8 @@ export class DbStorage implements IStorage {
   }
 
   async getOportunidadesCrescimento(empresaId: string): Promise<OportunidadeCrescimento[]> {
-    return db.select().from(oportunidadesCrescimento).where(eq(oportunidadesCrescimento.empresaId, empresaId));
+    // Task #317 — filtra arquivados.
+    return db.select().from(oportunidadesCrescimento).where(and(eq(oportunidadesCrescimento.empresaId, empresaId), ne(oportunidadesCrescimento.status, "arquivado")));
   }
 
   async getOportunidadeCrescimento(id: string): Promise<OportunidadeCrescimento | undefined> {
@@ -1040,7 +1056,8 @@ export class DbStorage implements IStorage {
   }
 
   async deleteOportunidadeCrescimento(id: string, empresaId: string): Promise<void> {
-    const result = await db.delete(oportunidadesCrescimento)
+    // Task #317 — arquivamento lógico.
+    const result = await db.update(oportunidadesCrescimento).set({ status: "arquivado" })
       .where(and(eq(oportunidadesCrescimento.id, id), eq(oportunidadesCrescimento.empresaId, empresaId)))
       .returning();
     if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");

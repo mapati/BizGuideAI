@@ -122,6 +122,8 @@ export const fatoresPestel = pgTable("fatores_pestel", {
   descricao: text("descricao").notNull(),
   impacto: text("impacto").notNull(),
   evidencia: text("evidencia").notNull(),
+  // Task #317 — arquivamento lógico (substitui DELETE direto). 'ativo' (default) ou 'arquivado'.
+  status: text("status").notNull().default("ativo"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -138,6 +140,8 @@ export const analiseSwot = pgTable("analise_swot", {
   tipo: text("tipo").notNull(),
   descricao: text("descricao").notNull(),
   impacto: text("impacto").notNull(),
+  // Task #317 — arquivamento lógico. 'ativo' (default) ou 'arquivado'.
+  status: text("status").notNull().default("ativo"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -291,6 +295,8 @@ export const modeloNegocio = pgTable("modelo_negocio", {
   empresaId: varchar("empresa_id").notNull().references(() => empresas.id, { onDelete: "cascade" }),
   bloco: text("bloco").notNull(),
   descricao: text("descricao").notNull(),
+  // Task #317 — arquivamento lógico. 'ativo' (default) ou 'arquivado'.
+  status: text("status").notNull().default("ativo"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -332,6 +338,8 @@ export const oportunidadesCrescimento = pgTable("oportunidades_crescimento", {
   potencial: text("potencial").notNull(),
   risco: text("risco").notNull(),
   estrategiaId: varchar("estrategia_id").references(() => estrategias.id, { onDelete: "set null" }),
+  // Task #317 — arquivamento lógico. 'ativo' (default) ou 'arquivado'.
+  status: text("status").notNull().default("ativo"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -453,6 +461,8 @@ export const cenarios = pgTable("cenarios", {
   descricao: text("descricao").notNull().default(""),
   premissas: text("premissas").notNull().default("[]"),
   respostaEstrategica: text("resposta_estrategica").notNull().default(""),
+  // Task #317 — arquivamento lógico. 'ativo' (default) ou 'arquivado'.
+  status: text("status").notNull().default("ativo"),
   criadoEm: timestamp("criado_em").defaultNow().notNull(),
 });
 export const insertCenarioSchema = createInsertSchema(cenarios).omit({ id: true, criadoEm: true });
@@ -488,6 +498,8 @@ export const bscRelacoes = pgTable("bsc_relacoes", {
   // frase `justificativaCausaEfeito` que a IA gera por objetivo) e exibida
   // como tooltip nos badges "↑ habilita" / "↓ habilitado por" da página OKRs.
   justificativa: text("justificativa"),
+  // Task #317 — arquivamento lógico. 'ativo' (default) ou 'arquivado'.
+  status: text("status").notNull().default("ativo"),
   criadoEm: timestamp("criado_em").defaultNow().notNull(),
 });
 export const insertBscRelacaoSchema = createInsertSchema(bscRelacoes, {
@@ -837,6 +849,12 @@ export const planoAgenticoPasso = pgTable("plano_agentico_passo", {
   descricao: text("descricao").notNull().default(""),
   // pendente | em_andamento | concluido | pulado
   status: text("status").notNull().default("pendente"),
+  // Task #317 — Tipo do passo na conversa: 'mensagem' (fala normal),
+  // 'link' (botão para abrir página) ou 'acao' (proposta HITL com tool
+  // executora). Default 'acao' para compatibilidade com planos antigos.
+  tipo: text("tipo").notNull().default("acao"),
+  // Task #317 — Rota alvo quando tipo='link' (ex.: '/iniciativas').
+  linkAlvo: text("link_alvo"),
   // ID da proposta HITL gerada para este passo (preenchido quando o agente
   // realmente cria a tool call). Permite rastrear passo↔proposta.
   propostaId: varchar("proposta_id"),
@@ -845,6 +863,8 @@ export const planoAgenticoPasso = pgTable("plano_agentico_passo", {
   resolvidoEm: timestamp("resolvido_em"),
 });
 
+export const planoAgenticoPassoTipoEnum = z.enum(["mensagem", "link", "acao"]);
+export type PlanoAgenticoPassoTipo = z.infer<typeof planoAgenticoPassoTipoEnum>;
 export const planoAgenticoPassoStatusEnum = z.enum(["pendente", "em_andamento", "concluido", "pulado", "falhou"]);
 export type PlanoAgenticoPassoStatus = z.infer<typeof planoAgenticoPassoStatusEnum>;
 export type PlanoAgenticoPasso = typeof planoAgenticoPasso.$inferSelect;

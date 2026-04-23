@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Circle, Loader2, Target, X, ChevronDown, ChevronUp, PlayCircle, ArrowRight } from "lucide-react";
+import { CheckCircle2, Circle, Loader2, Target, X, ChevronDown, ChevronUp, PlayCircle, ArrowRight, MessageSquare, ArrowUpRight, Zap } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { ContinuacaoPlano } from "@/components/PropostaCard";
@@ -13,6 +13,9 @@ export interface PlanoAgenticoPassoView {
   titulo: string;
   descricao?: string;
   status: "pendente" | "em_andamento" | "concluido" | "pulado" | "falhou";
+  // Task #317 — tipo do passo (default 'acao' p/ planos antigos sem coluna).
+  tipo?: "mensagem" | "link" | "acao";
+  linkAlvo?: string | null;
 }
 
 export interface PlanoAgenticoView {
@@ -149,6 +152,18 @@ export function PlanoAgenticoCard({
         {expandido && (
           <ol className="space-y-1.5 pt-1">
             {passos.map((p) => {
+              // Task #317 — quando o passo está pendente, mostramos o ícone
+              // do TIPO (mensagem/link/ação) em vez de um círculo neutro,
+              // para o usuário antecipar o estilo de interação.
+              const tipo = p.tipo ?? "acao";
+              const tipoIcon =
+                tipo === "mensagem" ? (
+                  <MessageSquare className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                ) : tipo === "link" ? (
+                  <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                ) : (
+                  <Zap className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                );
               const icon =
                 p.status === "concluido" ? (
                   <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
@@ -159,7 +174,7 @@ export function PlanoAgenticoCard({
                 ) : p.status === "falhou" ? (
                   <X className="h-3.5 w-3.5 text-destructive shrink-0" />
                 ) : (
-                  <Circle className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  tipoIcon
                 );
               return (
                 <li

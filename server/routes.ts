@@ -4624,6 +4624,19 @@ LOOP AGÊNTICO (planos multi-passo):
 - Para pedidos pontuais ("crie a iniciativa X", "registre a leitura Y"), chame direto a tool executora — não abra plano.
 - Se já existe um PLANO AGÊNTICO ATIVO no contexto, foque exclusivamente no PRÓXIMO PASSO PENDENTE: chame a tool executora correspondente vinculando planoId e passoOrdem nos parâmetros.
 - Nunca proponha vários passos do mesmo plano de uma vez — um por vez, sempre HITL.
+- TIPO DE CADA PASSO (Task #317): humanize a conversa intercalando os 3 tipos. Cada passo de criar_plano_agentico DEVE ter "tipo":
+  • "mensagem" → fala curta do Bizzy explicando contexto / motivando o usuário (sem CTA, sem tool). Use 1-2 desses por plano nos pontos onde "só falar" faz sentido (abertura, transição, fechamento).
+  • "link" → manda o usuário para uma rota do app revisar algo antes da próxima ação; use linkAlvo com a rota interna (ex.: "/iniciativas", "/okrs", "/kpis", "/riscos", "/dashboard", "/estrategias"). Use quando o passo é "dá uma olhada em X".
+  • "acao" → proposta HITL real, executada pela tool correspondente (criar_iniciativa, atualizar_kr, etc.). Continua sendo a maior parte do plano.
+- Pelo menos 1 passo "mensagem" por plano. NUNCA tudo "acao" — fica robótico.
+- Exemplo de plano humanizado para "ataca a queda do NPS":
+  passos: [
+    {ordem:1, tipo:"mensagem", titulo:"Vou montar contigo um plano para destravar o NPS"},
+    {ordem:2, tipo:"link", titulo:"Dá uma olhada nos KPIs atuais", linkAlvo:"/kpis"},
+    {ordem:3, tipo:"acao", titulo:"Criar iniciativa: revisar onboarding"},
+    {ordem:4, tipo:"acao", titulo:"Vincular iniciativa ao KR de NPS"},
+    {ordem:5, tipo:"mensagem", titulo:"Pronto, agora é executar e medir em 4 semanas"}
+  ]
 - ANTES de chamar criar_plano_agentico, verifique se há um "## PLANO AGÊNTICO ATIVO" no contexto. Se houver, NÃO chame a ferramenta direto: primeiro responda em texto avisando o usuário que ele já tem o plano "<título>" em andamento (cite o progresso) e pergunte explicitamente se ele quer (a) continuar o plano atual, (b) concluí-lo (concluir_plano_agentico), (c) cancelá-lo (cancelar_plano_agentico) ou (d) substituí-lo por um novo plano. Só chame criar_plano_agentico depois que o usuário responder pedindo um plano novo — e mesmo assim deixe claro no texto que o anterior será cancelado.
 - ANTES de chamar criar_plano_agentico, verifique também se há um "## PLANO AGÊNTICO ATIVO DE OUTRO MEMBRO" no contexto (plano compartilhado da empresa ou de outro usuário do time). Se houver, NÃO chame a ferramenta direto: primeiro responda em texto avisando que existe um plano "<título>" do dono indicado (compartilhado da empresa ou de Fulano) em andamento, que criar um novo plano agora vai cancelar esse trabalho coletivo, e pergunte explicitamente se o usuário quer mesmo seguir. Só chame criar_plano_agentico depois da confirmação explícita.
 
@@ -4971,6 +4984,11 @@ ${ctx.join("\n\n")}`;
     proximasPropostas: Array<{ logId: string; ferramenta: string; preview: unknown; parametros: Record<string, unknown> }>;
     mensagem: string;
     finalizado: boolean;
+    // Task #317 — preenchidos quando o passo atual é tipo='link'/'mensagem',
+    // permitindo que o chat renderize botão de navegação ou só uma fala
+    // e auto-avance ~1.5s depois (o frontend chama /avancar de novo).
+    linkSugerido?: { rota: string; rotulo: string };
+    tipoPasso?: "mensagem" | "link" | "acao";
   } | null> {
     const refreshed = await storage.getPlanoAgenticoComPassos(planoId);
     if (!refreshed || refreshed.plano.empresaId !== empresaId || refreshed.plano.status !== "ativo") return null;
@@ -5012,6 +5030,58 @@ ${ctx.join("\n\n")}`;
     }
 
     await storage.updatePlanoAgentico(planoRow.id, { passoAtual: proxPendente.ordem });
+
+    // Task #317 — Passos não-acionáveis (tipo 'mensagem' ou 'link') NÃO vão
+    // ao LLM nem geram proposta HITL: marcamos concluído imediatamente e
+    // devolvemos uma fala curta + (opcional) link sugerido. O frontend
+    // auto-avança ~1.5s depois chamando /avancar.
+    const tipoPasso = ((proxPendente as unknown as { tipo?: string }).tipo ?? "acao") as "mensagem" | "link" | "acao";
+    if (tipoPasso === "mensagem" || tipoPasso === "link") {
+      await storage.updatePlanoAgenticoPasso(proxPendente.id, {
+        status: "concluido",
+        resolvidoEm: new Date(),
+        resultadoResumo: tipoPasso === "link"
+          ? `Passo ${proxPendente.ordem} (link → ${(proxPendente as unknown as { linkAlvo?: string }).linkAlvo ?? "—"}) marcado como visto.`
+          : `Passo ${proxPendente.ordem} (mensagem) entregue ao usuário.`,
+      });
+      // Se este era o último passo pendente, finaliza o plano de uma vez.
+      const restantes = refreshed.passos.filter((p) => p.id !== proxPendente.id && p.status === "pendente");
+      if (restantes.length === 0) {
+        const planoFinalizado = await storage.updatePlanoAgentico(planoRow.id, {
+          status: "concluido",
+          finalizadoEm: new Date(),
+          passoAtual: planoRow.totalPassos,
+        });
+        const planoRecarregado = await storage.getPlanoAgenticoComPassos(planoFinalizado.id);
+        return {
+          plano: planoRecarregado ?? null,
+          proximasPropostas: [],
+          mensagem: proxPendente.descricao?.trim() || proxPendente.titulo,
+          finalizado: true,
+          tipoPasso,
+          linkSugerido: tipoPasso === "link" && (proxPendente as unknown as { linkAlvo?: string }).linkAlvo
+            ? { rota: (proxPendente as unknown as { linkAlvo?: string }).linkAlvo!, rotulo: proxPendente.titulo }
+            : undefined,
+        };
+      }
+      const planoAtualizado = await storage.getPlanoAgenticoComPassos(planoRow.id);
+      console.info("[PLANO-AGENTICO]", {
+        acao: "passo_humanizado_auto_concluido",
+        planoId: planoRow.id,
+        passoOrdem: proxPendente.ordem,
+        tipo: tipoPasso,
+      });
+      return {
+        plano: planoAtualizado ?? null,
+        proximasPropostas: [],
+        mensagem: proxPendente.descricao?.trim() || proxPendente.titulo,
+        finalizado: false,
+        tipoPasso,
+        linkSugerido: tipoPasso === "link" && (proxPendente as unknown as { linkAlvo?: string }).linkAlvo
+          ? { rota: (proxPendente as unknown as { linkAlvo?: string }).linkAlvo!, rotulo: proxPendente.titulo }
+          : undefined,
+      };
+    }
 
     const empresa = await storage.getEmpresa(empresaId);
     const modelo = empresa ? getModelForPlan(empresa.planoTipo, "relatorios") : AI_MODELS.basico;
@@ -5095,6 +5165,9 @@ INSTRUÇÕES:
     proximasPropostas: Array<{ logId: string; ferramenta: string; preview: unknown; parametros: Record<string, unknown> }>;
     mensagem: string;
     finalizado: boolean;
+    // Task #317 — propagados quando o próximo passo é tipo='link'/'mensagem'.
+    linkSugerido?: { rota: string; rotulo: string };
+    tipoPasso?: "mensagem" | "link" | "acao";
   } | null> {
     try {
       // Caso 1: bootstrap — confirmação de criar_plano_agentico ainda não tem
@@ -5112,6 +5185,8 @@ INSTRUÇÕES:
           proximasPropostas: cont.proximasPropostas,
           mensagem: cont.mensagem,
           finalizado: cont.finalizado,
+          linkSugerido: cont.linkSugerido,
+          tipoPasso: cont.tipoPasso,
         };
       }
 
@@ -5153,6 +5228,8 @@ INSTRUÇÕES:
         proximasPropostas: cont.proximasPropostas,
         mensagem: cont.mensagem,
         finalizado: cont.finalizado,
+        linkSugerido: cont.linkSugerido,
+        tipoPasso: cont.tipoPasso,
       };
     } catch (err) {
       console.warn("[PLANO-AGENTICO] Falha ao avançar:", err);
@@ -5318,6 +5395,8 @@ INSTRUÇÕES:
     proximasPropostas: Array<{ logId: string; ferramenta: string; preview: unknown; parametros: Record<string, unknown> }>;
     mensagem: string;
     finalizado: boolean;
+    linkSugerido?: { rota: string; rotulo: string };
+    tipoPasso?: "mensagem" | "link" | "acao";
   } | null> {
     try {
       const passo = await storage.getPassoByPropostaId(propostaId);
@@ -5341,6 +5420,8 @@ INSTRUÇÕES:
         proximasPropostas: cont.proximasPropostas,
         mensagem: cont.mensagem,
         finalizado: cont.finalizado,
+        linkSugerido: cont.linkSugerido,
+        tipoPasso: cont.tipoPasso,
       };
     } catch (err) {
       console.warn("[PLANO-AGENTICO] pularPassoEContinuar falhou:", err);

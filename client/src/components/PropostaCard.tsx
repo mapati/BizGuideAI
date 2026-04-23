@@ -39,11 +39,17 @@ export interface Proposta {
 
 // Task #189 — Resposta de continuação após confirmação (loop agêntico).
 export interface ContinuacaoPlano {
-  plano: { plano: { id: string; titulo: string; status: string; passoAtual: number; totalPassos: number }; passos: Array<{ id: string; ordem: number; titulo: string; status: string }> } | null;
+  plano: { plano: { id: string; titulo: string; status: string; passoAtual: number; totalPassos: number }; passos: Array<{ id: string; ordem: number; titulo: string; status: string; tipo?: string; linkAlvo?: string | null }> } | null;
   passoConcluidoOrdem: number;
   proximasPropostas: Proposta[];
   mensagem: string;
   finalizado: boolean;
+  // Task #317 — quando o passo atual é tipo='link'/'mensagem', o backend
+  // marca-o como concluído sem proposta e devolve estes campos para o chat
+  // renderizar humanizadamente (botão de navegação ou só uma fala) e
+  // auto-avançar ~1.5s depois.
+  linkSugerido?: { rota: string; rotulo: string };
+  tipoPasso?: "mensagem" | "link" | "acao";
 }
 
 type Estado = "proposta" | "confirmada" | "ignorada" | "ajustada" | "falhou";

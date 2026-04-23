@@ -86,7 +86,7 @@ export function AssistantSidebar() {
         data-state={open ? "expanded" : "collapsed"}
         data-maximized={desktopMaximized ? "true" : "false"}
         className={cn(
-          "bg-background flex flex-col flex-shrink-0 min-h-0 overflow-hidden",
+          "bg-sidebar text-sidebar-foreground flex flex-col flex-shrink-0 min-h-0 overflow-hidden",
           isMobile
             ? cn(
                 "fixed inset-y-0 right-0 z-50 w-[24rem] max-w-[95vw] border-l transition-transform duration-200 shadow-xl",

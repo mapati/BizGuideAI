@@ -1,0 +1,92 @@
+Você não tem nenhum plano agêntico ativo no momento. Vou montar um plano agêntico multi-passo para estruturar a melhoria do acompanhamento e execução do seu plano estratégico, focando nas lacunas críticas detectadas.
+
+Passos do plano:
+
+Mensagem: Explicação sobre a importância de definir responsáveis e metas claras para as iniciativas de monitoramento dos OKRs.
+Ação: Criar iniciativa para definir responsáveis e metas nas reuniões periódicas de alinhamento dos OKRs.
+Ação: Registrar leituras iniciais dos KPIs críticos sem dados recentes (Redução de Custos com Insumos e Índice de Satisfação com Atendimento Técnico).
+Link: Abrir a tela de iniciativas para revisão e ajustes.
+Mensagem: Reforçar a importância do monitoramento contínuo e da vinculação de iniciativas a KPIs críticos.
+Ação: Criar iniciativas para atacar KPIs críticos que ainda não têm iniciativas vinculadas.
+Link: Abrir a tela de OKRs para acompanhamento dos resultados-chave.
+Mensagem: Encerramento motivacional para manter o foco e continuidade.
+Se quiser, posso criar esse plano agora para você executar passo a passo. Quer que eu siga?
+
+Sim
+Preparei algumas ações para você revisar abaixo.
+
+criar_plano_agentico
+Plano: Plano para melhorar acompanhamento e execução do plano estratégico
+Estruturar ações para definir responsáveis, atualizar KPIs e ativar iniciativas vinculadas a estratégias e OKRs
+Passo 1
+[mensagem] Importância de definir responsáveis e metas claras para o acompanhamento dos OKRs
+Passo 2
+[ação] Criar iniciativa para definir responsáveis e metas nas reuniões periódicas de alinhamento dos OKRs
+Passo 3
+[ação] Registrar leituras iniciais dos KPIs críticos sem dados recentes
+Passo 4
+[link] Abrir a tela de iniciativas para revisão e ajustes → /iniciativas
+Passo 5
+[mensagem] Reforçar a importância do monitoramento contínuo e vinculação de iniciativas a KPIs críticos
+Passo 6
+[ação] Criar iniciativas para atacar KPIs críticos sem iniciativas vinculadas
+Passo 7
+[link] Abrir a tela de OKRs para acompanhamento dos resultados-chave → /okrs
+Passo 8
+[mensagem] Encerramento motivacional para manter foco e continuidade
+Iniciar plano
+Não agora
+Já existe uma iniciativa Promover reuniões periódicas de alinhamento e revisão dos OKRs
+Correto! A iniciativa Promover reuniões periódicas de alinhamento e revisão dos OKRs Iniciativa já foi criada e está em andamento.
+
+Podemos focar em definir o responsável dessa iniciativa para garantir que as reuniões aconteçam conforme o planejado. Também podemos avançar para os próximos passos do plano, como registrar as leituras dos KPIs críticos e revisar outras iniciativas.
+
+Quer que eu proponha definir o responsável dessa iniciativa para você?
+
+Sim
+Preparei algumas ações para você revisar abaixo.
+
+Atualizar iniciativa
+Atualizar iniciativa
+Vamos ajustar a iniciativa selecionada.
+ID
+Promover reuniões periódicas de alinhamento e revisão dos OKRs
+Aplicar mudanças
+Ajustar
+Manter como está
+Continue
+Preparei algumas ações para você revisar abaixo.
+
+Atualizar iniciativa
+Atualizar iniciativa
+Vamos ajustar a iniciativa selecionada.
+ID
+Promover reuniões periódicas de alinhamento e revisão dos OKRs
+Responsável
+Valor anterior:Administrador
+Novo valor:Gerente de Planejamento
+Aplicar mudanças
+Ajustar
+Manter como está
+Continue
+Preparei algumas ações para você revisar abaixo.
+
+Atualizar iniciativa
+Atualizar iniciativa
+Vamos ajustar a iniciativa selecionada.
+ID
+Promover reuniões periódicas de alinhamento e revisão dos OKRs
+Aplicar mudanças
+Ajustar
+Manter como está
+Continue
+Preparei algumas ações para você revisar abaixo.
+
+Atualizar iniciativa
+Atualizar iniciativa
+Vamos ajustar a iniciativa selecionada.
+ID
+Promover reuniões periódicas de alinhamento e revisão dos OKRs
+Aplicar mudanças
+Ajustar
+Manter como está

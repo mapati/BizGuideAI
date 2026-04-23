@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { PanelRightClose, PanelRightOpen, Loader2, Target } from "lucide-react";
+import { PanelRightClose, PanelRightOpen, Loader2, Target, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
@@ -30,6 +30,26 @@ export function AssistantSidebar() {
   const [tab, setTab] = useState<string>("chat");
   // Task #313 — id de conversa solicitado a partir da aba Histórico.
   const [conversaParaCarregar, setConversaParaCarregar] = useState<string | null>(null);
+  // Modo maximizado (foco total) — preferência persistida no navegador.
+  const [maximized, setMaximized] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem("bizzy:maximized") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleMaximized = () => {
+    setMaximized((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem("bizzy:maximized", next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
 
   const initialAppliedRef = useRef(false);
   useEffect(() => {
@@ -56,20 +76,25 @@ export function AssistantSidebar() {
 
   const desktopWidth = open ? "w-[26rem]" : "w-12";
   const mobileTransform = open ? "translate-x-0" : "translate-x-full";
+  // Modo maximizado só vale em desktop (mobile já é fullscreen-drawer).
+  const desktopMaximized = open && maximized && !isMobile;
 
   return (
     <>
       <aside
         data-testid="component-assistant-sidebar"
         data-state={open ? "expanded" : "collapsed"}
+        data-maximized={desktopMaximized ? "true" : "false"}
         className={cn(
-          "bg-background border-l flex flex-col flex-shrink-0 min-h-0 overflow-hidden",
+          "bg-background flex flex-col flex-shrink-0 min-h-0 overflow-hidden",
           isMobile
             ? cn(
-                "fixed inset-y-0 right-0 z-50 w-[24rem] max-w-[95vw] transition-transform duration-200 shadow-xl",
+                "fixed inset-y-0 right-0 z-50 w-[24rem] max-w-[95vw] border-l transition-transform duration-200 shadow-xl",
                 mobileTransform,
               )
-            : cn("transition-[width] duration-200 ease-out", desktopWidth),
+            : desktopMaximized
+              ? "fixed inset-4 z-50 w-auto rounded-lg border shadow-2xl"
+              : cn("border-l transition-[width] duration-200 ease-out", desktopWidth),
         )}
       >
         {open && (
@@ -83,15 +108,33 @@ export function AssistantSidebar() {
                 </p>
               </div>
             </div>
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => setOpen(false)}
-              title={showGuia ? "Fechar Bizzy (modo Guia)" : "Fechar Bizzy"}
-              data-testid="button-assistant-sidebar-close"
-            >
-              <PanelRightClose className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-1">
+              {!isMobile && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={toggleMaximized}
+                  title={maximized ? "Restaurar Bizzy" : "Maximizar Bizzy"}
+                  aria-label={maximized ? "Restaurar Bizzy" : "Maximizar Bizzy"}
+                  data-testid="button-assistant-sidebar-maximize"
+                >
+                  {maximized ? (
+                    <Minimize2 className="h-4 w-4" />
+                  ) : (
+                    <Maximize2 className="h-4 w-4" />
+                  )}
+                </Button>
+              )}
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => setOpen(false)}
+                title={showGuia ? "Fechar Bizzy (modo Guia)" : "Fechar Bizzy"}
+                data-testid="button-assistant-sidebar-close"
+              >
+                <PanelRightClose className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         )}
 
@@ -200,6 +243,16 @@ export function AssistantSidebar() {
           onClick={() => setOpen(false)}
           className="fixed inset-0 bg-black/40 z-40"
           data-testid="overlay-assistant-sidebar"
+        />
+      )}
+
+      {desktopMaximized && (
+        <button
+          type="button"
+          aria-label="Restaurar Bizzy"
+          onClick={toggleMaximized}
+          className="fixed inset-0 bg-black/40 z-40"
+          data-testid="overlay-assistant-sidebar-maximized"
         />
       )}
     </>

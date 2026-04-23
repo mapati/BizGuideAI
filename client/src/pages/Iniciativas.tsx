@@ -1878,11 +1878,13 @@ export default function Iniciativas() {
           fontesContexto={{
             label: "Fontes de contexto",
             items: [
-              { id: "modeloNegocio", label: "Modelo de Negócio (Canvas)", desc: "Atividades, recursos e parcerias", alwaysIncluded: true },
+              { id: "objetivos", label: "Objetivos (Metas e Resultados)", desc: "Iniciativas executam Objetivos cadastrados", alwaysIncluded: true },
+              { id: "oportunidades", label: "Frentes de Crescimento", desc: "Quadrantes da Matriz de Ansoff que originam as iniciativas", alwaysIncluded: true },
+              { id: "modeloNegocio", label: "Modelo de Negócio (Canvas)", desc: "Atividades, recursos e parcerias" },
               { id: "swot", label: "SWOT", desc: "Forças, fraquezas, oportunidades e ameaças" },
               { id: "indicadores", label: "Indicadores atuais", desc: "KPIs cadastrados na empresa" },
             ],
-            defaultSelected: ["modeloNegocio"],
+            defaultSelected: ["objetivos", "oportunidades"],
           }}
           instrucaoAdicional={{
             placeholder: "Ex: Priorize iniciativas que possam ser executadas pela equipe atual.",

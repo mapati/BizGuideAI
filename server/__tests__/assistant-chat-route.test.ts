@@ -189,6 +189,21 @@ vi.mock("../storage", () => {
     getContextoMacroByCategoria: vi.fn(async () => null),
     getConfigSistema: vi.fn(async () => null),
     getAllEmpresas: vi.fn(async () => []),
+
+    // criar/atualizar log de proposta (usado pelo retry do chat na Task #342)
+    claimPropostaPendente: vi.fn(async () => null),
+    updatePropostaLog: vi.fn(async () => undefined),
+    createPropostaLog: vi.fn(async (data: any) => ({
+      id: `log-${Math.random().toString(36).slice(2, 8)}`,
+      empresaId: data.empresaId,
+      usuarioId: data.usuarioId ?? null,
+      ferramenta: data.ferramenta,
+      status: "proposta",
+      parametros: data.parametros ?? {},
+      preview: data.preview ?? null,
+      resultado: null, entidadeTipo: null, entidadeId: null,
+      resolvidoEm: null,
+    })),
   };
   return { storage, PlanoAtivoJaExisteError };
 });
@@ -375,6 +390,148 @@ describe("POST /api/ai/assistente — comportamentos críticos do chat", () => {
     // O erro cita o título da iniciativa existente como candidato.
     expect(final!.data.resposta).toContain(
       "Promover reuniões periódicas de alinhamento e revisão dos OKRs",
+    );
+  });
+
+  // (c) Task #342 — autocorreção do Bizzy no chat livre: 1ª tool_call é
+  // rejeitada por duplicidade, 2ª chamada (não-stream) corrige o título e
+  // a proposta vai para o usuário sem aviso de erro.
+  it("autocorrige tool_call duplicada e cria proposta no retry", async () => {
+    fakeStorage.iniciativas = [
+      {
+        id: "ini-existente", empresaId: "empresa-1",
+        titulo: "Reduzir churn de clientes Pro",
+        descricao: "", status: "em_andamento", prioridade: "média",
+        prazo: "Q4 2026", prazoData: null, responsavel: "Ana",
+        impacto: "", indicadorFonteId: null,
+        encerradaEm: null, notaEncerramento: null, createdAt: new Date(),
+      },
+    ];
+
+    openaiCreate
+      // 1ª chamada (stream): título duplicado → rejeitado
+      .mockResolvedValueOnce(
+        streamWithToolCall("criar_iniciativa", {
+          titulo: "Reduzir churn de clientes Pro Q4",
+          descricao: "Plano de retenção.",
+          prazo: "Q4 2026", prazoData: "2026-12-31",
+          status: "em_andamento", responsavel: "Ana", impacto: "Recuperar receita",
+        }),
+      )
+      // 2ª chamada (não-stream, retry): título totalmente novo → aceito
+      .mockResolvedValueOnce({
+        choices: [{
+          message: {
+            role: "assistant",
+            content: "Corrigi e proponho a iniciativa abaixo.",
+            tool_calls: [{
+              id: "call_retry", type: "function",
+              function: {
+                name: "criar_iniciativa",
+                arguments: JSON.stringify({
+                  titulo: "Programa de fidelização premium ZX-2026",
+                  descricao: "Iniciativa nova de fidelização.",
+                  prazo: "Q4 2026", prazoData: "2026-12-31",
+                  status: "em_andamento", responsavel: "Ana",
+                  impacto: "Aumentar LTV dos clientes Pro",
+                }),
+              },
+            }],
+          },
+        }],
+      });
+
+    const events = await postChat("cria iniciativa de retenção");
+    const final = events.find((e) => e.event === "final");
+    expect(final).toBeDefined();
+    expect(openaiCreate).toHaveBeenCalledTimes(2);
+
+    // Proposta criada no retry → 1 card vai para o usuário.
+    expect(final!.data.propostas).toHaveLength(1);
+    expect(final!.data.propostas[0].ferramenta).toBe("criar_iniciativa");
+    expect(final!.data.propostas[0].parametros.titulo).toBe(
+      "Programa de fidelização premium ZX-2026",
+    );
+
+    // Mensagem ao usuário NÃO carrega aviso de erro técnico (foi corrigido).
+    const resposta = final!.data.resposta as string;
+    expect(resposta).not.toMatch(/iniciativa parecida/i);
+    expect(resposta).not.toMatch(/Use sempre o id REAL/);
+    expect(resposta).not.toMatch(/Reemita a tool/);
+
+    // E o convo de retry foi montado com o erro como mensagem de tool.
+    const segundaCall = openaiCreate.mock.calls[1][0];
+    // 2ª chamada é não-stream (o handler omite `stream: true`).
+    expect(segundaCall.stream).not.toBe(true);
+    expect(segundaCall.tool_choice).toBe("required");
+    const toolMsg = segundaCall.messages.find((m: any) => m.role === "tool");
+    expect(toolMsg).toBeDefined();
+    expect(toolMsg.tool_call_id).toBe("call_1");
+    expect(toolMsg.content).toContain("Já existe iniciativa parecido(a)");
+  });
+
+  // (d) Task #342 — quando o retry do chat também falha, o erro técnico
+  // é humanizado antes de ser anexado à resposta SSE.
+  it("humaniza mensagem final quando retry do chat também falha", async () => {
+    fakeStorage.iniciativas = [
+      {
+        id: "ini-existente", empresaId: "empresa-1",
+        titulo: "Reduzir churn de clientes Pro",
+        descricao: "", status: "em_andamento", prioridade: "média",
+        prazo: "Q4 2026", prazoData: null, responsavel: "Ana",
+        impacto: "", indicadorFonteId: null,
+        encerradaEm: null, notaEncerramento: null, createdAt: new Date(),
+      },
+    ];
+
+    openaiCreate
+      .mockResolvedValueOnce(
+        streamWithToolCall("criar_iniciativa", {
+          titulo: "Reduzir churn de clientes Pro Q4",
+          descricao: "Plano.", prazo: "Q4 2026", prazoData: "2026-12-31",
+          status: "em_andamento", responsavel: "Ana", impacto: "x",
+        }),
+      )
+      .mockResolvedValueOnce({
+        choices: [{
+          message: {
+            role: "assistant",
+            // Conteúdo NÃO-vazio para garantir que mensagem técnica do erro
+            // não vaza mesmo quando o assistente já textualizou algo.
+            content: "Vou tentar de novo.",
+            tool_calls: [{
+              id: "call_retry", type: "function",
+              function: {
+                name: "criar_iniciativa",
+                arguments: JSON.stringify({
+                  titulo: "Reduzir churn de clientes Pro Q4 (variação)",
+                  descricao: "Plano.", prazo: "Q4 2026", prazoData: "2026-12-31",
+                  status: "em_andamento", responsavel: "Ana", impacto: "x",
+                }),
+              },
+            }],
+          },
+        }],
+      });
+
+    const events = await postChat("cria iniciativa de churn");
+    const final = events.find((e) => e.event === "final");
+    expect(final).toBeDefined();
+    expect(final!.data.propostas).toEqual([]);
+    const resposta = final!.data.resposta as string;
+
+    // Sem vazamentos técnicos no SSE final.
+    expect(resposta).not.toMatch(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i);
+    expect(resposta).not.toMatch(/indicadorId=/);
+    expect(resposta).not.toMatch(/iniciativaId=/);
+    expect(resposta).not.toMatch(/Use sempre o id REAL/);
+    expect(resposta).not.toMatch(/Reemita a tool/);
+    expect(resposta).not.toMatch(/Parâmetros inválidos/);
+    expect(resposta).not.toMatch(/\{[\s\S]*\}/);
+
+    // E menciona o conceito de duplicidade em PT-BR amigável.
+    expect(resposta.toLowerCase()).toMatch(
+      /iniciativa parecida|atualize ou arquive|duplicidade/,
     );
   });
 });

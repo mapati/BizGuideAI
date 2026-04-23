@@ -5213,7 +5213,11 @@ INSTRUÇÕES:
         { role: "user", content: `Continue o plano. Próximo passo: ${proxPendente.titulo}.` },
       ],
       tools: toOpenAITools(),
-      tool_choice: "auto",
+      // Task #343 — força emissão de tool_call. Sem isso, o LLM às vezes
+      // respondia só com texto ("Próximo passo: ...") e o passo nunca
+      // virava proposta acionável — cada clique em "Sugerir próximo passo"
+      // repetia a mesma mensagem.
+      tool_choice: "required",
       temperature: 0.4,
       max_tokens: 700,
     });
@@ -5221,6 +5225,7 @@ INSTRUÇÕES:
     const msg = completion.choices?.[0]?.message;
     const toolCalls = msg?.tool_calls ?? [];
     const proximasPropostas: Array<{ logId: string; ferramenta: string; preview: unknown; parametros: Record<string, unknown> }> = [];
+    const motivosRejeicao: string[] = [];
 
     // Task #317 (fix) — Mesmo quando o passo é tipo='acao', se a IA escolher
     // como ferramenta apenas `navegar_para` ou `abrir_entidade` (sem escrita
@@ -5315,10 +5320,51 @@ INSTRUÇÕES:
           ferramenta: r.ferramenta,
           propostaId: r.logId,
         });
+      } else {
+        // Task #343 — guarda motivo (duplicidade, FK inválida, parâmetros)
+        // para devolver ao usuário quando NENHUMA proposta for criada.
+        motivosRejeicao.push(`${call.function.name}: ${r.mensagem}`);
+        console.warn("[PLANO-AGENTICO]", {
+          acao: "proposta_proximo_passo_rejeitada",
+          planoId: planoRow.id,
+          passoOrdem: proxPendente.ordem,
+          ferramenta: call.function.name,
+          motivo: r.mensagem,
+        });
       }
     }
 
     const planoFinal = await storage.getPlanoAgenticoComPassos(planoRow.id);
+
+    // Task #343 — Quando o LLM não emitiu nenhuma tool_call (apesar do
+    // tool_choice="required" ele pode devolver array vazio em casos raros)
+    // ou quando todas as tools foram rejeitadas pela pré-validação,
+    // explicamos ao usuário em vez de mostrar só "Próximo passo: <título>"
+    // (essa repetição era o sintoma reportado: cada clique em
+    // "Sugerir próximo passo" devolvia a mesma frase).
+    if (proximasPropostas.length === 0) {
+      console.warn("[PLANO-AGENTICO]", {
+        acao: "proposta_proximo_passo_sem_card",
+        planoId: planoRow.id,
+        passoOrdem: proxPendente.ordem,
+        toolCallsTentadas: toolCalls.length,
+        motivosRejeicao,
+      });
+      const detalheRej = motivosRejeicao.length > 0
+        ? `\n\nDetalhe técnico: ${motivosRejeicao.join(" | ").slice(0, 400)}`
+        : "";
+      const falaIA = (msg?.content || "").trim();
+      const explicacao = toolCalls.length === 0
+        ? `Não consegui formular uma ação automática para o passo ${proxPendente.ordem} ("${proxPendente.titulo}"). Você pode me dizer mais detalhes (qual KPI/iniciativa/OKR atualizar) ou ignorar este passo para eu seguir adiante.`
+        : `Tentei propor uma ação para o passo ${proxPendente.ordem} ("${proxPendente.titulo}"), mas o sistema não aceitou. Você pode me dar mais contexto ou ignorar este passo.${detalheRej}`;
+      return {
+        plano: planoFinal ?? null,
+        proximasPropostas: [],
+        mensagem: falaIA ? `${falaIA}\n\n${explicacao}` : explicacao,
+        finalizado: false,
+      };
+    }
+
     return {
       plano: planoFinal ?? null,
       proximasPropostas,

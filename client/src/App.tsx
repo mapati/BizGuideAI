@@ -284,7 +284,7 @@ function AppLayout() {
           <AppSidebar />
           <MobileSidebarOpenButton />
           <div className="flex flex-col flex-1 overflow-hidden min-w-0">
-            <main className="flex-1 overflow-auto p-8">
+            <main className="flex-1 overflow-auto p-4 sm:p-8">
               <Switch>
                 <Route path="/" component={Home} />
                 <Route path="/dashboard" component={Home} />

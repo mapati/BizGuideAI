@@ -7321,3 +7321,79 @@ export const STATUS_LABELS: Readonly<Record<string, string>> = {
 export function getToolStatusLabel(name: string): string {
   return STATUS_LABELS[name] ?? "Trabalhando…";
 }
+
+// Task #342 — Humaniza mensagens de erro técnicas devolvidas por
+// `registrarProposta` (FK inválida, duplicidade, parâmetros, no-op) para
+// quando a autocorreção do Bizzy também falhou e a mensagem precisa
+// chegar ao usuário. O objetivo é nunca vazar UUIDs, `indicadorId=`,
+// `Use sempre o id REAL`, JSON, nomes de tools em snake_case nem
+// "Parâmetros inválidos" — apenas uma frase curta em PT-BR.
+export function humanizarErroProposta(mensagem: string): string {
+  const msg = (mensagem || "").trim();
+  if (!msg) return "Não consegui concluir essa ação. Pode reformular ou me dar mais contexto?";
+
+  // FK inválida: "O <rotulo> com <campo>=\"...\" não existe nesta empresa..."
+  const mFk = msg.match(
+    /O\s+([^"]+?)\s+com\s+\w+="([^"]{0,80})"\s+não existe nesta empresa/i,
+  );
+  if (mFk) {
+    const rotulo = mFk[1].trim();
+    // Tenta extrair os primeiros candidatos por nome (sem UUIDs).
+    const nomes: string[] = [];
+    const reCand = /•\s+"([^"]+)"\s*\(id=[^)]+\)/g;
+    let m: RegExpExecArray | null;
+    while ((m = reCand.exec(msg)) !== null && nomes.length < 3) {
+      nomes.push(m[1]);
+    }
+    const sugestoes = nomes.length > 0
+      ? ` Você quis dizer ${nomes.map((n) => `“${n}”`).join(", ")}?`
+      : "";
+    return `Não consegui identificar com certeza qual ${rotulo} você quis dizer.${sugestoes} Pode confirmar o nome?`;
+  }
+
+  // Duplicidade: "Já existe <rotulo> parecido(a) nesta empresa..."
+  const mDup = msg.match(
+    /Já existe\s+([^"]+?)\s+parecid[oa]\(a\)\s+nesta empresa[^"]*"([^"]{0,80})"/i,
+  );
+  if (mDup) {
+    const rotulo = mDup[1].trim();
+    const novo = mDup[2];
+    const nomes: string[] = [];
+    const reCand = /•\s+"([^"]+)"\s*\(id=[^)]+\)/g;
+    let m: RegExpExecArray | null;
+    while ((m = reCand.exec(msg)) !== null && nomes.length < 3) {
+      nomes.push(m[1]);
+    }
+    const lista = nomes.length > 0 ? `: ${nomes.map((n) => `“${n}”`).join(", ")}` : "";
+    return `Já existe ${rotulo} parecida no catálogo${lista} — não criei “${novo}” para evitar duplicidade. Quer que eu atualize ou arquive a existente em vez de criar uma nova?`;
+  }
+
+  // Parâmetros inválidos (Zod): "Parâmetros inválidos para <tool>: <jsonZod>"
+  if (/Parâmetros inválidos para\s+\w+/i.test(msg)) {
+    return "Faltam algumas informações para concluir essa ação. Pode me dar mais detalhes (qual item, prazo, valor)?";
+  }
+
+  // No-op: "Nada a alterar nesta iniciativa: todos os campos enviados já batem..."
+  if (/Nada a alterar|todos os campos enviados já batem|sem mudança/i.test(msg)) {
+    return "Os dados que você passou são iguais ao que já está cadastrado. Me diga o que mudou (título, prazo, status, responsável) para eu atualizar.";
+  }
+
+  // Ferramenta desconhecida
+  if (/Ferramenta desconhecida/i.test(msg)) {
+    return "Não tenho uma ação direta pra isso. Pode descrever o que você quer fazer?";
+  }
+
+  // Fallback genérico — remove qualquer pista técnica (UUIDs, ids, JSON,
+  // nomes de tools snake_case) antes de devolver.
+  let safe = msg
+    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, "")
+    .replace(/\b\w+Id="[^"]*"/g, "")
+    .replace(/\b[a-z]+(?:_[a-z]+)+/g, "")
+    .replace(/\{[\s\S]*?\}/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  if (!safe || safe.length < 12) {
+    safe = "Não consegui concluir essa ação. Pode me dar mais contexto?";
+  }
+  return safe;
+}

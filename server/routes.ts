@@ -12,7 +12,7 @@ import {
   renderTendenciaLinha,
   renderRelacoesLinhas,
 } from "./plan-insights";
-import { TOOLS, getTool, toOpenAITools, registrarProposta, LOOKUP_TOOLS_OPENAI, executarBuscaPorNome, READONLY_TOOLS_OPENAI, executarFerramentaReadonly, isReadonlyTool, getToolStatusLabel, runAnalisarGap, runDetectarLacunasCascata, runDetectarDescarrilados, runConsistenciaEstrategica, runSumarizarCiclo } from "./assistant-tools";
+import { TOOLS, getTool, toOpenAITools, registrarProposta, LOOKUP_TOOLS_OPENAI, executarBuscaPorNome, READONLY_TOOLS_OPENAI, executarFerramentaReadonly, isReadonlyTool, getToolStatusLabel, humanizarErroProposta, runAnalisarGap, runDetectarLacunasCascata, runDetectarDescarrilados, runConsistenciaEstrategica, runSumarizarCiclo } from "./assistant-tools";
 import { criarAssinatura, buscarAssinatura, cancelarAssinatura, buscarPagamento, motivoLegivel, validarAssinaturaWebhook, PLANOS_MP, type PlanoTipo, type MpSubscription, type MpPayment } from "./mp";
 import { randomBytes, createHash } from "crypto";
 import cron from "node-cron";
@@ -4947,32 +4947,86 @@ ${ctx.join("\n\n")}`;
         // ao texto final do assistente, dando feedback útil ao usuário.
         const errosPropostas: string[] = [];
 
-        for (const call of toolCalls) {
-          if (clientGone) break;
-          sseSend("status", { label: getToolStatusLabel(call.function.name) });
-          let args: unknown = {};
-          try {
-            args = JSON.parse(call.function.arguments || "{}");
-          } catch {
-            args = {};
-          }
-          const result = await registrarProposta({
-            toolName: call.function.name,
-            rawArgs: args,
-            empresaId,
-            usuarioId: req.session.userId ?? null,
-            origem: "chat",
-          });
-          if (result.ok) {
-            propostas.push({
-              logId: result.logId,
-              ferramenta: result.ferramenta,
-              preview: result.preview,
-              parametros: result.parametros,
+        // Task #342 — coleta erros estruturados (com call_id) para retry.
+        const errosEstruturados: Array<{ call_id: string; nome: string; mensagem: string }> = [];
+
+        const processarToolCallsChat = async (
+          callsRound: typeof toolCalls,
+        ): Promise<void> => {
+          for (const call of callsRound) {
+            if (clientGone) break;
+            sseSend("status", { label: getToolStatusLabel(call.function.name) });
+            let args: unknown = {};
+            try { args = JSON.parse(call.function.arguments || "{}"); } catch { args = {}; }
+            const result = await registrarProposta({
+              toolName: call.function.name,
+              rawArgs: args,
+              empresaId,
+              usuarioId: req.session.userId ?? null,
+              origem: "chat",
             });
-          } else {
-            console.warn(`[ASSISTENTE] Tool call rejeitada (${call.function.name}): ${result.mensagem}`);
-            errosPropostas.push(result.mensagem);
+            if (result.ok) {
+              propostas.push({
+                logId: result.logId,
+                ferramenta: result.ferramenta,
+                preview: result.preview,
+                parametros: result.parametros,
+              });
+            } else {
+              console.warn(`[ASSISTENTE] Tool call rejeitada (${call.function.name}): ${result.mensagem}`);
+              errosPropostas.push(result.mensagem);
+              errosEstruturados.push({ call_id: call.id, nome: call.function.name, mensagem: result.mensagem });
+            }
+          }
+        }
+
+        await processarToolCallsChat(toolCalls);
+
+        // Task #342 — Autocorreção: se nada virou proposta e houve rejeições,
+        // anexamos erros como tool messages e fazemos uma 2ª chamada NÃO-stream
+        // ao LLM para ele reemitir corrigido (id correto, atualizar_/encerrar_
+        // em duplicidade, parâmetros faltando). Cap = 1 retry.
+        if (!clientGone && propostas.length === 0 && errosEstruturados.length > 0) {
+          sseSend("status", { label: "Refletindo sobre o erro…" });
+          const convoRetry: OpenAI.Chat.ChatCompletionMessageParam[] = [
+            ...convo,
+            {
+              role: "assistant",
+              content: choice.message.content ?? null,
+              tool_calls: toolCalls,
+            } as OpenAI.Chat.ChatCompletionMessageParam,
+          ];
+          for (const e of errosEstruturados) {
+            convoRetry.push({
+              role: "tool",
+              tool_call_id: e.call_id,
+              content: JSON.stringify({ erro: e.mensagem, instrucao: "Reemita a tool corrigindo o id (use os candidatos sugeridos), trocando para atualizar_/encerrar_ no caso de duplicidade, ou preenchendo os parâmetros faltantes. NÃO repita exatamente a mesma chamada que falhou." }),
+            } as OpenAI.Chat.ChatCompletionMessageParam);
+          }
+          try {
+            const completion2 = await openai.chat.completions.create({
+              model,
+              messages: convoRetry,
+              tools: allTools,
+              tool_choice: "required",
+              temperature: 0.4,
+              max_tokens: 700,
+            });
+            const msg2 = completion2.choices?.[0]?.message;
+            const toolCalls2 = (msg2?.tool_calls ?? [])
+              .filter((c) => c.type === "function" && !isLookupName(c.function.name))
+              .slice(0, 3) as typeof toolCalls;
+            console.info("[ASSISTENTE] Retry autocorreção:", {
+              toolCallsRetry: toolCalls2.length,
+              errosOriginais: errosEstruturados.length,
+            });
+            if (toolCalls2.length > 0) {
+              // Limpa erros do round 1 — só vão sobreviver os do retry.
+              errosPropostas.length = 0;
+              await processarToolCallsChat(toolCalls2);
+            }
+          } catch (errRetry) {
+            console.warn("[ASSISTENTE] Falha no retry de autocorreção:", errRetry);
           }
         }
 
@@ -4996,7 +5050,16 @@ ${ctx.join("\n\n")}`;
         // no-op), surfa o aviso/erro no texto para o usuário entender.
         const partesAviso: string[] = [];
         if (avisoPropostaPendente) partesAviso.push(avisoPropostaPendente);
-        if (errosPropostas.length > 0) partesAviso.push(...errosPropostas);
+        // Task #342 — humaniza erros que ainda restaram após o retry,
+        // evitando vazar UUIDs / "indicadorId=" / "Use sempre o id REAL"
+        // / "Parâmetros inválidos" / JSON ao usuário final.
+        if (errosPropostas.length > 0) {
+          const humanos = errosPropostas
+            .map((e) => humanizarErroProposta(e))
+            .filter((m, i, arr) => arr.indexOf(m) === i)
+            .slice(0, 2);
+          partesAviso.push(...humanos);
+        }
         const baseTexto =
           rawText ||
           (propostas.length > 0
@@ -5299,40 +5362,105 @@ INSTRUÇÕES:
       }
     }
 
-    for (const call of toolCalls.slice(0, 3)) {
-      if (call.type !== "function") continue;
-      let args: unknown = {};
-      try { args = JSON.parse(call.function.arguments || "{}"); } catch { args = {}; }
-      const r = await registrarProposta({
-        toolName: call.function.name,
-        rawArgs: args,
-        empresaId,
-        usuarioId,
-        origem: "chat",
-        vinculoPlano: { planoId: planoRow.id, passoOrdem: proxPendente.ordem },
-      });
-      if (r.ok) {
-        proximasPropostas.push({ logId: r.logId, ferramenta: r.ferramenta, preview: r.preview, parametros: r.parametros });
+    // Task #342 — Roda 1ª tentativa; se nenhuma proposta sobreviver,
+    // anexa os erros como tool messages e faz 2ª chamada ao LLM
+    // para ele se autocorrigir (id correto via candidatos sugeridos,
+    // duplicidade → atualizar/encerrar, parâmetros → preencher).
+    const baseConvo: OpenAI.Chat.ChatCompletionMessageParam[] = [
+      { role: "system", content: sysPrompt },
+      { role: "user", content: `Continue o plano. Próximo passo: ${proxPendente.titulo}.` },
+    ];
+
+    const passoCorrente = proxPendente;
+    const processarRound = async (
+      callsRound: typeof toolCalls,
+      assistantMsg: typeof msg,
+    ): Promise<{ erros: Array<{ call_id: string; nome: string; mensagem: string }> }> => {
+      const erros: Array<{ call_id: string; nome: string; mensagem: string }> = [];
+      for (const call of callsRound.slice(0, 3)) {
+        if (call.type !== "function") continue;
+        let args: unknown = {};
+        try { args = JSON.parse(call.function.arguments || "{}"); } catch { args = {}; }
+        const r = await registrarProposta({
+          toolName: call.function.name,
+          rawArgs: args,
+          empresaId,
+          usuarioId,
+          origem: "chat",
+          vinculoPlano: { planoId: planoRow.id, passoOrdem: passoCorrente.ordem },
+        });
+        if (r.ok) {
+          proximasPropostas.push({ logId: r.logId, ferramenta: r.ferramenta, preview: r.preview, parametros: r.parametros });
+          console.info("[PLANO-AGENTICO]", {
+            acao: "proposta_proximo_passo_criada",
+            planoId: planoRow.id,
+            passoOrdem: passoCorrente.ordem,
+            ferramenta: r.ferramenta,
+            propostaId: r.logId,
+          });
+        } else {
+          motivosRejeicao.push(`${call.function.name}: ${r.mensagem}`);
+          erros.push({ call_id: call.id, nome: call.function.name, mensagem: r.mensagem });
+          console.warn("[PLANO-AGENTICO]", {
+            acao: "proposta_proximo_passo_rejeitada",
+            planoId: planoRow.id,
+            passoOrdem: passoCorrente.ordem,
+            ferramenta: call.function.name,
+            motivo: r.mensagem,
+          });
+        }
+      }
+      void assistantMsg;
+      return { erros };
+    }
+
+    let msgFinal = msg;
+    const round1 = await processarRound(toolCalls, msg);
+    if (proximasPropostas.length === 0 && round1.erros.length > 0) {
+      // Monta convo[system, user, assistant(tool_calls), tool(...), tool(...)]
+      // e pede 2ª rodada com tool_choice="required" para ele reemitir.
+      const convoRetry: OpenAI.Chat.ChatCompletionMessageParam[] = [
+        ...baseConvo,
+        {
+          role: "assistant",
+          content: msg?.content ?? null,
+          tool_calls: toolCalls,
+        } as OpenAI.Chat.ChatCompletionMessageParam,
+      ];
+      for (const e of round1.erros) {
+        convoRetry.push({
+          role: "tool",
+          tool_call_id: e.call_id,
+          content: JSON.stringify({ erro: e.mensagem, instrucao: "Reemita a tool corrigindo o id (use candidatos sugeridos), trocando para atualizar_/encerrar_ no caso de duplicidade, ou preenchendo o que faltou. NÃO repita a mesma chamada que falhou." }),
+        } as OpenAI.Chat.ChatCompletionMessageParam);
+      }
+      try {
+        const completion2 = await openai.chat.completions.create({
+          model: modelo,
+          messages: convoRetry,
+          tools: toOpenAITools(),
+          tool_choice: "required",
+          temperature: 0.4,
+          max_tokens: 700,
+        });
+        const msg2 = completion2.choices?.[0]?.message;
+        const toolCalls2 = msg2?.tool_calls ?? [];
         console.info("[PLANO-AGENTICO]", {
-          acao: "proposta_proximo_passo_criada",
+          acao: "proposta_proximo_passo_retry",
           planoId: planoRow.id,
           passoOrdem: proxPendente.ordem,
-          ferramenta: r.ferramenta,
-          propostaId: r.logId,
+          toolCallsRetry: toolCalls2.length,
         });
-      } else {
-        // Task #343 — guarda motivo (duplicidade, FK inválida, parâmetros)
-        // para devolver ao usuário quando NENHUMA proposta for criada.
-        motivosRejeicao.push(`${call.function.name}: ${r.mensagem}`);
-        console.warn("[PLANO-AGENTICO]", {
-          acao: "proposta_proximo_passo_rejeitada",
-          planoId: planoRow.id,
-          passoOrdem: proxPendente.ordem,
-          ferramenta: call.function.name,
-          motivo: r.mensagem,
-        });
+        if (toolCalls2.length > 0) {
+          await processarRound(toolCalls2, msg2);
+          if (proximasPropostas.length > 0) msgFinal = msg2;
+        }
+      } catch (errRetry) {
+        console.warn("[PLANO-AGENTICO] Falha no retry de autocorreção:", errRetry);
       }
     }
+    // re-bind para o restante do código que usa `msg`
+    const msgEfetivo = msgFinal;
 
     const planoFinal = await storage.getPlanoAgenticoComPassos(planoRow.id);
 
@@ -5350,13 +5478,20 @@ INSTRUÇÕES:
         toolCallsTentadas: toolCalls.length,
         motivosRejeicao,
       });
-      const detalheRej = motivosRejeicao.length > 0
-        ? `\n\nDetalhe técnico: ${motivosRejeicao.join(" | ").slice(0, 400)}`
+      // Task #342 — Sem detalhes técnicos vazando: humaniza cada motivo
+      // (FK inválida, duplicidade, parâmetros) antes de mostrar.
+      const motivosHumanos = motivosRejeicao
+        .map((m) => humanizarErroProposta(m.replace(/^[a-z_]+:\s*/i, "")))
+        // Dedup
+        .filter((m, i, arr) => arr.indexOf(m) === i)
+        .slice(0, 2);
+      const detalheRej = motivosHumanos.length > 0
+        ? `\n\n${motivosHumanos.join("\n\n")}`
         : "";
-      const falaIA = (msg?.content || "").trim();
+      const falaIA = (msgEfetivo?.content || "").trim();
       const explicacao = toolCalls.length === 0
         ? `Não consegui formular uma ação automática para o passo ${proxPendente.ordem} ("${proxPendente.titulo}"). Você pode me dizer mais detalhes (qual KPI/iniciativa/OKR atualizar) ou ignorar este passo para eu seguir adiante.`
-        : `Tentei propor uma ação para o passo ${proxPendente.ordem} ("${proxPendente.titulo}"), mas o sistema não aceitou. Você pode me dar mais contexto ou ignorar este passo.${detalheRej}`;
+        : `Tentei propor uma ação para o passo ${proxPendente.ordem} ("${proxPendente.titulo}"), mas precisei recuar.${detalheRej}\n\nVocê pode me dar mais contexto ou ignorar este passo.`;
       return {
         plano: planoFinal ?? null,
         proximasPropostas: [],
@@ -5368,7 +5503,7 @@ INSTRUÇÕES:
     return {
       plano: planoFinal ?? null,
       proximasPropostas,
-      mensagem: msg?.content ?? `Próximo passo: ${proxPendente.titulo}.`,
+      mensagem: msgEfetivo?.content ?? `Próximo passo: ${proxPendente.titulo}.`,
       finalizado: false,
     };
   }

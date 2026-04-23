@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Sparkles, Trash2, ArrowRight, ArrowLeft, CheckCircle2, Circle, ArrowUp, GitBranch } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -54,6 +55,8 @@ type ObjetivosPorPerspectiva = Partial<Record<Perspectiva, ObjetivoGerado[]>>;
 
 type IndicadorDiagnostico = { id: string; nome: string; meta?: string; atual?: string; perspectiva: string };
 
+type Membro = { id: string; nome: string; email?: string };
+
 export interface BSCCausaEfeitoWizardProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -78,6 +81,9 @@ export function BSCCausaEfeitoWizard({
   const [instrucao, setInstrucao] = useState<string>("");
   const [objetivosPorPersp, setObjetivosPorPersp] = useState<ObjetivosPorPerspectiva>({});
   const [salvando, setSalvando] = useState(false);
+  // Task #311 — gerar métricas (KRs) automaticamente ao final do wizard.
+  const [gerarMetricas, setGerarMetricas] = useState<boolean>(true);
+  const [quantidadeMetricas, setQuantidadeMetricas] = useState<number>(2);
 
   const { data: indicadoresDiag = [] } = useQuery<IndicadorDiagnostico[]>({
     queryKey: ["/api/indicadores", empresaId, "diagnostico-bsc-wizard"],
@@ -85,6 +91,11 @@ export function BSCCausaEfeitoWizard({
       const all = (await apiRequest("GET", "/api/indicadores", undefined)) as IndicadorDiagnostico[];
       return (all || []).filter((i) => i.perspectiva === "diagnostico");
     },
+    enabled: open,
+  });
+
+  const { data: membros = [] } = useQuery<Membro[]>({
+    queryKey: ["/api/membros"],
     enabled: open,
   });
 
@@ -166,6 +177,8 @@ export function BSCCausaEfeitoWizard({
     setObjetivosPorPersp({});
     setInstrucao("");
     setQuantidadePorPerspectiva(2);
+    setGerarMetricas(true);
+    setQuantidadeMetricas(2);
   };
 
   const handleClose = (next: boolean) => {
@@ -185,12 +198,14 @@ export function BSCCausaEfeitoWizard({
     setSalvando(true);
     let total = 0;
     let erros = 0;
+    let totalKrs = 0;
+    const objetivosCriados: { id: string }[] = [];
     try {
       for (const persp of PERSPECTIVAS_ORDEM) {
         const list = objetivosPorPersp[persp] || [];
         for (const o of list) {
           try {
-            await apiRequest("POST", "/api/objetivos", {
+            const novo = (await apiRequest("POST", "/api/objetivos", {
               titulo: o.titulo,
               descricao: o.descricao || null,
               prazo: o.prazo || "Anual 2025",
@@ -198,13 +213,58 @@ export function BSCCausaEfeitoWizard({
               estrategiaId: o.estrategiaId ?? null,
               iniciativaId: o.iniciativaId ?? null,
               origemModoBSC: true,
-            });
+            })) as { id: string };
             total++;
+            if (novo?.id) objetivosCriados.push({ id: novo.id });
           } catch {
             erros++;
           }
         }
       }
+
+      // Task #311 — geração automática de métricas (KRs) para cada objetivo criado.
+      if (gerarMetricas && quantidadeMetricas > 0 && objetivosCriados.length > 0) {
+        for (const obj of objetivosCriados) {
+          try {
+            const krResp = (await apiRequest("POST", "/api/ai/gerar-resultados-chave", {
+              objetivoId: obj.id,
+              quantidade: quantidadeMetricas,
+            })) as { resultados?: Array<{ metrica: string; valorInicial: number | string; valorAlvo: number | string; valorAtual: number | string; owner?: string; prazo: string }> };
+            const krs = krResp?.resultados ?? [];
+            for (const res of krs) {
+              const membroAi = membros.find(
+                (m) =>
+                  m.nome.toLowerCase() === (res.owner || "").toLowerCase() ||
+                  (m.email?.toLowerCase() === (res.owner || "").toLowerCase()),
+              );
+              try {
+                await apiRequest("POST", "/api/resultados-chave", {
+                  objetivoId: obj.id,
+                  metrica: res.metrica,
+                  valorInicial: res.valorInicial.toString(),
+                  valorAlvo: res.valorAlvo.toString(),
+                  valorAtual: res.valorAtual.toString(),
+                  owner: membroAi?.nome || res.owner || "—",
+                  responsavelId: membroAi?.id ?? null,
+                  prazo: res.prazo,
+                });
+                totalKrs++;
+              } catch {
+                // ignora KR específico que falhou
+              }
+            }
+          } catch {
+            // não bloqueia o restante do fluxo se a geração de KRs falhar para um objetivo
+          }
+        }
+        await queryClient.invalidateQueries({
+          predicate: (q) => {
+            const key = q.queryKey?.[0];
+            return typeof key === "string" && key.startsWith("/api/resultados-chave");
+          },
+        });
+      }
+
       await queryClient.invalidateQueries({ queryKey: ["/api/objetivos"] });
       if (total === 0) {
         // Falha total — não fechamos o wizard para que o usuário possa
@@ -219,9 +279,10 @@ export function BSCCausaEfeitoWizard({
         });
         return;
       }
+      const krsMsg = gerarMetricas ? ` e ${totalKrs} métrica(s) gerada(s)` : "";
       toast({
         title: "Mapa de Causa e Efeito criado!",
-        description: `${total} objetivo(s) registrado(s)${erros ? `, ${erros} falhou(aram)` : ""}.`,
+        description: `${total} objetivo(s) registrado(s)${krsMsg}${erros ? `, ${erros} falhou(aram)` : ""}.`,
         variant: erros > 0 ? "destructive" : undefined,
       });
       onComplete();
@@ -456,6 +517,45 @@ export function BSCCausaEfeitoWizard({
                 <p className="text-xs text-muted-foreground">
                   Revise a cadeia completa antes de registrar os objetivos. Cada camada habilita a camada acima.
                 </p>
+              </Card>
+
+              <Card className="p-4 space-y-3" data-testid="card-bsc-gerar-metricas">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-0.5 min-w-0">
+                    <Label htmlFor="switch-bsc-gerar-metricas" className="text-sm font-semibold">
+                      Gerar métricas (KRs) automaticamente
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Ao registrar os objetivos, a IA cria também os resultados-chave para cada um, fechando o ciclo OKR.
+                    </p>
+                  </div>
+                  <Switch
+                    id="switch-bsc-gerar-metricas"
+                    checked={gerarMetricas}
+                    onCheckedChange={setGerarMetricas}
+                    data-testid="switch-bsc-gerar-metricas"
+                  />
+                </div>
+                {gerarMetricas && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="qtd-bsc-metricas">Métricas por objetivo</Label>
+                      <Input
+                        id="qtd-bsc-metricas"
+                        type="number"
+                        min={1}
+                        max={5}
+                        value={quantidadeMetricas}
+                        onChange={(e) =>
+                          setQuantidadeMetricas(
+                            Math.max(1, Math.min(5, Number(e.target.value) || 1)),
+                          )
+                        }
+                        data-testid="input-bsc-quantidade-metricas"
+                      />
+                    </div>
+                  </div>
+                )}
               </Card>
 
               {[...PERSPECTIVAS_ORDEM].map((persp, idx) => {

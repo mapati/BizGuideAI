@@ -7375,8 +7375,14 @@ Responda em JSON:
       const empresaId = req.session.empresaId!;
       // Aceita tanto `objetivoId` (legado) quanto `origemId` (vindo do <AIGenerationModal>)
       const objetivoId: string | undefined = req.body.objetivoId || req.body.origemId;
+      // Task #318 — permite gerar uma prévia das métricas para um objetivo
+      // ainda não persistido (usado pelo wizard BSC Causa e Efeito).
+      const objetivoPreview = req.body.objetivoPreview as
+        | { titulo?: string; descricao?: string | null; prazo?: string }
+        | undefined;
+      const usarPreview = !objetivoId && !!objetivoPreview?.titulo;
 
-      if (!objetivoId) {
+      if (!objetivoId && !usarPreview) {
         return res.status(400).json({ error: "objetivoId é obrigatório" });
       }
 
@@ -7405,14 +7411,25 @@ Responda em JSON:
 
       const contextoPerfil = buildEmpresaContextoIA(empresa);
 
-      const objetivosList = await storage.getObjetivos(empresaId);
-      const objetivo = objetivosList.find(o => o.id === objetivoId);
-      
-      if (!objetivo) {
-        return res.status(404).json({ error: "Objetivo não encontrado" });
-      }
+      let objetivo: { titulo: string; descricao?: string | null; prazo: string };
+      let resultadosExistentes: Awaited<ReturnType<typeof storage.getResultadosChave>> = [];
 
-      const resultadosExistentes = await storage.getResultadosChave(objetivoId, empresaId);
+      if (usarPreview) {
+        objetivo = {
+          titulo: objetivoPreview!.titulo!,
+          descricao: objetivoPreview!.descricao ?? null,
+          prazo: objetivoPreview!.prazo || "Anual 2025",
+        };
+      } else {
+        const objetivosList = await storage.getObjetivos(empresaId);
+        const found = objetivosList.find(o => o.id === objetivoId);
+
+        if (!found) {
+          return res.status(404).json({ error: "Objetivo não encontrado" });
+        }
+        objetivo = found;
+        resultadosExistentes = await storage.getResultadosChave(objetivoId!, empresaId);
+      }
       const estrategiasLista = await storage.getEstrategias(empresaId);
       const oportunidades = await storage.getOportunidadesCrescimento(empresaId);
       const iniciativas = await storage.getIniciativas(empresaId);

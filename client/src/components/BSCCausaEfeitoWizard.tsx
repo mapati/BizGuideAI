@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Sparkles, Trash2, ArrowRight, ArrowLeft, CheckCircle2, Circle, ArrowUp, GitBranch } from "lucide-react";
+import { Loader2, Sparkles, Trash2, ArrowRight, ArrowLeft, CheckCircle2, Circle, ArrowUp, GitBranch, Plus } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -56,6 +56,36 @@ type ObjetivoGerado = {
 
 type ObjetivosPorPerspectiva = Partial<Record<Perspectiva, ObjetivoGerado[]>>;
 
+// Task #318 — KR editável na etapa de revisão de métricas (antes de salvar).
+type KrEditavel = {
+  metrica: string;
+  valorInicial: string;
+  valorAlvo: string;
+  valorAtual: string;
+  owner: string;
+  prazo: string;
+};
+
+type KrApi = {
+  metrica: string;
+  valorInicial: number | string;
+  valorAlvo: number | string;
+  valorAtual: number | string;
+  owner?: string;
+  prazo: string;
+};
+
+const krApiToEditavel = (r: KrApi): KrEditavel => ({
+  metrica: r.metrica ?? "",
+  valorInicial: r.valorInicial?.toString() ?? "0",
+  valorAlvo: r.valorAlvo?.toString() ?? "0",
+  valorAtual: (r.valorAtual ?? r.valorInicial)?.toString() ?? "0",
+  owner: r.owner ?? "",
+  prazo: r.prazo ?? "Q4 2025",
+});
+
+const objetivoKey = (perspectiva: Perspectiva, idx: number) => `${perspectiva}::${idx}`;
+
 type IndicadorDiagnostico = { id: string; nome: string; meta?: string; atual?: string; perspectiva: string };
 
 type Membro = { id: string; nome: string; email?: string };
@@ -78,7 +108,7 @@ export function BSCCausaEfeitoWizard({
   onComplete,
 }: BSCCausaEfeitoWizardProps) {
   const { toast } = useToast();
-  // Etapa: 0..3 = perspectivas; 4 = mapa final
+  // Etapa: 0..3 = perspectivas; 4 = mapa final; 5 = revisão de métricas
   const [etapa, setEtapa] = useState<number>(0);
   const [quantidadePorPerspectiva, setQuantidadePorPerspectiva] = useState<number>(2);
   const [instrucao, setInstrucao] = useState<string>("");
@@ -87,6 +117,11 @@ export function BSCCausaEfeitoWizard({
   // Task #311 — gerar métricas (KRs) automaticamente ao final do wizard.
   const [gerarMetricas, setGerarMetricas] = useState<boolean>(true);
   const [quantidadeMetricas, setQuantidadeMetricas] = useState<number>(2);
+  // Task #318 — KRs gerados em prévia, editáveis antes de salvar.
+  // Chave: `${perspectiva}::${idx do objetivo na lista da perspectiva}`.
+  const [krsPorObjetivo, setKrsPorObjetivo] = useState<Record<string, KrEditavel[]>>({});
+  const [gerandoMetricasPreview, setGerandoMetricasPreview] = useState<boolean>(false);
+  const [regerandoKey, setRegerandoKey] = useState<string | null>(null);
 
   const { data: indicadoresDiag = [] } = useQuery<IndicadorDiagnostico[]>({
     queryKey: ["/api/indicadores", empresaId, "diagnostico-bsc-wizard"],
@@ -174,6 +209,7 @@ export function BSCCausaEfeitoWizard({
   const podeAvancar = objetivosDaEtapa.length > 0;
   const isEtapaPerspectiva = perspectivaAtual !== null;
   const isEtapaMapa = etapa === PERSPECTIVAS_ORDEM.length;
+  const isEtapaMetricas = etapa === PERSPECTIVAS_ORDEM.length + 1;
 
   const reset = () => {
     setEtapa(0);
@@ -182,6 +218,119 @@ export function BSCCausaEfeitoWizard({
     setQuantidadePorPerspectiva(2);
     setGerarMetricas(true);
     setQuantidadeMetricas(2);
+    setKrsPorObjetivo({});
+    setGerandoMetricasPreview(false);
+    setRegerandoKey(null);
+  };
+
+  // Task #318 — gera prévias de KRs (sem persistir) para cada objetivo confirmado no mapa.
+  const gerarPreviewMetricas = async (
+    options: { reusarExistente?: boolean } = {},
+  ): Promise<Record<string, KrEditavel[]> | null> => {
+    setGerandoMetricasPreview(true);
+    try {
+      const next: Record<string, KrEditavel[]> = options.reusarExistente
+        ? { ...krsPorObjetivo }
+        : {};
+      let algumaFalha = false;
+      for (const persp of PERSPECTIVAS_ORDEM) {
+        const list = objetivosPorPersp[persp] || [];
+        for (let i = 0; i < list.length; i++) {
+          const obj = list[i];
+          const key = objetivoKey(persp, i);
+          if (options.reusarExistente && next[key]) continue;
+          try {
+            const resp = (await apiRequest("POST", "/api/ai/gerar-resultados-chave", {
+              quantidade: quantidadeMetricas,
+              objetivoPreview: {
+                titulo: obj.titulo,
+                descricao: obj.descricao || null,
+                prazo: obj.prazo || "Anual 2025",
+              },
+            })) as { resultados?: KrApi[] };
+            next[key] = (resp.resultados ?? []).map(krApiToEditavel);
+          } catch {
+            next[key] = [];
+            algumaFalha = true;
+          }
+        }
+      }
+      setKrsPorObjetivo(next);
+      if (algumaFalha) {
+        toast({
+          title: "Algumas métricas falharam",
+          description: "Não foi possível gerar métricas para todos os objetivos. Você pode regerar individualmente.",
+          variant: "destructive",
+        });
+      }
+      return next;
+    } finally {
+      setGerandoMetricasPreview(false);
+    }
+  };
+
+  const regerarMetricasObjetivo = async (
+    perspectiva: Perspectiva,
+    idx: number,
+    objetivo: ObjetivoGerado,
+  ) => {
+    const key = objetivoKey(perspectiva, idx);
+    setRegerandoKey(key);
+    try {
+      const resp = (await apiRequest("POST", "/api/ai/gerar-resultados-chave", {
+        quantidade: quantidadeMetricas,
+        objetivoPreview: {
+          titulo: objetivo.titulo,
+          descricao: objetivo.descricao || null,
+          prazo: objetivo.prazo || "Anual 2025",
+        },
+      })) as { resultados?: KrApi[] };
+      setKrsPorObjetivo((prev) => ({
+        ...prev,
+        [key]: (resp.resultados ?? []).map(krApiToEditavel),
+      }));
+    } catch {
+      toast({
+        title: "Erro ao regerar métricas",
+        description: "Não foi possível gerar novas métricas para este objetivo. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setRegerandoKey(null);
+    }
+  };
+
+  const atualizarKr = (key: string, krIdx: number, patch: Partial<KrEditavel>) => {
+    setKrsPorObjetivo((prev) => {
+      const list = [...(prev[key] || [])];
+      list[krIdx] = { ...list[krIdx], ...patch };
+      return { ...prev, [key]: list };
+    });
+  };
+
+  const removerKr = (key: string, krIdx: number) => {
+    setKrsPorObjetivo((prev) => {
+      const list = [...(prev[key] || [])];
+      list.splice(krIdx, 1);
+      return { ...prev, [key]: list };
+    });
+  };
+
+  const adicionarKr = (key: string) => {
+    setKrsPorObjetivo((prev) => ({
+      ...prev,
+      [key]: [
+        ...(prev[key] || []),
+        {
+          metrica: "",
+          valorInicial: "0",
+          valorAlvo: "0",
+          valorAtual: "0",
+          owner: "",
+          prazo: "Q4 2025",
+        },
+      ],
+    }));
   };
 
   const handleClose = (next: boolean) => {
@@ -204,7 +353,7 @@ export function BSCCausaEfeitoWizard({
     let totalKrs = 0;
     let linksCriados = 0;
     let linksFalhos = 0;
-    const objetivosCriados: { id: string }[] = [];
+    const objetivosCriados: { id: string; key: string }[] = [];
     try {
       // Task #310 — após persistir cada objetivo, guardamos o id resultante
       // indexado por (perspectiva, titulo-normalizado) para depois criar os
@@ -218,7 +367,9 @@ export function BSCCausaEfeitoWizard({
 
       for (const persp of PERSPECTIVAS_ORDEM) {
         const list = objetivosPorPersp[persp] || [];
-        for (const o of list) {
+        for (let idxObj = 0; idxObj < list.length; idxObj++) {
+          const o = list[idxObj];
+          const key = objetivoKey(persp, idxObj);
           try {
             const criado = (await apiRequest("POST", "/api/objetivos", {
               titulo: o.titulo,
@@ -238,7 +389,7 @@ export function BSCCausaEfeitoWizard({
             })) as { id: string };
             total++;
             if (criado?.id) {
-              objetivosCriados.push({ id: criado.id });
+              objetivosCriados.push({ id: criado.id, key });
               idByTitulo.set(titleKey(persp, o.titulo), criado.id);
               objetivosPersistidos.push({ perspectiva: persp, original: o, id: criado.id });
             }
@@ -248,39 +399,36 @@ export function BSCCausaEfeitoWizard({
         }
       }
 
-      // Task #311 — geração automática de métricas (KRs) para cada objetivo criado.
-      if (gerarMetricas && quantidadeMetricas > 0 && objetivosCriados.length > 0) {
+      // Task #318 — em vez de regerar as métricas após criar o objetivo,
+      // persistimos os KRs já revisados/editados pelo usuário na etapa de
+      // revisão. Mantemos compatibilidade: se o usuário desligou a geração de
+      // métricas (gerarMetricas=false), nenhum KR é criado.
+      if (gerarMetricas && objetivosCriados.length > 0) {
         for (const obj of objetivosCriados) {
-          try {
-            const krResp = (await apiRequest("POST", "/api/ai/gerar-resultados-chave", {
-              objetivoId: obj.id,
-              quantidade: quantidadeMetricas,
-            })) as { resultados?: Array<{ metrica: string; valorInicial: number | string; valorAlvo: number | string; valorAtual: number | string; owner?: string; prazo: string }> };
-            const krs = krResp?.resultados ?? [];
-            for (const res of krs) {
-              const membroAi = membros.find(
-                (m) =>
-                  m.nome.toLowerCase() === (res.owner || "").toLowerCase() ||
-                  (m.email?.toLowerCase() === (res.owner || "").toLowerCase()),
-              );
-              try {
-                await apiRequest("POST", "/api/resultados-chave", {
-                  objetivoId: obj.id,
-                  metrica: res.metrica,
-                  valorInicial: res.valorInicial.toString(),
-                  valorAlvo: res.valorAlvo.toString(),
-                  valorAtual: res.valorAtual.toString(),
-                  owner: membroAi?.nome || res.owner || "—",
-                  responsavelId: membroAi?.id ?? null,
-                  prazo: res.prazo,
-                });
-                totalKrs++;
-              } catch {
-                // ignora KR específico que falhou
-              }
+          const krs = krsPorObjetivo[obj.key] || [];
+          for (const res of krs) {
+            const metricaTrim = res.metrica.trim();
+            if (!metricaTrim) continue;
+            const membroAi = membros.find(
+              (m) =>
+                m.nome.toLowerCase() === (res.owner || "").toLowerCase() ||
+                (m.email?.toLowerCase() === (res.owner || "").toLowerCase()),
+            );
+            try {
+              await apiRequest("POST", "/api/resultados-chave", {
+                objetivoId: obj.id,
+                metrica: metricaTrim,
+                valorInicial: res.valorInicial || "0",
+                valorAlvo: res.valorAlvo || "0",
+                valorAtual: res.valorAtual || res.valorInicial || "0",
+                owner: membroAi?.nome || res.owner || "—",
+                responsavelId: membroAi?.id ?? null,
+                prazo: res.prazo || "Q4 2025",
+              });
+              totalKrs++;
+            } catch {
+              // ignora KR específico que falhou
             }
-          } catch {
-            // não bloqueia o restante do fluxo se a geração de KRs falhar para um objetivo
           }
         }
         await queryClient.invalidateQueries({
@@ -404,13 +552,27 @@ export function BSCCausaEfeitoWizard({
             <ArrowRight className="h-3 w-3 text-muted-foreground" />
             <div
               className={
-                "text-xs font-medium " + (isEtapaMapa ? "text-foreground" : "text-muted-foreground")
+                "text-xs font-medium " +
+                (isEtapaMapa ? "text-foreground" : etapa > PERSPECTIVAS_ORDEM.length ? "text-foreground" : "text-muted-foreground")
               }
               data-testid="step-mapa"
             >
               Mapa final
             </div>
           </div>
+          {gerarMetricas && (
+            <div className="flex items-center gap-2">
+              <ArrowRight className="h-3 w-3 text-muted-foreground" />
+              <div
+                className={
+                  "text-xs font-medium " + (isEtapaMetricas ? "text-foreground" : "text-muted-foreground")
+                }
+                data-testid="step-metricas"
+              >
+                Métricas
+              </div>
+            </div>
+          )}
         </div>
 
         <Separator />
@@ -659,6 +821,163 @@ export function BSCCausaEfeitoWizard({
               })}
             </div>
           )}
+
+          {isEtapaMetricas && (
+            <div className="space-y-3 py-2" data-testid="etapa-metricas">
+              <Card className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1 min-w-0">
+                    <div className="text-sm font-semibold">Revisar métricas geradas</div>
+                    <p className="text-xs text-muted-foreground">
+                      Ajuste o nome, valores, owner e prazo de cada KR ou regere a lista de um objetivo. Nada é salvo
+                      até você confirmar.
+                    </p>
+                  </div>
+                  {gerandoMetricasPreview && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Gerando…
+                    </div>
+                  )}
+                </div>
+              </Card>
+
+              {PERSPECTIVAS_ORDEM.map((persp) => {
+                const list = objetivosPorPersp[persp] || [];
+                if (list.length === 0) return null;
+                return (
+                  <div key={persp} className="space-y-2" data-testid={`metricas-bloco-${persp}`}>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline">{PERSPECTIVA_LABELS[persp]}</Badge>
+                    </div>
+                    {list.map((obj, idxObj) => {
+                      const key = objetivoKey(persp, idxObj);
+                      const krs = krsPorObjetivo[key] || [];
+                      const regerando = regerandoKey === key;
+                      return (
+                        <Card key={key} className="p-3 space-y-3" data-testid={`metricas-objetivo-${persp}-${idxObj}`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm font-semibold truncate">{obj.titulo}</div>
+                              {obj.descricao && (
+                                <div className="text-xs text-muted-foreground line-clamp-2">{obj.descricao}</div>
+                              )}
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => regerarMetricasObjetivo(persp, idxObj, obj)}
+                              disabled={regerando || gerandoMetricasPreview || salvando}
+                              data-testid={`button-regerar-metricas-${persp}-${idxObj}`}
+                            >
+                              {regerando ? (
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              ) : (
+                                <Sparkles className="h-4 w-4 mr-2" />
+                              )}
+                              Regerar
+                            </Button>
+                          </div>
+                          {krs.length === 0 && !regerando && (
+                            <p className="text-xs text-muted-foreground">
+                              Nenhuma métrica gerada para este objetivo. Adicione manualmente ou clique em Regerar.
+                            </p>
+                          )}
+                          <div className="space-y-2">
+                            {krs.map((kr, krIdx) => (
+                              <div
+                                key={krIdx}
+                                className="rounded-md border p-2 space-y-2"
+                                data-testid={`metrica-card-${persp}-${idxObj}-${krIdx}`}
+                              >
+                                <div className="flex items-start gap-2">
+                                  <Input
+                                    value={kr.metrica}
+                                    onChange={(e) => atualizarKr(key, krIdx, { metrica: e.target.value })}
+                                    placeholder="Métrica (ex.: Taxa de retenção)"
+                                    className="font-medium"
+                                    data-testid={`input-metrica-${persp}-${idxObj}-${krIdx}`}
+                                  />
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => removerKr(key, krIdx)}
+                                    data-testid={`button-remover-metrica-${persp}-${idxObj}-${krIdx}`}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                  <div>
+                                    <Label className="text-xs">Valor inicial</Label>
+                                    <Input
+                                      value={kr.valorInicial}
+                                      onChange={(e) =>
+                                        atualizarKr(key, krIdx, { valorInicial: e.target.value })
+                                      }
+                                      data-testid={`input-valor-inicial-${persp}-${idxObj}-${krIdx}`}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs">Valor alvo</Label>
+                                    <Input
+                                      value={kr.valorAlvo}
+                                      onChange={(e) =>
+                                        atualizarKr(key, krIdx, { valorAlvo: e.target.value })
+                                      }
+                                      data-testid={`input-valor-alvo-${persp}-${idxObj}-${krIdx}`}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs">Valor atual</Label>
+                                    <Input
+                                      value={kr.valorAtual}
+                                      onChange={(e) =>
+                                        atualizarKr(key, krIdx, { valorAtual: e.target.value })
+                                      }
+                                      data-testid={`input-valor-atual-${persp}-${idxObj}-${krIdx}`}
+                                    />
+                                  </div>
+                                  <div className="col-span-2 sm:col-span-2">
+                                    <Label className="text-xs">Owner</Label>
+                                    <Input
+                                      value={kr.owner}
+                                      onChange={(e) => atualizarKr(key, krIdx, { owner: e.target.value })}
+                                      placeholder="Cargo, área ou nome"
+                                      data-testid={`input-owner-${persp}-${idxObj}-${krIdx}`}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs">Prazo</Label>
+                                    <Input
+                                      value={kr.prazo}
+                                      onChange={(e) => atualizarKr(key, krIdx, { prazo: e.target.value })}
+                                      placeholder="Ex.: Q4 2025"
+                                      data-testid={`input-prazo-${persp}-${idxObj}-${krIdx}`}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => adicionarKr(key)}
+                            disabled={salvando}
+                            data-testid={`button-adicionar-metrica-${persp}-${idxObj}`}
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Adicionar métrica
+                          </Button>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </ScrollArea>
 
         <DialogFooter className="gap-2 flex-wrap">
@@ -688,19 +1007,58 @@ export function BSCCausaEfeitoWizard({
               <Button
                 variant="outline"
                 onClick={() => setEtapa(PERSPECTIVAS_ORDEM.length - 1)}
-                disabled={salvando}
+                disabled={salvando || gerandoMetricasPreview}
                 data-testid="button-bsc-mapa-voltar"
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Voltar
               </Button>
+              {gerarMetricas ? (
+                <Button
+                  onClick={async () => {
+                    const result = await gerarPreviewMetricas({ reusarExistente: false });
+                    if (result) setEtapa(PERSPECTIVAS_ORDEM.length + 1);
+                  }}
+                  disabled={salvando || gerandoMetricasPreview}
+                  data-testid="button-bsc-revisar-metricas"
+                >
+                  {gerandoMetricasPreview ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4 mr-2" />
+                  )}
+                  Gerar e revisar métricas
+                </Button>
+              ) : (
+                <Button
+                  onClick={persistirTudo}
+                  disabled={salvando}
+                  data-testid="button-bsc-confirmar"
+                >
+                  {salvando ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                  Registrar todos os objetivos
+                </Button>
+              )}
+            </>
+          )}
+          {isEtapaMetricas && (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => setEtapa(PERSPECTIVAS_ORDEM.length)}
+                disabled={salvando || gerandoMetricasPreview || regerandoKey !== null}
+                data-testid="button-bsc-metricas-voltar"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Voltar ao mapa
+              </Button>
               <Button
                 onClick={persistirTudo}
-                disabled={salvando}
+                disabled={salvando || gerandoMetricasPreview || regerandoKey !== null}
                 data-testid="button-bsc-confirmar"
               >
                 {salvando ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
-                Registrar todos os objetivos
+                Confirmar e salvar
               </Button>
             </>
           )}

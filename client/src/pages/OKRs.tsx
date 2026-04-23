@@ -19,7 +19,7 @@ import { ptBR } from "date-fns/locale";
 import { PrerequisiteWarning } from "@/components/PrerequisiteWarning";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { Objetivo, ResultadoChave, AIGenerationParams, KrCheckin } from "@shared/schema";
+import type { Objetivo, ResultadoChave, AIGenerationParams, KrCheckin, BscRelacao } from "@shared/schema";
 import { OrigemSelector } from "@/components/OrigemSelector";
 import { CascataBlock } from "@/components/CascataBlock";
 import { useJornadaProgresso } from "@/hooks/useJornadaProgresso";
@@ -176,12 +176,29 @@ interface ObjetivoCardProps {
   iniciativas: IniciativaBasica[];
   resultadosChave: ResultadoChave[];
   jornadaConcluida: boolean;
+  // Task #310 — outros objetivos da empresa, usados para mostrar os títulos
+  // dos vínculos de causa-e-efeito ("habilita" e "habilitado por").
+  objetivosTodos: Objetivo[];
+  // Task #310 — relações causa-efeito desta empresa.
+  bscRelacoes: BscRelacao[];
   onSelect: (obj: Objetivo) => void;
   onRetro: (obj: Objetivo) => void;
   onDelete: (id: string) => void;
 }
 
-function ObjetivoCard({ objetivo, membros, estrategias, iniciativas, resultadosChave, jornadaConcluida, onSelect, onRetro, onDelete }: ObjetivoCardProps) {
+function ObjetivoCard({ objetivo, membros, estrategias, iniciativas, resultadosChave, jornadaConcluida, objetivosTodos, bscRelacoes, onSelect, onRetro, onDelete }: ObjetivoCardProps) {
+  // Task #310 — cadeia de causa-e-efeito deste objetivo.
+  // - "habilita":   este objetivo é a ORIGEM (causa); destinos são os efeitos.
+  // - "habilitadoPor": este objetivo é o DESTINO (efeito); origens o sustentam.
+  const objetivoById = new Map(objetivosTodos.map((o) => [o.id, o] as const));
+  const habilita = bscRelacoes
+    .filter((r) => r.origemId === objetivo.id && (r.tipo ?? "causa_efeito") === "causa_efeito")
+    .map((r) => ({ rel: r, alvo: objetivoById.get(r.destinoId) }))
+    .filter((x): x is { rel: BscRelacao; alvo: Objetivo } => !!x.alvo);
+  const habilitadoPor = bscRelacoes
+    .filter((r) => r.destinoId === objetivo.id && (r.tipo ?? "causa_efeito") === "causa_efeito")
+    .map((r) => ({ rel: r, alvo: objetivoById.get(r.origemId) }))
+    .filter((x): x is { rel: BscRelacao; alvo: Objetivo } => !!x.alvo);
   return (
     <Card
       className="p-4 hover-elevate cursor-pointer"
@@ -250,6 +267,38 @@ function ObjetivoCard({ objetivo, membros, estrategias, iniciativas, resultadosC
               />
             );
           })()}
+          {(habilita.length > 0 || habilitadoPor.length > 0) && (
+            <div
+              className="mt-2 flex flex-wrap gap-1.5"
+              data-testid={`bsc-links-objetivo-${objetivo.id}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {habilita.map(({ rel, alvo }) => (
+                <Badge
+                  key={`up-${rel.id}`}
+                  variant="secondary"
+                  className="gap-1 text-xs max-w-full"
+                  title={rel.justificativa || `Habilita: ${alvo.titulo}`}
+                  data-testid={`badge-bsc-habilita-${rel.id}`}
+                >
+                  <TrendingUp className="h-3 w-3 flex-shrink-0" />
+                  <span className="truncate">↑ habilita: {alvo.titulo}</span>
+                </Badge>
+              ))}
+              {habilitadoPor.map(({ rel, alvo }) => (
+                <Badge
+                  key={`down-${rel.id}`}
+                  variant="outline"
+                  className="gap-1 text-xs max-w-full"
+                  title={rel.justificativa || `Habilitado por: ${alvo.titulo}`}
+                  data-testid={`badge-bsc-habilitado-por-${rel.id}`}
+                >
+                  <Layers className="h-3 w-3 flex-shrink-0" />
+                  <span className="truncate">↓ habilitado por: {alvo.titulo}</span>
+                </Badge>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex gap-0.5" onClick={e => e.stopPropagation()}>
           <Button
@@ -841,6 +890,10 @@ export default function OKRs() {
   });
 
   const { data: membros = [] } = useQuery<Membro[]>({ queryKey: ["/api/membros"] });
+
+  // Task #310 — relações causa-e-efeito do BSC para mostrar badges
+  // "↑ habilita" / "↓ habilitado por" em cada objetivo.
+  const { data: bscRelacoes = [] } = useQuery<BscRelacao[]>({ queryKey: ["/api/bsc-relacoes"] });
 
   // Task #208 — usado para exibir o badge "Atacando: KPI X" nos KRs.
   const { data: indicadoresLista = [] } = useQuery<Array<{ id: string; nome: string }>>({
@@ -1724,6 +1777,8 @@ export default function OKRs() {
                         iniciativas={iniciativas}
                         resultadosChave={resultadosChave}
                         jornadaConcluida={!!jornadaConcluida}
+                        objetivosTodos={objetivos}
+                        bscRelacoes={bscRelacoes}
                         onSelect={(obj) => { setObjetivoSelecionado(obj); setDialogResultadosOpen(true); }}
                         onRetro={(obj) => { setRetroObjetivo(obj); setRetroDialogOpen(true); }}
                         onDelete={(id) => deletarObjetivoMutation.mutate(id)}

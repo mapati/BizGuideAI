@@ -49,6 +49,9 @@ type ObjetivoGerado = {
   estrategiaId?: string | null;
   iniciativaId?: string | null;
   justificativaCausaEfeito?: string;
+  // Task #310 — Títulos da camada acima que este objetivo habilita.
+  // Devolvido pela IA e usado para criar bsc_relacoes após o save.
+  habilita?: string[];
 };
 
 type ObjetivosPorPerspectiva = Partial<Record<Perspectiva, ObjetivoGerado[]>>;
@@ -199,13 +202,25 @@ export function BSCCausaEfeitoWizard({
     let total = 0;
     let erros = 0;
     let totalKrs = 0;
+    let linksCriados = 0;
+    let linksFalhos = 0;
     const objetivosCriados: { id: string }[] = [];
     try {
+      // Task #310 — após persistir cada objetivo, guardamos o id resultante
+      // indexado por (perspectiva, titulo-normalizado) para depois criar os
+      // pares de causa-e-efeito (origem=objetivo desta camada, destino=
+      // objetivo da camada acima cujo título foi listado em `habilita`).
+      const titleKey = (perspectiva: string, titulo: string) =>
+        `${perspectiva}::${titulo.toLowerCase().trim()}`;
+      const idByTitulo = new Map<string, string>();
+      // Lista plana com tudo que precisamos para criar os links depois.
+      const objetivosPersistidos: { perspectiva: Perspectiva; original: ObjetivoGerado; id: string }[] = [];
+
       for (const persp of PERSPECTIVAS_ORDEM) {
         const list = objetivosPorPersp[persp] || [];
         for (const o of list) {
           try {
-            const novo = (await apiRequest("POST", "/api/objetivos", {
+            const criado = (await apiRequest("POST", "/api/objetivos", {
               titulo: o.titulo,
               descricao: o.descricao || null,
               prazo: o.prazo || "Anual 2025",
@@ -222,7 +237,11 @@ export function BSCCausaEfeitoWizard({
                   : null,
             })) as { id: string };
             total++;
-            if (novo?.id) objetivosCriados.push({ id: novo.id });
+            if (criado?.id) {
+              objetivosCriados.push({ id: criado.id });
+              idByTitulo.set(titleKey(persp, o.titulo), criado.id);
+              objetivosPersistidos.push({ perspectiva: persp, original: o, id: criado.id });
+            }
           } catch {
             erros++;
           }
@@ -272,7 +291,43 @@ export function BSCCausaEfeitoWizard({
         });
       }
 
+      // Task #310 — cria as bsc_relacoes (causa-efeito) para cada objetivo
+      // não-Financeiro que veio com lista `habilita`. Procuramos o destino
+      // entre as perspectivas REALMENTE acima da atual no mapa do BSC para
+      // evitar links cruzados ou para a mesma camada.
+      for (const item of objetivosPersistidos) {
+        const habilita = item.original.habilita || [];
+        if (habilita.length === 0) continue;
+        const idxAtual = PERSPECTIVAS_ORDEM.indexOf(item.perspectiva);
+        if (idxAtual <= 0) continue;
+        const perspectivasAcima = PERSPECTIVAS_ORDEM.slice(0, idxAtual);
+        const justificativa = item.original.justificativaCausaEfeito?.trim() || null;
+        for (const tituloDestino of habilita) {
+          let destinoId: string | undefined;
+          for (const persp of perspectivasAcima) {
+            const candidato = idByTitulo.get(titleKey(persp, tituloDestino));
+            if (candidato) {
+              destinoId = candidato;
+              break;
+            }
+          }
+          if (!destinoId || destinoId === item.id) continue;
+          try {
+            await apiRequest("POST", "/api/bsc-relacoes", {
+              origemId: item.id,
+              destinoId,
+              tipo: "causa_efeito",
+              justificativa,
+            });
+            linksCriados++;
+          } catch {
+            linksFalhos++;
+          }
+        }
+      }
+
       await queryClient.invalidateQueries({ queryKey: ["/api/objetivos"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/bsc-relacoes"] });
       if (total === 0) {
         // Falha total — não fechamos o wizard para que o usuário possa
         // revisar e tentar de novo, evitando perda silenciosa do trabalho.
@@ -289,7 +344,7 @@ export function BSCCausaEfeitoWizard({
       const krsMsg = gerarMetricas ? ` e ${totalKrs} métrica(s) gerada(s)` : "";
       toast({
         title: "Mapa de Causa e Efeito criado!",
-        description: `${total} objetivo(s) registrado(s)${krsMsg}${erros ? `, ${erros} falhou(aram)` : ""}.`,
+        description: `${total} objetivo(s) registrado(s)${krsMsg}${erros ? `, ${erros} falhou(aram)` : ""}${linksCriados > 0 ? ` · ${linksCriados} link(s) de causa-e-efeito` : ""}${linksFalhos > 0 ? `, ${linksFalhos} link(s) falhou(aram)` : ""}.`,
         variant: erros > 0 ? "destructive" : undefined,
       });
       onComplete();

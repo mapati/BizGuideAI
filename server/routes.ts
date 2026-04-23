@@ -7056,7 +7056,7 @@ MODO BSC CAUSA E EFEITO — PERSPECTIVA "${perspectiva}":
 Esta perspectiva está ABAIXO no mapa estratégico e funciona como PRÉ-REQUISITO para HABILITAR os objetivos da(s) perspectiva(s) gerada(s) acima (listados em "OBJETIVOS DAS CAMADAS ACIMA"). Cada objetivo que você criar agora deve responder: "o que precisamos fazer nesta camada para tornar possíveis os objetivos da camada de cima?".
 - CADA objetivo gerado DEVE estar conectado a pelo menos UM objetivo das camadas acima.
 - Para CADA objetivo gerado você DEVE incluir um campo adicional "justificativaCausaEfeito": uma frase curta (até 25 palavras) que explica QUAL(IS) objetivo(s) da camada acima esse objetivo habilita e POR QUÊ. Ex.: "Habilita 'Aumentar margem líquida' ao reduzir o tempo de ciclo produtivo, baixando custo unitário."
-- Não invente conexões: só conecte com objetivos REALMENTE listados em "OBJETIVOS DAS CAMADAS ACIMA".`;
+- Para CADA objetivo gerado você TAMBÉM DEVE incluir o campo "habilita": um array com os TÍTULOS EXATOS (copiados literalmente, sem alterar palavras ou caixa) dos objetivos da camada acima que ele habilita. NÃO invente títulos: só inclua títulos REALMENTE listados em "OBJETIVOS DAS CAMADAS ACIMA". Inclua pelo menos 1 e no máximo 3 títulos.`;
 
         const bscUserExtra = !isBSC ? "" : isFinanceiraBSC ? `
 
@@ -7067,7 +7067,7 @@ ${indicadoresDiagnosticoBSC.length > 0 ? diagnosticoResume : "Nenhum indicador d
 ${anterioresTexto || "(vazio)"}`;
 
         const justificativaJsonHint = isBSC && !isFinanceiraBSC
-          ? `,\n      "justificativaCausaEfeito": "frase curta explicando qual objetivo acima este habilita"`
+          ? `,\n      "justificativaCausaEfeito": "frase curta explicando qual objetivo acima este habilita",\n      "habilita": ["titulo exato de objetivo da camada acima", "..."]`
           : "";
 
         const completion = await openai.chat.completions.create({
@@ -7141,7 +7141,7 @@ Responda em JSON:
         // Fallback de origem: se a IA não escolheu nenhuma Estratégia, atribui a primeira da lista.
         const fallbackEstrategiaId = estrategiasLista[0]?.id;
 
-        const sanitize = (o: { titulo: string; descricao?: string; prazo?: string; perspectiva?: string; estrategiaId?: unknown; justificativaCausaEfeito?: unknown }) => {
+        const sanitize = (o: { titulo: string; descricao?: string; prazo?: string; perspectiva?: string; estrategiaId?: unknown; justificativaCausaEfeito?: unknown; habilita?: unknown }) => {
           let iniciativaId: string | null;
           let estrategiaId: string | null;
           if (forcedIniciativaId || forcedEstrategiaId) {
@@ -7164,6 +7164,17 @@ Responda em JSON:
           const justificativaRaw = typeof o.justificativaCausaEfeito === "string"
             ? o.justificativaCausaEfeito.trim()
             : "";
+          // Task #310 — Lista de títulos da camada acima que este objetivo
+          // habilita. Filtra contra os títulos REALMENTE listados em
+          // `bscContext.anteriores` para evitar links inventados.
+          const titulosAcima = new Set(
+            (bscContext?.anteriores ?? []).map((a) => a.titulo.toLowerCase().trim())
+          );
+          const habilitaArr = Array.isArray(o.habilita) ? o.habilita : [];
+          const habilitaTitulos = habilitaArr
+            .filter((t): t is string => typeof t === "string")
+            .map((t) => t.trim())
+            .filter((t) => t.length > 0 && titulosAcima.has(t.toLowerCase()));
           return {
             titulo: o.titulo,
             descricao: o.descricao,
@@ -7175,6 +7186,11 @@ Responda em JSON:
             // e não for a perspectiva Financeira (raiz do mapa).
             ...(isBSC && !isFinanceiraBSC && justificativaRaw
               ? { justificativaCausaEfeito: justificativaRaw }
+              : {}),
+            // Task #310 — só preserva o array de "habilita" no modo BSC e em
+            // perspectivas que não são a Financeira (ela está no topo).
+            ...(isBSC && !isFinanceiraBSC && habilitaTitulos.length > 0
+              ? { habilita: habilitaTitulos }
               : {}),
             ...(isBSC ? { origemModoBSC: true } : {}),
           };
@@ -7214,6 +7230,10 @@ Responda em JSON:
         iniciativaId: string | null;
         estrategiaId: string | null;
         justificativaCausaEfeito?: string;
+        // Task #310 — Títulos exatos da camada acima que este objetivo
+        // habilita. Usado pelo wizard para criar bsc_relacoes após o
+        // POST /api/objetivos.
+        habilita?: string[];
         origemModoBSC?: boolean;
       };
       let objetivosGerados: ObjetivoGeradoDTO[];

@@ -394,6 +394,11 @@ async function runStartupMigrations() {
     await client.query(`ALTER TABLE objetivos ADD COLUMN IF NOT EXISTS prazo_data DATE`);
     await client.query(`ALTER TABLE resultados_chave ADD COLUMN IF NOT EXISTS prazo_data DATE`);
 
+    // Task #310 — Justificativa textual nas relações de causa-efeito do BSC.
+    // Preenchida pelo wizard "BSC Causa e Efeito" e exibida nos badges
+    // "↑ habilita" / "↓ habilitado por" da página de Metas e Resultados.
+    await client.query(`ALTER TABLE bsc_relacoes ADD COLUMN IF NOT EXISTS justificativa TEXT`);
+
     // Task #274/#275 — nova ordem da Jornada coloca Objetivo (Meta) antes de
     // Iniciativa. Iniciativas geradas a partir de uma Meta passam a registrar
     // o Objetivo de origem em `objetivo_originador_id`. Coluna aditiva, NULL

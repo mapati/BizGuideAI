@@ -483,6 +483,11 @@ export const bscRelacoes = pgTable("bsc_relacoes", {
   origemId: varchar("origem_id").notNull().references(() => objetivos.id, { onDelete: "cascade" }),
   destinoId: varchar("destino_id").notNull().references(() => objetivos.id, { onDelete: "cascade" }),
   tipo: text("tipo").$type<"causa_efeito" | "correlacao">().notNull().default("causa_efeito"),
+  // Task #310 — Justificativa textual de POR QUÊ a origem habilita o destino.
+  // Preenchida automaticamente pelo wizard "BSC Causa e Efeito" (mapeada da
+  // frase `justificativaCausaEfeito` que a IA gera por objetivo) e exibida
+  // como tooltip nos badges "↑ habilita" / "↓ habilitado por" da página OKRs.
+  justificativa: text("justificativa"),
   criadoEm: timestamp("criado_em").defaultNow().notNull(),
 });
 export const insertBscRelacaoSchema = createInsertSchema(bscRelacoes, {

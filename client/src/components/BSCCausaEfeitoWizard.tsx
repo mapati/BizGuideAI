@@ -213,6 +213,13 @@ export function BSCCausaEfeitoWizard({
               estrategiaId: o.estrategiaId ?? null,
               iniciativaId: o.iniciativaId ?? null,
               origemModoBSC: true,
+              // Task #309 — persistir a justificativa para que o card e o
+              // detalhe do Objetivo possam mostrar "Habilita: ..." depois
+              // de salvo (antes ela só aparecia aqui no wizard).
+              justificativaCausaEfeito:
+                persp !== "Financeira" && o.justificativaCausaEfeito
+                  ? o.justificativaCausaEfeito
+                  : null,
             })) as { id: string };
             total++;
             if (novo?.id) objetivosCriados.push({ id: novo.id });

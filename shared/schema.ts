@@ -169,6 +169,12 @@ export const objetivos = pgTable("objetivos", {
   // que ancora a perspectiva Financeira no diagnóstico atual e gera
   // Clientes/Processos/Aprendizado como pré-requisitos da camada acima).
   origemModoBSC: boolean("origem_modo_bsc").notNull().default(false),
+  // Task #309 — Frase curta gerada pelo modo BSC explicando QUAL objetivo
+  // da camada acima este objetivo habilita. Persistida para que apareça
+  // no card e no detalhe (não só no wizard antes de salvar). Só faz
+  // sentido quando `origemModoBSC = true` e a perspectiva não é
+  // Financeira (raiz do mapa).
+  justificativaCausaEfeito: text("justificativa_causa_efeito"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

@@ -212,6 +212,22 @@ function ObjetivoCard({ objetivo, membros, estrategias, iniciativas, resultadosC
               ) : null;
             })()}
           </div>
+          {/* Task #309 — Mostrar a justificativa de causa-e-efeito do
+              modo BSC (frase "Habilita: ...") quando o Objetivo foi
+              criado pelo wizard e não é da perspectiva Financeira. */}
+          {objetivo.origemModoBSC &&
+            objetivo.perspectiva !== "Financeira" &&
+            objetivo.justificativaCausaEfeito && (
+              <div
+                className="mt-2 rounded-md bg-muted/40 p-2 text-xs"
+                data-testid={`text-objetivo-justificativa-${objetivo.id}`}
+              >
+                <span className="font-medium">Habilita: </span>
+                <span className="text-muted-foreground">
+                  {objetivo.justificativaCausaEfeito}
+                </span>
+              </div>
+            )}
           {(() => {
             const ini = iniciativas.find(i => i.id === objetivo.iniciativaId);
             const est = estrategias.find(e => e.id === objetivo.estrategiaId);
@@ -1901,6 +1917,17 @@ export default function OKRs() {
                         <p className="text-sm text-muted-foreground">{objetivoSelecionado.perspectiva}</p>
                       </div>
                     </div>
+                    {/* Task #309 — Justificativa de causa-e-efeito do modo BSC. */}
+                    {objetivoSelecionado.origemModoBSC &&
+                      objetivoSelecionado.perspectiva !== "Financeira" &&
+                      objetivoSelecionado.justificativaCausaEfeito && (
+                        <div data-testid="text-objetivo-detalhe-justificativa">
+                          <p className="text-sm font-medium">Habilita:</p>
+                          <p className="text-sm text-muted-foreground">
+                            {objetivoSelecionado.justificativaCausaEfeito}
+                          </p>
+                        </div>
+                      )}
                   </div>
                 )}
               </div>

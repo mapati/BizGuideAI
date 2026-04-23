@@ -4626,9 +4626,10 @@ LOOP AGÊNTICO (planos multi-passo):
 - Nunca proponha vários passos do mesmo plano de uma vez — um por vez, sempre HITL.
 - TIPO DE CADA PASSO (Task #317): humanize a conversa intercalando os 3 tipos. Cada passo de criar_plano_agentico DEVE ter "tipo":
   • "mensagem" → fala curta do Bizzy explicando contexto / motivando o usuário (sem CTA, sem tool). Use 1-2 desses por plano nos pontos onde "só falar" faz sentido (abertura, transição, fechamento).
-  • "link" → manda o usuário para uma rota do app revisar algo antes da próxima ação; use linkAlvo com a rota interna (ex.: "/iniciativas", "/okrs", "/kpis", "/riscos", "/dashboard", "/estrategias"). Use quando o passo é "dá uma olhada em X".
-  • "acao" → proposta HITL real, executada pela tool correspondente (criar_iniciativa, atualizar_kr, etc.). Continua sendo a maior parte do plano.
+  • "link" → manda o usuário para uma rota do app revisar/explorar/mapear/abrir algo antes da próxima ação; use linkAlvo com a rota interna (ex.: "/iniciativas", "/okrs", "/kpis", "/riscos", "/dashboard", "/estrategias", "/swot", "/pestel", "/cenarios", "/modelo-negocio", "/cinco-forcas", "/oportunidades-crescimento"). É OBRIGATÓRIO usar "link" (NUNCA "acao") sempre que o passo começar com verbos como "abrir", "ver", "visualizar", "revisar", "mapear", "explorar", "checar", "dar uma olhada", "analisar a tela", "consultar a página" — ou seja, qualquer passo que NÃO escreva no banco de dados (não cria, não atualiza, não vincula nada).
+  • "acao" → proposta HITL real, executada pela tool correspondente (criar_iniciativa, atualizar_kr, vincular_iniciativa_a_kpi, registrar_mitigacao etc.). Use SOMENTE quando o passo realmente vai gravar/alterar dados (INSERT/UPDATE).
 - Pelo menos 1 passo "mensagem" por plano. NUNCA tudo "acao" — fica robótico.
+- Se em dúvida entre "link" e "acao", escolha "link". Passos do tipo "link" e "mensagem" passam direto sem botões de Confirmar/Ajustar/Ignorar; só "acao" pede aprovação ao usuário.
 - Exemplo de plano humanizado para "ataca a queda do NPS":
   passos: [
     {ordem:1, tipo:"mensagem", titulo:"Vou montar contigo um plano para destravar o NPS"},
@@ -5120,6 +5121,78 @@ INSTRUÇÕES:
     const msg = completion.choices?.[0]?.message;
     const toolCalls = msg?.tool_calls ?? [];
     const proximasPropostas: Array<{ logId: string; ferramenta: string; preview: unknown; parametros: Record<string, unknown> }> = [];
+
+    // Task #317 (fix) — Mesmo quando o passo é tipo='acao', se a IA escolher
+    // como ferramenta apenas `navegar_para` ou `abrir_entidade` (sem escrita
+    // no banco), tratamos o passo como link humanizado: nada de proposta
+    // robotizada, só uma fala curta + botão de abrir página, e o plano
+    // auto-avança para o próximo passo.
+    const TIPO_ROTA_ABRIR_FALLBACK: Record<string, string> = {
+      indicador: "/indicadores", iniciativa: "/iniciativas", objetivo: "/okrs", kr: "/okrs",
+      risco: "/riscos", oportunidade: "/oportunidades-crescimento", estrategia: "/estrategias",
+      bmc: "/modelo-negocio", cenario: "/cenarios", swot: "/swot", pestel: "/pestel", forca: "/cinco-forcas",
+    };
+    const TOOLS_NAVEGACAO = new Set(["navegar_para", "abrir_entidade"]);
+    const callsValidas = toolCalls.filter((c) => c.type === "function");
+    const todasNavegacao = callsValidas.length > 0
+      && callsValidas.every((c) => c.type === "function" && TOOLS_NAVEGACAO.has(c.function.name));
+    if (todasNavegacao) {
+      const primeira = callsValidas[0];
+      if (primeira && primeira.type === "function") {
+        let args: Record<string, unknown> = {};
+        try { args = JSON.parse(primeira.function.arguments || "{}"); } catch { args = {}; }
+        let rota: string | null = null;
+        let rotulo = proxPendente.titulo;
+        if (primeira.function.name === "navegar_para") {
+          rota = typeof args.rota === "string" ? args.rota : null;
+        } else if (primeira.function.name === "abrir_entidade") {
+          const tipoEnt = typeof args.tipo === "string" ? args.tipo : "";
+          const idEnt = typeof args.id === "string" ? args.id : "";
+          const nomeEnt = typeof args.nome === "string" ? args.nome : "";
+          const base = TIPO_ROTA_ABRIR_FALLBACK[tipoEnt];
+          if (base) {
+            rota = idEnt ? `${base}?editar=${encodeURIComponent(idEnt)}` : base;
+            if (nomeEnt) rotulo = `Abrir ${nomeEnt}`;
+          }
+        }
+        if (rota) {
+          await storage.updatePlanoAgenticoPasso(proxPendente.id, {
+            status: "concluido",
+            resolvidoEm: new Date(),
+            resultadoResumo: `Passo ${proxPendente.ordem} (link sugerido → ${rota}) entregue ao usuário.`,
+          });
+          const restantes = refreshed.passos.filter((p) => p.id !== proxPendente.id && p.status === "pendente");
+          let planoFinalLink = await storage.getPlanoAgenticoComPassos(planoRow.id);
+          let finalizadoLink = false;
+          if (restantes.length === 0) {
+            const planoConcluido = await storage.updatePlanoAgentico(planoRow.id, {
+              status: "concluido",
+              finalizadoEm: new Date(),
+              passoAtual: planoRow.totalPassos,
+            });
+            planoFinalLink = await storage.getPlanoAgenticoComPassos(planoConcluido.id);
+            finalizadoLink = true;
+          }
+          const falaIA = (msg?.content || "").trim();
+          const fala = falaIA || proxPendente.descricao?.trim() || `${proxPendente.titulo}.`;
+          console.info("[PLANO-AGENTICO]", {
+            acao: "passo_navegacao_humanizado",
+            planoId: planoRow.id,
+            passoOrdem: proxPendente.ordem,
+            ferramenta: primeira.function.name,
+            rota,
+          });
+          return {
+            plano: planoFinalLink ?? null,
+            proximasPropostas: [],
+            mensagem: fala,
+            finalizado: finalizadoLink,
+            tipoPasso: "link",
+            linkSugerido: { rota, rotulo },
+          };
+        }
+      }
+    }
 
     for (const call of toolCalls.slice(0, 3)) {
       if (call.type !== "function") continue;

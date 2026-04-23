@@ -6296,6 +6296,26 @@ export async function registrarProposta(opts: {
     argsLimpos = r;
   }
 
+  // Fix — para concluir_plano_agentico/cancelar_plano_agentico, se o LLM
+  // esqueceu de informar planoId (acontece quando o usuário só diz "sim"
+  // para uma confirmação conversacional), resolvemos pelo plano ativo da
+  // empresa/usuário antes de validar. Evita a falha "Parâmetros inválidos"
+  // e "Não consegui formular uma resposta agora".
+  if (
+    (opts.toolName === "cancelar_plano_agentico" || opts.toolName === "concluir_plano_agentico")
+    && argsLimpos && typeof argsLimpos === "object" && !Array.isArray(argsLimpos)
+  ) {
+    const r = argsLimpos as Record<string, unknown>;
+    if (!r.planoId || typeof r.planoId !== "string" || r.planoId.length < 8) {
+      try {
+        const ativo = await storage.getPlanoAtivoEmpresaUsuario(opts.empresaId, opts.usuarioId ?? null);
+        if (ativo?.id) {
+          argsLimpos = { ...r, planoId: ativo.id };
+        }
+      } catch { /* best-effort */ }
+    }
+  }
+
   const parsed = tool.paramsSchema.safeParse(argsLimpos);
   if (!parsed.success) {
     return {

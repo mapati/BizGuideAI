@@ -67,6 +67,16 @@ export default function MapaBSC() {
     onError: () => toast({ title: "Erro ao salvar justificativa", variant: "destructive" }),
   });
 
+  const updateTipoMut = useMutation({
+    mutationFn: ({ id, tipo }: { id: string; tipo: TipoRelacao }) =>
+      apiRequest("PATCH", `/api/bsc-relacoes/${id}`, { tipo }),
+    onSuccess: () => {
+      inv();
+      toast({ title: "Tipo da relação atualizado" });
+    },
+    onError: () => toast({ title: "Erro ao alterar tipo", variant: "destructive" }),
+  });
+
   const openEdit = (rel: BscRelacao) => {
     setEditingRelacao(rel);
     setEditJustificativa(rel.justificativa ?? "");
@@ -158,9 +168,26 @@ export default function MapaBSC() {
                           </PopoverContent>
                         </Popover>
                         <span className="truncate max-w-[200px]">{destino?.titulo || "?"}</span>
-                        <Badge variant={isCausa ? "default" : "secondary"} className="ml-2" data-testid={`badge-tipo-${rel.id}`}>
-                          {isCausa ? "Causa-efeito" : "Correlação"}
-                        </Badge>
+                        <Select
+                          value={t}
+                          onValueChange={(v) => {
+                            const novo = v as TipoRelacao;
+                            if (novo !== t) updateTipoMut.mutate({ id: rel.id, tipo: novo });
+                          }}
+                          disabled={updateTipoMut.isPending}
+                        >
+                          <SelectTrigger
+                            className="ml-2 w-[160px]"
+                            data-testid={`select-tipo-relacao-${rel.id}`}
+                            aria-label="Alterar tipo da relação"
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="causa_efeito">Causa-efeito</SelectItem>
+                            <SelectItem value="correlacao">Correlação</SelectItem>
+                          </SelectContent>
+                        </Select>
                         {rel.justificativa && (
                           <span className="text-xs text-muted-foreground italic truncate max-w-[260px]" data-testid={`text-justificativa-${rel.id}`} title={rel.justificativa}>
                             "{rel.justificativa}"

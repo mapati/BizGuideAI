@@ -208,7 +208,7 @@ export interface IStorage {
 
   getBscRelacoes(empresaId: string): Promise<BscRelacao[]>;
   createBscRelacao(relacao: InsertBscRelacao): Promise<BscRelacao>;
-  updateBscRelacao(id: string, empresaId: string, data: { justificativa?: string | null }): Promise<BscRelacao>;
+  updateBscRelacao(id: string, empresaId: string, data: { justificativa?: string | null; tipo?: "causa_efeito" | "correlacao" }): Promise<BscRelacao>;
   deleteBscRelacao(id: string, empresaId: string): Promise<void>;
 
   getCompartilhamentos(empresaId: string): Promise<Compartilhamento[]>;
@@ -822,8 +822,16 @@ export class DbStorage implements IStorage {
     const result = await db.insert(bscRelacoes).values(relacao).returning();
     return result[0];
   }
-  async updateBscRelacao(id: string, empresaId: string, data: { justificativa?: string | null }): Promise<BscRelacao> {
-    const result = await db.update(bscRelacoes).set(data).where(and(eq(bscRelacoes.id, id), eq(bscRelacoes.empresaId, empresaId))).returning();
+  async updateBscRelacao(id: string, empresaId: string, data: { justificativa?: string | null; tipo?: "causa_efeito" | "correlacao" }): Promise<BscRelacao> {
+    const patch: Record<string, unknown> = {};
+    if (data.justificativa !== undefined) patch.justificativa = data.justificativa;
+    if (data.tipo !== undefined) patch.tipo = data.tipo;
+    if (Object.keys(patch).length === 0) {
+      const existing = await db.select().from(bscRelacoes).where(and(eq(bscRelacoes.id, id), eq(bscRelacoes.empresaId, empresaId)));
+      if (!existing[0]) throw new Error("Recurso não encontrado ou acesso negado");
+      return existing[0];
+    }
+    const result = await db.update(bscRelacoes).set(patch).where(and(eq(bscRelacoes.id, id), eq(bscRelacoes.empresaId, empresaId))).returning();
     if (!result[0]) throw new Error("Recurso não encontrado ou acesso negado");
     return result[0];
   }

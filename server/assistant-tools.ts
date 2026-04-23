@@ -72,6 +72,7 @@ export type ToolName =
   | "atualizar_bloco_bmc"
   | "arquivar_bloco_bmc"
   | "criar_relacao_bsc"
+  | "atualizar_relacao_bsc"
   | "remover_relacao_bsc"
   | "criar_cenario"
   | "atualizar_cenario"
@@ -5305,6 +5306,65 @@ const criarRelacaoBsc: ToolDefinition<CriarRelacaoBscParams> = {
   statusLabel: "Criando relação BSC…",
 };
 
+const atualizarRelacaoBscSchema = z.object({
+  relacaoId: z.string().min(8),
+  tipo: z.enum(TIPOS_RELACAO_BSC),
+});
+type AtualizarRelacaoBscParams = z.infer<typeof atualizarRelacaoBscSchema>;
+const atualizarRelacaoBsc: ToolDefinition<AtualizarRelacaoBscParams> = {
+  name: "atualizar_relacao_bsc",
+  description:
+    "Altera o tipo de uma relação existente no Mapa BSC (causa_efeito ou correlacao). Use quando o usuário pedir para 'mudar', 'corrigir' ou 'trocar' o tipo de uma relação já existente entre dois objetivos.",
+  paramsSchema: atualizarRelacaoBscSchema,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["relacaoId", "tipo"],
+    properties: {
+      relacaoId: { type: "string", description: "ID real da relação BSC." },
+      tipo: { type: "string", enum: [...TIPOS_RELACAO_BSC], description: "Novo tipo: causa_efeito ou correlacao." },
+    },
+  },
+  preview: (p) => ({
+    titulo: "Alterar tipo de relação no Mapa BSC",
+    descricao: `Vamos mudar o tipo desta relação para ${p.tipo === "causa_efeito" ? "causa-efeito" : "correlação"}.`,
+    campos: [
+      { label: "Relação", valor: p.relacaoId },
+      { label: "Novo tipo", valor: p.tipo === "causa_efeito" ? "causa-efeito" : "correlação" },
+    ],
+    ctaConfirmar: "Atualizar",
+    ctaIgnorar: "Manter",
+    ctaAjustar: "Ajustar",
+  }),
+  apply: async (p, ctx) => {
+    const existentes = await storage.getBscRelacoes(ctx.empresaId);
+    const existing = existentes.find((r) => r.id === p.relacaoId);
+    if (!existing) throw new Error("Relação BSC não encontrada nesta empresa.");
+    const updated = await storage.updateBscRelacao(p.relacaoId, ctx.empresaId, { tipo: p.tipo });
+    return {
+      resumo: `Relação atualizada para ${p.tipo === "causa_efeito" ? "causa-efeito" : "correlação"}.`,
+      dados: { id: updated.id, tipo: updated.tipo },
+      rota: "/mapa-bsc",
+      entidadeTipo: "bsc_relacao",
+      entidadeId: updated.id,
+    };
+  },
+  enrichPreview: async (preview, p, ctx) => {
+    const existentes = await storage.getBscRelacoes(ctx.empresaId);
+    const existing = existentes.find((r) => r.id === p.relacaoId);
+    if (!existing) return preview;
+    const tipoAnterior = (existing.tipo as "causa_efeito" | "correlacao") ?? "causa_efeito";
+    const campos = (preview.campos ?? []).map((c) =>
+      c.label === "Novo tipo"
+        ? { ...c, valorAnterior: tipoAnterior === "causa_efeito" ? "causa-efeito" : "correlação" }
+        : c,
+    );
+    return { ...preview, campos };
+  },
+  formRota: "/mapa-bsc",
+  statusLabel: "Atualizando relação BSC…",
+};
+
 const removerRelacaoBscSchema = z.object({
   relacaoId: z.string().min(8),
 });
@@ -6036,6 +6096,7 @@ export const TOOLS: Record<ToolName, ToolDefinition<unknown>> = {
   atualizar_bloco_bmc: wrap(atualizarBlocoBmc),
   arquivar_bloco_bmc: wrap(arquivarBlocoBmc),
   criar_relacao_bsc: wrap(criarRelacaoBsc),
+  atualizar_relacao_bsc: wrap(atualizarRelacaoBsc),
   remover_relacao_bsc: wrap(removerRelacaoBsc),
   criar_cenario: wrap(criarCenario),
   atualizar_cenario: wrap(atualizarCenario),
@@ -6095,6 +6156,7 @@ const TOOLS_EXECUTORAS: ReadonlySet<ToolName> = new Set<ToolName>([
   "atualizar_bloco_bmc",
   "arquivar_bloco_bmc",
   "criar_relacao_bsc",
+  "atualizar_relacao_bsc",
   "remover_relacao_bsc",
   "criar_cenario",
   "atualizar_cenario",
@@ -6542,6 +6604,7 @@ export const STATUS_LABELS: Readonly<Record<string, string>> = {
   atualizar_bloco_bmc: "Atualizando BMC…",
   arquivar_bloco_bmc: "Arquivando bloco do BMC…",
   criar_relacao_bsc: "Conectando objetivos no Mapa BSC…",
+  atualizar_relacao_bsc: "Atualizando relação BSC…",
   remover_relacao_bsc: "Removendo relação do Mapa BSC…",
   criar_cenario: "Registrando cenário…",
   atualizar_cenario: "Atualizando cenário…",

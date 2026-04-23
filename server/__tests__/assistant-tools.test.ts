@@ -116,6 +116,19 @@ vi.mock("../storage", () => {
       fake.bscRelacoes.set(row.id, row);
       return row;
     }),
+    updateBscRelacao: vi.fn(async (
+      id: string,
+      empresaId: string,
+      data: { justificativa?: string | null; tipo?: "causa_efeito" | "correlacao" },
+    ) => {
+      const row = fake.bscRelacoes.get(id);
+      if (!row || row.empresaId !== empresaId) {
+        throw new Error("Recurso não encontrado ou acesso negado");
+      }
+      const updated = { ...row, ...data } as BscRelacao;
+      fake.bscRelacoes.set(id, updated);
+      return updated;
+    }),
     deleteBscRelacao: vi.fn(async (id: string, empresaId: string) => {
       const row = fake.bscRelacoes.get(id);
       if (row && row.empresaId === empresaId) fake.bscRelacoes.delete(id);
@@ -514,6 +527,58 @@ describe("criar_relacao_bsc", () => {
     await expect(tool("criar_relacao_bsc").apply(p2, ctxA)).rejects.toThrow(/já existe/i);
 
     expect(fake.bscRelacoes.size).toBe(1);
+  });
+});
+
+// ─── 7b. atualizar_relacao_bsc ──────────────────────────────────────────
+describe("atualizar_relacao_bsc", () => {
+  it("rejeita tipo fora do enum", () => {
+    expect(() =>
+      parse("atualizar_relacao_bsc", { relacaoId: "12345678-aaaa", tipo: "x" }),
+    ).toThrow();
+  });
+
+  it("preview lista o novo tipo", () => {
+    const p = parse("atualizar_relacao_bsc", {
+      relacaoId: "12345678-aaaa",
+      tipo: "correlacao",
+    });
+    const preview = tool("atualizar_relacao_bsc").preview(p);
+    const labels = (preview.campos ?? []).map((c) => c.label);
+    expect(labels).toEqual(expect.arrayContaining(["Novo tipo"]));
+  });
+
+  it("apply altera o tipo da relação", async () => {
+    const a = seedObjetivo(EMPRESA_A, "NPS");
+    const b = seedObjetivo(EMPRESA_A, "Receita");
+    const created = await tool("criar_relacao_bsc").apply(
+      parse("criar_relacao_bsc", { origemId: a.id, destinoId: b.id, tipo: "causa_efeito" }),
+      ctxA,
+    );
+    const id = created.entidadeId!;
+    expect(fake.bscRelacoes.get(id)?.tipo).toBe("causa_efeito");
+    await tool("atualizar_relacao_bsc").apply(
+      parse("atualizar_relacao_bsc", { relacaoId: id, tipo: "correlacao" }),
+      ctxA,
+    );
+    expect(fake.bscRelacoes.get(id)?.tipo).toBe("correlacao");
+  });
+
+  it("apply rejeita relação de outra empresa", async () => {
+    const fakeId = randomUUID();
+    fake.bscRelacoes.set(fakeId, {
+      id: fakeId,
+      empresaId: EMPRESA_B,
+      origemId: randomUUID(),
+      destinoId: randomUUID(),
+      tipo: "causa_efeito",
+      justificativa: null,
+      criadoEm: new Date(),
+    });
+    const p = parse("atualizar_relacao_bsc", { relacaoId: fakeId, tipo: "correlacao" });
+    await expect(tool("atualizar_relacao_bsc").apply(p, ctxA)).rejects.toThrow(
+      /não encontrada/i,
+    );
   });
 });
 

@@ -491,6 +491,10 @@ export function AssistantChat({
 
     let lastFinalArrived = false;
     let conversaIdLocal = conversaId;
+    // Pequena pausa antes de aplicar a resposta final, para o usuário ter
+    // tempo de ler o que o Bizzy estava "pensando"/streamando antes do
+    // conteúdo ser substituído pela resposta pronta.
+    let pendingFinalize: Promise<void> = Promise.resolve();
     try {
       const resp = await fetch("/api/ai/assistente", {
         method: "POST",
@@ -547,22 +551,28 @@ export function AssistantChat({
               sessionStorage.setItem(SESSION_KEY, f.conversaId);
             } catch {}
           }
-          setMessages((prev) => {
-            const next = [...prev];
-            const cur = next[idxBalao];
-            if (cur && cur.role === "assistant") {
-              next[idxBalao] = {
-                ...cur,
-                content: f.resposta || cur.content,
-                acoes: f.acoes,
-                propostas: f.propostas,
-              };
-            }
-            return next;
+          // Aguarda 1s antes de substituir o que estava em streaming pelo
+          // texto final, para o usuário conseguir ler o "raciocínio".
+          pendingFinalize = new Promise<void>((resolve) => {
+            setTimeout(() => {
+              setMessages((prev) => {
+                const next = [...prev];
+                const cur = next[idxBalao];
+                if (cur && cur.role === "assistant") {
+                  next[idxBalao] = {
+                    ...cur,
+                    content: f.resposta || cur.content,
+                    acoes: f.acoes,
+                    propostas: f.propostas,
+                  };
+                }
+                return next;
+              });
+              planoAtivoQuery.refetch();
+              queryClient.invalidateQueries({ queryKey: ["/api/ai/conversas"] });
+              resolve();
+            }, 1000);
           });
-          planoAtivoQuery.refetch();
-          // Atualiza lista de conversas (nova conversa pode ter sido criada).
-          queryClient.invalidateQueries({ queryKey: ["/api/ai/conversas"] });
         } else if (event === "error") {
           const e = data as { message?: string };
           setMessages((prev) => {
@@ -636,6 +646,9 @@ export function AssistantChat({
         });
       }
     } finally {
+      // Espera a finalização atrasada (1s) terminar antes de limpar os
+      // indicadores de loading/streaming, para o usuário ler o raciocínio.
+      try { await pendingFinalize; } catch { /* ignore */ }
       abortRef.current = null;
       setIsLoading(false);
       setStreamingIndex(null);

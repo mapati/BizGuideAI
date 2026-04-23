@@ -264,8 +264,62 @@ function similaridadeTitulos(a: string, b: string): number {
   return Math.max(jaccard, containment);
 }
 
-const SIMILARIDADE_LIMITE_INICIATIVA = 0.6;
+const SIMILARIDADE_LIMITE_PADRAO = 0.6;
 
+// ── Task #335 — Helpers genéricos de detecção de duplicatas ────────────
+// `buscarSimilares` reaproveita `similaridadeTitulos` para qualquer
+// entidade que tenha um campo de título/nome. Cada wrapper específico
+// (iniciativas, OKRs, KRs, indicadores, riscos, oportunidades, SWOT,
+// PESTEL) carrega sua lista, filtra itens terminais/arquivados e
+// delega aqui. Mantém a estratégia da Task #333 (jaccard ∪ containment,
+// limiar 0.6) para preferir alarme falso → desambiguação.
+export interface EntidadeSimilarMatch {
+  id: string;
+  titulo: string;
+  contexto?: string; // ex.: "status=identificado" ou "perspectiva=Financeira"
+  similaridade: number;
+}
+
+interface CandidatoBruto {
+  id: string;
+  titulo: string;
+  contexto?: string;
+}
+
+export function buscarSimilares(
+  novoTitulo: string,
+  candidatos: CandidatoBruto[],
+  opts: { limite?: number; threshold?: number } = {},
+): EntidadeSimilarMatch[] {
+  const limite = opts.limite ?? 3;
+  const threshold = opts.threshold ?? SIMILARIDADE_LIMITE_PADRAO;
+  const matches: EntidadeSimilarMatch[] = [];
+  for (const c of candidatos) {
+    const sim = similaridadeTitulos(novoTitulo, c.titulo);
+    if (sim >= threshold) {
+      matches.push({ id: c.id, titulo: c.titulo, contexto: c.contexto, similaridade: sim });
+    }
+  }
+  matches.sort((x, y) => y.similaridade - x.similaridade);
+  return matches.slice(0, limite);
+}
+
+export class EntidadeDuplicadaError extends Error {
+  constructor(
+    public entidadeRotulo: string,
+    public candidatos: EntidadeSimilarMatch[],
+  ) {
+    const lista = candidatos
+      .map((c) => `• "${c.titulo}" (id=${c.id}${c.contexto ? `, ${c.contexto}` : ""})`)
+      .join("\n");
+    super(
+      `Já existe ${entidadeRotulo} parecido(a) nesta empresa. Em vez de criar um(a) novo(a), atualize/arquive um dos existentes ou pergunte ao usuário qual ele quis dizer:\n${lista}`,
+    );
+    this.name = "EntidadeDuplicadaError";
+  }
+}
+
+// ── Iniciativas (Task #333) ────────────────────────────────────────────
 export interface IniciativaSimilarMatch {
   id: string;
   titulo: string;
@@ -276,14 +330,13 @@ export interface IniciativaSimilarMatch {
 /**
  * Retorna até 3 iniciativas ATIVAS (não concluida/cancelada) da mesma
  * empresa cujo título tem similaridade ≥ limite com o novo título.
- * Ordenado por similaridade descendente.
+ * Mantida com tipo próprio por compatibilidade com chamadas existentes.
  */
 export async function buscarIniciativasSimilares(
   empresaId: string,
   novoTitulo: string,
   opts: { limite?: number } = {},
 ): Promise<IniciativaSimilarMatch[]> {
-  const limite = opts.limite ?? 3;
   // Status terminais a ignorar: cobre formas canônicas + variantes legadas
   // com acento ("concluída") e formas históricas ("encerrada", "arquivada").
   const STATUS_TERMINAIS = new Set([
@@ -292,15 +345,17 @@ export async function buscarIniciativasSimilares(
   try {
     const todas = await storage.getIniciativas(empresaId);
     const ativas = todas.filter((i) => !STATUS_TERMINAIS.has(i.status));
-    const matches: IniciativaSimilarMatch[] = [];
-    for (const i of ativas) {
-      const sim = similaridadeTitulos(novoTitulo, i.titulo);
-      if (sim >= SIMILARIDADE_LIMITE_INICIATIVA) {
-        matches.push({ id: i.id, titulo: i.titulo, status: i.status, similaridade: sim });
-      }
-    }
-    matches.sort((x, y) => y.similaridade - x.similaridade);
-    return matches.slice(0, limite);
+    const matches = buscarSimilares(
+      novoTitulo,
+      ativas.map((i) => ({ id: i.id, titulo: i.titulo, contexto: `status=${i.status}` })),
+      opts,
+    );
+    return matches.map((m) => ({
+      id: m.id,
+      titulo: m.titulo,
+      status: m.contexto?.replace(/^status=/, "") ?? "",
+      similaridade: m.similaridade,
+    }));
   } catch {
     return [];
   }
@@ -316,6 +371,236 @@ export class IniciativaDuplicadaError extends Error {
     );
     this.name = "IniciativaDuplicadaError";
   }
+}
+
+// ── OKRs / Objetivos ───────────────────────────────────────────────────
+export async function buscarObjetivosSimilares(
+  empresaId: string,
+  novoTitulo: string,
+): Promise<EntidadeSimilarMatch[]> {
+  try {
+    const objetivos = await storage.getObjetivos(empresaId);
+    const ativos = objetivos.filter((o) => !o.encerrado);
+    return buscarSimilares(
+      novoTitulo,
+      ativos.map((o) => ({
+        id: o.id,
+        titulo: o.titulo,
+        contexto: `perspectiva=${o.perspectiva}`,
+      })),
+    );
+  } catch { return []; }
+}
+
+// ── KRs (escopo: dentro do MESMO objetivo) ─────────────────────────────
+export async function buscarKrsSimilares(
+  empresaId: string,
+  objetivoId: string,
+  novaMetrica: string,
+): Promise<EntidadeSimilarMatch[]> {
+  try {
+    const krs = await storage.getResultadosChave(objetivoId, empresaId);
+    return buscarSimilares(
+      novaMetrica,
+      krs.map((k) => ({
+        id: k.id,
+        titulo: k.metrica,
+        contexto: `alvo=${k.valorAlvo}`,
+      })),
+    );
+  } catch { return []; }
+}
+
+// ── Indicadores (KPIs) ─────────────────────────────────────────────────
+export async function buscarIndicadoresSimilares(
+  empresaId: string,
+  novoNome: string,
+): Promise<EntidadeSimilarMatch[]> {
+  try {
+    const lista = await storage.getIndicadores(empresaId);
+    return buscarSimilares(
+      novoNome,
+      lista.map((i) => ({
+        id: i.id,
+        titulo: i.nome,
+        contexto: `perspectiva=${i.perspectiva}`,
+      })),
+    );
+  } catch { return []; }
+}
+
+// ── Riscos (ignora terminais: eliminado/mitigado) ──────────────────────
+export async function buscarRiscosSimilares(
+  empresaId: string,
+  novaDescricao: string,
+): Promise<EntidadeSimilarMatch[]> {
+  const STATUS_TERMINAIS = new Set(["eliminado", "mitigado"]);
+  try {
+    const lista = await storage.getRiscos(empresaId);
+    const ativos = lista.filter((r) => !STATUS_TERMINAIS.has(r.status));
+    return buscarSimilares(
+      novaDescricao,
+      ativos.map((r) => ({
+        id: r.id,
+        titulo: r.descricao,
+        contexto: `categoria=${r.categoria}, status=${r.status}`,
+      })),
+    );
+  } catch { return []; }
+}
+
+// ── Oportunidades de crescimento (ignora arquivadas) ───────────────────
+export async function buscarOportunidadesSimilares(
+  empresaId: string,
+  novoTitulo: string,
+): Promise<EntidadeSimilarMatch[]> {
+  try {
+    const lista = await storage.getOportunidadesCrescimento(empresaId);
+    const ativas = lista.filter((o) => (o as { status?: string }).status !== "arquivado");
+    return buscarSimilares(
+      novoTitulo,
+      ativas.map((o) => ({
+        id: o.id,
+        titulo: o.titulo,
+        contexto: `tipo=${o.tipo}`,
+      })),
+    );
+  } catch { return []; }
+}
+
+// ── Itens SWOT (escopo: mesmo quadrante; ignora arquivados) ────────────
+export async function buscarItensSwotSimilares(
+  empresaId: string,
+  tipo: string,
+  novaDescricao: string,
+): Promise<EntidadeSimilarMatch[]> {
+  try {
+    const lista = await storage.getAnaliseSwot(empresaId);
+    const ativos = lista.filter(
+      (s) => s.tipo === tipo && (s as { status?: string }).status !== "arquivado",
+    );
+    return buscarSimilares(
+      novaDescricao,
+      ativos.map((s) => ({
+        id: s.id,
+        titulo: s.descricao,
+        contexto: `quadrante=${s.tipo}`,
+      })),
+    );
+  } catch { return []; }
+}
+
+// ── Fatores PESTEL (escopo: mesma dimensão; ignora arquivados) ─────────
+export async function buscarFatoresPestelSimilares(
+  empresaId: string,
+  tipo: string,
+  novaDescricao: string,
+): Promise<EntidadeSimilarMatch[]> {
+  try {
+    const lista = await storage.getFatoresPestel(empresaId);
+    const ativos = lista.filter(
+      (f) => f.tipo === tipo && (f as { status?: string }).status !== "arquivado",
+    );
+    return buscarSimilares(
+      novaDescricao,
+      ativos.map((f) => ({
+        id: f.id,
+        titulo: f.descricao,
+        contexto: `dimensao=${f.tipo}`,
+      })),
+    );
+  } catch { return []; }
+}
+
+// ── Roteador: descobre duplicatas para uma tool de criação ─────────────
+// Usado tanto pela pré-validação em `registrarProposta` quanto pela
+// defesa em profundidade dentro dos `apply()`. Retorna `null` quando
+// não há duplicata (ou a tool não está coberta).
+interface DuplicidadeInfo {
+  entidadeRotulo: string;
+  tituloNovo: string;
+  candidatos: EntidadeSimilarMatch[];
+}
+
+export async function detectarDuplicidade(
+  toolName: string,
+  data: unknown,
+  empresaId: string,
+): Promise<DuplicidadeInfo | null> {
+  if (!data || typeof data !== "object") return null;
+  const d = data as Record<string, unknown>;
+  let entidadeRotulo = "";
+  let tituloNovo = "";
+  let candidatos: EntidadeSimilarMatch[] = [];
+  switch (toolName) {
+    case "criar_iniciativa": {
+      tituloNovo = String(d.titulo ?? "");
+      entidadeRotulo = "iniciativa";
+      const matches = await buscarIniciativasSimilares(empresaId, tituloNovo);
+      candidatos = matches.map((m) => ({
+        id: m.id,
+        titulo: m.titulo,
+        contexto: `status=${m.status}`,
+        similaridade: m.similaridade,
+      }));
+      break;
+    }
+    case "criar_okr":
+      tituloNovo = String(d.objetivoTitulo ?? "");
+      entidadeRotulo = "OKR (objetivo)";
+      candidatos = await buscarObjetivosSimilares(empresaId, tituloNovo);
+      break;
+    case "adicionar_kr_a_okr": {
+      tituloNovo = String(d.metrica ?? "");
+      entidadeRotulo = "meta (KR) neste OKR";
+      const objetivoId = String(d.objetivoId ?? "");
+      if (!objetivoId) return null;
+      candidatos = await buscarKrsSimilares(empresaId, objetivoId, tituloNovo);
+      break;
+    }
+    case "criar_indicador":
+      tituloNovo = String(d.nome ?? "");
+      entidadeRotulo = "indicador (KPI)";
+      candidatos = await buscarIndicadoresSimilares(empresaId, tituloNovo);
+      break;
+    case "criar_risco":
+      tituloNovo = String(d.descricao ?? "");
+      entidadeRotulo = "risco";
+      candidatos = await buscarRiscosSimilares(empresaId, tituloNovo);
+      break;
+    case "criar_oportunidade":
+      tituloNovo = String(d.titulo ?? "");
+      entidadeRotulo = "oportunidade de crescimento";
+      candidatos = await buscarOportunidadesSimilares(empresaId, tituloNovo);
+      break;
+    case "criar_item_swot": {
+      tituloNovo = String(d.descricao ?? "");
+      const tipo = String(d.tipo ?? "");
+      entidadeRotulo = `item SWOT (${tipo})`;
+      if (!tipo) return null;
+      candidatos = await buscarItensSwotSimilares(empresaId, tipo, tituloNovo);
+      break;
+    }
+    case "criar_fator_pestel": {
+      tituloNovo = String(d.descricao ?? "");
+      const tipo = String(d.tipo ?? "");
+      entidadeRotulo = `fator PESTEL (${tipo})`;
+      if (!tipo) return null;
+      candidatos = await buscarFatoresPestelSimilares(empresaId, tipo, tituloNovo);
+      break;
+    }
+    default:
+      return null;
+  }
+  if (!tituloNovo || candidatos.length === 0) return null;
+  return { entidadeRotulo, tituloNovo, candidatos };
+}
+
+function mensagemDuplicidade(info: DuplicidadeInfo): string {
+  const lista = info.candidatos
+    .map((c) => `• "${c.titulo}" (id=${c.id}${c.contexto ? `, ${c.contexto}` : ""})`)
+    .join("\n");
+  return `Já existe ${info.entidadeRotulo} parecido(a) nesta empresa — não criei "${String(info.tituloNovo).slice(0, 80)}" para evitar duplicidade. Candidatos:\n${lista}\nProponha atualizar/arquivar um deles ou pergunte ao usuário qual ele quis dizer.`;
 }
 
 // ---------- 1. criar_iniciativa ----------
@@ -372,9 +657,9 @@ const criarIniciativa: ToolDefinition<CriarIniciativaParams> = {
     ctaAjustar: "Ajustar",
   }),
   apply: async (p, ctx) => {
-    // Task #333 — Defesa em profundidade: bloqueia duplicata também no apply
-    // caso a pré-validação em registrarProposta não tenha sido executada
-    // (ex.: lote, briefing, retrocompatibilidade futura).
+    // Task #333/#335 — Defesa em profundidade: bloqueia duplicata também
+    // no apply caso a pré-validação em registrarProposta não tenha sido
+    // executada (ex.: lote, briefing, retrocompatibilidade futura).
     const candidatos = await buscarIniciativasSimilares(ctx.empresaId, p.titulo);
     if (candidatos.length > 0) {
       throw new IniciativaDuplicadaError(candidatos);
@@ -841,6 +1126,11 @@ const criarOkr: ToolDefinition<CriarOkrParams> = {
     ctaAjustar: "Ajustar",
   }),
   apply: async (p, ctx) => {
+    // Task #335 — defesa em profundidade contra OKR duplicado.
+    const dupOkr = await buscarObjetivosSimilares(ctx.empresaId, p.objetivoTitulo);
+    if (dupOkr.length > 0) {
+      throw new EntidadeDuplicadaError("OKR (objetivo)", dupOkr);
+    }
     const objetivo = await storage.createObjetivo({
       empresaId: ctx.empresaId,
       titulo: p.objetivoTitulo,
@@ -1021,6 +1311,12 @@ const adicionarKrAOkr: ToolDefinition<AdicionarKrAOkrParams> = {
     ctaAjustar: "Ajustar",
   }),
   apply: async (p, ctx) => {
+    // Task #335 — defesa em profundidade contra KR duplicado dentro do
+    // mesmo objetivo (ex.: "NPS ≥ 70" e "NPS acima de 70").
+    const dupKr = await buscarKrsSimilares(ctx.empresaId, p.objetivoId, p.metrica);
+    if (dupKr.length > 0) {
+      throw new EntidadeDuplicadaError("meta (KR) neste OKR", dupKr);
+    }
     // Task #208 — valida tenant do indicador-fonte antes de gravar.
     let indicadorFonteIdSafe: string | undefined = undefined;
     if (p.indicadorFonteId) {
@@ -1465,6 +1761,11 @@ const criarIndicador: ToolDefinition<CriarIndicadorParams> = {
     ctaAjustar: "Ajustar",
   }),
   apply: async (p, ctx) => {
+    // Task #335 — defesa em profundidade contra indicador duplicado.
+    const dupInd = await buscarIndicadoresSimilares(ctx.empresaId, p.nome);
+    if (dupInd.length > 0) {
+      throw new EntidadeDuplicadaError("indicador (KPI)", dupInd);
+    }
     const created = await storage.createIndicador({
       empresaId: ctx.empresaId,
       perspectiva: p.perspectiva,
@@ -3795,6 +4096,11 @@ const criarRisco: ToolDefinition<CriarRiscoParams> = {
     ctaAjustar: "Ajustar",
   }),
   apply: async (p, ctx) => {
+    // Task #335 — defesa em profundidade contra risco duplicado.
+    const dupRisco = await buscarRiscosSimilares(ctx.empresaId, p.descricao);
+    if (dupRisco.length > 0) {
+      throw new EntidadeDuplicadaError("risco", dupRisco);
+    }
     let origemSwotIdSafe: string | undefined = undefined;
     if (p.origemSwotId) {
       const swots = await storage.getAnaliseSwot(ctx.empresaId);
@@ -4032,6 +4338,12 @@ const criarItemSwot: ToolDefinition<CriarItemSwotParams> = {
     ctaAjustar: "Ajustar",
   }),
   apply: async (p, ctx) => {
+    // Task #335 — defesa em profundidade contra item SWOT duplicado
+    // dentro do mesmo quadrante.
+    const dupSwot = await buscarItensSwotSimilares(ctx.empresaId, p.tipo, p.descricao);
+    if (dupSwot.length > 0) {
+      throw new EntidadeDuplicadaError(`item SWOT (${p.tipo})`, dupSwot);
+    }
     const created = await storage.createAnaliseSwot({
       empresaId: ctx.empresaId,
       tipo: p.tipo,
@@ -4217,6 +4529,12 @@ const criarFatorPestel: ToolDefinition<CriarFatorPestelParams> = {
     ctaAjustar: "Ajustar",
   }),
   apply: async (p, ctx) => {
+    // Task #335 — defesa em profundidade contra fator PESTEL duplicado
+    // dentro da mesma dimensão.
+    const dupPestel = await buscarFatoresPestelSimilares(ctx.empresaId, p.tipo, p.descricao);
+    if (dupPestel.length > 0) {
+      throw new EntidadeDuplicadaError(`fator PESTEL (${p.tipo})`, dupPestel);
+    }
     const created = await storage.createFatorPestel({
       empresaId: ctx.empresaId,
       tipo: p.tipo,
@@ -4556,6 +4874,11 @@ const criarOportunidade: ToolDefinition<CriarOportunidadeParams> = {
     ctaAjustar: "Ajustar",
   }),
   apply: async (p, ctx) => {
+    // Task #335 — defesa em profundidade contra oportunidade duplicada.
+    const dupOp = await buscarOportunidadesSimilares(ctx.empresaId, p.titulo);
+    if (dupOp.length > 0) {
+      throw new EntidadeDuplicadaError("oportunidade de crescimento", dupOp);
+    }
     let estrategiaId: string | null = null;
     if (p.estrategiaId) {
       const est = await storage.getEstrategia(p.estrategiaId);
@@ -6535,24 +6858,15 @@ export async function registrarProposta(opts: {
     };
   }
 
-  // Task #333 — Pré-validação determinística de duplicidade para
-  // criar_iniciativa: evita gerar card de proposta quando já existe item
-  // muito parecido na mesma empresa. O LLM, ao ver o erro estruturado,
-  // deve propor atualizar/encerrar/abrir um dos candidatos.
-  if (tool.name === "criar_iniciativa") {
-    const tituloNovo = (parsed.data as { titulo?: string }).titulo;
-    if (typeof tituloNovo === "string" && tituloNovo.length > 0) {
-      const candidatos = await buscarIniciativasSimilares(opts.empresaId, tituloNovo);
-      if (candidatos.length > 0) {
-        const lista = candidatos
-          .map((c) => `• "${c.titulo}" (id=${c.id}, status=${c.status})`)
-          .join("\n");
-        return {
-          ok: false,
-          mensagem: `Já existe iniciativa parecida nesta empresa — não criei "${tituloNovo}" para evitar duplicidade. Candidatos:\n${lista}\nProponha atualizar/encerrar um deles ou pergunte ao usuário qual ele quis dizer.`,
-        };
-      }
-    }
+  // Task #333/#335 — Pré-validação determinística de duplicidade para
+  // todas as tools de criação cobertas (iniciativa, OKR, KR, indicador,
+  // risco, oportunidade, item SWOT, fator PESTEL). Evita gerar card de
+  // proposta quando já existe item muito parecido na mesma empresa.
+  // O LLM, ao ver o erro estruturado, deve propor atualizar/arquivar/
+  // abrir um dos candidatos ou pedir desambiguação ao usuário.
+  const dup = await detectarDuplicidade(tool.name, parsed.data, opts.empresaId);
+  if (dup) {
+    return { ok: false, mensagem: mensagemDuplicidade(dup) };
   }
 
   let preview = tool.preview(parsed.data);

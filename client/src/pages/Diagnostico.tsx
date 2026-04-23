@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Activity,
   AlertTriangle,
@@ -168,8 +170,22 @@ function PctBadge({ pct }: { pct: number | null }) {
 
 export default function Diagnostico() {
   const [gapAlvo, setGapAlvo] = useState<GapEntidade | null>(null);
+  const [diasSemCheckin, setDiasSemCheckin] = useState<number>(21);
+  const [pctMinimo, setPctMinimo] = useState<number>(30);
+  const [diasInput, setDiasInput] = useState<string>("21");
+  const [pctInput, setPctInput] = useState<string>("30");
   const lacunasQ = useQuery<LacunasResponse>({ queryKey: ["/api/diagnostico/lacunas-cascata"] });
-  const descarriladosQ = useQuery<DescarriladosResponse>({ queryKey: ["/api/diagnostico/descarrilados"] });
+  const descarriladosQ = useQuery<DescarriladosResponse>({
+    queryKey: ["/api/diagnostico/descarrilados", diasSemCheckin, pctMinimo],
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/diagnostico/descarrilados?diasSemCheckin=${diasSemCheckin}&pctMinimo=${pctMinimo}`,
+        { credentials: "include" },
+      );
+      if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+      return res.json();
+    },
+  });
   const consistenciaQ = useQuery<ConsistenciaResponse>({ queryKey: ["/api/diagnostico/consistencia"] });
   const cicloQ = useQuery<CicloResponse>({ queryKey: ["/api/diagnostico/ciclo"] });
   const gapQ = useQuery<GapResponse>({
@@ -197,6 +213,32 @@ export default function Diagnostico() {
     .filter((x): x is string => !!x)
     .sort()
     .pop();
+
+  function aplicarCriterios() {
+    const dias = Number(diasInput);
+    const pct = Number(pctInput);
+    if (Number.isFinite(dias) && dias >= 1 && dias <= 365) {
+      setDiasSemCheckin(Math.floor(dias));
+    } else {
+      setDiasInput(String(diasSemCheckin));
+    }
+    if (Number.isFinite(pct) && pct >= 0 && pct <= 100) {
+      setPctMinimo(pct);
+    } else {
+      setPctInput(String(pctMinimo));
+    }
+  }
+
+  function resetarCriterios() {
+    setDiasSemCheckin(21);
+    setPctMinimo(30);
+    setDiasInput("21");
+    setPctInput("30");
+  }
+
+  const criteriosAlterados = diasSemCheckin !== 21 || pctMinimo !== 30;
+  const criteriosPendentes =
+    Number(diasInput) !== diasSemCheckin || Number(pctInput) !== pctMinimo;
 
   function atualizarTudo() {
     queryClient.invalidateQueries({ queryKey: ["/api/diagnostico/lacunas-cascata"] });
@@ -365,6 +407,71 @@ export default function Diagnostico() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
+            <div className="rounded-md border p-3 space-y-3" data-testid="form-criterios-descarrilados">
+              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Calibrar critérios
+              </div>
+              <div className="flex flex-row items-end gap-3 flex-wrap">
+                <div className="space-y-1">
+                  <Label htmlFor="input-dias-sem-checkin" className="text-xs">
+                    Dias sem check-in
+                  </Label>
+                  <Input
+                    id="input-dias-sem-checkin"
+                    type="number"
+                    min={1}
+                    max={365}
+                    value={diasInput}
+                    onChange={(e) => setDiasInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") aplicarCriterios();
+                    }}
+                    className="w-28"
+                    data-testid="input-dias-sem-checkin"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="input-pct-minimo" className="text-xs">
+                    % mínimo de progresso
+                  </Label>
+                  <Input
+                    id="input-pct-minimo"
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={pctInput}
+                    onChange={(e) => setPctInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") aplicarCriterios();
+                    }}
+                    className="w-28"
+                    data-testid="input-pct-minimo"
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  onClick={aplicarCriterios}
+                  disabled={!criteriosPendentes}
+                  data-testid="button-aplicar-criterios"
+                >
+                  Aplicar
+                </Button>
+                {criteriosAlterados && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={resetarCriterios}
+                    data-testid="button-resetar-criterios"
+                  >
+                    Restaurar padrão
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Padrão: 21 dias sem check-in e 30% de progresso médio.
+              </p>
+            </div>
             {descarriladosQ.isLoading ? (
               <Skeleton className="h-32 w-full" />
             ) : descarriladosQ.data && descarriladosQ.data.descarrilados.length > 0 ? (
